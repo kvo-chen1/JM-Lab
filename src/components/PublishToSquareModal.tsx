@@ -526,7 +526,7 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.95, y: 20, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className={`max-w-md w-full max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} border`}
+            className={`max-w-md w-full max-h-[75vh] overflow-y-auto rounded-2xl shadow-2xl ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} border`}
           >
             {/* 头部 */}
             <div className={`p-6 border-b ${isDark ? 'border-gray-800/50' : 'border-gray-200'} flex items-center justify-between`}>

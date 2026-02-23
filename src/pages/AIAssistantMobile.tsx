@@ -1541,6 +1541,28 @@ export default function AIAssistantMobile() {
         ref={mainRef}
         className={`flex-1 overflow-y-auto overflow-x-hidden px-4 pt-14 pb-32 ${colors.bg.primary} relative w-full`}
       >
+        {/* 滑动到底部按钮 */}
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+          }}
+          className={`fixed right-4 z-30 w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+            isDark 
+              ? 'bg-violet-600 text-white hover:bg-violet-500 shadow-lg shadow-violet-900/50' 
+              : 'bg-violet-500 text-white hover:bg-violet-600 shadow-lg shadow-violet-500/30'
+          }`}
+          style={{ bottom: '140px' }}
+          title="滑动到底部"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-6 h-6">
+            <path d="M12 5v14M19 12l-7 7-7-7"/>
+          </svg>
+        </motion.button>
+
         <div className="w-full max-w-full space-y-3">
           <AnimatePresence mode="popLayout">
             {messages.map((message, index) => (

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useCreateStore } from '@/pages/create/hooks/useCreateStore';
 import { useTheme } from '@/hooks/useTheme';
 import { aiReviewService } from '@/services/aiReviewService';
+import { aiGenerationSaveService } from '@/services/aiGenerationSaveService';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 
@@ -32,6 +33,7 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
   }>>([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [activeTab, setActiveTab] = useState<'aiReviews' | 'drafts' | 'history'>('aiReviews');
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   useEffect(() => {
     console.log('[HistoryPanel] Component mounted');
@@ -40,34 +42,79 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
       const savedDrafts = JSON.parse(localStorage.getItem('CREATE_DRAFTS') || '[]');
       console.log('[HistoryPanel] Loaded drafts:', savedDrafts.length);
       setDrafts(savedDrafts);
-
-      // Load history from localStorage
-      const savedHistoryRaw = localStorage.getItem('CREATE_HISTORY');
-      console.log('[HistoryPanel] Raw history from localStorage:', savedHistoryRaw);
-
-      const savedHistory = JSON.parse(savedHistoryRaw || '[]');
-      console.log('[HistoryPanel] Parsed history:', savedHistory.length, 'items');
-
-      // 验证历史记录数据格式
-      const validHistory = savedHistory.filter((item: any) => {
-        const isValid = item && item.id && item.thumbnail && item.timestamp;
-        if (!isValid) {
-          console.warn('[HistoryPanel] Invalid history item:', item);
-        }
-        return isValid;
-      });
-
-      if (validHistory.length !== savedHistory.length) {
-        console.warn('[HistoryPanel] Filtered out', savedHistory.length - validHistory.length, 'invalid items');
-      }
-
-      setHistory(validHistory);
     } catch (e) {
-      console.error('[HistoryPanel] Failed to load drafts or history:', e);
-      setHistory([]);
+      console.error('[HistoryPanel] Failed to load drafts:', e);
       setDrafts([]);
     }
   }, []);
+
+  // 加载历史记录 - 优先从数据库加载，同时合并本地记录
+  useEffect(() => {
+    const loadHistory = async () => {
+      setIsLoadingHistory(true);
+      try {
+        // 1. 先从 localStorage 加载本地历史
+        const savedHistoryRaw = localStorage.getItem('CREATE_HISTORY');
+        console.log('[HistoryPanel] Raw history from localStorage:', savedHistoryRaw);
+        const localHistory = JSON.parse(savedHistoryRaw || '[]');
+        console.log('[HistoryPanel] Local history:', localHistory.length, 'items');
+
+        // 2. 如果用户已登录，从数据库加载历史记录
+        let dbHistory: any[] = [];
+        if (user?.id) {
+          console.log('[HistoryPanel] Loading history from database for user:', user.id);
+          try {
+            const dbRecords = await aiGenerationSaveService.getUserGenerations(user.id, { limit: 50 });
+            console.log('[HistoryPanel] Loaded from database:', dbRecords.length, 'records');
+            
+            // 转换数据库记录为历史记录格式
+            dbHistory = dbRecords.map(record => ({
+              id: `db-${record.id}`,
+              timestamp: record.createdAt ? new Date(record.createdAt).getTime() : Date.now(),
+              thumbnail: record.thumbnailUrl || record.resultUrl,
+              video: record.type === 'video' ? record.resultUrl : null,
+              type: record.type,
+              prompt: record.prompt,
+              stylePreset: record.metadata?.stylePreset || '',
+              source: 'database'
+            }));
+          } catch (dbError) {
+            console.error('[HistoryPanel] Failed to load from database:', dbError);
+          }
+        }
+
+        // 3. 合并本地和数据库历史记录（去重）
+        const allHistory = [...localHistory, ...dbHistory];
+        
+        // 去重：根据缩略图 URL 去重
+        const seenThumbnails = new Set<string>();
+        const uniqueHistory = allHistory.filter((item: any) => {
+          const thumbnail = item.thumbnail || item.video;
+          if (!thumbnail || seenThumbnails.has(thumbnail)) {
+            return false;
+          }
+          seenThumbnails.add(thumbnail);
+          return true;
+        });
+
+        // 按时间戳排序（最新的在前）
+        uniqueHistory.sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        // 限制数量
+        const finalHistory = uniqueHistory.slice(0, 50);
+
+        console.log('[HistoryPanel] Final history:', finalHistory.length, 'items (', localHistory.length, 'local +', dbHistory.length, 'db,', allHistory.length - uniqueHistory.length, 'duplicates removed)');
+        setHistory(finalHistory);
+      } catch (e) {
+        console.error('[HistoryPanel] Failed to load history:', e);
+        setHistory([]);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+  }, [user?.id]);
 
   // 加载AI点评记录
   useEffect(() => {
@@ -181,7 +228,7 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
             onClick={() => setActiveTab('history')}
             className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'history' ? (isDark ? 'border-blue-500 text-blue-400' : 'border-blue-600 text-blue-600') : (isDark ? 'border-transparent text-gray-400 hover:text-gray-200' : 'border-transparent text-gray-500 hover:text-gray-700')}`}
           >
-            历史记录 ({history.length})
+            历史记录 {isLoadingHistory ? <i className="fas fa-spinner fa-spin ml-1"></i> : `(${history.length})`}
           </button>
           <button
             onClick={() => setActiveTab('drafts')}
@@ -252,7 +299,12 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
               </div>
             )
           ) : activeTab === 'history' ? (
-            history.length > 0 ? (
+            isLoadingHistory ? (
+              <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+                <i className="fas fa-spinner fa-spin text-4xl mb-3 opacity-50"></i>
+                <p>加载历史记录...</p>
+              </div>
+            ) : history.length > 0 ? (
               <div className="space-y-3">
                 <div className="flex justify-end">
                   <button
@@ -380,7 +432,9 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
               <div className="flex flex-col items-center justify-center h-40 text-gray-400">
                 <i className="fas fa-history text-4xl mb-3 opacity-30"></i>
                 <p>暂无历史记录</p>
-                <p className="text-xs mt-1 opacity-60">修改纹样属性后会自动保存</p>
+                <p className="text-xs mt-1 opacity-60">
+                  {user?.id ? '登录后生成的作品会自动保存到云端' : '登录后可同步历史记录到云端'}
+                </p>
               </div>
             )
           ) : (

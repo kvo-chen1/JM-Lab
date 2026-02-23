@@ -1,9 +1,10 @@
 import { useState, useContext, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import postsApi, { Post, Comment, addComment, getWorkComments, checkUserFollowing, followUser, unfollowUser, getPostById, likePost, unlikePost, bookmarkPost, unbookmarkPost } from '@/services/postService';
+import MobileWorksGallery, { ArtworkItem } from './MobileWorksGallery';
 import { toast } from 'sonner';
 import {
   ChevronLeft,
@@ -14,6 +15,10 @@ import {
   Bookmark,
   Send,
   Image as ImageIcon,
+  MoreHorizontal,
+  Users,
+  Link,
+  ChevronRight,
 } from 'lucide-react';
 
 // 品牌色彩
@@ -38,6 +43,7 @@ export default function MobilePostDetail() {
   const [followLoading, setFollowLoading] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
+  const [showCommentDrawer, setShowCommentDrawer] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
@@ -45,11 +51,7 @@ export default function MobilePostDetail() {
   const [likeCount, setLikeCount] = useState(0);
   const [relatedPosts, setRelatedPosts] = useState<Post[]>([]);
 
-  // 滚动相关
-  const { scrollY } = useScroll();
-  const headerOpacity = useTransform(scrollY, [0, 200], [0, 1]);
-  const imageScale = useTransform(scrollY, [0, 200], [1, 0.9]);
-  const imageOpacity = useTransform(scrollY, [0, 200], [1, 0.5]);
+
 
   // 加载帖子详情
   useEffect(() => {
@@ -58,21 +60,34 @@ export default function MobilePostDetail() {
     const loadPost = async () => {
       setIsLoading(true);
       try {
-        const data = await getPostById(id, user?.id);
-        if (data) {
-          setPost(data);
-          setIsLiked(data.isLiked || false);
-          setIsBookmarked(data.isBookmarked || false);
-          setLikeCount(data.likes || 0);
+        // 首先尝试从后端 API 获取（类似 WorkDetail 的方式）
+        const allPosts = await postsApi.getPosts(undefined, user?.id);
+        const postData = allPosts.find(p => p.id === id);
+        
+        if (postData) {
+          setPost(postData);
+          setIsLiked(postData.isLiked || false);
+          setIsBookmarked(postData.isBookmarked || false);
+          setLikeCount(postData.likes || 0);
           
           // 加载评论
           loadComments(id);
           
           // 检查关注状态
-          const authorId = typeof data.author === 'object' ? data.author?.id : data.author;
+          const authorId = typeof postData.author === 'object' ? postData.author?.id : postData.author;
           if (authorId && user?.id) {
             const following = await checkUserFollowing(user.id, authorId);
             setIsFollowing(following);
+          }
+        } else {
+          // 如果找不到，尝试使用 getPostById
+          const data = await getPostById(id, user?.id);
+          if (data) {
+            setPost(data);
+            setIsLiked(data.isLiked || false);
+            setIsBookmarked(data.isBookmarked || false);
+            setLikeCount(data.likes || 0);
+            loadComments(id);
           }
         }
       } catch (error) {
@@ -93,7 +108,7 @@ export default function MobilePostDetail() {
         try {
           const all = await postsApi.getPosts();
           const related = all
-            .filter(p => p.id !== post.id)
+            .filter((p: Post) => p.id !== post.id)
             .sort(() => Math.random() - 0.5)
             .slice(0, 10);
           setRelatedPosts(related);
@@ -281,106 +296,105 @@ export default function MobilePostDetail() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'} pb-40`}>
-      {/* 顶部导航栏 */}
-      <motion.header
-        style={{ opacity: headerOpacity }}
-        className={`fixed top-0 left-0 right-0 z-40 backdrop-blur-xl border-b ${
-          isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'
-        }`}
-      >
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate(-1)}
-              className={`flex items-center justify-center w-10 h-10 rounded-xl ${
-                isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </motion.button>
-            <h1 className={`text-base font-bold truncate max-w-[200px] ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {post.title}
-            </h1>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowShareSheet(true)}
-              className={`flex items-center justify-center w-10 h-10 rounded-xl ${
-                isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              <Share2 className="w-5 h-5" />
-            </motion.button>
-          </div>
-        </div>
-      </motion.header>
-
       {/* 作品封面/媒体展示 */}
-      <motion.div
-        style={{ scale: imageScale, opacity: imageOpacity }}
-        className="relative"
-      >
+      <div className="relative w-full">
         {post.thumbnail ? (
           <div
-            className="relative aspect-square bg-gray-100 dark:bg-gray-800"
+            className="relative w-full bg-gray-50 dark:bg-black"
             onClick={() => setShowFullImage(true)}
           >
+            {/* 移动端返回按钮 */}
+            <button
+                onClick={() => navigate(-1)}
+                className="md:hidden absolute top-4 left-4 z-20 w-14 h-14 flex items-center justify-center rounded-full bg-white/95 dark:bg-black/70 text-gray-900 dark:text-white shadow-xl border border-gray-100 dark:border-gray-700"
+              >
+              <ChevronLeft className="w-8 h-8" strokeWidth={2.5} />
+            </button>
+            
             {isVideo && post.videoUrl ? (
-              <video
-                src={post.videoUrl}
-                poster={post.thumbnail}
-                className="w-full h-full object-cover"
-                controls
-                autoPlay
-                muted
-                loop
-                playsInline
-              />
+              <div className="w-full aspect-[4/5] flex items-center justify-center">
+                <video
+                  src={post.videoUrl}
+                  poster={post.thumbnail}
+                  className="w-full h-full object-cover"
+                  controls
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
+              </div>
             ) : (
-              <img
-                src={post.thumbnail}
-                alt={post.title}
-                className="w-full h-full object-cover"
-              />
+              <div className="w-full aspect-[4/5] cursor-zoom-in flex items-center justify-center overflow-hidden">
+                <img
+                  src={post.thumbnail}
+                  alt={post.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
             )}
-            {/* 渐变遮罩 */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-            {/* 返回按钮（浮动） */}
-            <motion.button
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(-1);
-              }}
-              className="absolute top-4 left-4 w-12 h-12 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white"
-            >
-              <ChevronLeft className="w-7 h-7" />
-            </motion.button>
-            {/* 分享按钮（浮动） */}
-            <motion.button
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowShareSheet(true);
-              }}
-              className="absolute top-4 right-4 w-12 h-12 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white"
-            >
-              <Share2 className="w-6 h-6" />
-            </motion.button>
           </div>
         ) : (
-          <div className={`aspect-square flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+          <div className={`aspect-[4/5] flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
             <ImageIcon className="w-20 h-20 text-gray-300 dark:text-gray-600" />
           </div>
         )}
-      </motion.div>
+      </div>
+
+      {/* Pinterest风格顶部操作栏 */}
+      <div className="px-4 py-4 flex items-center justify-between bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center gap-6">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLike();
+            }}
+            className="flex items-center gap-2 text-gray-800 dark:text-gray-200"
+          >
+            <Heart className={`w-8 h-8 ${isLiked ? 'fill-red-500 text-red-500' : 'text-gray-800 dark:text-gray-200'} transition-colors`} strokeWidth={1.5} />
+            <span className={`text-base font-semibold ${isLiked ? 'text-red-500' : ''}`}>{likeCount}</span>
+          </button>
+          <button
+            type="button"
+            className="flex items-center gap-2 text-gray-800 dark:text-gray-200"
+            onClick={() => setShowCommentDrawer(true)}
+          >
+            <MessageCircle className="w-8 h-8" strokeWidth={1.5} />
+            <span className="text-base font-semibold">{comments.length || post.commentCount || 0}</span>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowShareSheet(true);
+            }}
+            className="text-gray-800 dark:text-gray-200"
+          >
+            <Share2 className="w-7 h-7" strokeWidth={1.5} />
+          </button>
+          <button type="button" className="text-gray-800 dark:text-gray-200">
+            <MoreHorizontal className="w-7 h-7" strokeWidth={1.5} />
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleBookmark();
+          }}
+          className={`px-6 py-2.5 rounded-full font-semibold text-base transition-all ${
+            isBookmarked
+              ? 'bg-amber-500 text-white'
+              : 'bg-red-600 text-white hover:bg-red-700'
+          }`}
+        >
+          {isBookmarked ? '已收藏' : '收藏'}
+        </button>
+      </div>
 
       {/* 作品信息 */}
-      <div className="px-4 -mt-6 relative z-10">
+      <div className="px-4 mt-4 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -391,8 +405,15 @@ export default function MobilePostDetail() {
             {post.title}
           </h1>
 
+          {/* 作品描述 */}
+          {post.description && (
+            <p className={`text-sm leading-relaxed whitespace-pre-wrap mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              {post.description}
+            </p>
+          )}
+
           {/* 作者信息 */}
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3">
             {authorAvatar ? (
               <img
                 src={authorAvatar}
@@ -431,244 +452,65 @@ export default function MobilePostDetail() {
             )}
           </div>
 
-          {/* 统计信息 */}
-          <div className={`grid grid-cols-3 gap-4 p-3 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-            <div className="text-center">
-              <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {likeCount}
-              </p>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>点赞</p>
-            </div>
-            <div className="text-center">
-              <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {comments.length || post.commentCount || 0}
-              </p>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>评论</p>
-            </div>
-            <div className="text-center">
-              <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {post.shares || 0}
-              </p>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>分享</p>
-            </div>
-          </div>
         </motion.div>
       </div>
 
-      {/* 作品描述 */}
-      {post.description && (
-        <div className="px-4 mt-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className={`rounded-2xl p-4 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}
-          >
-            <h3 className={`text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              作品描述
-            </h3>
-            <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              {post.description}
-            </p>
-          </motion.div>
-        </div>
-      )}
-
-      {/* 评论区域 */}
-      <div className="px-4 mt-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className={`rounded-2xl p-4 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}
-        >
-          <h3 className={`text-sm font-semibold mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            评论 ({comments.length || post.commentCount || 0})
-          </h3>
-          
-          {commentsLoading ? (
-            <div className="py-8 text-center">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full mx-auto"
-              />
-            </div>
-          ) : comments.length === 0 ? (
-            <div className="py-8 text-center">
-              <MessageCircle className={`w-12 h-12 mx-auto mb-2 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>暂无评论</p>
-              <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>来抢沙发，发表你的看法吧</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {comments.slice(0, 5).map((comment) => (
-                <div key={comment.id} className="flex gap-3">
-                  {comment.authorAvatar ? (
-                    <img
-                      src={comment.authorAvatar}
-                      alt={comment.author || '用户'}
-                      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                      {(comment.author || '?').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {comment.author || '匿名用户'}
-                      </span>
-                      <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        {comment.date ? new Date(comment.date).toLocaleDateString('zh-CN') : ''}
-                      </span>
-                    </div>
-                    <p className={`text-sm mt-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {comment.content}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {comments.length > 5 && (
-                <button className="w-full py-2 text-sm text-red-500 font-medium">
-                  查看全部 {comments.length} 条评论
-                </button>
-              )}
-            </div>
-          )}
-        </motion.div>
-      </div>
-
-      {/* 相关推荐 - 两列瀑布流（自然交错） */}
+      {/* 相关推荐 - 使用 MobileWorksGallery 组件 */}
       {relatedPosts.length > 0 && (
-        <div className="px-4 mt-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            {/* 使用CSS columns实现真正的瀑布流效果 */}
-            <div className="columns-2 gap-3">
-              {relatedPosts.map((relatedPost, index) => (
-                <motion.div
-                  key={relatedPost.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 * index }}
-                  className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-xl overflow-hidden shadow-sm break-inside-avoid mb-3`}
-                  onClick={() => navigate(`/square/${relatedPost.id}`)}
-                >
-                  {/* 图片容器 - 保持原始比例 */}
-                  <div className="relative overflow-hidden">
-                    {relatedPost.thumbnail ? (
-                      <img
-                        src={relatedPost.thumbnail}
-                        alt={relatedPost.title}
-                        className="w-full h-auto object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className={`w-full aspect-square flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                        <ImageIcon className="w-8 h-8 text-gray-400" />
-                      </div>
-                    )}
-                    {/* 视频标识 */}
-                    {(relatedPost.type === 'video' || relatedPost.videoUrl) && (
-                      <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/60 rounded-full flex items-center gap-1">
-                        <div className="w-0 h-0 border-l-[6px] border-l-white border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent" />
-                        <span className="text-white text-xs">视频</span>
-                      </div>
-                    )}
-                  </div>
-                  {/* 标题 */}
-                  <div className="p-2">
-                    <h4 className={`text-sm font-medium line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {relatedPost.title}
-                    </h4>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {typeof relatedPost.author === 'object' 
-                          ? relatedPost.author?.username 
-                          : (relatedPost.author || '创作者')}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <Heart className="w-3 h-3 text-gray-400" />
-                        <span className="text-xs text-gray-400">{relatedPost.likes || 0}</span>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
+        <div className="mt-4">
+          <MobileWorksGallery
+            artworks={relatedPosts.map(post => ({
+              id: post.id,
+              title: post.title,
+              imageUrl: post.thumbnail || '',
+              aspectRatio: post.thumbnail ? 1.2 : 1, // 默认宽高比
+              author: {
+                id: typeof post.author === 'object' ? post.author?.id || '' : post.author || '',
+                name: typeof post.author === 'object' ? post.author?.username || '创作者' : post.author || '创作者',
+                avatar: typeof post.author === 'object' ? post.author?.avatar || '' : '',
+              },
+              likes: post.likes || 0,
+              views: post.views || 0,
+              tags: post.tags || [],
+              createdAt: post.date || new Date().toISOString(),
+              isLiked: post.isLiked,
+              isBookmarked: post.isBookmarked,
+              isVideo: post.type === 'video' || !!post.videoUrl,
+              videoUrl: post.videoUrl,
+            }))}
+            onArtworkClick={(artwork) => navigate(`/square/${artwork.id}`)}
+            onLike={async (artworkId) => {
+              if (!user?.id) {
+                toast.error('请先登录');
+                return;
+              }
+              try {
+                await likePost(artworkId, user.id);
+                toast.success('点赞成功');
+              } catch (error) {
+                toast.error('点赞失败');
+              }
+            }}
+            onBookmark={async (artworkId) => {
+              if (!user?.id) {
+                toast.error('请先登录');
+                return;
+              }
+              try {
+                await bookmarkPost(artworkId, user.id);
+                toast.success('收藏成功');
+              } catch (error) {
+                toast.error('收藏失败');
+              }
+            }}
+            onShare={(artwork) => {
+              setShowShareSheet(true);
+            }}
+            loading={false}
+            hasMore={false}
+          />
         </div>
       )}
-
-      {/* 底部操作栏 - 在MobileLayout的底部导航栏上方显示 */}
-      <div className={`fixed bottom-[64px] left-0 right-0 p-4 z-40 ${
-        isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'
-      } backdrop-blur-xl border-t`}>
-        <div className="flex items-center gap-3">
-          {/* 评论输入框 */}
-          <div className={`flex-1 flex items-center gap-2 px-4 py-2 rounded-full ${
-            isDark ? 'bg-gray-800' : 'bg-gray-100'
-          }`}>
-            <input
-              type="text"
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              placeholder="写下你的评论..."
-              className={`flex-1 bg-transparent text-sm outline-none ${
-                isDark ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'
-              }`}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendComment();
-                }
-              }}
-            />
-          </div>
-          
-          {/* 发送按钮 */}
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={handleSendComment}
-            disabled={!commentText.trim() || isSubmittingComment}
-            className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white disabled:opacity-50"
-          >
-            <Send className="w-5 h-5" />
-          </motion.button>
-          
-          {/* 点赞按钮 */}
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={handleLike}
-            className={`flex items-center justify-center gap-1 px-3 py-2 rounded-full ${
-              isLiked
-                ? 'bg-red-50 text-red-500'
-                : isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-            <span className="text-sm font-medium">{likeCount}</span>
-          </motion.button>
-          
-          {/* 收藏按钮 */}
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={handleBookmark}
-            className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              isBookmarked
-                ? 'bg-amber-50 text-amber-500'
-                : isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
-            }`}
-          >
-            <Bookmark className={`w-5 h-5 ${isBookmarked ? 'fill-current' : ''}`} />
-          </motion.button>
-        </div>
-      </div>
 
       {/* 分享弹窗 */}
       <AnimatePresence>
@@ -686,55 +528,232 @@ export default function MobilePostDetail() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className={`fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl ${
+              className={`fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl max-h-[85vh] overflow-hidden ${
                 isDark ? 'bg-gray-900' : 'bg-white'
               }`}
             >
+              {/* 头部 */}
               <div className={`p-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
-                <h3 className={`text-base font-semibold text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  分享作品
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    分享
+                  </h3>
+                  <button
+                    onClick={() => setShowShareSheet(false)}
+                    className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}
+                  >
+                    <X className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                  </button>
+                </div>
               </div>
-              <div className="p-6 grid grid-cols-4 gap-4">
-                <button
-                  onClick={() => handleShare('copy')}
-                  className="flex flex-col items-center gap-2"
-                >
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
-                    isDark ? 'bg-gray-800' : 'bg-gray-100'
-                  }`}>
-                    <Share2 className="w-6 h-6 text-gray-600" />
+
+              {/* 作品信息 */}
+              <div className={`p-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                <div className="flex gap-3">
+                  {post.thumbnail && (
+                    <img
+                      src={post.thumbnail}
+                      alt={post.title}
+                      className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs mb-1 ${
+                      isDark ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-600'
+                    }`}>
+                      作品
+                    </span>
+                    <h4 className={`font-semibold text-base truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {post.title}
+                    </h4>
+                    <p className={`text-sm line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {post.description || '暂无描述'}
+                    </p>
                   </div>
-                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>复制链接</span>
-                </button>
-                <button
-                  onClick={() => handleShare('wechat')}
-                  className="flex flex-col items-center gap-2"
-                >
-                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-green-500">
-                    <MessageCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>微信</span>
-                </button>
-                <button
-                  onClick={() => handleShare('weibo')}
-                  className="flex flex-col items-center gap-2"
-                >
-                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-red-500">
-                    <Share2 className="w-6 h-6 text-white" />
-                  </div>
-                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>微博</span>
-                </button>
+                </div>
               </div>
-              <div className={`p-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+
+              {/* 分享方式 */}
+              <div className="p-4">
+                <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>选择分享方式</p>
+
+                {/* 分享到社群 */}
                 <button
-                  onClick={() => setShowShareSheet(false)}
-                  className={`w-full py-3 rounded-xl text-sm font-medium ${
-                    isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
+                  onClick={() => handleShare('community')}
+                  className={`w-full flex items-center gap-4 p-4 rounded-xl mb-3 ${
+                    isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
                   }`}
                 >
-                  取消
+                  <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                    <Users className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>分享到社群</p>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>分享到你加入的社群</p>
+                  </div>
+                  <ChevronRight className={`w-5 h-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                 </button>
+
+                {/* 私信分享 */}
+                <button
+                  onClick={() => handleShare('private')}
+                  className={`w-full flex items-center gap-4 p-4 rounded-xl mb-3 ${
+                    isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>私信分享</p>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>发送给好友的私信</p>
+                  </div>
+                  <ChevronRight className={`w-5 h-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                </button>
+
+                {/* 复制链接 */}
+                <button
+                  onClick={() => handleShare('copy')}
+                  className={`w-full flex items-center gap-4 p-4 rounded-xl ${
+                    isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="w-12 h-12 rounded-full bg-gray-500 flex items-center justify-center flex-shrink-0">
+                    <Link className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>复制链接</p>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>复制链接分享给其他人</p>
+                  </div>
+                  <ChevronRight className={`w-5 h-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* 评论抽屉 */}
+      <AnimatePresence>
+        {showCommentDrawer && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCommentDrawer(false)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className={`fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl h-[90vh] flex flex-col ${
+                isDark ? 'bg-gray-900' : 'bg-white'
+              }`}
+            >
+              {/* 抽屉头部 */}
+              <div className={`p-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    评论 ({comments.length || post.commentCount || 0})
+                  </h3>
+                  <button
+                    onClick={() => setShowCommentDrawer(false)}
+                    className={`p-2 rounded-full ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}
+                  >
+                    <X className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 评论列表 */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {commentsLoading ? (
+                  <div className="py-8 text-center">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full mx-auto"
+                    />
+                  </div>
+                ) : comments.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <MessageCircle className={`w-12 h-12 mx-auto mb-2 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>暂无评论</p>
+                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>来抢沙发，发表你的看法吧</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {comments.map((comment) => (
+                      <div key={comment.id} className="flex gap-3">
+                        {comment.authorAvatar ? (
+                          <img
+                            src={comment.authorAvatar}
+                            alt={comment.author || '用户'}
+                            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                            {(comment.author || '?').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {comment.author || '匿名用户'}
+                            </span>
+                            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              {comment.date ? new Date(comment.date).toLocaleDateString('zh-CN') : ''}
+                            </span>
+                          </div>
+                          <p className={`text-sm mt-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {comment.content}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 评论输入区域 */}
+              <div className={`p-4 border-t ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-white'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-full ${
+                    isDark ? 'bg-gray-800' : 'bg-gray-100'
+                  }`}>
+                    <input
+                      type="text"
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder="写下你的评论..."
+                      className={`flex-1 bg-transparent text-sm outline-none ${
+                        isDark ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'
+                      }`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendComment();
+                          setShowCommentDrawer(false);
+                        }
+                      }}
+                      autoFocus
+                    />
+                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      handleSendComment();
+                      setShowCommentDrawer(false);
+                    }}
+                    disabled={!commentText.trim() || isSubmittingComment}
+                    className="w-11 h-11 rounded-full bg-red-500 flex items-center justify-center text-white disabled:opacity-50"
+                  >
+                    <Send className="w-5 h-5" strokeWidth={1.5} />
+                  </motion.button>
+                </div>
               </div>
             </motion.div>
           </>

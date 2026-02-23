@@ -254,13 +254,13 @@ export default function MobileEventWorks() {
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => navigate('/events')}
-              className={`flex items-center justify-center w-11 h-11 rounded-xl ${
+              className={`flex items-center justify-center w-12 h-12 rounded-xl ${
                 isDark 
                   ? 'bg-gray-700 text-white' 
                   : 'bg-gray-200 text-gray-700'
               }`}
             >
-              <ChevronLeft className="w-7 h-7" />
+              <ChevronLeft className="w-8 h-8" strokeWidth={2.5} />
             </motion.button>
 
             {/* 中间：活动标题 */}

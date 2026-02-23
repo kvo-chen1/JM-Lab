@@ -11,7 +11,7 @@ import recommendationService, {
 } from '@/services/recommendationService';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import PostDetailModal from '@/components/PostDetailModal';
+// import PostDetailModal from '@/components/PostDetailModal';
 import postsApi, { Post } from '@/services/postService';
 import { workService } from '@/services/apiService';
 
@@ -59,11 +59,11 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
 
-  // PostDetailModal 状态
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [modalError, setModalError] = useState<string | null>(null);
+  // 已移除 PostDetailModal 弹窗状态，点击作品直接跳转到独立页面
+  // const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  // const [isModalOpen, setIsModalOpen] = useState(false);
+  // const [modalLoading, setModalLoading] = useState(false);
+  // const [modalError, setModalError] = useState<string | null>(null);
 
   // 获取用户ID（未登录用户使用设备ID）
   const getUserId = useCallback(() => {
@@ -166,32 +166,6 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
         .filter(item => item.type === activeTab.slice(0, -1) as 'post' | 'challenge' | 'template')
         .slice(0, 8);
 
-  // 加载帖子详情
-  const loadPostDetail = async (id: string) => {
-    setModalLoading(true);
-    setModalError(null);
-    try {
-      // 从API获取最新的作品数据
-      const allPosts = await postsApi.getPosts(undefined, user?.id, false, 'works');
-      const found = allPosts.find(p => p.id === id);
-
-      if (found) {
-        // 记录浏览量
-        postsApi.recordView(id, 'works').catch(() => {});
-        setSelectedPost(found);
-        setIsModalOpen(true);
-      } else {
-        setModalError('未找到该作品内容');
-        toast.error('未找到该作品内容');
-      }
-    } catch (error) {
-      setModalError('加载作品详情失败，请稍后重试');
-      toast.error('加载作品详情失败，请稍后重试');
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
   // 处理推荐项点击
   const handleItemClick = (item: RecommendedItem) => {
     // 记录点击行为
@@ -200,8 +174,8 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
     // 根据类型处理点击
     switch (item.type) {
       case 'post':
-        // 打开作品详情弹窗
-        loadPostDetail(item.id);
+        // 跳转到作品详情独立页面
+        navigate(`/post/${item.id}`);
         break;
       case 'challenge':
         navigate('/events');
@@ -248,15 +222,7 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
     }
     try {
       await postsApi.likeWork(id, user.id);
-      // 更新本地状态
-      if (selectedPost && selectedPost.id === id) {
-        setSelectedPost(prev => prev ? {
-          ...prev,
-          isLiked: !prev.isLiked,
-          likes: prev.isLiked ? prev.likes - 1 : prev.likes + 1
-        } : null);
-      }
-      toast.success(selectedPost?.isLiked ? '取消点赞' : '点赞成功');
+      toast.success('操作成功');
     } catch (error) {
       toast.error('操作失败，请稍后重试');
     }
@@ -290,12 +256,7 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
     });
   };
 
-  // 关闭弹窗
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedPost(null);
-    setModalError(null);
-  };
+  // 已移除 handleCloseModal，弹窗已改为独立页面跳转
 
   // 获取类型名称
   const getTypeName = (type: string): string => {
@@ -638,19 +599,7 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
         </div>
       )}
 
-      {/* 作品详情弹窗 */}
-      <PostDetailModal
-        post={selectedPost}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onLike={handleLike}
-        onComment={handleComment}
-        onShare={handleShare}
-        loading={modalLoading}
-        error={modalError}
-        currentUser={user}
-        onPostChange={(newPost) => setSelectedPost(newPost)}
-      />
+      {/* 已移除 PostDetailModal 弹窗，点击作品直接跳转到独立页面 /post/:id */}
     </div>
   );
 };

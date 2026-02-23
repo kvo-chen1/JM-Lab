@@ -177,7 +177,7 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
           </div>
 
           {/* 移动端列表 */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             {filteredCommunities.map((community, index) => (
               <motion.div
                 key={community.id}
@@ -186,40 +186,41 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
                 transition={{ delay: index * 0.03 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => onOpen(community.id)}
-                className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all ${
-                  isDark 
-                    ? 'bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50' 
+                className={`flex items-stretch gap-3 p-3 rounded-2xl cursor-pointer transition-all ${
+                  isDark
+                    ? 'bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50'
                     : 'bg-white hover:bg-gray-50 border border-gray-100 shadow-sm'
                 }`}
               >
                 {/* 头像 */}
-                <div className="relative flex-shrink-0">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800">
+                <div className="relative flex-shrink-0 self-center">
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800">
                     {community.avatar ? (
-                      <TianjinImage 
-                        src={community.avatar} 
+                      <TianjinImage
+                        src={community.avatar}
                         alt={community.name}
                         className="w-full h-full object-cover"
                         fit="cover"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <i className="fas fa-users text-lg text-gray-400"></i>
+                        <i className="fas fa-users text-xl text-gray-400"></i>
                       </div>
                     )}
                   </div>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800">
-                    <i className="fas fa-check text-[8px] text-white"></i>
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800">
+                    <i className="fas fa-check text-[10px] text-white"></i>
                   </div>
                 </div>
 
                 {/* 信息 */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                  {/* 第一行：名称 + 标签 */}
                   <div className="flex items-center gap-2">
-                    <h3 className={`font-semibold text-sm truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <h3 className={`font-bold text-base truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {community.name || '未命名社群'}
                     </h3>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 font-medium ${
                       (community.topic || '') === '设计' || (community.topic || '') === '创意' ? 'bg-pink-100 text-pink-600 dark:bg-pink-500/20 dark:text-pink-400' :
                       (community.topic || '') === '科技' || (community.topic || '') === 'AI' ? 'bg-cyan-100 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400' :
                       (community.topic || '') === '艺术' || (community.topic || '') === '文化' ? 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400' :
@@ -228,29 +229,33 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
                       {community.topic || '综合'}
                     </span>
                   </div>
-                  <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {community.description || '暂无描述'}
-                  </p>
-                  <div className={`flex items-center gap-2 mt-1 text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  {/* 第二行：描述（固定占一行空间） */}
+                  <div className="h-5 flex items-center">
+                    <p className={`text-xs truncate w-full ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {community.description || '\u00A0'}
+                    </p>
+                  </div>
+                  {/* 第三行：成员数 + 活跃状态 */}
+                  <div className={`flex items-center gap-2 text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     <span className="flex items-center gap-1">
-                      <i className="fas fa-user-friends text-[8px]"></i>
-                      {(community.memberCount || 0) > 999 
-                        ? `${((community.memberCount || 0) / 1000).toFixed(1)}k` 
+                      <i className="fas fa-user-friends text-[10px]"></i>
+                      {(community.memberCount || 0) > 999
+                        ? `${((community.memberCount || 0) / 1000).toFixed(1)}k`
                         : (community.memberCount || 0)}
                     </span>
-                    <span>·</span>
+                    <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></span>
                     <span>刚刚活跃</span>
                   </div>
                 </div>
 
                 {/* 按钮 */}
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 flex items-center">
                   {joinedIds.includes(community.id) ? (
                     <button
                       onClick={(e) => { e.stopPropagation(); onJoin(community.id); }}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        isDark 
-                          ? 'bg-gray-700 text-gray-300' 
+                      className={`px-4 py-2 rounded-full text-xs font-medium transition-all ${
+                        isDark
+                          ? 'bg-gray-700 text-gray-300'
                           : 'bg-gray-100 text-gray-600'
                       }`}
                     >
@@ -260,9 +265,9 @@ export const DiscoverySection: React.FC<DiscoverySectionProps> = ({
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={(e) => { e.stopPropagation(); onJoin(community.id); }}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        isDark 
-                          ? 'bg-white text-gray-900 hover:bg-gray-100' 
+                      className={`px-4 py-2 rounded-full text-xs font-medium transition-all ${
+                        isDark
+                          ? 'bg-white text-gray-900 hover:bg-gray-100'
                           : 'bg-gray-900 text-white hover:bg-gray-800'
                       }`}
                     >

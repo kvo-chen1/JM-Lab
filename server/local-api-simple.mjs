@@ -1141,10 +1141,11 @@ async function route(req, res, u, path) {
       const search = u.searchParams.get('search') || ''
       const status = u.searchParams.get('status') || ''
       const type = u.searchParams.get('type') || ''
+      const brandId = u.searchParams.get('brandId') || ''
       const page = parseInt(u.searchParams.get('page') || '1')
       const pageSize = parseInt(u.searchParams.get('pageSize') || '10')
       
-      // 模拟用户活动数据
+      // 模拟用户活动数据 - 包含不同品牌的活动
       const mockUserEvents = [
         {
           id: '4',
@@ -1152,9 +1153,32 @@ async function route(req, res, u, path) {
           description: '用户创建的测试活动',
           status: 'draft',
           type: 'online',
+          brandId: '',
           startTime: new Date('2024-11-25').toISOString(),
           endTime: new Date('2024-12-05').toISOString(),
           thumbnailUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=User%20personal%20event%20creation&image_size=square'
+        },
+        {
+          id: '5',
+          title: '海河"寻味天津奶香传承"创意作品大赛',
+          description: '邀请用户围绕海河乳制产品（可可奶、咖啡奶、草莓奶等）进行创意内容创作，可以是短视频、摄影、插画、文章等多种形式。',
+          status: 'published',
+          type: 'online',
+          brandId: 'haihe',
+          startTime: new Date('2026-02-20').toISOString(),
+          endTime: new Date('2026-03-20').toISOString(),
+          thumbnailUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Milk%20creative%20competition%20event%20poster&image_size=square'
+        },
+        {
+          id: '6',
+          title: '海鸥手表"时光匠人"设计大赛',
+          description: '面向全国设计师征集手表设计作品，主题围绕"时光匠人"，要求融合天津海鸥手表的工艺精神与现代设计理念。',
+          status: 'published',
+          type: 'online',
+          brandId: 'seagull',
+          startTime: new Date('2026-02-25').toISOString(),
+          endTime: new Date('2026-04-15').toISOString(),
+          thumbnailUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Watch%20design%20competition%20event%20poster&image_size=square'
         }
       ]
       
@@ -1171,6 +1195,9 @@ async function route(req, res, u, path) {
       }
       if (type) {
         filteredEvents = filteredEvents.filter(event => event.type === type)
+      }
+      if (brandId) {
+        filteredEvents = filteredEvents.filter(event => event.brandId === brandId)
       }
       
       // 分页

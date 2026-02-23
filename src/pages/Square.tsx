@@ -10,9 +10,9 @@ import { AuthContext } from '@/contexts/authContext'
 import { useContext } from 'react'
 import { useNotifications } from '@/contexts/NotificationContext'
 
-import PostDetailModal from '@/components/PostDetailModal'
 import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal'
 import ShareSelector from '@/components/ShareSelector'
+import PublishToSquareModal from '@/components/PublishToSquareModal'
 
 
 import apiClient from '@/lib/apiClient'
@@ -201,9 +201,10 @@ export default function Square() {
   const [commentText, setCommentText] = useState<Record<string, string>>({})
   const [page, setPage] = useState(1) // 中文注释：分页页码
   const pageSize = 18 // 中文注释：每页展示数量（适配3列×6行）
-  const [active, setActive] = useState<Post | null>(null) // 中文注释：详情弹窗当前帖子
-  const [activeLoading, setActiveLoading] = useState(false) // 中文注释：详情加载状态
-  const [activeError, setActiveError] = useState<string | null>(null) // 中文注释：详情加载错误
+  // 已移除弹窗相关状态，点击作品直接跳转到独立页面
+  // const [active, setActive] = useState<Post | null>(null)
+  // const [activeLoading, setActiveLoading] = useState(false)
+  // const [activeError, setActiveError] = useState<string | null>(null)
   const [favorites, setFavorites] = useState<string[]>(() => {
     // 中文注释：本地收藏列表（按帖子id存储）
     try { const raw = localStorage.getItem('jmzf_favs'); return raw ? JSON.parse(raw) : [] } catch { return [] }
@@ -214,6 +215,7 @@ export default function Square() {
   const [isLoadingMore, setIsLoadingMore] = useState(false) // 中文注释：加载更多状态
   const [hasMore, setHasMore] = useState(true) // 中文注释：是否还有更多数据
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false) // 中文注释：发布弹窗状态
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false) // 中文注释：上传作品到广场弹窗状态
   const sentinelRef = useRef<HTMLDivElement | null>(null) // 中文注释：无限滚动观察器锚点
   const thumbFileRef = useRef<HTMLInputElement | null>(null) // 中文注释：封面本地上传文件引用
   const loadingRef = useRef(false) // 中文注释：防止重复加载的标志
@@ -226,10 +228,15 @@ export default function Square() {
 
   // 中文注释：本地缓存机制，减少重复计算
   const cachedDataRef = useRef<Map<string, Post[]>>(new Map())
-  
-  
 
-  
+  // 从URL参数中读取搜索关键词
+  useEffect(() => {
+    const searchQuery = searchParams.get('search')
+    if (searchQuery) {
+      setSearch(searchQuery)
+    }
+  }, [searchParams])
+
   // 优化初始数据加载：只加载必要的数据
   useEffect(() => {
     const loadInitialData = async () => {
@@ -277,77 +284,7 @@ export default function Square() {
     loadInitialData()
   }, [user?.id])
   
-  // 动态加载资讯详情数据
-  const loadPostDetail = async (id: string) => {
-    setActiveLoading(true)
-    setActiveError(null)
-
-    try {
-      // 模拟从服务器获取最新数据的延迟
-      await new Promise(resolve => setTimeout(resolve, 300))
-
-      // 从API获取最新的作品数据（津脉广场只显示works表数据）
-      const allPosts = await postsApi.getPosts(undefined, user?.id, false, 'works')
-      let found = allPosts.find(p => p.id === id)
-
-      if (!found) {
-        // 如果在API数据中找不到，尝试从本地状态中查找（保留评论数据）
-        found = posts.find(p => p.id === id)
-      }
-
-      if (found) {
-        console.log('Opening post detail:', {
-          id: found.id,
-          title: found.title,
-          videoUrl: found.videoUrl,
-          thumbnail: found.thumbnail?.substring(0, 50),
-          category: found.category,
-          type: found.type,
-          isLiked: found.isLiked,
-          views: found.views
-        });
-
-        // 记录浏览量并更新本地状态
-        postsApi.recordView(id, 'works').then(() => {
-          // 浏览量记录成功后，更新本地状态
-          const updatedViews = (found?.views || 0) + 1;
-          const updatedPost = { ...found, views: updatedViews };
-          setActive(updatedPost);
-          // 同时更新 posts 列表中的浏览量
-          setPosts(prev => prev.map(p => p.id === id ? { ...p, views: updatedViews } : p));
-        }).catch(err => {
-          console.warn('Failed to record view:', err);
-          // 即使记录失败，也显示原始数据
-          setActive(found);
-        });
-      } else {
-        setActiveError('未找到该资讯内容')
-      }
-    } catch (error) {
-      setActiveError('加载资讯详情失败，请稍后重试')
-      console.error('Failed to load post detail:', error)
-    } finally {
-      setActiveLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    // 中文注释：支持通过路由参数直接打开详情
-    const id = params.id
-    if (id) {
-      loadPostDetail(id)
-    }
-  }, [params.id])
-
-  useEffect(() => {
-    // 支持通过查询参数 ?post=xxx 打开详情（从排行榜跳转）
-    const postId = searchParams.get('post')
-    if (postId) {
-      loadPostDetail(postId)
-      // 清除查询参数，避免刷新时重复打开
-      navigate('/square', { replace: true })
-    }
-  }, [searchParams])
+  // 已移除 loadPostDetail 函数，点击作品直接跳转到独立页面 /post/:id
 
   useEffect(() => {
     // 监听作品发布事件，当用户发布新作品到津脉广场时自动刷新
@@ -374,20 +311,6 @@ export default function Square() {
       window.removeEventListener('square-posts-updated', handleSquarePostsUpdated);
     };
   }, []);
-
-  // 当posts状态更新时，如果当前有激活的帖子，确保它是最新的
-  useEffect(() => {
-    const updateActivePost = async () => {
-      if (active) {
-        // 直接从当前posts状态中查找，避免重新调用API
-        const updatedPost = posts.find(p => p.id === active.id)
-        if (updatedPost && JSON.stringify(updatedPost) !== JSON.stringify(active)) {
-          setActive(updatedPost)
-        }
-      }
-    }
-    updateActivePost()
-  }, [posts, active])
   
   // 中文注释：风格与题材词库（简单关键词匹配，用于社区分类）
   const STYLE_LIST = ['全部', '国潮', '极简', '复古', '赛博朋克', '手绘插画', '黑白线稿', '蓝白瓷']
@@ -517,11 +440,6 @@ export default function Square() {
         : p
     ))
     
-    // 更新 active 状态
-    if (active && active.id === id) {
-      setActive(prev => prev ? { ...prev, isLiked: newIsLiked, likes: newLikes } : null)
-    }
-    
     try {
       if (newIsLiked) {
         await postsApi.likePost(id, user.id)
@@ -553,12 +471,9 @@ export default function Square() {
           ? { ...p, isLiked: targetPost.isLiked, likes: targetPost.likes }
           : p
       ))
-      if (active && active.id === id) {
-        setActive(prev => prev ? { ...prev, isLiked: targetPost.isLiked, likes: targetPost.likes } : null)
-      }
       toast.error('操作失败，请稍后重试')
     }
-  }, [active, user, navigate, addNotification, posts])
+  }, [user, navigate, addNotification, posts])
   
   // 优化：使用useCallback稳定addComment函数
   const addComment = useCallback(async (id: string, content: string) => {
@@ -573,42 +488,7 @@ export default function Square() {
     
     console.log('Adding comment to post:', id, 'content:', content)
     
-    // 1. 首先更新本地状态，确保评论能够立即显示
-    if (active && active.id === id) {
-      const newComment = {
-        id: `c-${Date.now()}`,
-        content,
-        date: new Date().toISOString(),
-        likes: 0,
-        reactions: {
-          like: 0,
-          love: 0,
-          laugh: 0,
-          surprise: 0,
-          sad: 0,
-          angry: 0
-        },
-        replies: [],
-        userReactions: [],
-        user: user?.username || '匿名用户',
-        author: user?.username || '匿名用户',
-        authorAvatar: user?.avatar,
-        userAvatar: user?.avatar,
-        userId: user?.id
-      }
-      
-      // 创建更新后的帖子对象
-      const updatedActivePost = {
-        ...active,
-        comments: [...active.comments, newComment as any]
-      }
-      
-      // 立即更新active状态，实现评论的实时显示
-      setActive(updatedActivePost)
-      console.log('Updated active post immediately:', updatedActivePost)
-    }
-    
-    // 2. 然后调用API添加评论，确保数据持久化
+    // 调用API添加评论，确保数据持久化
     try {
       const updatedPost = await postsApi.addComment(id, content, undefined, user)
       console.log('Updated post from API:', updatedPost)
@@ -639,7 +519,7 @@ export default function Square() {
       console.error('Failed to add comment:', error)
       toast.error(error.message || '评论失败，请重试')
     }
-  }, [active, user, navigate, addNotification])
+  }, [user, navigate, addNotification])
   
   // 优化：使用useCallback稳定share函数
   const sharePost = useCallback((id: string) => {
@@ -691,10 +571,6 @@ export default function Square() {
         toast.success('收藏成功')
       }
 
-      // 更新active状态中的收藏状态
-      if (active && active.id === id) {
-        setActive(prev => prev ? { ...prev, isBookmarked: newBookmarkStatus } : null);
-      }
     } catch (error) {
       console.error('更新收藏状态失败:', error);
       toast.error('操作失败，请稍后重试')
@@ -707,7 +583,7 @@ export default function Square() {
           : p
       ));
     }
-  }, [active, favorites, user, navigate, posts])
+  }, [favorites, user, navigate, posts])
   
   // 优化：使用useCallback稳定deletePost函数
   const deletePost = useCallback(async (id: string) => {
@@ -718,15 +594,11 @@ export default function Square() {
         // 重新获取最新的作品数据
         const current = await postsApi.getPosts(undefined, user?.id, false, 'works');
         setPosts(current);
-        // 如果当前打开的详情是被删除的帖子，关闭详情
-        if (active && active.id === id) {
-          setActive(null);
-        }
       }
     } catch (error) {
       console.error('删除帖子失败:', error);
     }
-  }, [active])
+  }, [])
   
   // 优化：使用useCallback稳定importExploreWorks函数
   const importExploreWorks = useCallback(() => {
@@ -902,27 +774,7 @@ export default function Square() {
     });
   }, [viewList]);
   
-  // 确保详情弹窗也显示最新的用户信息
-  const hydratedActive = useMemo(() => {
-    if (!active || !user) return active;
-    
-    const authorId = typeof active.author === 'string' ? active.author : active.author?.id;
-    if (authorId === user.id || authorId === 'current-user') {
-       return {
-           ...active,
-           author: {
-             id: user.id,
-             username: user.username,
-             email: user.email,
-             avatar: user.avatar,
-             isAdmin: user.isAdmin,
-             membershipLevel: user.membershipLevel,
-             membershipStatus: user.membershipStatus
-           }
-       };
-    }
-    return active;
-  }, [active, user]);
+  // 已移除 hydratedActive，点击作品直接跳转到独立页面
 
 
   return (
@@ -967,8 +819,8 @@ export default function Square() {
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('/cultural-events')}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all md:hidden ${
-                isDark 
-                  ? 'bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/30' 
+                isDark
+                  ? 'bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/30'
                   : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'
               }`}
             >
@@ -976,6 +828,23 @@ export default function Square() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <span>活动</span>
+            </motion.button>
+
+            {/* 上传作品按钮 - 移动端显示 */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsPublishModalOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all md:hidden ${
+                isDark
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-600/30 hover:bg-blue-600/30'
+                  : 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>发布</span>
             </motion.button>
           </div>
           
@@ -1094,44 +963,7 @@ export default function Square() {
 
 
 
-      {/* 详情弹窗 */}
-      {hydratedActive && (
-        <PostDetailModal
-          post={hydratedActive}
-          isOpen={!!active}
-          onClose={() => {
-            setActive(null)
-            // 恢复URL - 使用 history.back() 避免页面刷新
-            // 因为我们打开弹窗时使用了 pushState，所以这里用 back 可以正确返回
-            if (window.history.state?.modal) {
-              window.history.back()
-            }
-          }}
-          onLike={like}
-          onComment={addComment}
-          onShare={sharePost}
-          loading={activeLoading}
-          error={activeError}
-          currentUser={user}
-          onBookmark={toggleFavorite}
-          onPostChange={(newPost) => {
-            // 平滑切换到新作品
-            setActive(newPost)
-            // 更新URL
-            window.history.pushState({ modal: true }, '', `/post/${newPost.id}`)
-            // 记录浏览量并更新本地状态
-            postsApi.recordView(newPost.id, 'works').then(() => {
-              const updatedViews = (newPost?.views || 0) + 1;
-              const updatedPost = { ...newPost, views: updatedViews };
-              setActive(updatedPost);
-              // 同时更新 posts 列表中的浏览量
-              setPosts(prev => prev.map(p => p.id === newPost.id ? { ...p, views: updatedViews } : p));
-            }).catch(err => {
-              console.warn('Failed to record view:', err);
-            });
-          }}
-        />
-      )}
+      {/* 已移除 PostDetailModal 弹窗，点击作品直接跳转到独立页面 /post/:id */}
 
       {/* 发布弹窗 */}
       <CreatePostModal
@@ -1165,6 +997,12 @@ export default function Square() {
           userAvatar={user?.avatar}
         />
       )}
+
+      {/* 上传作品到广场弹窗 */}
+      <PublishToSquareModal
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+      />
     </div>
   )
 }

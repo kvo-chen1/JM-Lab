@@ -17,6 +17,7 @@ export interface AIGenerationRecord {
   metadata?: Record<string, any>;
   source?: string; // 来源页面/组件
   sourceId?: string; // 关联ID（如活动ID）
+  createdAt?: string; // 创建时间
 }
 
 // 保存选项
@@ -195,7 +196,8 @@ class AIGenerationSaveService {
         thumbnailUrl: item.thumbnail_url,
         metadata: item.metadata,
         source: item.source,
-        sourceId: item.source_id
+        sourceId: item.source_id,
+        createdAt: item.created_at
       }));
     } catch (error) {
       console.error('[AIGenerationSave] Error fetching generations:', error);

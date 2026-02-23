@@ -74,11 +74,6 @@ import { createLazyThreeComponent } from '@/components/lazy/LazyThreeComponent';
 // 优化懒加载策略：根据页面访问频率和大小重新分类
 
 // 1. 高频访问页面 - 只保留最核心的页面同步加载
-// PostDetail改为懒加载，进一步减少初始加载时间
-const PostDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/PostDetail"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'post-detail'
-});
 const WorkDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/WorkDetail"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'work-detail'
@@ -794,8 +789,8 @@ export default function App() {
           <Route path="/community/:id/admin" element={<LazyComponent><PrivateRoute><CommunityAdminPanelWrapper /></PrivateRoute></LazyComponent>} />
           <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
           <Route path="/chat/:userId" element={<LazyComponent><PrivateRoute><ChatPage /></PrivateRoute></LazyComponent>} />
-          <Route path="/post/:id" element={<LazyComponent><WorkDetail /></LazyComponent>} />
-          <Route path="/work/:id" element={<LazyComponent><WorkDetail /></LazyComponent>} />
+          <Route path="/post/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <WorkDetail />}</LazyComponent>} />
+          <Route path="/work/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <WorkDetail />}</LazyComponent>} />
           <Route path="/creator-community" element={<Navigate to="/community" replace />} />
           <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />
           <Route path="/profile" element={<Navigate to="/dashboard" replace />} />

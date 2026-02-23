@@ -483,14 +483,14 @@ export class InspirationMindMapService {
     });
 
     const positions: NodePosition[] = [];
-    // 三行交错布局参数 - 匹配紧凑节点尺寸
+    // 八行交错布局参数 - 匹配紧凑节点尺寸
     const itemWidth = 200; // 节点宽度 + 间距
     const itemHeight = 120; // 行高（紧凑）
-    const rowCount = 3; // 三行
+    const rowCount = 8; // 八行
 
     sortedNodes.forEach((node, index) => {
       // 计算行和列
-      const row = index % rowCount; // 0, 1, 2 循环
+      const row = index % rowCount; // 0, 1, 2, 3, 4, 5, 6, 7 循环
       const col = Math.floor(index / rowCount);
       
       positions.push({

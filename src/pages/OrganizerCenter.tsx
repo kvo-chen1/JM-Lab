@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import WorkScoring from './organizer/WorkScoring';
 import AnalyticsDashboard from './organizer/AnalyticsDashboard';
 import OrganizerSettings from './organizer/OrganizerSettings';
+import MobileOrganizerCenter from './organizer/MobileOrganizerCenter';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard, StatCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
@@ -64,6 +65,23 @@ import {
   Gift
 } from 'lucide-react';
 
+// 自定义 hook 用于检测移动端
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 1024); // 小于 1024px 视为移动端
+    };
+
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
+
+  return isMobile;
+}
+
 // 活动状态筛选类型
 type StatusFilter = 'all' | 'draft' | 'pending' | 'published' | 'rejected';
 type ViewMode = 'list' | 'grid';
@@ -99,6 +117,9 @@ export default function OrganizerCenter() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { getEvents, getUserEvents, deleteEvent, createEvent, updateEvent } = useEventService();
+  
+  // 检测是否为移动端 - 必须在所有 hooks 之前调用
+  const isMobile = useIsMobile();
 
   // 品牌验证状态 - 支持多品牌切换
   const [userBrands, setUserBrands] = useState<BrandPartnership[]>([]);
@@ -439,6 +460,9 @@ export default function OrganizerCenter() {
         };
         if (statusFilter && statusFilter !== 'all') {
           params.status = statusFilter;
+        }
+        if (selectedBrand?.id) {
+          params.brandId = selectedBrand.id;
         }
         
         eventsData = await getEvents(params) || [];
@@ -1222,6 +1246,11 @@ export default function OrganizerCenter() {
         </div>
       </div>
     );
+  }
+
+  // 如果是移动端，渲染移动端组件
+  if (isMobile) {
+    return <MobileOrganizerCenter />;
   }
 
   return (

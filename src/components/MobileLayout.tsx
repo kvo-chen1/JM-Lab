@@ -440,7 +440,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
                 </form>
           </div>
         </div>
-      ) : location.pathname !== '/' && (
+      ) : (location.pathname !== '/' && !location.pathname.match(/^\/(square|post|work)\/[^/]+$/) && !location.pathname.startsWith('/mobile-work-detail')) && (
         <div className={clsx(
           'sticky top-0 z-60 transition-all duration-300 ease-in-out py-1.5 px-2',
           isDark ? 'bg-gray-800/95 backdrop-blur-2xl border-b border-gray-700 shadow-lg' : 

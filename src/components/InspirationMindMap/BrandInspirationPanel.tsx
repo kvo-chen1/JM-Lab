@@ -246,7 +246,7 @@ export default function BrandInspirationPanel({
                 <p className="text-xs mt-1">试试其他关键词</p>
               </div>
             ) : (
-              <div className={`grid gap-4 ${showDetailPanel ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              <div className={`grid gap-4 ${showDetailPanel ? 'grid-cols-2' : 'grid-cols-8'}`}>
                 {filteredBrands.map((brand, index) => {
                   const colors = getCategoryColor(brand.category);
                   const isSelected = selectedBrand === brand.id;

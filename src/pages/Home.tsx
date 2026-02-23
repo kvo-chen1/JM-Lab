@@ -603,36 +603,36 @@ export default function Home() {
         </motion.div>
 
         {/* Hero Content */}
-        <div className="relative z-20 max-w-5xl w-full px-4 text-center">
-          <motion.h1 
+        <div className="relative z-20 max-w-5xl w-full px-4 sm:px-6 text-center overflow-hidden">
+          <motion.h1
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: getDuration(0.56), ease: "easeOut", delay: 0 }}
-            className="text-5xl md:text-7xl lg:text-8xl font-black text-white mb-6 drop-shadow-2xl tracking-tight"
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black text-white mb-4 md:mb-6 drop-shadow-2xl tracking-tight"
           >
-            <span className="block">{t('common.welcome')}</span>
-            <span className="block mt-2 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <span className="block truncate px-2">{t('common.welcome')}</span>
+            <span className="block mt-1 md:mt-2 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent truncate px-2">
               释放创意潜能
             </span>
           </motion.h1>
-          <motion.p 
+          <motion.p
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: getDuration(0.56), delay: 0.05, ease: "easeOut" }}
-            className="text-lg md:text-2xl text-white/90 mb-12 font-light tracking-wide max-w-2xl mx-auto"
+            className="text-base sm:text-lg md:text-xl lg:text-2xl text-white/90 mb-8 md:mb-12 font-light tracking-wide max-w-2xl mx-auto px-4"
           >
             {t('home.exploreTianjinCulture')}
           </motion.p>
 
           {/* Search Bar - Glassmorphism with Enhanced Animations */}
-          <motion.div 
+          <motion.div
             initial={{ y: 40, opacity: 0, scale: 0.95 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             transition={{ duration: getDuration(0.56), delay: 0.1, type: 'spring', stiffness: 140 }}
-            className="w-full max-w-3xl mx-auto backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-3 shadow-2xl transition-all duration-200 hover:bg-white/15 focus-within:bg-white/15 focus-within:border-white/30 focus-within:shadow-3xl hover:shadow-3xl"
+            className="w-full max-w-4xl mx-auto backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl lg:rounded-3xl p-2.5 lg:p-3 shadow-2xl transition-all duration-200 hover:bg-white/15 focus-within:bg-white/15 focus-within:border-white/30 focus-within:shadow-3xl hover:shadow-3xl"
           >
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="flex-grow relative">
+            <div className="flex flex-col md:flex-row gap-2 lg:gap-3">
+              <div className="flex-grow relative min-w-0">
                 <textarea
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -643,14 +643,14 @@ export default function Home() {
                   autoCapitalize="off"
                   spellCheck="false"
                   rows={1}
-                  className="w-full min-h-[64px] max-h-[120px] bg-transparent text-white placeholder-white/60 px-6 py-4 text-lg outline-none transition-all duration-300 resize-none overflow-y-auto"
+                  className="w-full min-h-[48px] md:min-h-[52px] lg:min-h-[56px] max-h-[120px] bg-transparent text-white placeholder-white/60 px-3 md:px-4 lg:px-6 py-2.5 md:py-3 lg:py-3.5 text-sm md:text-base outline-none transition-all duration-300 resize-none overflow-y-auto"
                   style={{ lineHeight: '1.5' }}
                 />
-                <div className="absolute right-4 top-4 flex items-center gap-4">
+                <div className="absolute right-2 lg:right-4 top-2 lg:top-3 flex items-center gap-1">
                   {search && (
                     <motion.button
                       onClick={clearAllTags}
-                      className="p-2 rounded-full text-white/60 hover:bg-white/10 transition-colors"
+                      className="p-1 lg:p-1.5 rounded-full text-white/60 hover:bg-white/10 transition-colors"
                       aria-label="清除所有内容"
                       whileHover={{ scale: 1.1, rotate: 90 }}
                       whileTap={{ scale: 0.95 }}
@@ -658,43 +658,45 @@ export default function Home() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <i className="fas fa-times-circle text-xl"></i>
+                      <i className="fas fa-times-circle text-base lg:text-lg"></i>
                     </motion.button>
                   )}
                 </div>
               </div>
-              <div className="flex gap-3 p-1">
-                <motion.button 
+              <div className="flex gap-2 p-0.5 flex-shrink-0">
+                <motion.button
                   onClick={handleInspireClick}
-                  className="h-16 px-8 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium transition-all shadow-lg flex items-center gap-2"
+                  className="h-10 md:h-11 lg:h-12 px-3 md:px-4 lg:px-6 rounded-lg lg:rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium transition-all shadow-lg flex items-center gap-1.5 whitespace-nowrap"
                   whileHover={{ scale: 1.03, y: -2 }}
                   whileTap={{ scale: 0.98 }}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.15, duration: 0.15 }}
                 >
-                  <i className="fas fa-lightbulb text-xl"></i> 优化提示词
+                  <i className="fas fa-lightbulb text-sm lg:text-base"></i>
+                  <span className="text-xs md:text-sm">优化提示词</span>
                 </motion.button>
-                <motion.button 
+                <motion.button
                   onClick={handleGenerateClick}
-                  className="h-16 px-8 rounded-2xl bg-white text-black hover:bg-gray-100 font-bold transition-all shadow-xl flex items-center gap-2"
+                  className="h-10 md:h-11 lg:h-12 px-3 md:px-4 lg:px-6 rounded-lg lg:rounded-xl bg-white text-black hover:bg-gray-100 font-bold transition-all shadow-xl flex items-center gap-1.5 whitespace-nowrap"
                   whileHover={{ scale: 1.03, y: -2, boxShadow: '0 10px 30px -5px rgba(255, 255, 255, 0.3)' }}
                   whileTap={{ scale: 0.98 }}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.18, duration: 0.15 }}
                 >
-                  <i className="fas fa-wand-magic-sparkles text-xl"></i> 生成
+                  <i className="fas fa-wand-magic-sparkles text-sm lg:text-base"></i>
+                  <span className="text-xs md:text-sm">生成</span>
                 </motion.button>
               </div>
             </div>
             {/* Quick Tags inside search bar area */}
-            <div className="flex gap-3 px-4 sm:px-6 pb-2 sm:pb-3 mt-3 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory">
+            <div className="flex gap-2 px-2 lg:px-4 pb-1.5 lg:pb-2 mt-2 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory">
               {quickTags.map((tag, i) => (
                 <motion.button
                   key={i}
                   onClick={() => toggleTag(tag)}
-                  className={`text-xs sm:text-sm px-3 sm:px-4 py-2 min-w-max rounded-full border transition-all ${selectedTags.includes(tag) ? 'bg-white text-black border-white shadow-lg' : 'bg-transparent text-white/70 border-white/20 hover:bg-white/10'}`}
+                  className={`text-xs px-2.5 lg:px-3 py-1.5 min-w-max rounded-full border transition-all ${selectedTags.includes(tag) ? 'bg-white text-black border-white shadow-lg' : 'bg-transparent text-white/70 border-white/20 hover:bg-white/10'}`}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   initial={{ opacity: 0, y: 10 }}
@@ -702,11 +704,8 @@ export default function Home() {
                   transition={{ delay: 0.2 + i * 0.02, duration: 0.15 }}
                   layoutId={`tag-${tag}`}
                   style={{
-                    // 优化移动端触摸目标
                     touchAction: 'manipulation',
-                    // 确保在移动设备上有足够的点击区域
-                    minHeight: '36px',
-                    // 平滑滚动
+                    minHeight: '28px',
                     scrollSnapAlign: 'start'
                   }}
                 >
@@ -717,50 +716,50 @@ export default function Home() {
           </motion.div>
           
           {/* Hero Stats */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: getDuration(0.56), delay: 0.25 }}
-            className="flex flex-wrap justify-center gap-10 mt-16 text-white/80"
+            className="flex flex-wrap justify-center gap-6 sm:gap-8 md:gap-10 mt-8 md:mt-12 lg:mt-16 text-white/80 px-4"
           >
-            <motion.div 
-              whileHover={{ scale: 1.1, y: -5 }}
-              className="flex flex-col items-center p-4 rounded-xl hover:bg-white/10 transition-all"
+            <motion.div
+              whileHover={{ scale: 1.05, y: -3 }}
+              className="flex flex-col items-center p-3 md:p-4 rounded-xl hover:bg-white/10 transition-all"
             >
-              <motion.div 
+              <motion.div
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ duration: 1.4, repeat: Infinity }}
-                className="text-3xl md:text-4xl font-bold text-white mb-2"
+                className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 md:mb-2"
               >
                 1000+
               </motion.div>
-              <span className="text-sm text-white/70">创作作品</span>
+              <span className="text-xs sm:text-sm text-white/70">创作作品</span>
             </motion.div>
-            <motion.div 
-              whileHover={{ scale: 1.1, y: -5 }}
-              className="flex flex-col items-center p-4 rounded-xl hover:bg-white/10 transition-all"
+            <motion.div
+              whileHover={{ scale: 1.05, y: -3 }}
+              className="flex flex-col items-center p-3 md:p-4 rounded-xl hover:bg-white/10 transition-all"
             >
-              <motion.div 
+              <motion.div
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ duration: 1.4, repeat: Infinity, delay: 0.35 }}
-                className="text-3xl md:text-4xl font-bold text-white mb-2"
+                className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 md:mb-2"
               >
                 500+
               </motion.div>
-              <span className="text-sm text-white/70">活跃创作者</span>
+              <span className="text-xs sm:text-sm text-white/70">活跃创作者</span>
             </motion.div>
-            <motion.div 
-              whileHover={{ scale: 1.1, y: -5 }}
-              className="flex flex-col items-center p-4 rounded-xl hover:bg-white/10 transition-all"
+            <motion.div
+              whileHover={{ scale: 1.05, y: -3 }}
+              className="flex flex-col items-center p-3 md:p-4 rounded-xl hover:bg-white/10 transition-all"
             >
-              <motion.div 
+              <motion.div
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ duration: 1.4, repeat: Infinity, delay: 0.7 }}
-                className="text-3xl md:text-4xl font-bold text-white mb-2"
+                className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 md:mb-2"
               >
                 50+
               </motion.div>
-              <span className="text-sm text-white/70">文化活动</span>
+              <span className="text-xs sm:text-sm text-white/70">文化活动</span>
             </motion.div>
           </motion.div>
         </div>
@@ -1514,7 +1513,8 @@ export default function Home() {
                       source: 'home_gallery'
                     }
                   });
-                  navigate(`/square?q=${encodeURIComponent(item.title)}`);
+                  // 跳转到作品详情页
+                  navigate(`/post/${item.id}`);
                 }}
               >
                  {/* Image Section */}

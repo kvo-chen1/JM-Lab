@@ -189,6 +189,27 @@ $desktop: 1400px;
   }
 }
 
+.scrollToBottomButton {
+  @include button-reset;
+  @include flex-center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.2s;
+  margin-top: 8px;
+
+  &:hover {
+    background: $hover-bg;
+  }
+
+  svg {
+    width: 28px;
+    height: 28px;
+    color: $text-primary;
+  }
+}
+
 // 左侧内容区
 .leftColumn {
   width: 600px;
@@ -1102,13 +1123,18 @@ $desktop: 1400px;
 }
 
 @media (max-width: $mobile) {
+  .mainContent {
+    padding: 0;
+  }
+
   .contentCard {
     border-radius: 0;
-    margin: 0 -16px;
+    margin: 0;
   }
-  
+
   .cardHeader {
-    padding: 12px 16px;
+    padding: 8px 16px;
+    margin-top: 0;
   }
   
   .workInfo,

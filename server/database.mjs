@@ -570,6 +570,9 @@ async function createPostgreSQLTables(pool) {
         // 添加 start_time 和 end_time 字段（timestamp 类型，用于 ISO 格式时间）
         await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS start_time TIMESTAMP;`)
         await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS end_time TIMESTAMP;`)
+        // 添加 brand_id 字段（用于品牌过滤）
+        await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS brand_id TEXT;`)
+        await client.query('CREATE INDEX IF NOT EXISTS idx_events_brand_id ON events(brand_id);')
         console.log('[DB] events time fields ensured')
 
         console.log('[DB] Column type check completed')
@@ -5523,13 +5526,36 @@ export const eventDB = {
           let pgSql = 'SELECT * FROM events WHERE 1=1'
           const pgParams = []
           let pIdx = 1
-          if (filters.creatorId) { pgSql += ` AND organizer_id = $${pIdx++}`; pgParams.push(filters.creatorId) }
-          if (filters.status) { pgSql += ` AND status = $${pIdx++}`; pgParams.push(filters.status) }
+          if (filters.creatorId) { 
+            pgSql += ` AND organizer_id = $${pIdx++}`; 
+            pgParams.push(filters.creatorId);
+            console.log('[DB] Adding creatorId filter:', filters.creatorId);
+          }
+          if (filters.status) { 
+            pgSql += ` AND status = $${pIdx++}`; 
+            pgParams.push(filters.status);
+            console.log('[DB] Adding status filter:', filters.status);
+          }
+          // 只有当 brandId 存在且不为空时才添加过滤条件
+          // 使用 IS NOT DISTINCT FROM 来处理 NULL 值，或者匹配指定的 brand_id
+          if (filters.brandId && filters.brandId.trim() !== '') { 
+            pgSql += ` AND (brand_id = $${pIdx} OR brand_id IS NULL)`; 
+            pgParams.push(filters.brandId);
+            pIdx++;
+            console.log('[DB] Adding brandId filter:', filters.brandId);
+          }
           pgSql += ' ORDER BY created_at DESC'
           
           console.log('[DB] Executing SQL:', pgSql, 'with params:', pgParams)
           const { rows } = await db.query(pgSql, pgParams)
           console.log('[DB] getEvents query returned:', rows.length, 'rows')
+          
+          // 如果没有返回数据且有过滤条件，尝试查询所有数据看看原因
+          if (rows.length === 0 && (filters.creatorId || filters.brandId)) {
+            console.log('[DB] No results found, checking all events...');
+            const allRows = await db.query('SELECT id, organizer_id, brand_id, title FROM events ORDER BY created_at DESC LIMIT 5');
+            console.log('[DB] Sample events:', allRows.rows);
+          }
           return rows.map(pgRow => {
             console.log('[DB] getEvents row:', { id: pgRow.id, image_url: pgRow.image_url, thumbnail_url: pgRow.thumbnail_url });
             return {
@@ -5548,6 +5574,38 @@ export const eventDB = {
           })
         } catch (e) { 
           console.error('[DB] getEvents(filters) error:', e)
+          // 如果是 brand_id 列不存在的错误，尝试不使用 brand_id 过滤重新查询
+          if (e.message && e.message.includes('column "brand_id" does not exist')) {
+            console.log('[DB] brand_id column does not exist, retrying without brand filter')
+            try {
+              let pgSql = 'SELECT * FROM events WHERE 1=1'
+              const pgParams = []
+              let pIdx = 1
+              if (filters.creatorId) { pgSql += ` AND organizer_id = $${pIdx++}`; pgParams.push(filters.creatorId) }
+              if (filters.status) { pgSql += ` AND status = $${pIdx++}`; pgParams.push(filters.status) }
+              pgSql += ' ORDER BY created_at DESC'
+              
+              console.log('[DB] Executing fallback SQL:', pgSql, 'with params:', pgParams)
+              const { rows } = await db.query(pgSql, pgParams)
+              console.log('[DB] getEvents fallback query returned:', rows.length, 'rows')
+              return rows.map(pgRow => ({
+                ...pgRow,
+                startTime: pgRow.start_date * 1000,
+                endTime: pgRow.end_date * 1000,
+                coverUrl: pgRow.image_url || pgRow.thumbnail_url,
+                thumbnailUrl: pgRow.thumbnail_url || pgRow.image_url,
+                imageUrl: pgRow.image_url || pgRow.thumbnail_url,
+                creatorId: pgRow.organizer_id,
+                created_at: pgRow.created_at,
+                updated_at: pgRow.updated_at,
+                tags: pgRow.tags && typeof pgRow.tags === 'string' && pgRow.tags.trim() ? JSON.parse(pgRow.tags) : [],
+                media: pgRow.image_url ? [{ url: pgRow.image_url, type: 'image' }] : []
+              }))
+            } catch (fallbackError) {
+              console.error('[DB] getEvents fallback query error:', fallbackError)
+              return []
+            }
+          }
           return [] 
         }
         
@@ -5555,6 +5613,7 @@ export const eventDB = {
         let results = memoryStore.events || []
         if (filters.creatorId) results = results.filter(e => e.creatorId === filters.creatorId)
         if (filters.status) results = results.filter(e => e.status === filters.status)
+        if (filters.brandId) results = results.filter(e => e.brandId === filters.brandId)
         return results.sort((a, b) => b.created_at - a.created_at)
         
       default: return []

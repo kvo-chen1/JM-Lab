@@ -1614,16 +1614,21 @@ async function route(req, res, u, path) {
     // 允许未登录访问
     try {
       // 使用缓存减少数据库查询
-      const cacheKey = 'events_list_v2';
       const url = new URL(req.url, `http://${req.headers.host}`);
       const refresh = url.searchParams.get('refresh') === 'true';
+      const brandId = url.searchParams.get('brandId') || '';
+      
+      // 包含 brandId 的缓存键
+      const cacheKey = `events_list_v2_${brandId || 'all'}`;
       
       let formattedEvents = refresh ? null : getCache(cacheKey);
       
       if (!formattedEvents) {
         console.log('[API] Cache miss for events, querying database...');
-        let events = await eventDB.getEvents()
-        console.log('[API] eventDB.getEvents() returned:', events.length, 'events');
+        // 只有当 brandId 不为空时才传递 brandId 参数
+        const filters = brandId ? { brandId } : {};
+        let events = await eventDB.getEvents(filters)
+        console.log('[API] eventDB.getEvents() returned:', events.length, 'events for brandId:', brandId);
         
         // 注意：不再自动创建示例活动，只返回用户真实创建的活动
         
@@ -5556,10 +5561,11 @@ async function route(req, res, u, path) {
       const search = u.searchParams.get('search') || ''
       const status = u.searchParams.get('status') || ''
       const type = u.searchParams.get('type') || ''
+      const brandId = u.searchParams.get('brandId') || ''
       const page = parseInt(u.searchParams.get('page') || '1')
       const pageSize = parseInt(u.searchParams.get('pageSize') || '10')
       
-      console.log('[API] Get user events - userId:', userId, 'status:', status)
+      console.log('[API] Get user events - userId:', userId, 'status:', status, 'brandId:', brandId)
       console.log('[API] userId type:', typeof userId, 'userId length:', userId.length)
       
       // 先查询所有活动，看看 organizer_id 的格式
@@ -5575,6 +5581,9 @@ async function route(req, res, u, path) {
       const filters = { creatorId: userId }
       if (status && status !== 'all') {
         filters.status = status
+      }
+      if (brandId) {
+        filters.brandId = brandId
       }
       let events = await eventDB.getEvents(filters)
       console.log('[API] eventDB.getEvents returned:', events.length, 'events for user:', userId)

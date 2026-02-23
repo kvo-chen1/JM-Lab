@@ -633,36 +633,36 @@ export default function MobileDashboard({
                 {showAllMenu ? '收起' : '展开'}
               </motion.button>
             </div>
-            <AnimatePresence>
-              <motion.div
-                className="grid grid-cols-5 sm:grid-cols-5 gap-2 sm:gap-3"
-                animate={{ height: showAllMenu ? 'auto' : '70px' }}
-                style={{ overflow: 'hidden' }}
-              >
-                {moreMenuItems.map((item, index) => (
-                  <motion.button
-                    key={item.label}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.5 + index * 0.05 }}
-                    whileHover={{ y: -4, scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => navigate(item.path)}
-                    className="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                  >
-                    <div className={`
-                      w-9 h-9 sm:w-11 sm:h-11 rounded-xl
-                      bg-gradient-to-br from-${item.color}-500 to-${item.color === 'amber' ? 'yellow' : item.color === 'cyan' ? 'blue' : item.color}-600
-                      flex items-center justify-center
-                      text-white shadow-lg
-                    `}>
-                      <item.icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </div>
-                    <span className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate w-full text-center">{item.label}</span>
-                  </motion.button>
-                ))}
-              </motion.div>
-            </AnimatePresence>
+            <motion.div
+              className="grid grid-cols-5 sm:grid-cols-5 gap-2 sm:gap-3"
+              initial={false}
+              animate={{ height: showAllMenu ? 'auto' : '80px' }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}
+            >
+              {moreMenuItems.map((item, index) => (
+                <motion.button
+                  key={item.label}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.5 + index * 0.05 }}
+                  whileHover={{ y: -4, scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate(item.path)}
+                  className="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <div className={`
+                    w-9 h-9 sm:w-11 sm:h-11 rounded-xl
+                    bg-gradient-to-br from-${item.color}-500 to-${item.color === 'amber' ? 'yellow' : item.color === 'cyan' ? 'blue' : item.color}-600
+                    flex items-center justify-center
+                    text-white shadow-lg
+                  `}>
+                    <item.icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate w-full text-center">{item.label}</span>
+                </motion.button>
+              ))}
+            </motion.div>
           </div>
         </Card>
 

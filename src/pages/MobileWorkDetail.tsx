@@ -239,11 +239,11 @@ export default function MobileWorkDetail() {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate(-1)}
-              className={`flex items-center justify-center w-10 h-10 rounded-xl ${
+              className={`flex items-center justify-center w-12 h-12 rounded-xl ${
                 isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
               }`}
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-7 h-7" strokeWidth={2.5} />
             </motion.button>
             <h1 className={`text-base font-bold truncate max-w-[200px] ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {submission.title}
@@ -287,9 +287,9 @@ export default function MobileWorkDetail() {
                 e.stopPropagation();
                 navigate(-1);
               }}
-              className="absolute top-4 left-4 w-12 h-12 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white"
+              className="absolute top-4 left-4 w-14 h-14 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/20"
             >
-              <ChevronLeft className="w-7 h-7" />
+              <ChevronLeft className="w-8 h-8" strokeWidth={2.5} />
             </motion.button>
             {/* 分享按钮（浮动） */}
             <motion.button

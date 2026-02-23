@@ -11,17 +11,24 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '..')
 
-// 加载环境变量
-const envPath = path.join(projectRoot, '.env')
-const envLocalPath = path.join(projectRoot, '.env.local')
+// 检查是否在 Vercel 环境
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
 
-if (fs.existsSync(envPath)) {
-  dotenv.config({ path: envPath })
-  console.log('[DB] 已加载 .env 文件:', envPath)
-}
-if (fs.existsSync(envLocalPath)) {
-  dotenv.config({ path: envLocalPath, override: true })
-  console.log('[DB] 已加载 .env.local 文件:', envLocalPath)
+// 加载环境变量（仅在非Vercel环境）
+if (!isVercel) {
+  const envPath = path.join(projectRoot, '.env')
+  const envLocalPath = path.join(projectRoot, '.env.local')
+
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath })
+    console.log('[DB] 已加载 .env 文件:', envPath)
+  }
+  if (fs.existsSync(envLocalPath)) {
+    dotenv.config({ path: envLocalPath, override: true })
+    console.log('[DB] 已加载 .env.local 文件:', envLocalPath)
+  }
+} else {
+  console.log('[DB] Vercel环境：使用平台环境变量')
 }
 
 // 数据库类型枚举

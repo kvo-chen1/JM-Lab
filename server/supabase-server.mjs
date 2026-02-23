@@ -2,11 +2,18 @@ import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
 import fs from 'fs'
 
-// 加载环境变量
-if (fs.existsSync('.env.local')) {
-  dotenv.config({ path: '.env.local' })
+// 检查是否在 Vercel 环境（生产环境）
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
+
+if (!isVercel) {
+  // 本地开发环境：从文件加载环境变量
+  if (fs.existsSync('.env.local')) {
+    dotenv.config({ path: '.env.local' })
+  }
+  dotenv.config()
+} else {
+  console.log('[Supabase Server] Vercel 环境，使用平台注入的环境变量')
 }
-dotenv.config()
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY

@@ -51,6 +51,7 @@ console.log('[Config] OAuth 配置:', {
 import pathModule from 'path'
 import { Readable } from 'stream'
 import http from 'http'
+import https from 'https'
 import { WebSocketServer } from 'ws'
 import { URL } from 'url'
 import { generateToken, verifyToken } from './jwt.mjs'
@@ -5303,10 +5304,7 @@ async function route(req, res, u, path) {
     console.log('[API] Proxy download:', url.substring(0, 100))
     
     try {
-      // 使用 node-fetch 或 https 模块下载图片
-      const https = require('https')
-      const http = require('http')
-      
+      // 使用 https/http 模块下载图片
       const client = url.startsWith('https:') ? https : http
       
       const request = client.get(url, { 

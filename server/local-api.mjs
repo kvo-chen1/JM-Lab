@@ -2451,13 +2451,20 @@ async function route(req, res, u, path) {
       verificationCodes.set(email, { code: verificationCode, expiresAt })
 
       // 同时存储到数据库，确保持久化和多实例共享
+      let dbStoreSuccess = false
       try {
         console.log(`[验证码] 准备存储到数据库: ${email}`)
         await userDB.updateEmailLoginCode(email, verificationCode, expiresAt)
         console.log(`[验证码] 已存储到数据库: ${email}`)
+        dbStoreSuccess = true
       } catch (dbError) {
         console.error('[验证码] 存储到数据库失败:', dbError)
-        // 继续执行，因为内存中已经有验证码了
+        console.error('[验证码] 错误详情:', dbError.message, dbError.stack)
+        // Vercel环境下必须存储到数据库，因为内存无法共享
+        if (isVercel) {
+          sendJson(res, 500, { code: 1, message: '验证码存储失败，请稍后重试' })
+          return
+        }
       }
 
       console.log(`[验证码] 准备发送到 ${email}`)

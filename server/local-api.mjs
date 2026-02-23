@@ -6815,89 +6815,97 @@ async function route(req, res, u, path) {
   sendJson(res, 404, { error: 'NOT_FOUND', message: '接口不存在' })
 }
 
-const server = http.createServer(async (req, res) => {
-  setCors(res)
-  
-  const protocol = req.headers['x-forwarded-proto'] || 'http'
-  const host = req.headers.host || `localhost:${PORT}`
-  const u = new URL(req.url, `${protocol}://${host}`)
-  const path = u.pathname
+// 检查是否在 Vercel 环境
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
 
-  console.log('[API] Request:', req.method, path, 'full URL:', req.url)
+// 只在非 Vercel 环境下创建 HTTP 服务器和 WebSocket 服务器
+if (!isVercel) {
+  const server = http.createServer(async (req, res) => {
+    setCors(res)
+    
+    const protocol = req.headers['x-forwarded-proto'] || 'http'
+    const host = req.headers.host || `localhost:${PORT}`
+    const u = new URL(req.url, `${protocol}://${host}`)
+    const path = u.pathname
 
-  try {
-    await route(req, res, u, path)
-  } catch (error) {
-    console.error('API error:', error)
-    if (!res.headersSent) {
-      sendJson(res, 500, { error: 'SERVER_ERROR', message: '服务器内部错误' })
-    }
-  }
-})
+    console.log('[API] Request:', req.method, path, 'full URL:', req.url)
 
-// WebSocket 服务配置
-const wss = new WebSocketServer({ server, path: '/ws' });
-
-wss.on('connection', (ws) => {
-  console.log('[WebSocket] 客户端已连接');
-  
-  // 发送欢迎消息
-  ws.send(JSON.stringify({ type: 'welcome', payload: { message: '已连接到本地 WebSocket 服务' } }));
-
-  ws.on('message', (message) => {
     try {
-      const data = JSON.parse(message);
-      console.log('[WebSocket] 收到消息:', data);
-      
-      // 处理心跳检测
-      if (data.type === 'ping') {
-        ws.send(JSON.stringify({ type: 'pong', payload: { timestamp: Date.now() } }));
+      await route(req, res, u, path)
+    } catch (error) {
+      console.error('API error:', error)
+      if (!res.headersSent) {
+        sendJson(res, 500, { error: 'SERVER_ERROR', message: '服务器内部错误' })
       }
-    } catch (e) {
-      console.error('[WebSocket] 消息错误:', e);
     }
-  });
-
-  ws.on('close', () => {
-    console.log('[WebSocket] 客户端断开连接');
-  });
-  
-  ws.on('error', (error) => {
-    console.error('[WebSocket] 错误:', error);
-  });
-});
-
-server.listen(PORT, () => {
-  console.log(`Local API server running on http://localhost:${PORT}`)
-  console.log(`HTTP API endpoints available at http://localhost:${PORT}/api`)
-  console.log(`Server is now listening for requests...`)
-})
-
-server.on('error', (error) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`Error: Port ${PORT} is already in use`)
-    console.error('Please stop any other processes using this port and try again')
-  } else {
-    console.error('Server error:', error)
-  }
-  process.exit(1)
-})
-
-process.on('SIGINT', () => {
-  console.log('Received SIGINT, shutting down server...')
-  server.close(() => {
-    console.log('Server closed')
-    process.exit(0)
   })
-})
 
-process.on('SIGTERM', () => {
-  console.log('Received SIGTERM, shutting down server...')
-  server.close(() => {
-    console.log('Server closed')
-    process.exit(0)
+  // WebSocket 服务配置（仅本地开发环境）
+  const wss = new WebSocketServer({ server, path: '/ws' });
+
+  wss.on('connection', (ws) => {
+    console.log('[WebSocket] 客户端已连接');
+    
+    // 发送欢迎消息
+    ws.send(JSON.stringify({ type: 'welcome', payload: { message: '已连接到本地 WebSocket 服务' } }));
+
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message);
+        console.log('[WebSocket] 收到消息:', data);
+        
+        // 处理心跳检测
+        if (data.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong', payload: { timestamp: Date.now() } }));
+        }
+      } catch (e) {
+        console.error('[WebSocket] 消息错误:', e);
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('[WebSocket] 客户端断开连接');
+    });
+    
+    ws.on('error', (error) => {
+      console.error('[WebSocket] 错误:', error);
+    });
+  });
+
+  server.listen(PORT, () => {
+    console.log(`Local API server running on http://localhost:${PORT}`)
+    console.log(`HTTP API endpoints available at http://localhost:${PORT}/api`)
+    console.log(`Server is now listening for requests...`)
   })
-})
+
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Error: Port ${PORT} is already in use`)
+      console.error('Please stop any other processes using this port and try again')
+    } else {
+      console.error('Server error:', error)
+    }
+    process.exit(1)
+  })
+
+  process.on('SIGINT', () => {
+    console.log('Received SIGINT, shutting down server...')
+    server.close(() => {
+      console.log('Server closed')
+      process.exit(0)
+    })
+  })
+
+  process.on('SIGTERM', () => {
+    console.log('Received SIGTERM, shutting down server...')
+    server.close(() => {
+      console.log('Server closed')
+      process.exit(0)
+    })
+  })
+} else {
+  console.log('[API] Running in Vercel environment - HTTP server not started (using Serverless Functions)')
+}
 
 // 导出handler函数，供Vercel Serverless Function使用
 export default async function handler(req, res) {

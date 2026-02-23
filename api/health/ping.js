@@ -8,20 +8,26 @@ export default async function handler(req, res) {
 
   // Handle OPTIONS requests
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.statusCode = 200;
+    res.end();
+    return;
   }
 
   try {
-    return res.status(200).json({
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
       ok: true,
       message: 'pong',
       timestamp: new Date().toISOString()
-    });
+    }));
   } catch (error) {
     console.error('Health check error:', error);
-    return res.status(500).json({
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
       error: 'HEALTH_CHECK_ERROR',
       message: error.message || 'Unknown error occurred'
-    });
+    }));
   }
 }

@@ -8,7 +8,9 @@ export default async function handler(req, res) {
 
   // Handle OPTIONS requests
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.statusCode = 200;
+    res.end();
+    return;
   }
 
   try {
@@ -34,7 +36,7 @@ export default async function handler(req, res) {
     });
 
     // Set the response status code
-    res.status(response.status);
+    res.statusCode = response.status;
 
     // Get the content type from the response
     const contentType = response.headers.get('content-type') || 'image/jpeg';
@@ -42,12 +44,14 @@ export default async function handler(req, res) {
 
     // Return the image binary data
     const buffer = Buffer.from(await response.arrayBuffer());
-    return res.send(buffer);
+    res.end(buffer);
   } catch (error) {
     console.error('Unsplash proxy error:', error);
-    return res.status(500).json({
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
       error: 'UNSPLASH_PROXY_ERROR',
       message: error.message || 'Failed to proxy Unsplash image'
-    });
+    }));
   }
 }

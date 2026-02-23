@@ -8,7 +8,9 @@ export default async function handler(req, res) {
 
   // Handle OPTIONS requests
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.statusCode = 200;
+    res.end();
+    return;
   }
 
   try {
@@ -18,10 +20,13 @@ export default async function handler(req, res) {
 
     // Validate the video URL
     if (!videoUrl) {
-      return res.status(400).json({
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
         error: 'URL_NOT_PROVIDED',
         message: 'Video URL is required'
-      });
+      }));
+      return;
     }
 
     // Check if the URL is from an allowed domain
@@ -52,11 +57,14 @@ export default async function handler(req, res) {
 
     if (!isAllowed && !isDevelopment) {
       console.warn('Video URL not in allowed domains:', videoUrl);
-      return res.status(400).json({
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
         error: 'URL_NOT_ALLOWED',
         message: 'Video URL is not from an allowed domain',
         allowedDomains: allowedDomains
-      });
+      }));
+      return;
     }
 
     // Forward the request to the video URL
@@ -68,7 +76,7 @@ export default async function handler(req, res) {
     });
 
     // Set the response status code
-    res.status(response.status);
+    res.statusCode = response.status;
 
     // Set the content type from the response
     const contentType = response.headers.get('content-type') || 'video/mp4';
@@ -87,12 +95,14 @@ export default async function handler(req, res) {
 
     // Return the video binary data
     const buffer = Buffer.from(await response.arrayBuffer());
-    return res.send(buffer);
+    res.end(buffer);
   } catch (error) {
     console.error('Video proxy error:', error);
-    return res.status(500).json({
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
       error: 'VIDEO_PROXY_ERROR',
       message: error.message || 'Failed to proxy video'
-    });
+    }));
   }
 }

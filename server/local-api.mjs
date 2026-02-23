@@ -6494,13 +6494,19 @@ async function route(req, res, u, path) {
         })
       
       if (error) {
-        console.error('[API] 记录设备信息失败:', error)
+        // 如果表不存在，记录警告但不返回错误
+        if (error.message && error.message.includes('does not exist')) {
+          console.warn('[API] user_devices 表不存在，跳过设备信息记录')
+        } else {
+          console.error('[API] 记录设备信息失败:', error)
+        }
       }
       
       sendJson(res, 200, { code: 0, message: '设备信息已记录' })
     } catch (error) {
       console.error('[API] 记录设备信息失败:', error)
-      sendJson(res, 500, { error: 'RECORD_FAILED', message: '记录设备信息失败' })
+      // 即使出错也返回成功，避免影响用户体验
+      sendJson(res, 200, { code: 0, message: '设备信息已记录' })
     }
     return
   }
@@ -6532,13 +6538,19 @@ async function route(req, res, u, path) {
         })
       
       if (error) {
-        console.error('[API] 记录流量来源失败:', error)
+        // 如果表不存在，记录警告但不返回错误
+        if (error.message && error.message.includes('does not exist')) {
+          console.warn('[API] traffic_sources 表不存在，跳过流量来源记录')
+        } else {
+          console.error('[API] 记录流量来源失败:', error)
+        }
       }
       
       sendJson(res, 200, { code: 0, message: '流量来源已记录' })
     } catch (error) {
       console.error('[API] 记录流量来源失败:', error)
-      sendJson(res, 500, { error: 'RECORD_FAILED', message: '记录流量来源失败' })
+      // 即使出错也返回成功，避免影响用户体验
+      sendJson(res, 200, { code: 0, message: '流量来源已记录' })
     }
     return
   }
@@ -6572,13 +6584,19 @@ async function route(req, res, u, path) {
         })
       
       if (error) {
-        console.error('[API] 记录用户活动失败:', error)
+        // 如果表不存在，记录警告但不返回错误
+        if (error.message && error.message.includes('does not exist')) {
+          console.warn('[API] user_activities 表不存在，跳过用户活动记录')
+        } else {
+          console.error('[API] 记录用户活动失败:', error)
+        }
       }
       
       sendJson(res, 200, { code: 0, message: '活动已记录' })
     } catch (error) {
       console.error('[API] 记录用户活动失败:', error)
-      sendJson(res, 500, { error: 'RECORD_FAILED', message: '记录活动失败' })
+      // 即使出错也返回成功，避免影响用户体验
+      sendJson(res, 200, { code: 0, message: '活动已记录' })
     }
     return
   }

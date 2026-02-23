@@ -63,17 +63,6 @@ import searchRoutes from './routes/search.mjs'
 import paymentRoutes from './routes/payment.mjs'
 import { generateOAuthUrl, handleOAuthCallback, getConfiguredProviders, isOAuthConfigured } from './oauth-providers.mjs'
 
-// WebSocketServer 动态导入（仅在非Vercel环境使用）
-let WebSocketServer = null
-if (!isVercel) {
-  try {
-    const wsModule = await import('ws')
-    WebSocketServer = wsModule.WebSocketServer
-  } catch (e) {
-    console.warn('[WebSocket] 加载 ws 模块失败:', e.message)
-  }
-}
-
 // 内存中存储验证码 (email -> { code, expiresAt })
 const verificationCodes = new Map();
 
@@ -6876,40 +6865,46 @@ if (!isVercel) {
   })
 
   // WebSocket 服务配置（仅本地开发环境）
-  if (WebSocketServer) {
-    const wss = new WebSocketServer({ server, path: '/ws' });
+  // 使用 IIFE 来支持 async/await
+  (async () => {
+    try {
+      const { WebSocketServer } = await import('ws');
+      const wss = new WebSocketServer({ server, path: '/ws' });
 
-    wss.on('connection', (ws) => {
-      console.log('[WebSocket] 客户端已连接');
-      
-      // 发送欢迎消息
-      ws.send(JSON.stringify({ type: 'welcome', payload: { message: '已连接到本地 WebSocket 服务' } }));
+      wss.on('connection', (ws) => {
+        console.log('[WebSocket] 客户端已连接');
+        
+        // 发送欢迎消息
+        ws.send(JSON.stringify({ type: 'welcome', payload: { message: '已连接到本地 WebSocket 服务' } }));
 
-      ws.on('message', (message) => {
-        try {
-          const data = JSON.parse(message);
-          console.log('[WebSocket] 收到消息:', data);
-          
-          // 处理心跳检测
-          if (data.type === 'ping') {
-            ws.send(JSON.stringify({ type: 'pong', payload: { timestamp: Date.now() } }));
+        ws.on('message', (message) => {
+          try {
+            const data = JSON.parse(message);
+            console.log('[WebSocket] 收到消息:', data);
+            
+            // 处理心跳检测
+            if (data.type === 'ping') {
+              ws.send(JSON.stringify({ type: 'pong', payload: { timestamp: Date.now() } }));
+            }
+          } catch (e) {
+            console.error('[WebSocket] 消息错误:', e);
           }
-        } catch (e) {
-          console.error('[WebSocket] 消息错误:', e);
-        }
-      });
+        });
 
-      ws.on('close', () => {
-        console.log('[WebSocket] 客户端断开连接');
+        ws.on('close', () => {
+          console.log('[WebSocket] 客户端断开连接');
+        });
+        
+        ws.on('error', (error) => {
+          console.error('[WebSocket] 错误:', error);
+        });
       });
       
-      ws.on('error', (error) => {
-        console.error('[WebSocket] 错误:', error);
-      });
-    });
-  } else {
-    console.log('[WebSocket] WebSocketServer 未加载，跳过 WebSocket 服务启动');
-  }
+      console.log('[WebSocket] WebSocket 服务器已启动');
+    } catch (e) {
+      console.log('[WebSocket] 加载 ws 模块失败，跳过 WebSocket 服务:', e.message);
+    }
+  })();
 
   server.listen(PORT, () => {
     console.log(`Local API server running on http://localhost:${PORT}`)

@@ -119,22 +119,22 @@ const config = {
       min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '0'),
       // 空闲连接超时：快速释放不用的连接
       idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '10000'),
-      // 连接超时：快速失败，避免长时间等待
-      connectionTimeoutMillis: parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '10000'),
+      // 连接超时：Vercel环境使用更短的超时（5秒），避免函数超时
+      connectionTimeoutMillis: isVercel ? 5000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '10000'),
       // 连接最大生命周期：防止连接长时间不释放
       maxLifetime: parseInt(process.env.POSTGRES_MAX_LIFETIME || '300000'), // 5分钟
       // SSL 配置：Supabase 通常需要 SSL。本地开发可能不需要。
       ssl: (connectionString && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) ? {
         rejectUnauthorized: false // 允许自签名证书 (Supabase 兼容性)
       } : false,
-      // 查询超时设置：避免长时间运行的查询阻塞连接
-      statement_timeout: 30000, // 30秒查询超时
+      // 查询超时设置：Vercel环境使用更短的超时（5秒）
+      statement_timeout: isVercel ? 5000 : 30000,
       // 客户端编码设置
       client_encoding: 'UTF8',
       // 连接重试策略
       retry: {
-        maxRetries: 3,
-        delay: 1000,
+        maxRetries: isVercel ? 1 : 3,
+        delay: 500,
         backoff: 'exponential'
       }
     }

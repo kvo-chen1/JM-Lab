@@ -864,25 +864,25 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               )}
               <div className={`${collapsed ? 'space-y-3' : 'space-y-1.5'}`}>
                 {group.items.map((item, index) => (
-                  <NavLink 
+                  <NavLink
                     key={item.id}
                     to={`${item.path}${item.search || ''}`}
-                    title={collapsed ? item.label : undefined} 
-                    onMouseEnter={() => debouncedPrefetch(item.id)} 
+                    title={collapsed ? item.label : undefined}
+                    onMouseEnter={() => debouncedPrefetch(item.id)}
                     className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-[#E2E8F0]' : 'text-gray-700')} relative overflow-hidden group ${collapsed ? 'justify-center px-2 py-4' : ''}`}
                     end
-                  > 
-                    <i className={`fas ${item.icon} ${collapsed ? 'mr-0 text-xl' : 'mr-3 text-base'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 text-current ${collapsed ? 'w-8' : 'w-5'} text-center`}></i>
+                  >
+                    <i className={`fas ${item.icon} ${collapsed ? 'mr-0 text-xl' : 'mr-3 text-base'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 text-current ${collapsed ? 'w-8' : 'w-5'} text-center flex-shrink-0`}></i>
                     {!collapsed && (
-                      <span 
-                        className="transition-all duration-300 ease-in-out opacity-100 truncate font-medium"
+                      <span
+                        className="flex-1 transition-all duration-300 ease-in-out opacity-100 truncate font-medium"
                       >
                         {navItemIdToTranslationKey[item.id] ? t(navItemIdToTranslationKey[item.id]) : item.label}
                       </span>
                     )}
-                    {item.badge && (
+                    {item.badge && !collapsed && (
                       <span
-                        className={`ml-auto px-2 py-0.5 text-xs rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-red-100 text-red-700'} font-medium`}
+                        className={`flex-shrink-0 px-2 py-0.5 text-xs rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-red-100 text-red-700'} font-medium`}
                       >
                         {item.badge}
                       </span>

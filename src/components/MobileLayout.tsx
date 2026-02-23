@@ -348,7 +348,7 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
       return
     }
     const encodedSearch = encodeURIComponent(search.trim())
-    navigate(`/square?search=${encodedSearch}`)
+    navigate(`/search?query=${encodedSearch}`)
     setSearch('')
     setShowSearch(false)
   }, [search, navigate, t])

@@ -86,7 +86,7 @@ export default function AchievementManagement() {
       const data = await achievementService.getAllAchievements();
       setAchievements(data);
       
-      const levelData = achievementService.getCreatorLevels();
+      const levelData = achievementService.getAllCreatorLevels();
       setLevels(levelData);
     } catch (error) {
       console.error('获取成就列表失败:', error);

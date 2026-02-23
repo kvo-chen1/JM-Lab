@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabaseClient';
 import { Upload, X, Plus, Search, Edit2, Trash2, Eye, Image as ImageIcon, Tag, Save, AlertCircle, Database, RefreshCw } from 'lucide-react';
 import tianjinCultureService from '@/services/tianjinCultureService';
 import { knowledgeBaseService } from '@/services/knowledgeBaseService';
+import { getPicsumUrl } from '@/utils/templateImageGenerator';
 
 // 知识库条目类型定义
 interface KnowledgeItem {
@@ -125,7 +126,7 @@ export default function KnowledgeBaseManagement() {
           category: item.category,
           subcategory: '',
           content: item.content,
-          imageUrl: undefined,
+          imageUrl: item.imageUrl,
           tags: item.tags,
           relatedItems: [],
           sources: [],
@@ -196,13 +197,77 @@ export default function KnowledgeBaseManagement() {
         setItems(filtered);
         setTotalCount(filtered.length);
       } else {
+        // 根据标题获取默认图片 - 使用 placehold.co 占位图服务
+        const getDefaultImage = (title: string, category: string) => {
+          // 知识库条目图片映射 - 使用彩色占位图
+          const knowledgeImages: Record<string, string> = {
+            // 天津文化
+            '杨柳青年画': 'https://placehold.co/400x400/c02c38/ffffff?text=杨柳青年画',
+            '泥人张彩塑': 'https://placehold.co/400x400/db2777/ffffff?text=泥人张彩塑',
+            '天津风筝魏': 'https://placehold.co/400x400/0891b2/ffffff?text=天津风筝魏',
+            '天津方言': 'https://placehold.co/400x400/7c3aed/ffffff?text=天津方言',
+            '天津之眼': 'https://placehold.co/400x400/2563eb/ffffff?text=天津之眼',
+            '狗不理包子': 'https://placehold.co/400x400/ea580c/ffffff?text=狗不理包子',
+            '五大道建筑群': 'https://placehold.co/400x400/4f46e5/ffffff?text=五大道',
+            '天津时调': 'https://placehold.co/400x400/9333ea/ffffff?text=天津时调',
+            '天后宫': 'https://placehold.co/400x400/dc2626/ffffff?text=天后宫',
+            '十八街麻花': 'https://placehold.co/400x400/d97706/ffffff?text=十八街麻花',
+            '耳朵眼炸糕': 'https://placehold.co/400x400/e11d48/ffffff?text=耳朵眼炸糕',
+            '海河': 'https://placehold.co/400x400/0ea5e9/ffffff?text=海河',
+            '意式风情区': 'https://placehold.co/400x400/8b5cf6/ffffff?text=意式风情区',
+            '天津相声': 'https://placehold.co/400x400/f59e0b/ffffff?text=天津相声',
+            '天津快板': 'https://placehold.co/400x400/10b981/ffffff?text=天津快板',
+            '古文化街': 'https://placehold.co/400x400/f97316/ffffff?text=古文化街',
+          };
+          
+          // 查找匹配的图片
+          for (const [key, value] of Object.entries(knowledgeImages)) {
+            if (title?.includes(key)) {
+              return value;
+            }
+          }
+          
+          // 根据分类生成默认占位图
+          const categoryColors: Record<string, string> = {
+            'platform': '6b7280',
+            'culture': '059669',
+            '非遗传承': 'dc2626',
+            '民间艺术': '7c3aed',
+            '传统工艺': '059669',
+            '传统美食': 'ea580c',
+            '中药文化': '0891b2',
+            '陶瓷文化': 'db2777',
+            '酒文化': '9333ea',
+            '曲艺文化': '4f46e5',
+            '历史建筑': '2563eb',
+            '城市文化': 'c02c38',
+            '服饰文化': 'e11d48',
+            '文房四宝': '374151',
+            '民族文化': 'd97706',
+            '历史人物': 'c02c38',
+            '历史事件': '2563eb',
+            '文化遗产': '059669',
+            '传统技艺': '059669',
+            '民俗文化': 'dc2626',
+            '建筑风格': '0891b2',
+            '地方小吃': 'ea580c',
+            '方言文化': 'c02c38',
+            '文学艺术': '7c3aed',
+            '宗教信仰': '4f46e5',
+          };
+          
+          const color = categoryColors[category] || '6b7280';
+          const text = encodeURIComponent(title?.slice(0, 4) || '文化');
+          return `https://placehold.co/400x400/${color}/ffffff?text=${text}`;
+        };
+
         const formattedItems: KnowledgeItem[] = (data || []).map((item: any) => ({
           id: item.id,
           title: item.title || '',
           category: item.category || '',
           subcategory: item.subcategory || '',
           content: item.content || '',
-          imageUrl: item.image_url,
+          imageUrl: item.image_url || getDefaultImage(item.title, item.category),
           tags: item.tags || [],
           relatedItems: item.related_items || [],
           sources: item.sources || [],

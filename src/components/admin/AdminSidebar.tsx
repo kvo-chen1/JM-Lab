@@ -73,7 +73,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   return (
     <aside
       className={`
-        w-64 h-screen fixed z-30 flex flex-col
+        w-64 h-screen fixed top-0 left-0 z-30 flex flex-col
         ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
         border-r
         transition-colors duration-300

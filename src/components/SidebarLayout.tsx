@@ -251,9 +251,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     setSearch(suggestion.text)
     setShowSearchDropdown(false)
     
-    // 使用搜索服务生成重定向URL
-    const url = searchService.generateRedirectUrl(suggestion.text, suggestion.type)
-    navigate(url)
+    // 跳转到搜索结果页面
+    navigate(`/search?query=${encodeURIComponent(suggestion.text)}`)
     
     // 跟踪搜索事件
     searchService.trackSearchEvent({
@@ -782,8 +781,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     if (!search.trim()) return
     const q = search.trim()
     
-    // 直接跳转到津脉广场（square）并带上搜索关键词
-    navigate(`/square?search=${encodeURIComponent(q)}`)
+    // 跳转到搜索结果页面
+    navigate(`/search?query=${encodeURIComponent(q)}`)
     
     // 跟踪搜索事件
     searchService.trackSearchEvent({

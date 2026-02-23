@@ -226,7 +226,10 @@ const HistoryItem = memo(({
 }) => (
   <motion.div
     className={`search-dropdown-item ${isDark ? 'dark' : ''}`}
-    onClick={onSelect}
+    onMouseDown={(e) => {
+      e.preventDefault();
+      onSelect();
+    }}
     whileHover={{ scale: 1.02 }}
     whileTap={{ scale: 0.98 }}
   >
@@ -276,13 +279,16 @@ const SuggestionItem = memo(({
 }) => (
   <motion.div
     className={`search-dropdown-item ${isDark ? 'dark' : ''}`}
-    onClick={onSelect}
+    onMouseDown={(e) => {
+      e.preventDefault();
+      onSelect();
+    }}
     whileHover={{ scale: 1.02 }}
     whileTap={{ scale: 0.98 }}
   >
     <div className="search-dropdown-item-image">
-      <img 
-        src={item.image || getDefaultImage(item.text)} 
+      <img
+        src={item.image || getDefaultImage(item.text)}
         alt={item.text}
         loading="lazy"
         onError={(e) => {
@@ -500,14 +506,17 @@ const SearchDropdown: React.FC<SearchDropdownProps> = memo(({
             </div>
           ) : (
             <>
-              <div 
+              <div
                 className="search-dropdown-simple-item search-dropdown-enter"
-                onClick={() => handleSelect(search, SearchResultType.TAG)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSelect(search, SearchResultType.TAG);
+                }}
               >
                 <span className="search-dropdown-enter-icon">↵</span>
                 <span>搜索 "{search}"</span>
               </div>
-              
+
               {recommendedSearches
                 .filter(item => item.keyword.toLowerCase().includes(search.toLowerCase()))
                 .slice(0, 5)
@@ -515,7 +524,10 @@ const SearchDropdown: React.FC<SearchDropdownProps> = memo(({
                   <div
                     key={item.id}
                     className="search-dropdown-simple-item"
-                    onClick={() => handleSelect(item.keyword, SearchResultType.TAG)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(item.keyword, SearchResultType.TAG);
+                    }}
                   >
                     <span className="search-dropdown-simple-icon">🔍</span>
                     <span>{item.keyword}</span>

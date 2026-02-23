@@ -169,6 +169,11 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
         setLoading(true);
         setError(null);
         
+        // 记录浏览量
+        postsApi.recordView(id, 'works').catch(err => {
+          console.warn('记录浏览量失败:', err);
+        });
+        
         const allPosts = await postsApi.getPosts(undefined, currentUser?.id);
         const postData = allPosts.find(p => p.id === id);
 

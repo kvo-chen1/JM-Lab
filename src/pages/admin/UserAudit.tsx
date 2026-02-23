@@ -336,14 +336,27 @@ export default function UserAudit() {
   // 处理用户状态变更
   const handleUserStatusChange = async (userId: string, status: 'active' | 'banned' | 'pending') => {
     try {
-      // 更新 Supabase 中的用户状态
-      const { error } = await supabaseAdmin
-        .from('users')
-        .update({ status })
-        .eq('id', userId);
-      
-      if (error) {
-        throw error;
+      // 获取当前用户的 token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('请先登录');
+        return;
+      }
+
+      // 调用后端 API 更新用户状态
+      const response = await fetch(`/api/admin/users/${userId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.code !== 0) {
+        throw new Error(result.message || '更新用户状态失败');
       }
       
       // 更新本地状态
@@ -356,9 +369,9 @@ export default function UserAudit() {
       }
       
       toast.success(`用户状态已更新为${status === 'active' ? '活跃' : status === 'banned' ? '禁用' : '待审核'}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('更新用户状态失败:', error);
-      toast.error('更新用户状态失败');
+      toast.error(error.message || '更新用户状态失败');
     }
   };
   

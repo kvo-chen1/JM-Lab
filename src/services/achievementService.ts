@@ -571,9 +571,44 @@ class AchievementService {
     }
   }
   
-  // 获取所有成就
-  getAllAchievements(): Achievement[] {
-    return [...this.achievements];
+  // 获取所有成就（管理员用）
+  async getAllAchievements(): Promise<Achievement[]> {
+    try {
+      // 获取当前用户的 token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.warn('未登录，返回本地成就数据');
+        return [...this.achievements];
+      }
+
+      // 调用后端 API 获取所有成就
+      const response = await fetch('/api/admin/achievements', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.code === 0 && result.data) {
+        // 将后端数据转换为前端格式
+        const achievements = result.data.map((config: any) => ({
+          ...config,
+          progress: 0,
+          isUnlocked: false
+        }));
+        return achievements;
+      }
+      
+      // 如果 API 调用失败，返回本地数据
+      console.warn('获取成就列表失败，使用本地数据:', result.message);
+      return [...this.achievements];
+    } catch (error) {
+      console.error('获取成就列表失败:', error);
+      // 返回本地数据作为回退
+      return [...this.achievements];
+    }
   }
 
   // 获取已解锁的成就

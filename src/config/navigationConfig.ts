@@ -67,6 +67,7 @@ export const businessNavItems: NavItem[] = [
   { id: 'business', path: '/business', label: '商业合作', icon: 'fas fa-handshake', priority: 'medium' },
   { id: 'organizer', path: '/organizer', label: '主办方中心', icon: 'fas fa-building', priority: 'medium' },
   { id: 'ip-incubation', path: '/ip-incubation', label: 'IP孵化中心', icon: 'fas fa-lightbulb', priority: 'low' },
+  { id: 'creator-center', path: '/creator-center', label: '创作者中心', icon: 'fas fa-star', priority: 'high', badge: '新' },
   { id: 'help', path: '/help', label: '帮助中心', icon: 'fas fa-info-circle', priority: 'low' }
 ];
 

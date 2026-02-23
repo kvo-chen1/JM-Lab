@@ -70,6 +70,48 @@ export const eventService = {
     }));
   },
 
+  // Get all public events (including completed) for search
+  async getAllPublicEvents(): Promise<Event[]> {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('visibility', 'public')
+      .in('status', ['published', 'completed', 'active'])
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to fetch events:', error);
+      return [];
+    }
+
+    return (data || []).map(item => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      startDate: item.start_date,
+      endDate: item.end_date,
+      location: item.location,
+      organizerId: item.organizer_id,
+      requirements: item.requirements,
+      rewards: item.rewards,
+      visibility: item.visibility,
+      status: item.status,
+      registrationDeadline: item.registration_deadline,
+      reviewStartDate: item.review_start_date,
+      resultDate: item.result_date,
+      phaseStatus: item.phase_status,
+      maxParticipants: item.max_participants,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+      publishedAt: item.published_at,
+      imageUrl: item.image_url,
+      category: item.category,
+      tags: item.tags || [],
+      platformEventId: item.platform_event_id,
+      eventType: item.event_type
+    }));
+  },
+
   // Get a single event by ID
   async getEventById(eventId: string): Promise<Event | null> {
     const { data, error } = await supabase

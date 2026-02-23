@@ -5737,6 +5737,134 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 管理员更新用户状态
+  if (req.method === 'PUT' && path.startsWith('/api/admin/users/') && path.endsWith('/status')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+    
+    // 检查是否为管理员
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+      
+      // 解析请求体
+      const chunks = []
+      for await (const chunk of req) {
+        chunks.push(chunk)
+      }
+      const body = JSON.parse(Buffer.concat(chunks).toString())
+      const { status } = body
+      
+      // 从路径中提取用户ID
+      const userId = path.split('/')[4]
+      
+      if (!userId || !status) {
+        sendJson(res, 400, { error: 'BAD_REQUEST', message: '缺少用户ID或状态' })
+        return
+      }
+      
+      // 验证状态值
+      const validStatuses = ['active', 'inactive', 'banned', 'pending']
+      if (!validStatuses.includes(status)) {
+        sendJson(res, 400, { error: 'INVALID_STATUS', message: '无效的状态值' })
+        return
+      }
+      
+      console.log(`[API] 管理员 ${decoded.userId} 更新用户 ${userId} 状态为 ${status}`)
+      
+      // 更新用户状态
+      const { error } = await supabaseServer
+        .from('users')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', userId)
+      
+      if (error) {
+        console.error('[API] 更新用户状态失败:', error)
+        sendJson(res, 500, { error: 'UPDATE_FAILED', message: '更新用户状态失败: ' + error.message })
+        return
+      }
+      
+      sendJson(res, 200, { 
+        code: 0, 
+        message: '用户状态更新成功',
+        data: { userId, status }
+      })
+    } catch (err) {
+      console.error('[API] 更新用户状态失败:', err)
+      sendJson(res, 500, { error: 'UPDATE_FAILED', message: '更新用户状态失败: ' + err.message })
+    }
+    return
+  }
+
+  // 管理员获取所有成就列表
+  if (req.method === 'GET' && path === '/api/admin/achievements') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+    
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+      
+      // 获取所有成就配置
+      const achievementConfigs = [
+        { id: 1, name: '初次创作', description: '完成第一篇创作作品', icon: 'star', rarity: 'common', category: 'creation', criteria: '完成1篇作品', points: 10 },
+        { id: 2, name: '活跃创作者', description: '连续7天登录平台', icon: 'fire', rarity: 'common', category: 'community', criteria: '连续登录7天', points: 20 },
+        { id: 3, name: '人气王', description: '获得100个点赞', icon: 'thumbs-up', rarity: 'rare', category: 'community', criteria: '获得100个点赞', points: 50 },
+        { id: 4, name: '文化传播者', description: '使用5种不同文化元素', icon: 'book', rarity: 'rare', category: 'creation', criteria: '使用5种不同文化元素', points: 40 },
+        { id: 5, name: '作品达人', description: '发布10篇作品', icon: 'image', rarity: 'rare', category: 'creation', criteria: '发布10篇作品', points: 80 },
+        { id: 6, name: '商业成功', description: '作品被品牌采纳', icon: 'handshake', rarity: 'epic', category: 'special', criteria: '作品被品牌采纳1次', points: 200 },
+        { id: 7, name: '传统文化大师', description: '精通传统文化知识', icon: 'graduation-cap', rarity: 'legendary', category: 'special', criteria: '完成10个文化知识问答', points: 300 },
+        { id: 8, name: '创作新手', description: '发布3篇作品', icon: 'pen-tool', rarity: 'common', category: 'creation', criteria: '发布3篇作品', points: 15 },
+        { id: 9, name: '多产作者', description: '发布50篇作品', icon: 'layers', rarity: 'rare', category: 'creation', criteria: '发布50篇作品', points: 100 },
+        { id: 10, name: '创作狂人', description: '发布100篇作品', icon: 'zap', rarity: 'epic', category: 'creation', criteria: '发布100篇作品', points: 200 },
+        { id: 11, name: '创作传奇', description: '发布500篇作品', icon: 'crown', rarity: 'legendary', category: 'creation', criteria: '发布500篇作品', points: 1000 },
+        { id: 12, name: '点赞新手', description: '获得10个点赞', icon: 'heart', rarity: 'common', category: 'community', criteria: '获得10个点赞', points: 10 },
+        { id: 13, name: '受欢迎', description: '获得500个点赞', icon: 'award', rarity: 'rare', category: 'community', criteria: '获得500个点赞', points: 80 },
+        { id: 14, name: '超级明星', description: '获得1000个点赞', icon: 'star', rarity: 'epic', category: 'community', criteria: '获得1000个点赞', points: 150 },
+        { id: 15, name: '评论达人', description: '发表评论50次', icon: 'message-circle', rarity: 'rare', category: 'community', criteria: '发表评论50次', points: 60 },
+        { id: 16, name: '收藏专家', description: '收藏100个作品', icon: 'bookmark', rarity: 'rare', category: 'community', criteria: '收藏100个作品', points: 70 },
+        { id: 17, name: '分享大使', description: '分享作品30次', icon: 'share-2', rarity: 'rare', category: 'community', criteria: '分享作品30次', points: 50 },
+        { id: 18, name: '坚持就是胜利', description: '连续登录30天', icon: 'calendar', rarity: 'rare', category: 'community', criteria: '连续登录30天', points: 100 },
+        { id: 19, name: '忠实用户', description: '连续登录100天', icon: 'calendar-check', rarity: 'epic', category: 'community', criteria: '连续登录100天', points: 300 },
+        { id: 20, name: '年度用户', description: '连续登录365天', icon: 'calendar-days', rarity: 'legendary', category: 'community', criteria: '连续登录365天', points: 1000 },
+        { id: 21, name: 'AI探索者', description: '使用AI生成10张图片', icon: 'cpu', rarity: 'common', category: 'creation', criteria: '使用AI生成10张图片', points: 20 },
+        { id: 22, name: 'AI创作者', description: '使用AI生成100张图片', icon: 'sparkles', rarity: 'rare', category: 'creation', criteria: '使用AI生成100张图片', points: 100 },
+        { id: 23, name: '视频创作者', description: '发布10个视频作品', icon: 'video', rarity: 'rare', category: 'creation', criteria: '发布10个视频作品', points: 80 },
+        { id: 24, name: '视频大师', description: '发布50个视频作品', icon: 'film', rarity: 'epic', category: 'creation', criteria: '发布50个视频作品', points: 250 },
+        { id: 25, name: '文化守护者', description: '使用10种不同文化元素', icon: 'shield', rarity: 'epic', category: 'special', criteria: '使用10种不同文化元素', points: 150 },
+        { id: 26, name: '津门传承者', description: '创作20个天津文化相关作品', icon: 'landmark', rarity: 'epic', category: 'special', criteria: '创作20个天津文化相关作品', points: 200 },
+        { id: 27, name: '完美主义者', description: '获得10个作品评分超过90分', icon: 'target', rarity: 'epic', category: 'special', criteria: '获得10个作品评分超过90分', points: 180 },
+        { id: 28, name: '社交达人', description: '获得100个粉丝', icon: 'users', rarity: 'rare', category: 'community', criteria: '获得100个粉丝', points: 100 },
+        { id: 29, name: '意见领袖', description: '获得1000个粉丝', icon: 'user-check', rarity: 'epic', category: 'community', criteria: '获得1000个粉丝', points: 300 },
+        { id: 30, name: '津脉之星', description: '登上排行榜前10名', icon: 'trophy', rarity: 'legendary', category: 'special', criteria: '登上排行榜前10名', points: 500 }
+      ]
+      
+      sendJson(res, 200, { 
+        code: 0, 
+        data: achievementConfigs,
+        message: '获取成就列表成功'
+      })
+    } catch (err) {
+      console.error('[API] 获取成就列表失败:', err)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取成就列表失败: ' + err.message })
+    }
+    return
+  }
+
   // 文件上传端点
   if (req.method === 'POST' && path === '/api/upload') {
     const decoded = verifyRequestToken(req)
@@ -6339,6 +6467,353 @@ async function route(req, res, u, path) {
   }
 
   // 默认响应
+  // ==================== 数据分析收集 API ====================
+  
+  // 记录设备信息
+  if (req.method === 'POST' && path === '/api/analytics/device') {
+    try {
+      const body = await readBody(req)
+      const { device_type, device_name, user_agent } = body
+      
+      const decoded = verifyRequestToken(req)
+      const userId = decoded?.userId || null
+      
+      // 获取客户端 IP
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+      
+      // 插入或更新设备信息
+      const { error } = await supabaseServer
+        .from('user_devices')
+        .upsert({
+          user_id: userId,
+          device_type: device_type || 'desktop',
+          device_name: device_name || null,
+          user_agent: user_agent || null,
+          ip_address: ip || null,
+          last_seen_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,device_type'
+        })
+      
+      if (error) {
+        console.error('[API] 记录设备信息失败:', error)
+      }
+      
+      sendJson(res, 200, { code: 0, message: '设备信息已记录' })
+    } catch (error) {
+      console.error('[API] 记录设备信息失败:', error)
+      sendJson(res, 500, { error: 'RECORD_FAILED', message: '记录设备信息失败' })
+    }
+    return
+  }
+  
+  // 记录流量来源
+  if (req.method === 'POST' && path === '/api/analytics/traffic') {
+    try {
+      const body = await readBody(req)
+      const { source_type, source_name, utm_source, utm_medium, utm_campaign, referrer_url, landing_page } = body
+      
+      const decoded = verifyRequestToken(req)
+      const userId = decoded?.userId || null
+      
+      // 获取客户端 IP
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+      
+      const { error } = await supabaseServer
+        .from('traffic_sources')
+        .insert({
+          user_id: userId,
+          source_type: source_type || 'direct',
+          source_name: source_name || null,
+          utm_source: utm_source || null,
+          utm_medium: utm_medium || null,
+          utm_campaign: utm_campaign || null,
+          referrer_url: referrer_url || null,
+          landing_page: landing_page || null,
+          ip_address: ip || null
+        })
+      
+      if (error) {
+        console.error('[API] 记录流量来源失败:', error)
+      }
+      
+      sendJson(res, 200, { code: 0, message: '流量来源已记录' })
+    } catch (error) {
+      console.error('[API] 记录流量来源失败:', error)
+      sendJson(res, 500, { error: 'RECORD_FAILED', message: '记录流量来源失败' })
+    }
+    return
+  }
+  
+  // 记录用户活动
+  if (req.method === 'POST' && path === '/api/analytics/activity') {
+    try {
+      const body = await readBody(req)
+      const { activity_type, activity_name, description, metadata } = body
+      
+      const decoded = verifyRequestToken(req)
+      if (!decoded) {
+        sendJson(res, 401, { error: 'UNAUTHORIZED', message: '需要登录' })
+        return
+      }
+      
+      // 获取客户端信息
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+      const userAgent = req.headers['user-agent']
+      
+      const { error } = await supabaseServer
+        .from('user_activities')
+        .insert({
+          user_id: decoded.userId,
+          activity_type: activity_type || 'other',
+          activity_name: activity_name || null,
+          description: description || null,
+          metadata: metadata || null,
+          ip_address: ip || null,
+          user_agent: userAgent || null
+        })
+      
+      if (error) {
+        console.error('[API] 记录用户活动失败:', error)
+      }
+      
+      sendJson(res, 200, { code: 0, message: '活动已记录' })
+    } catch (error) {
+      console.error('[API] 记录用户活动失败:', error)
+      sendJson(res, 500, { error: 'RECORD_FAILED', message: '记录活动失败' })
+    }
+    return
+  }
+  
+  // 记录页面浏览
+  if (req.method === 'POST' && path === '/api/analytics/pageview') {
+    try {
+      const body = await readBody(req)
+      const { page_path, page_title, referrer, session_id, device_type, browser, os, duration } = body
+      
+      const decoded = verifyRequestToken(req)
+      const userId = decoded?.userId || null
+      
+      // 获取客户端信息
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+      const userAgent = req.headers['user-agent']
+      
+      const { error } = await supabaseServer
+        .from('page_views')
+        .insert({
+          user_id: userId,
+          session_id: session_id || null,
+          page_path: page_path || '/',
+          page_title: page_title || null,
+          referrer: referrer || null,
+          device_type: device_type || null,
+          browser: browser || null,
+          os: os || null,
+          ip_address: ip || null,
+          duration: duration || 0
+        })
+      
+      if (error) {
+        console.error('[API] 记录页面浏览失败:', error)
+      }
+      
+      sendJson(res, 200, { code: 0, message: '页面浏览已记录' })
+    } catch (error) {
+      console.error('[API] 记录页面浏览失败:', error)
+      sendJson(res, 500, { error: 'RECORD_FAILED', message: '记录页面浏览失败' })
+    }
+    return
+  }
+  
+  // 获取设备分布数据（管理员）
+  if (req.method === 'GET' && path === '/api/admin/analytics/devices') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+      
+      // 从 user_devices 表获取设备分布
+      const { data: devices, error } = await supabaseServer
+        .from('user_devices')
+        .select('device_type, user_id')
+      
+      if (error) {
+        console.error('[API] 获取设备分布失败:', error)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取设备分布失败' })
+        return
+      }
+      
+      // 统计设备类型分布
+      const deviceMap = new Map<string, Set<string>>()
+      
+      devices?.forEach(device => {
+        const deviceType = device.device_type || 'desktop'
+        if (!deviceMap.has(deviceType)) {
+          deviceMap.set(deviceType, new Set())
+        }
+        deviceMap.get(deviceType)!.add(device.user_id)
+      })
+      
+      // 计算百分比
+      const total = devices?.length || 0
+      const distribution: { name: string; value: number }[] = []
+      
+      const deviceTypeNames: Record<string, string> = {
+        'desktop': '桌面端',
+        'mobile': '移动端',
+        'tablet': '平板'
+      }
+      
+      deviceMap.forEach((users, deviceType) => {
+        const percentage = total > 0 ? Math.round((users.size / total) * 100) : 0
+        distribution.push({
+          name: deviceTypeNames[deviceType] || deviceType,
+          value: percentage
+        })
+      })
+      
+      // 确保至少有三个类别
+      const hasDesktop = distribution.some(d => d.name === '桌面端')
+      const hasMobile = distribution.some(d => d.name === '移动端')
+      const hasTablet = distribution.some(d => d.name === '平板')
+      
+      if (!hasDesktop) distribution.push({ name: '桌面端', value: 0 })
+      if (!hasMobile) distribution.push({ name: '移动端', value: 0 })
+      if (!hasTablet) distribution.push({ name: '平板', value: 0 })
+      
+      sendJson(res, 200, {
+        code: 0,
+        data: distribution.sort((a, b) => b.value - a.value),
+        message: '获取设备分布成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取设备分布失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取设备分布失败' })
+    }
+    return
+  }
+  
+  // 获取流量来源数据（管理员）
+  if (req.method === 'GET' && path === '/api/admin/analytics/sources') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+      
+      // 从 traffic_sources 表获取来源分布
+      const { data: sources, error } = await supabaseServer
+        .from('traffic_sources')
+        .select('source_type')
+      
+      if (error) {
+        console.error('[API] 获取流量来源失败:', error)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取流量来源失败' })
+        return
+      }
+      
+      // 统计来源类型分布
+      const sourceMap = new Map<string, number>()
+      
+      sources?.forEach(source => {
+        const sourceType = source.source_type || 'direct'
+        const count = sourceMap.get(sourceType) || 0
+        sourceMap.set(sourceType, count + 1)
+      })
+      
+      // 计算百分比
+      const total = sources?.length || 0
+      const distribution: { name: string; value: number }[] = []
+      
+      const sourceTypeNames: Record<string, string> = {
+        'direct': '直接访问',
+        'search': '搜索引擎',
+        'social': '社交媒体',
+        'referral': '外部链接',
+        'email': '邮件营销',
+        'other': '其他'
+      }
+      
+      sourceMap.forEach((count, sourceType) => {
+        const percentage = total > 0 ? Math.round((count / total) * 100) : 0
+        distribution.push({
+          name: sourceTypeNames[sourceType] || sourceType,
+          value: percentage
+        })
+      })
+      
+      sendJson(res, 200, {
+        code: 0,
+        data: distribution.sort((a, b) => b.value - a.value),
+        message: '获取流量来源成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取流量来源失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取流量来源失败' })
+    }
+    return
+  }
+  
+  // 获取活跃用户数据（管理员）
+  if (req.method === 'GET' && path === '/api/admin/analytics/active-users') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+      
+      // 获取今日活跃用户
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      const { count: activeUsers, error } = await supabaseServer
+        .from('user_activities')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', today.toISOString())
+      
+      if (error) {
+        console.error('[API] 获取活跃用户失败:', error)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取活跃用户失败' })
+        return
+      }
+      
+      sendJson(res, 200, {
+        code: 0,
+        data: { activeUsers: activeUsers || 0 },
+        message: '获取活跃用户成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取活跃用户失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取活跃用户失败' })
+    }
+    return
+  }
+
   sendJson(res, 404, { error: 'NOT_FOUND', message: '接口不存在' })
 }
 

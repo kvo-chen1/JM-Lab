@@ -309,10 +309,13 @@ const SearchBar: React.FC<SearchBarProps> = memo(({
 
   const handleSuggestionSelect = useCallback((suggestion: SearchSuggestion) => {
     setSearch(suggestion.text);
-    setShowSuggest(false);
     onSuggestionSelect(suggestion);
     saveSearchHistory(suggestion.text);
-  }, [setSearch, setShowSuggest, onSuggestionSelect, saveSearchHistory]);
+    // 延迟关闭下拉菜单，确保导航能够正常触发
+    setTimeout(() => {
+      setShowSuggest(false);
+    }, 100);
+  }, [setSearch, onSuggestionSelect, saveSearchHistory]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {

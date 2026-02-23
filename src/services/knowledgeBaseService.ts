@@ -31,6 +31,7 @@ export interface KnowledgeItem {
   content: string;
   category: string;
   tags: string[];
+  imageUrl?: string; // 封面图片URL
   createdAt: number;
   updatedAt: number;
   relevanceScore?: number; // 相关性评分，用于搜索排序
@@ -55,81 +56,7 @@ export const DEFAULT_KB_CONFIG: KnowledgeBaseConfig = {
   maxResults: 3
 };
 
-// 平台知识数据
-const PLATFORM_KNOWLEDGE: KnowledgeItem[] = [
-  {
-    id: 'platform-1',
-    title: '创作流程指南',
-    content: '我们平台的创作流程包括：1. 构思创意，2. 选择文化元素，3. 使用AI生成工具创作，4. 编辑优化，5. 发布分享。详细步骤可在创作工坊页面查看完整教程。',
-    category: 'platform',
-    tags: ['创作流程', '教程', '平台功能'],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    reviewStatus: 'published',
-    metadata: {
-      sourceType: 'official',
-      author: '平台官方'
-    }
-  },
-  {
-    id: 'platform-2',
-    title: 'AI生成功能说明',
-    content: '我们的AI生成功能支持多种模型，包括DeepSeek、豆包、文心一言等。您可以通过调整参数来控制生成结果的风格和质量。生成的作品可以直接保存或进一步编辑。',
-    category: 'platform',
-    tags: ['AI生成', '模型', '参数调整'],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    reviewStatus: 'published',
-    metadata: {
-      sourceType: 'official',
-      author: '平台官方'
-    }
-  },
-  {
-    id: 'platform-3',
-    title: '文化元素使用指南',
-    content: '平台提供了丰富的传统文化元素库，包括传统纹样、非遗技艺、民族图案等。您可以直接使用这些元素，或基于它们进行创新设计。',
-    category: 'platform',
-    tags: ['文化元素', '传统纹样', '非遗技艺'],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    reviewStatus: 'published',
-    metadata: {
-      sourceType: 'official',
-      author: '平台官方'
-    }
-  },
-  {
-    id: 'platform-4',
-    title: '作品分享与推广',
-    content: '发布作品后，您可以通过社交媒体分享链接，或参与平台的社区活动获得更多曝光。平台会根据作品质量和互动情况进行推荐。',
-    category: 'platform',
-    tags: ['分享', '推广', '社区活动'],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    reviewStatus: 'published',
-    metadata: {
-      sourceType: 'official',
-      author: '平台官方'
-    }
-  },
-  {
-    id: 'platform-5',
-    title: '数据分析功能',
-    content: '在"我的作品"页面，您可以查看作品的浏览量、点赞数、分享数等数据。这些数据可以帮助您了解作品的受欢迎程度，优化后续创作。',
-    category: 'platform',
-    tags: ['数据分析', '作品统计', '创作优化'],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    reviewStatus: 'published',
-    metadata: {
-      sourceType: 'official',
-      author: '平台官方'
-    }
-  }
-];
-
-// 文化知识库数据
+// 文化知识库数据（已迁移到数据库，保留本地副本作为备份）
 const CULTURAL_KNOWLEDGE: KnowledgeItem[] = [
   {
     id: 'culture-1',
@@ -137,6 +64,7 @@ const CULTURAL_KNOWLEDGE: KnowledgeItem[] = [
     content: '中国传统纹样主要包括：1. 几何纹样（如回纹、云纹），2. 动物纹样（如龙纹、凤纹），3. 植物纹样（如牡丹纹、莲花纹），4. 人物纹样，5. 文字纹样。这些纹样常被用于传统服饰、陶瓷、建筑等领域。',
     category: 'culture',
     tags: ['传统纹样', '分类', '文化元素'],
+    imageUrl: 'https://placehold.co/400x400/c02c38/ffffff?text=传统纹样',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     reviewStatus: 'published',
@@ -151,6 +79,7 @@ const CULTURAL_KNOWLEDGE: KnowledgeItem[] = [
     content: '非物质文化遗产技艺包括：1. 传统手工艺（如刺绣、木雕、陶瓷），2. 传统表演艺术（如京剧、皮影戏），3. 传统节日（如春节、端午节），4. 传统知识（如中医、天文历法）。',
     category: 'culture',
     tags: ['非遗技艺', '传统工艺', '文化传承'],
+    imageUrl: 'https://placehold.co/400x400/059669/ffffff?text=非遗技艺',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     reviewStatus: 'published',
@@ -165,6 +94,7 @@ const CULTURAL_KNOWLEDGE: KnowledgeItem[] = [
     content: '中国传统色彩体系源于自然和哲学思想，主要包括：1. 五行色彩（青、赤、黄、白、黑），2. 传统染料（如靛蓝、朱砂、赭石），3. 宫廷色彩（如明黄、朱红），4. 民间色彩（如大红、翠绿）。',
     category: 'culture',
     tags: ['传统色彩', '五行色彩', '色彩体系'],
+    imageUrl: 'https://placehold.co/400x400/7c3aed/ffffff?text=传统色彩',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     reviewStatus: 'published',
@@ -179,6 +109,7 @@ const CULTURAL_KNOWLEDGE: KnowledgeItem[] = [
     content: '中国传统建筑元素包括：1. 斗拱，2. 飞檐，3. 彩绘，4. 石狮，5. 门钉，6. 藻井。这些元素不仅具有实用功能，还蕴含着丰富的文化内涵。',
     category: 'culture',
     tags: ['传统建筑', '建筑元素', '文化内涵'],
+    imageUrl: 'https://placehold.co/400x400/0891b2/ffffff?text=建筑元素',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     reviewStatus: 'published',
@@ -193,6 +124,7 @@ const CULTURAL_KNOWLEDGE: KnowledgeItem[] = [
     content: '中国传统节日有丰富的习俗：1. 春节（贴春联、吃年夜饭、放鞭炮），2. 元宵节（赏花灯、吃元宵），3. 清明节（扫墓、踏青），4. 端午节（吃粽子、赛龙舟），5. 中秋节（赏月、吃月饼）。',
     category: 'culture',
     tags: ['传统节日', '节日习俗', '文化活动'],
+    imageUrl: 'https://placehold.co/400x400/dc2626/ffffff?text=节日习俗',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     reviewStatus: 'published',
@@ -207,7 +139,7 @@ const CULTURAL_KNOWLEDGE: KnowledgeItem[] = [
  * 知识库服务类
  */
 class KnowledgeBaseService {
-  private knowledgeItems: KnowledgeItem[] = [...PLATFORM_KNOWLEDGE, ...CULTURAL_KNOWLEDGE];
+  private knowledgeItems: KnowledgeItem[] = [...CULTURAL_KNOWLEDGE];
   private config: KnowledgeBaseConfig = { ...DEFAULT_KB_CONFIG };
   
   /**

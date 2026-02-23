@@ -128,7 +128,9 @@ VALUES
 ('亨得利表行', '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=square&prompt=Hengdeli%20watch%20store%20heritage%20brand%20logo', '老牌钟表行品牌，精工与匠艺象征，可开展工艺联名。', '1890', 5, 86),
 ('正兴德茶庄', '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=square&prompt=Zhengxingde%20tea%20house%20traditional%20brand%20logo', '历史悠久的茶庄品牌，融合津门茶文化与现代设计。', '1908', 4, 84),
 ('石头门坎素包', '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=square&prompt=Shitoumenkan%20vegetarian%20bun%20heritage%20brand%20logo', '素包名店，传承传统素馅工艺，可做餐饮联名设计。', '1926', 3, 82),
-('孙记烧卖', '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=square&prompt=Sunji%20shaomai%20traditional%20brand%20logo', '街巷点心品牌，家常美味代表，适合集市活动联名。', '1935', 2, 79);
+('孙记烧卖', '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=square&prompt=Sunji%20shaomai%20traditional%20brand%20logo', '街巷点心品牌，家常美味代表，适合集市活动联名。', '1935', 2, 79),
+('天津海河乳品', '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=square&prompt=Haihe%20Dairy%20Tianjin%20brand%20logo', '天津本土知名乳品企业，以新鲜牛奶和乳制品闻名，是天津市民信赖的乳品品牌。', '1957', 8, 95),
+('海河', '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=square&prompt=Haihe%20River%20brand%20logo%20Tianjin', '以海河命名的天津本土品牌，承载着天津人的城市记忆与情感。', '1950', 6, 88);
 
 -- Insert Seed Data for Offline Experiences
 INSERT INTO public.tianjin_offline_experiences (name, description, location, price, image, available_slots, rating, review_count)

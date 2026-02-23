@@ -277,6 +277,12 @@ const PointsMall = createLazyComponent(() => import(/* webpackChunkName: "pages-
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 
+// 创作者中心 - 懒加载
+const CreatorCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-creator" */ "@/pages/creator-center"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'creator-center'
+});
+
 // 社区和互动相关 - 懒加载
 const Leaderboard = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Leaderboard"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
@@ -875,10 +881,16 @@ export default function App() {
           <Route path="/mobile-works" element={<LazyComponent><MobileWorksGalleryDemo /></LazyComponent>} />
           
           {/* 管理员路由 - 懒加载 */}
-          <Route path="/admin" element={<LazyComponent><AdminRoute component={Admin} /></LazyComponent>} />
-          <Route path="/errors" element={<LazyComponent><AdminRoute component={ErrorMonitoringDashboard} /></LazyComponent>} />
-          <Route path="/admin-analytics" element={<LazyComponent><AdminRoute component={AdminAnalytics} /></LazyComponent>} />
         </Route>
+        
+        {/* 创作者中心路由 - 独立于 SidebarLayout，使用自己的布局 */}
+        <Route path="/creator-center" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
+        <Route path="/creator-center/:tab" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
+        
+        {/* 管理员路由 - 独立于 SidebarLayout */}
+        <Route path="/admin" element={<LazyComponent><AdminRoute component={Admin} /></LazyComponent>} />
+        <Route path="/errors" element={<LazyComponent><AdminRoute component={ErrorMonitoringDashboard} /></LazyComponent>} />
+        <Route path="/admin-analytics" element={<LazyComponent><AdminRoute component={AdminAnalytics} /></LazyComponent>} />
       </Routes>
       
       {/* PWA 安装按钮 - 懒加载，隐藏固定按钮，只在个人菜单中显示 */}

@@ -100,8 +100,7 @@ export default function EventAudit() {
   
   // 获取活动列表和分类
   useEffect(() => {
-    fetchEvents(true); // 强制刷新缓存
-    fetchCategories();
+    fetchEvents(true); // 强制刷新缓存，fetchEvents 会自动调用 fetchCategories
   }, []);
   
   // 获取活动列表
@@ -170,6 +169,9 @@ export default function EventAudit() {
           ? Math.round(formattedEvents.reduce((sum, e) => sum + (typeof e.participants === 'number' ? e.participants : e.participantsList?.length || 0), 0) / formattedEvents.length)
           : 0
       });
+      
+      // 获取活动数据后，更新分类统计
+      fetchCategories(formattedEvents);
     } catch (error) {
       console.error('[EventAudit] Fetch events error:', error);
       toast.error('获取活动列表失败，请稍后重试');
@@ -188,59 +190,49 @@ export default function EventAudit() {
   };
   
   // 获取活动分类
-  const fetchCategories = async () => {
+  const fetchCategories = async (eventsData?: AdminEvent[]) => {
     try {
-      // 从 Supabase 获取活动分类数据
-      const { data: categoriesData, error } = await supabaseAdmin
-        .from('event_categories')
-        .select('*');
+      // 使用传入的活动数据或当前状态中的活动数据
+      const eventsToProcess = eventsData || events;
       
-      if (error) {
-        console.warn('[EventAudit] 获取分类失败:', error);
-        // 从现有活动统计生成分类
-        const categoryMap = new Map<string, { name: string; count: number; color: string }>();
-        events.forEach(event => {
-          const cat = event.category || '其他';
-          const existing = categoryMap.get(cat);
-          if (existing) {
-            existing.count++;
-          } else {
-            categoryMap.set(cat, {
-              name: cat,
-              count: 1,
-              color: getCategoryColor(cat)
-            });
-          }
-        });
-        
-        const generatedCategories: EventCategory[] = Array.from(categoryMap.entries()).map(([id, data], index) => ({
-          id: id,
-          name: data.name,
-          description: `${data.name}类活动`,
-          event_count: data.count,
-          color: data.color
-        }));
-        
-        setCategories(generatedCategories);
-        return;
-      }
+      // 从现有活动统计生成分类（因为 event_categories 表可能不存在）
+      const categoryMap = new Map<string, { name: string; count: number; color: string }>();
       
-      // 统计每个分类的活动数量
-      const categoryCounts = new Map<string, number>();
-      events.forEach(event => {
-        const catId = event.category || 'other';
-        categoryCounts.set(catId, (categoryCounts.get(catId) || 0) + 1);
+      eventsToProcess.forEach(event => {
+        const cat = event.category || '其他';
+        const existing = categoryMap.get(cat);
+        if (existing) {
+          existing.count++;
+        } else {
+          categoryMap.set(cat, {
+            name: cat,
+            count: 1,
+            color: getCategoryColor(cat)
+          });
+        }
       });
       
-      const formattedCategories: EventCategory[] = (categoriesData || []).map((cat: any, index: number) => ({
-        id: cat.id || `cat_${index}`,
-        name: cat.name || cat.category_name || '未命名分类',
-        description: cat.description || '',
-        event_count: categoryCounts.get(cat.id) || categoryCounts.get(cat.name) || 0,
-        color: cat.color || getCategoryColor(cat.name || cat.id)
+      // 如果没有活动数据，添加一些默认分类
+      if (categoryMap.size === 0) {
+        const defaultCategories = ['文化活动', '创意比赛', '线上活动', '线下活动'];
+        defaultCategories.forEach((cat, index) => {
+          categoryMap.set(cat, {
+            name: cat,
+            count: 0,
+            color: getCategoryColor(cat)
+          });
+        });
+      }
+      
+      const generatedCategories: EventCategory[] = Array.from(categoryMap.entries()).map(([id, data]) => ({
+        id: id,
+        name: data.name,
+        description: `${data.name}类活动`,
+        event_count: data.count,
+        color: data.color
       }));
       
-      setCategories(formattedCategories);
+      setCategories(generatedCategories);
     } catch (error) {
       console.error('[EventAudit] 获取分类失败:', error);
       setCategories([]);

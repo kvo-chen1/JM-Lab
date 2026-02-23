@@ -1,6 +1,9 @@
 import { SearchResultType } from '@/components/SearchBar'
 import { workService } from '@/services/apiService'
 import { behaviorAnalysisService } from '@/services/behaviorAnalysisService'
+import { eventService, Event } from '@/services/eventService'
+import { communityService } from '@/services/communityService'
+import { supabase } from '@/lib/supabase'
 
 // 搜索结果类型
 export interface SearchResult {
@@ -245,29 +248,8 @@ class SearchService {
   generateRedirectUrl(query: string, type: SearchResultType): string {
     const encodedQuery = encodeURIComponent(query)
 
-    switch (type) {
-      case SearchResultType.WORK:
-        return `/square?search=${encodedQuery}`
-      case SearchResultType.USER:
-        return `/user?name=${encodedQuery}`
-      case SearchResultType.CATEGORY:
-        return `/square?category=${encodedQuery}`
-      case SearchResultType.TAG:
-        return `/square?tag=${encodedQuery}`
-      case SearchResultType.PAGE:
-        // 特殊页面直接返回路径
-        const specialPages = [
-          { name: '共创向导', path: '/wizard' },
-          { name: '津脉广场', path: '/square' },
-          { name: '创作中心', path: '/create' },
-          { name: '探索作品', path: '/square' },
-
-        ]
-        const page = specialPages.find(p => p.name.toLowerCase() === query.toLowerCase())
-        return page ? page.path : `/square?search=${encodedQuery}`
-      default:
-        return `/square?search=${encodedQuery}`
-    }
+    // 默认跳转到搜索结果页面
+    return `/search?query=${encodedQuery}`
   }
 
   // 搜索所有类型的结果
@@ -276,16 +258,37 @@ class SearchService {
     users: typeof SearchService.prototype.mockUsers
     categories: string[]
     tags: string[]
+    events: Event[]
+    communities: any[]
+    brands: any[]
   }> {
     const lowerQuery = query.toLowerCase().trim()
 
     try {
-      // 从API获取作品数据
-      const worksData = await workService.getWorks();
-      
+      // 并行获取所有数据
+      const [worksData, eventsData, communitiesData] = await Promise.all([
+        workService.getWorks(),
+        eventService.getAllPublicEvents(),
+        communityService.getCommunities()
+      ]);
+
+      // 从数据库搜索品牌 (使用 brand_partnerships 表)
+      const { data: brandsData, error: brandsError } = await supabase
+        .from('brand_partnerships')
+        .select('*')
+        .eq('status', 'approved')
+        .or(`brand_name.ilike.%${query}%,description.ilike.%${query}%`)
+        .order('created_at', { ascending: false });
+
+      if (brandsError) {
+        console.error('Failed to fetch brands:', brandsError);
+      }
+
+      console.log('Brand search query:', query, 'Results:', brandsData?.length || 0, brandsData);
+
       // 确保worksData是数组
       const safeWorksData = Array.isArray(worksData) ? worksData : [];
-      
+
       // 搜索作品并按相关性排序
       const works = safeWorksData
         .map((work: any) => {
@@ -294,7 +297,7 @@ class SearchService {
           const descLower = work.description?.toLowerCase() || '';
           const creatorLower = work.author?.username?.toLowerCase() || work.creator?.toLowerCase() || work.username?.toLowerCase() || '';
           const tags = work.tags || [];
-          
+
           // 精确匹配权重
           if (titleLower === lowerQuery) score += 100;
           if (creatorLower === lowerQuery) score += 80;
@@ -310,35 +313,52 @@ class SearchService {
           if (descLower.includes(lowerQuery)) score += 15;
           if (tags.some((tag: string) => tag.toLowerCase().includes(lowerQuery))) score += 10;
           if (creatorLower.includes(lowerQuery)) score += 10;
-          
-          // 热门度加权
-          score += (work.likes || 0) * 0.1 + (work.views || 0) * 0.01;
-          
+
           return { ...work, score };
         })
-        .filter(work => work.score > 0)
+        // 只保留有文本匹配的结果（score >= 10），排除仅靠热门度加权的结果
+        .filter(work => work.score >= 10)
         .sort((a, b) => b.score - a.score);
 
-      // 搜索用户
-      const users = this.mockUsers.filter(user => 
+      // 搜索用户（暂时使用模拟数据，等待用户API）
+      const users = this.mockUsers.filter(user =>
         user.name.toLowerCase().includes(lowerQuery)
       )
 
       // 搜索分类
-      const categories = this.mockCategories.filter(category => 
+      const categories = this.mockCategories.filter(category =>
         category.toLowerCase().includes(lowerQuery)
       )
 
       // 搜索标签
-      const tags = this.getAllTagsSync().filter(tag => 
+      const tags = this.getAllTagsSync().filter(tag =>
         tag.toLowerCase().includes(lowerQuery)
       )
+
+      // 搜索活动
+      const events = (eventsData || []).filter((event: Event) =>
+        event.title?.toLowerCase().includes(lowerQuery) ||
+        event.description?.toLowerCase().includes(lowerQuery) ||
+        event.tags?.some((tag: string) => tag.toLowerCase().includes(lowerQuery))
+      );
+
+      // 搜索社群
+      const communities = (communitiesData || []).filter((community: any) =>
+        community.name?.toLowerCase().includes(lowerQuery) ||
+        community.description?.toLowerCase().includes(lowerQuery)
+      );
+
+      // 品牌数据
+      const brands = brandsData || [];
 
       return {
         works,
         users,
         categories,
-        tags
+        tags,
+        events,
+        communities,
+        brands
       };
     } catch (error) {
       console.error('搜索失败:', error);
@@ -346,7 +366,10 @@ class SearchService {
         works: [],
         users: [],
         categories: [],
-        tags: []
+        tags: [],
+        events: [],
+        communities: [],
+        brands: []
       };
     }
   }

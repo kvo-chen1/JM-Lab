@@ -116,7 +116,7 @@ export default function MobileSearchPage({ isOpen, onClose }: MobileSearchPagePr
     if (!query.trim()) return;
     saveSearchHistory(query);
     onClose();
-    navigate(`/square?search=${encodeURIComponent(query.trim())}`);
+    navigate(`/search?query=${encodeURIComponent(query.trim())}`);
   }, [navigate, onClose, saveSearchHistory]);
 
   // 处理键盘事件

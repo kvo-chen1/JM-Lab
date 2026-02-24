@@ -97,19 +97,21 @@ class OrganizerAnalyticsService {
   // 获取概览统计数据
   async getDashboardStats(
     organizerId: string,
-    timeRange: TimeRange = '30d'
+    timeRange: TimeRange = '30d',
+    eventId?: string
   ): Promise<DashboardStats | null> {
     try {
       // 计算日期范围
       const { startDate, endDate } = this.getDateRange(timeRange);
 
-      console.log('[Analytics] Calling RPC with:', { organizerId, startDate, endDate });
+      console.log('[Analytics] Calling RPC with:', { organizerId, startDate, endDate, eventId });
 
       // 尝试使用 RPC 函数
       const { data, error } = await supabase.rpc('get_organizer_dashboard_stats', {
         p_organizer_id: organizerId,
         p_start_date: startDate,
         p_end_date: endDate,
+        p_event_id: eventId || null,
       });
 
       console.log('[Analytics] RPC result:', { data, error });
@@ -117,7 +119,7 @@ class OrganizerAnalyticsService {
       if (error) {
         console.warn('RPC 函数调用失败，使用备用方案:', error);
         // RPC 失败时使用备用方案
-        return this.getDashboardStatsFallback(organizerId, timeRange);
+        return this.getDashboardStatsFallback(organizerId, timeRange, eventId);
       }
 
       if (data && data.length > 0) {
@@ -137,42 +139,50 @@ class OrganizerAnalyticsService {
 
       // RPC 返回空数据，使用备用方案
       console.log('[Analytics] RPC 返回空数据，使用备用方案');
-      return this.getDashboardStatsFallback(organizerId, timeRange);
+      return this.getDashboardStatsFallback(organizerId, timeRange, eventId);
     } catch (error) {
       console.error('获取概览统计数据失败:', error);
       // 出错时使用备用方案
-      return this.getDashboardStatsFallback(organizerId, timeRange);
+      return this.getDashboardStatsFallback(organizerId, timeRange, eventId);
     }
   }
 
   // 备用方案：使用现有 API 获取统计数据
   private async getDashboardStatsFallback(
     organizerId: string,
-    timeRange: TimeRange
+    timeRange: TimeRange,
+    eventId?: string
   ): Promise<DashboardStats> {
     try {
       // 获取活动列表
-      const { data: events, error: eventsError } = await supabase
+      let eventsQuery = supabase
         .from('events')
         .select('id, status, created_at')
         .eq('organizer_id', organizerId);
 
-      console.log('[Analytics] Events query result:', { eventsCount: events?.length || 0, error: eventsError, organizerId });
+      // 如果指定了活动ID，只查询该活动
+      if (eventId) {
+        eventsQuery = eventsQuery.eq('id', eventId);
+      }
+
+      const { data: events, error: eventsError } = await eventsQuery;
+
+      console.log('[Analytics] Events query result:', { eventsCount: events?.length || 0, error: eventsError, organizerId, eventId });
 
       if (eventsError) throw eventsError;
 
       const eventIds = events?.map(e => e.id) || [];
-      const totalEvents = events?.length || 0;
+      const totalEvents = eventId ? 1 : (events?.length || 0);
 
       console.log('[Analytics] Event IDs:', eventIds);
 
       // 获取活动相关的作品提交 - 通过 event_submissions 表
       let submissions: any[] = [];
-      
+
       if (eventIds.length > 0) {
         const { data: submissionsData, error: submissionsError } = await supabase
           .from('event_submissions')
-          .select('id, status, vote_count, like_count, rating_count, avg_rating, created_at, title, event_id, user_id, score')
+          .select('id, status, created_at, title, event_id, user_id, score')
           .in('event_id', eventIds);
 
         if (submissionsError) {
@@ -183,33 +193,53 @@ class OrganizerAnalyticsService {
       }
 
       console.log('[Analytics] Submissions count:', submissions.length);
-      
+
+      // 获取作品表现统计数据 - 通过 work_performance_stats 表
+      let performanceStats: any[] = [];
+      const submissionIds = submissions?.map(s => s.id) || [];
+
+      if (submissionIds.length > 0) {
+        const { data: statsData, error: statsError } = await supabase
+          .from('work_performance_stats')
+          .select('submission_id, view_count, like_count, avg_score')
+          .in('submission_id', submissionIds);
+
+        if (statsError) {
+          console.error('[Analytics] Performance stats query error:', statsError);
+        } else {
+          performanceStats = statsData || [];
+        }
+      }
+
+      // 创建 submission_id -> stats 的映射
+      const statsMap = new Map(performanceStats.map(s => [s.submission_id, s]));
+
       // 统计计算
       const totalSubmissions = submissions?.length || 0;
-      const totalVotes = submissions?.reduce((sum, s) => sum + (s.vote_count || 0), 0) || 0;
-      const totalLikes = submissions?.reduce((sum, s) => sum + (s.like_count || 0), 0) || 0;
+      const totalVotes = performanceStats?.reduce((sum, s) => sum + (s.view_count || 0), 0) || 0;
+      const totalLikes = performanceStats?.reduce((sum, s) => sum + (s.like_count || 0), 0) || 0;
       const pendingReview = submissions?.filter(s => s.status === 'draft' || s.status === 'under_review').length || 0;
-      
+
       // 计算平均分
-      const scoredSubmissions = submissions?.filter(s => s.avg_rating > 0) || [];
-      const avgScore = scoredSubmissions.length > 0 
-        ? scoredSubmissions.reduce((sum, s) => sum + (s.avg_rating || 0), 0) / scoredSubmissions.length 
+      const scoredStats = performanceStats?.filter(s => s.avg_score > 0) || [];
+      const avgScore = scoredStats.length > 0
+        ? scoredStats.reduce((sum, s) => sum + (s.avg_score || 0), 0) / scoredStats.length
         : 0;
 
       // 生成每日提交数据
       const dailySubmissions = this.generateDailySubmissions(submissions || [], timeRange);
 
-      // 获取热门作品
+      // 获取热门作品 - 使用 view_count 排序
       const topWorks = (submissions || [])
-        .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
-        .slice(0, 5)
         .map(s => ({
           id: s.id,
           title: s.title || '未命名作品',
-          views: s.vote_count || 0,
-          likes: s.like_count || 0,
-          score: s.avg_rating || 0,
-        }));
+          views: statsMap.get(s.id)?.view_count || 0,
+          likes: statsMap.get(s.id)?.like_count || 0,
+          score: statsMap.get(s.id)?.avg_score || 0,
+        }))
+        .sort((a, b) => b.views - a.views)
+        .slice(0, 5);
 
       return {
         totalEvents,
@@ -313,7 +343,7 @@ class OrganizerAnalyticsService {
       if (eventIds.length > 0) {
         const { data: submissionsData, error } = await supabase
           .from('event_submissions')
-          .select('created_at, vote_count, like_count, rating_count, event_id')
+          .select('id, created_at, event_id')
           .in('event_id', eventIds)
           .gte('created_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString());
 
@@ -321,9 +351,23 @@ class OrganizerAnalyticsService {
         submissions = submissionsData || [];
       }
 
+      // 获取作品表现统计数据
+      let performanceStats: any[] = [];
+      const submissionIds = submissions?.map(s => s.id) || [];
+      if (submissionIds.length > 0) {
+        const { data: statsData } = await supabase
+          .from('work_performance_stats')
+          .select('submission_id, view_count, like_count, comment_count')
+          .in('submission_id', submissionIds);
+        performanceStats = statsData || [];
+      }
+
+      // 创建 submission_id -> stats 的映射
+      const statsMap = new Map(performanceStats.map(s => [s.submission_id, s]));
+
       // 按日期分组统计
       const trendMap = new Map<string, { submissions: number; views: number; likes: number; comments: number }>();
-      
+
       // 初始化所有日期
       for (let i = days - 1; i >= 0; i--) {
         const date = new Date();
@@ -338,9 +382,10 @@ class OrganizerAnalyticsService {
         if (trendMap.has(dateStr)) {
           const stat = trendMap.get(dateStr)!;
           stat.submissions += 1;
-          stat.views += s.vote_count || 0;
-          stat.likes += s.like_count || 0;
-          stat.comments += s.rating_count || 0;
+          const stats = statsMap.get(s.id);
+          stat.views += stats?.view_count || 0;
+          stat.likes += stats?.like_count || 0;
+          stat.comments += stats?.comment_count || 0;
         }
       });
 
@@ -456,13 +501,27 @@ class OrganizerAnalyticsService {
       if (eventIds.length > 0) {
         const { data: submissionsData, error } = await supabase
           .from('event_submissions')
-          .select('id, title, vote_count, like_count, rating_count, created_at, user_id, event_id, avg_rating, score')
+          .select('id, title, created_at, user_id, event_id')
           .in('event_id', eventIds)
           .limit(limit * 2); // 多获取一些用于排序
 
         if (error) throw error;
         submissions = submissionsData || [];
       }
+
+      // 获取作品表现统计数据
+      let performanceStats: any[] = [];
+      const submissionIds = submissions?.map(s => s.id) || [];
+      if (submissionIds.length > 0) {
+        const { data: statsData } = await supabase
+          .from('work_performance_stats')
+          .select('submission_id, view_count, like_count, comment_count, avg_score')
+          .in('submission_id', submissionIds);
+        performanceStats = statsData || [];
+      }
+
+      // 创建 submission_id -> stats 的映射
+      const statsMap = new Map(performanceStats.map(s => [s.submission_id, s]));
 
       // 获取用户信息
       const userIds = [...new Set((submissions || []).map(s => s.user_id))];
@@ -473,18 +532,27 @@ class OrganizerAnalyticsService {
 
       const userMap = new Map(users?.map(u => [u.id, u.username]) || []);
 
+      // 合并数据
+      const submissionsWithStats = submissions.map(s => ({
+        ...s,
+        view_count: statsMap.get(s.id)?.view_count || 0,
+        like_count: statsMap.get(s.id)?.like_count || 0,
+        comment_count: statsMap.get(s.id)?.comment_count || 0,
+        avg_score: statsMap.get(s.id)?.avg_score || 0,
+      }));
+
       // 排序
-      let sortedSubmissions = [...(submissions || [])];
+      let sortedSubmissions = [...submissionsWithStats];
       switch (sortBy) {
         case 'likes':
           sortedSubmissions.sort((a, b) => (b.like_count || 0) - (a.like_count || 0));
           break;
         case 'score':
-          sortedSubmissions.sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0));
+          sortedSubmissions.sort((a, b) => (b.avg_score || 0) - (a.avg_score || 0));
           break;
         case 'views':
         default:
-          sortedSubmissions.sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+          sortedSubmissions.sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
           break;
       }
 
@@ -493,10 +561,10 @@ class OrganizerAnalyticsService {
         work_id: s.id,
         title: s.title || '未命名作品',
         creator_name: userMap.get(s.user_id) || '未知用户',
-        views: s.vote_count || 0,
+        views: s.view_count || 0,
         likes: s.like_count || 0,
-        comments: s.rating_count || 0,
-        score: s.avg_rating || 0,
+        comments: s.comment_count || 0,
+        score: s.avg_score || 0,
         engagement_rate: 0, // 暂时设为 0
         submitted_at: new Date(s.created_at).toISOString(),
       }));
@@ -509,17 +577,19 @@ class OrganizerAnalyticsService {
   // 获取实时活动流
   async getRecentActivities(
     organizerId: string,
-    limit: number = 20
+    limit: number = 20,
+    eventId?: string
   ): Promise<Activity[]> {
     try {
       const { data, error } = await supabase.rpc('get_recent_activities', {
         p_organizer_id: organizerId,
         p_limit: limit,
+        p_event_id: eventId || null,
       });
 
       if (error) {
         console.warn('RPC get_recent_activities 失败，使用备用方案:', error);
-        return this.getRecentActivitiesFallback(organizerId, limit);
+        return this.getRecentActivitiesFallback(organizerId, limit, eventId);
       }
 
       return (data || []).map((item: any) => ({
@@ -534,33 +604,43 @@ class OrganizerAnalyticsService {
       }));
     } catch (error) {
       console.error('获取实时活动流失败:', error);
-      return this.getRecentActivitiesFallback(organizerId, limit);
+      return this.getRecentActivitiesFallback(organizerId, limit, eventId);
     }
   }
 
   // 备用方案：获取实时活动流
   private async getRecentActivitiesFallback(
     organizerId: string,
-    limit: number = 20
+    limit: number = 20,
+    eventId?: string
   ): Promise<Activity[]> {
     try {
       // 获取活动列表
-      const { data: events } = await supabase
+      let eventsQuery = supabase
         .from('events')
         .select('id')
         .eq('organizer_id', organizerId);
+
+      // 如果指定了活动ID，只查询该活动
+      if (eventId) {
+        eventsQuery = eventsQuery.eq('id', eventId);
+      }
+
+      const { data: events } = await eventsQuery;
 
       const eventIds = events?.map(e => e.id) || [];
 
       // 获取活动相关的最近作品提交
       let submissions: any[] = [];
       if (eventIds.length > 0) {
-        const { data: submissionsData, error } = await supabase
+        let submissionsQuery = supabase
           .from('event_submissions')
           .select('id, title, user_id, created_at, event_id')
           .in('event_id', eventIds)
           .order('created_at', { ascending: false })
           .limit(limit);
+
+        const { data: submissionsData, error } = await submissionsQuery;
 
         if (error) throw error;
         submissions = submissionsData || [];
@@ -645,35 +725,50 @@ class OrganizerAnalyticsService {
       const eventIds = (events || []).map(e => e.id);
 
       // 获取每个活动的作品提交统计
-      let submissionsStats: any[] = [];
+      let submissions: any[] = [];
       if (eventIds.length > 0) {
-        const { data: submissions } = await supabase
+        const { data: submissionsData } = await supabase
           .from('event_submissions')
-          .select('event_id, status, vote_count, like_count, avg_rating')
+          .select('id, event_id, status')
           .in('event_id', eventIds);
-        submissionsStats = submissions || [];
+        submissions = submissionsData || [];
       }
 
+      // 获取作品表现统计数据
+      let performanceStats: any[] = [];
+      const submissionIds = submissions?.map(s => s.id) || [];
+      if (submissionIds.length > 0) {
+        const { data: statsData } = await supabase
+          .from('work_performance_stats')
+          .select('submission_id, view_count, like_count, avg_score')
+          .in('submission_id', submissionIds);
+        performanceStats = statsData || [];
+      }
+
+      // 创建 submission_id -> stats 的映射
+      const statsMap = new Map(performanceStats.map(s => [s.submission_id, s]));
+
       // 按活动ID分组统计
-      const statsMap = new Map<string, { submissions: number; published: number; votes: number; likes: number; totalScore: number; scoredCount: number }>();
-      submissionsStats.forEach(s => {
-        if (!statsMap.has(s.event_id)) {
-          statsMap.set(s.event_id, { submissions: 0, published: 0, votes: 0, likes: 0, totalScore: 0, scoredCount: 0 });
+      const eventStatsMap = new Map<string, { submissions: number; published: number; views: number; likes: number; totalScore: number; scoredCount: number }>();
+      submissions.forEach(s => {
+        if (!eventStatsMap.has(s.event_id)) {
+          eventStatsMap.set(s.event_id, { submissions: 0, published: 0, views: 0, likes: 0, totalScore: 0, scoredCount: 0 });
         }
-        const stat = statsMap.get(s.event_id)!;
+        const stat = eventStatsMap.get(s.event_id)!;
         stat.submissions += 1;
         if (s.status === 'submitted' || s.status === 'reviewed') stat.published += 1;
-        stat.votes += s.vote_count || 0;
-        stat.likes += s.like_count || 0;
-        if (s.avg_rating > 0) {
-          stat.totalScore += s.avg_rating;
+        const stats = statsMap.get(s.id);
+        stat.views += stats?.view_count || 0;
+        stat.likes += stats?.like_count || 0;
+        if (stats?.avg_score > 0) {
+          stat.totalScore += stats.avg_score;
           stat.scoredCount += 1;
         }
       });
 
       // 转换为 EventSummary 格式
       return (events || []).map(e => {
-        const stat = statsMap.get(e.id) || { submissions: 0, published: 0, votes: 0, likes: 0, totalScore: 0, scoredCount: 0 };
+        const stat = eventStatsMap.get(e.id) || { submissions: 0, published: 0, views: 0, likes: 0, totalScore: 0, scoredCount: 0 };
         const avgScore = stat.scoredCount > 0 ? stat.totalScore / stat.scoredCount : 0;
         return {
           event_id: e.id,
@@ -685,7 +780,7 @@ class OrganizerAnalyticsService {
           total_submissions: stat.submissions,
           published_count: stat.published,
           avg_score: Math.round(avgScore * 10) / 10,
-          total_views: stat.votes,
+          total_views: stat.views,
           total_likes: stat.likes,
           created_at: e.created_at ? new Date(e.created_at).toISOString() : new Date().toISOString(),
         };

@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  DollarSign, 
-  Lightbulb, 
+import {
+  LayoutDashboard,
+  Flame,
+  DollarSign,
+  Lightbulb,
   BarChart3,
   ChevronLeft,
   ChevronRight,
@@ -33,7 +33,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'overview', label: '首页概览', icon: LayoutDashboard },
-  { id: 'growth', label: '成长体系', icon: TrendingUp, badge: '新' },
+  { id: 'promotion', label: '必火推广', icon: Flame, badge: '热' },
   { id: 'monetization', label: '变现中心', icon: DollarSign },
   { id: 'inspiration', label: '创作灵感', icon: Lightbulb },
   { id: 'analytics', label: '数据中心', icon: BarChart3 },
@@ -59,11 +59,11 @@ const CreatorSidebar: React.FC<CreatorSidebarProps> = ({
       )}
 
       <aside
-        className={`fixed left-0 top-16 bottom-0 z-50 transition-all duration-300 ${
+        className={`sticky top-0 h-screen transition-all duration-300 flex-shrink-0 ${
           isCollapsed ? 'w-20' : 'w-64'
         } ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} border-r`}
       >
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full pt-4">
           <div className="flex-1 py-4 px-3">
             <div className={`mb-6 ${isCollapsed ? 'px-2' : 'px-3'}`}>
               <Link to="/create">

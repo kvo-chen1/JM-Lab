@@ -108,7 +108,7 @@ export const navigationGroups: NavGroup[] = [
 // 顶部导航项
 export const topNavItems: NavItem[] = [
   { id: 'search', path: '#', label: '搜索', icon: 'fas fa-search', external: true },
-  { id: 'notifications', path: '#', label: '通知', icon: 'fas fa-bell', external: true },
+  { id: 'notifications', path: '/messages', label: '消息', icon: 'fas fa-bell', external: true },
   { id: 'profile', path: '/dashboard', label: '个人中心', icon: 'fas fa-user', external: true }
 ];
 

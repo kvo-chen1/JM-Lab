@@ -358,7 +358,7 @@ export default function TemplateManagement() {
       <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold mb-1">作品模板管理</h2>
+            <h2 className="text-2xl font-bold mb-1">津脉作品模板管理</h2>
             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               管理创作模板，包括新增、编辑、删除模板
             </p>

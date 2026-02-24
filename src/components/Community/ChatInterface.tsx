@@ -4,6 +4,7 @@ import { useCommunityStore } from '../../stores/communityStore'
 import { MessageCircle, Send, Search, User, X, ArrowLeft } from 'lucide-react'
 import LazyImage from '../LazyImage'
 import type { UserProfile } from '../../lib/supabase'
+import { presenceService } from '@/services/presenceService'
 
 interface ChatInterfaceProps {
   isOpen: boolean
@@ -11,13 +12,14 @@ interface ChatInterfaceProps {
   initialFriendId?: string
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
-  isOpen, 
-  onClose, 
-  initialFriendId 
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({
+  isOpen,
+  onClose,
+  initialFriendId
 }) => {
   const [messageInput, setMessageInput] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [partnerOnlineStatus, setPartnerOnlineStatus] = useState<Record<string, boolean>>({})
   
   // 从状态管理获取数据和方法
   const {
@@ -37,22 +39,53 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   useEffect(() => {
     if (isOpen) {
       fetchChatSessions()
-      
+
       if (initialFriendId) {
         // 查找并设置初始聊天会话
-        const initialSession = chatSessions.find(session => 
-          session.lastMessage.sender_id === initialFriendId || 
+        const initialSession = chatSessions.find(session =>
+          session.lastMessage.sender_id === initialFriendId ||
           session.lastMessage.receiver_id === initialFriendId
         )
-        
+
         if (initialSession) {
-          setCurrentChat(initialSession)
+          setCuGITHUB_CLIENT_SECRETrrentChat(initialSession)
           fetchChatMessages(initialFriendId)
           markMessagesAsRead(initialFriendId)
         }
       }
     }
   }, [isOpen, initialFriendId])
+
+  // 订阅在线状态
+  useEffect(() => {
+    if (!isOpen || chatSessions.length === 0) return
+
+    // 获取所有聊天对象的用户ID
+    const partnerIds = chatSessions.map(session => {
+      const partner = getChatPartner(session)
+      return partner.id
+    })
+
+    // 初始化在线状态
+    const initialStatus: Record<string, boolean> = {}
+    partnerIds.forEach(id => {
+      initialStatus[id] = presenceService.isUserOnline(id)
+    })
+    setPartnerOnlineStatus(initialStatus)
+
+    // 订阅在线用户列表变化
+    const unsubscribe = presenceService.subscribe((users) => {
+      const newStatus: Record<string, boolean> = {}
+      partnerIds.forEach(id => {
+        newStatus[id] = users.some(u => u.user_id === id)
+      })
+      setPartnerOnlineStatus(newStatus)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [isOpen, chatSessions])
   
   // 当当前聊天会话变化时，获取聊天消息
   useEffect(() => {
@@ -240,7 +273,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     {getChatPartner(currentChat).username}
                   </h3>
                   <p className="text-xs text-gray-500">
-                    {getChatPartner(currentChat).is_verified ? '已认证' : '在线'}
+                    {getChatPartner(currentChat).is_verified ? '已认证' : (partnerOnlineStatus[getChatPartner(currentChat).id] ? '在线' : '不在线')}
                   </p>
                 </div>
               </div>

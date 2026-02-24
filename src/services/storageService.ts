@@ -2,12 +2,15 @@ import { supabase } from '@/lib/supabase';
 
 // 存储桶名称
 const BRAND_LOGOS_BUCKET = 'brandlogos';
+const BUSINESS_LICENSES_BUCKET = 'business-licenses';
 
 // 允许的文件类型
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED_DOCUMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
-// 最大文件大小 (2MB)
-const MAX_FILE_SIZE = 2 * 1024 * 1024;
+// 最大文件大小
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB for logos
+const MAX_DOCUMENT_SIZE = 5 * 1024 * 1024; // 5MB for documents
 
 interface UploadResult {
   url: string | null;
@@ -88,6 +91,94 @@ export async function deleteBrandLogo(filePath: string): Promise<boolean> {
   try {
     const { error } = await supabase.storage
       .from(BRAND_LOGOS_BUCKET)
+      .remove([filePath]);
+
+    if (error) {
+      console.error('删除文件失败:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('删除过程中发生错误:', error);
+    return false;
+  }
+}
+
+/**
+ * 上传营业执照/资质文件到 Supabase Storage
+ * @param file 要上传的文件
+ * @param companyName 企业名称（用于生成文件名）
+ * @returns 上传结果，包含文件URL或错误信息
+ */
+export async function uploadBusinessLicense(file: File, companyName: string): Promise<UploadResult> {
+  try {
+    // 1. 验证文件类型
+    if (!ALLOWED_DOCUMENT_TYPES.includes(file.type)) {
+      return {
+        url: null,
+        error: '只支持 JPG、PNG、WebP 或 PDF 格式的文件',
+      };
+    }
+
+    // 2. 验证文件大小
+    if (file.size > MAX_DOCUMENT_SIZE) {
+      return {
+        url: null,
+        error: '文件大小不能超过 5MB',
+      };
+    }
+
+    // 3. 生成唯一的文件名
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 10);
+    const fileName = `license_${timestamp}_${randomString}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    // 4. 上传文件到 Supabase Storage
+    const { data, error } = await supabase.storage
+      .from(BUSINESS_LICENSES_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) {
+      console.error('上传文件失败:', error);
+      return {
+        url: null,
+        error: `上传失败: ${error.message}`,
+      };
+    }
+
+    // 5. 获取文件的公共 URL
+    const { data: { publicUrl } } = supabase.storage
+      .from(BUSINESS_LICENSES_BUCKET)
+      .getPublicUrl(filePath);
+
+    return {
+      url: publicUrl,
+      error: null,
+    };
+  } catch (error) {
+    console.error('上传过程中发生错误:', error);
+    return {
+      url: null,
+      error: '上传过程中发生错误，请重试',
+    };
+  }
+}
+
+/**
+ * 删除营业执照/资质文件
+ * @param filePath 文件路径
+ * @returns 是否删除成功
+ */
+export async function deleteBusinessLicense(filePath: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.storage
+      .from(BUSINESS_LICENSES_BUCKET)
       .remove([filePath]);
 
     if (error) {

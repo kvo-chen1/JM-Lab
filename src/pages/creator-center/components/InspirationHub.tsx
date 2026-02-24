@@ -1,97 +1,367 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Lightbulb, 
-  TrendingUp, 
   Flame, 
-  Sparkles,
-  ArrowRight,
-  Heart,
-  Eye,
-  Bookmark,
-  RefreshCw,
-  Zap,
+  Lightbulb,
+  Hash,
   Trophy,
+  Wand2,
   Music,
   Video,
+  TrendingUp,
+  Eye,
+  Heart,
+  Share2,
+  MessageSquare,
+  ChevronRight,
+  ChevronDown,
+  Clock,
+  Filter,
+  ExternalLink,
+  Play,
   Image as ImageIcon,
   FileText,
-  ExternalLink,
-  ChevronRight,
-  Star,
-  Target,
-  Clock,
-  Users,
-  Award,
-  TrendingUp as TrendIcon,
-  Palette,
-  Wand2,
-  Layers
+  BarChart3,
+  ArrowUpRight,
+  Bookmark,
+  Zap
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 
-const hotTopics = [
-  { id: 1, title: '#津门文化', views: '128.5万', trend: 'up', category: '文化', hot: true },
-  { id: 2, title: '#天津美食', views: '98.2万', trend: 'up', category: '美食', hot: true },
-  { id: 3, title: '#海河夜景', views: '76.8万', trend: 'stable', category: '旅游', hot: false },
-  { id: 4, title: '#传统手艺', views: '65.3万', trend: 'up', category: '手工', hot: false },
-  { id: 5, title: '#方言故事', views: '54.1万', trend: 'down', category: '故事', hot: false },
-  { id: 6, title: '#老字号', views: '45.6万', trend: 'up', category: '商业', hot: false },
+// 主分类配置 - 结合天津文化平台特色
+const mainCategories = [
+  { id: 'tianjin-culture', label: '津门文化', icon: Video, color: 'from-rose-500 to-pink-500', bgColor: 'bg-rose-50', textColor: 'text-rose-600' },
+  { id: 'brand-tasks', label: '品牌任务', icon: Lightbulb, color: 'from-amber-500 to-orange-500', bgColor: 'bg-amber-50', textColor: 'text-amber-600' },
+  { id: 'creative-events', label: '创作活动', icon: Trophy, color: 'from-emerald-500 to-teal-500', bgColor: 'bg-emerald-50', textColor: 'text-emerald-600' },
+  { id: 'hot-topics', label: '热门话题', icon: Hash, color: 'from-blue-500 to-indigo-500', bgColor: 'bg-blue-50', textColor: 'text-blue-600' },
+  { id: 'ai-inspiration', label: 'AI灵感', icon: Wand2, color: 'from-violet-500 to-purple-500', bgColor: 'bg-violet-50', textColor: 'text-violet-600' },
+  { id: 'templates', label: '创作模板', icon: FileText, color: 'from-cyan-500 to-blue-500', bgColor: 'bg-cyan-50', textColor: 'text-cyan-600' },
 ];
 
-const trendingTemplates = [
+// 子分类配置 - 根据平台特色定制
+const subCategories: Record<string, { id: string; label: string }[]> = {
+  'tianjin-culture': [
+    { id: 'all', label: '全部' },
+    { id: 'food', label: '天津美食' },
+    { id: 'history', label: '历史建筑' },
+    { id: 'dialect', label: '天津方言' },
+    { id: 'craft', label: '传统手艺' },
+    { id: 'opera', label: '戏曲曲艺' },
+    { id: 'custom', label: '民俗风情' },
+    { id: 'river', label: '海河风光' },
+    { id: 'time-honored', label: '老字号' },
+  ],
+  'brand-tasks': [
+    { id: 'all', label: '全部' },
+    { id: 'ongoing', label: '进行中' },
+    { id: 'high-reward', label: '高额奖励' },
+    { id: 'new', label: '最新发布' },
+    { id: 'food-brand', label: '美食品牌' },
+    { id: 'culture-brand', label: '文化品牌' },
+    { id: 'tourism-brand', label: '旅游品牌' },
+  ],
+  'creative-events': [
+    { id: 'all', label: '全部' },
+    { id: 'ongoing', label: '进行中' },
+    { id: 'signup', label: '报名中' },
+    { id: 'ended', label: '已结束' },
+    { id: 'photo', label: '摄影大赛' },
+    { id: 'design', label: '设计征集' },
+    { id: 'video', label: '视频创作' },
+  ],
+  'hot-topics': [
+    { id: 'all', label: '全部' },
+    { id: 'trending', label: '实时上升' },
+    { id: 'culture', label: '文化' },
+    { id: 'food', label: '美食' },
+    { id: 'travel', label: '旅游' },
+    { id: 'life', label: '生活' },
+    { id: 'story', label: '故事' },
+  ],
+  'ai-inspiration': [
+    { id: 'all', label: '全部' },
+    { id: 'image', label: 'AI绘图' },
+    { id: 'video', label: 'AI视频' },
+    { id: 'copy', label: '文案生成' },
+    { id: 'design', label: '设计灵感' },
+    { id: 'story', label: '故事创作' },
+  ],
+  'templates': [
+    { id: 'all', label: '全部' },
+    { id: 'poster', label: '海报模板' },
+    { id: 'video', label: '视频模板' },
+    { id: 'social', label: '社交媒体' },
+    { id: 'festival', label: '节日节气' },
+    { id: 'business', label: '商业宣传' },
+  ],
+};
+
+// 模拟数据 - 津门文化
+const tianjinCultureData = [
   {
     id: 1,
-    title: '津门印象海报模板',
-    type: 'image',
-    usage: '2.3万',
-    likes: '4.5K',
-    image: '/template-1.jpg',
-    tags: ['海报', '文化', '传统'],
-    color: 'from-rose-400 to-orange-400'
+    title: '狗不理包子制作全过程，传承百年的天津味道',
+    author: '津味传承',
+    category: '天津美食',
+    views: '68.0万',
+    likes: '4.8万',
+    comments: '3,200',
+    shares: '7,800',
+    tags: ['狗不理', '包子', '传统美食', '老字号'],
   },
   {
     id: 2,
-    title: '天津话搞笑配音',
-    type: 'video',
-    usage: '1.8万',
-    likes: '3.2K',
-    image: '/template-2.jpg',
-    tags: ['视频', '方言', '搞笑'],
-    color: 'from-violet-400 to-purple-400'
+    title: '天津之眼夜景航拍，海河两岸灯火辉煌',
+    author: '航拍天津',
+    category: '海河风光',
+    views: '52.4万',
+    likes: '3.6万',
+    comments: '2,100',
+    shares: '6,200',
+    tags: ['天津之眼', '夜景', '海河', '航拍'],
   },
   {
     id: 3,
-    title: '美食探店Vlog模板',
-    type: 'video',
-    usage: '1.5万',
-    likes: '2.8K',
-    image: '/template-3.jpg',
-    tags: ['Vlog', '美食', '探店'],
-    color: 'from-emerald-400 to-teal-400'
+    title: '听相声学天津话，地道方言教学',
+    author: '津门曲艺',
+    category: '天津方言',
+    views: '45.8万',
+    likes: '3.2万',
+    comments: '4,500',
+    shares: '5,600',
+    tags: ['相声', '天津话', '方言', '教学'],
   },
   {
     id: 4,
-    title: '传统纹样设计素材',
-    type: 'image',
-    usage: '9.8K',
-    likes: '1.9K',
-    image: '/template-4.jpg',
-    tags: ['设计', '纹样', '素材'],
-    color: 'from-blue-400 to-cyan-400'
+    title: '泥人张技艺展示，一双手捏出万千世界',
+    author: '非遗传承',
+    category: '传统手艺',
+    views: '38.6万',
+    likes: '2.9万',
+    comments: '1,800',
+    shares: '4,200',
+    tags: ['泥人张', '非遗', '手工艺', '泥塑'],
+  },
+  {
+    id: 5,
+    title: '五大道历史建筑巡礼，百年洋楼故事多',
+    author: '天津历史',
+    category: '历史建筑',
+    views: '32.1万',
+    likes: '2.3万',
+    comments: '1,500',
+    shares: '3,800',
+    tags: ['五大道', '洋楼', '历史', '建筑'],
+  },
+  {
+    id: 6,
+    title: '十八街麻花制作技艺，酥脆香甜的传统味道',
+    author: '津味小吃',
+    category: '天津美食',
+    views: '28.9万',
+    likes: '2.1万',
+    comments: '1,200',
+    shares: '3,200',
+    tags: ['十八街麻花', '小吃', '传统', '美食'],
   },
 ];
 
-const aiSuggestions = [
+// 模拟数据 - 品牌任务
+const brandTasksData = [
+  {
+    id: 1,
+    title: '海河乳业品牌宣传视频创作',
+    brand: '海河乳业',
+    reward: '¥2,000-5,000',
+    participants: '156',
+    deadline: '15天',
+    category: '美食品牌',
+    requirement: '展示海河牛奶与天津早餐文化的结合',
+  },
+  {
+    id: 2,
+    title: '天津之眼景区推广内容创作',
+    brand: '天津之眼',
+    reward: '¥3,000-8,000',
+    participants: '234',
+    deadline: '20天',
+    category: '旅游品牌',
+    requirement: '拍摄天津之眼夜景及周边美食推荐',
+  },
+  {
+    id: 3,
+    title: '桂发祥十八街麻花创意短视频',
+    brand: '桂发祥',
+    reward: '¥1,500-4,000',
+    participants: '189',
+    deadline: '10天',
+    category: '美食品牌',
+    requirement: '创意展示麻花制作过程或食用场景',
+  },
+  {
+    id: 4,
+    title: '天津博物馆文物故事创作',
+    brand: '天津博物馆',
+    reward: '¥2,500-6,000',
+    participants: '98',
+    deadline: '30天',
+    category: '文化品牌',
+    requirement: '讲述馆藏文物背后的历史故事',
+  },
+  {
+    id: 5,
+    title: '杨柳青年画非遗传承推广',
+    brand: '杨柳青年画社',
+    reward: '¥2,000-5,500',
+    participants: '76',
+    deadline: '25天',
+    category: '文化品牌',
+    requirement: '展示年画制作工艺或创新应用',
+  },
+  {
+    id: 6,
+    title: '天津古文化街探店视频',
+    brand: '古文化街管委会',
+    reward: '¥1,000-3,000',
+    participants: '312',
+    deadline: '12天',
+    category: '旅游品牌',
+    requirement: '探访古文化街特色店铺及手工艺品',
+  },
+];
+
+// 模拟数据 - 创作活动
+const creativeEventsData = [
+  {
+    id: 1,
+    title: '"津门记忆"摄影大赛',
+    desc: '用镜头记录天津的历史建筑与人文风情',
+    participants: '1,234',
+    prize: '¥10,000',
+    deadline: '报名截止：7天',
+    status: 'signup',
+    category: '摄影大赛',
+  },
+  {
+    id: 2,
+    title: '天津话创意表情包设计征集',
+    desc: '设计有趣的天津方言表情包，传播本土文化',
+    participants: '856',
+    prize: '¥5,000',
+    deadline: '投稿截止：14天',
+    status: 'ongoing',
+    category: '设计征集',
+  },
+  {
+    id: 3,
+    title: '"海河之夜"短视频创作大赛',
+    desc: '拍摄海河两岸夜景及市民生活',
+    participants: '567',
+    prize: '¥8,000',
+    deadline: '投稿截止：21天',
+    status: 'ongoing',
+    category: '视频创作',
+  },
+  {
+    id: 4,
+    title: '天津美食地图创作计划',
+    desc: '绘制天津特色美食地图，推荐隐藏美食',
+    participants: '423',
+    prize: '¥6,000',
+    deadline: '报名截止：5天',
+    status: 'signup',
+    category: '设计征集',
+  },
+  {
+    id: 5,
+    title: '传统手艺新演绎创意赛',
+    desc: '用现代方式展现天津传统手工艺',
+    participants: '234',
+    prize: '¥12,000',
+    deadline: '已结束',
+    status: 'ended',
+    category: '视频创作',
+  },
+  {
+    id: 6,
+    title: '"我的天津故事"征文活动',
+    desc: '分享你与天津的难忘故事',
+    participants: '1,567',
+    prize: '¥3,000',
+    deadline: '投稿截止：30天',
+    status: 'ongoing',
+    category: '视频创作',
+  },
+];
+
+// 模拟数据 - 热门话题
+const hotTopicsData = [
+  {
+    id: 1,
+    title: '津门文化',
+    views: '2.8亿',
+    works: '156.3万',
+    likes: '892.5万',
+    shares: '125.0万',
+    trend: '+15%',
+  },
+  {
+    id: 2,
+    title: '天津美食',
+    views: '1.9亿',
+    works: '98.2万',
+    likes: '567.3万',
+    shares: '89.6万',
+    trend: '+12%',
+  },
+  {
+    id: 3,
+    title: '海河夜景',
+    views: '1.2亿',
+    works: '45.6万',
+    likes: '324.8万',
+    shares: '56.3万',
+    trend: '+8%',
+  },
+  {
+    id: 4,
+    title: '天津方言',
+    views: '9,800万',
+    works: '67.8万',
+    likes: '445.2万',
+    shares: '78.9万',
+    trend: '+20%',
+  },
+  {
+    id: 5,
+    title: '传统手艺',
+    views: '7,500万',
+    works: '34.5万',
+    likes: '267.6万',
+    shares: '45.2万',
+    trend: '+5%',
+  },
+  {
+    id: 6,
+    title: '老字号故事',
+    views: '6,200万',
+    works: '28.9万',
+    likes: '198.4万',
+    shares: '34.7万',
+    trend: '+10%',
+  },
+];
+
+// 模拟数据 - AI灵感
+const aiInspirationData = [
   {
     id: 1,
     title: '创作一个关于天津狗不理包子的趣味短视频',
     desc: '结合历史故事和现代元素，展现传统美食的魅力',
     difficulty: '简单',
     estimatedViews: '5-10万',
+    type: '视频',
     tags: ['美食', '历史', '趣味'],
-    icon: Video,
-    color: 'from-amber-500 to-orange-500'
   },
   {
     id: 2,
@@ -99,9 +369,8 @@ const aiSuggestions = [
     desc: '融合传统建筑、民俗元素，展现天津独特魅力',
     difficulty: '中等',
     estimatedViews: '3-8万',
+    type: '设计',
     tags: ['设计', '文化', '系列'],
-    icon: Palette,
-    color: 'from-blue-500 to-indigo-500'
   },
   {
     id: 3,
@@ -109,693 +378,582 @@ const aiSuggestions = [
     desc: '用轻松幽默的方式教外地朋友天津话',
     difficulty: '简单',
     estimatedViews: '10-20万',
+    type: '视频',
     tags: ['方言', '教学', '搞笑'],
-    icon: Sparkles,
-    color: 'from-purple-500 to-pink-500'
+  },
+  {
+    id: 4,
+    title: 'AI生成海河夜景艺术画作',
+    desc: '利用AI绘图工具创作海河夜景的艺术作品',
+    difficulty: '简单',
+    estimatedViews: '2-5万',
+    type: 'AI绘图',
+    tags: ['AI', '绘画', '夜景'],
+  },
+  {
+    id: 5,
+    title: '撰写天津老字号品牌故事文案',
+    desc: '为天津传统品牌撰写有温度的品牌故事',
+    difficulty: '中等',
+    estimatedViews: '1-3万',
+    type: '文案',
+    tags: ['文案', '品牌', '故事'],
+  },
+  {
+    id: 6,
+    title: '创作天津传统戏曲与现代音乐融合视频',
+    desc: '将传统戏曲元素融入现代音乐视频创作',
+    difficulty: '困难',
+    estimatedViews: '8-15万',
+    type: '视频',
+    tags: ['戏曲', '音乐', '创新'],
   },
 ];
 
-const creativeChallenges = [
-  {
-    id: 1,
-    title: '津门记忆摄影大赛',
-    desc: '用镜头记录天津的历史建筑与人文风情',
-    participants: '1,234',
-    prize: '¥5,000',
-    deadline: '7天',
-    image: '/challenge-1.jpg',
-    color: 'from-amber-500 to-yellow-500',
-    icon: Trophy
-  },
-  {
-    id: 2,
-    title: '创意天津话表情包',
-    desc: '设计有趣的天津方言表情包',
-    participants: '856',
-    prize: '¥3,000',
-    deadline: '14天',
-    image: '/challenge-2.jpg',
-    color: 'from-pink-500 to-rose-500',
-    icon: Star
-  },
-  {
-    id: 3,
-    title: '传统手艺新演绎',
-    desc: '用现代方式展现传统手工艺',
-    participants: '567',
-    prize: '¥8,000',
-    deadline: '21天',
-    image: '/challenge-3.jpg',
-    color: 'from-emerald-500 to-teal-500',
-    icon: Target
-  },
-];
-
-const popularMusic = [
-  { id: 1, title: '津门小调', artist: '传统民乐', usage: '12.5万', duration: '3:24', trend: '+15%' },
-  { id: 2, title: '海河之夜', artist: '现代融合', usage: '8.9万', duration: '4:12', trend: '+8%' },
-  { id: 3, title: '老城记忆', artist: '轻音乐', usage: '6.7万', duration: '2:58', trend: '+12%' },
-  { id: 4, title: '相声片段', artist: '传统曲艺', usage: '5.3万', duration: '5:45', trend: '+5%' },
+// 模拟数据 - 创作模板
+const templatesData = [
+  { id: 1, title: '津门印象海报模板', usage: '2.3万', type: 'poster', tags: ['海报', '文化', '传统'] },
+  { id: 2, title: '天津话搞笑配音模板', usage: '1.8万', type: 'video', tags: ['视频', '方言', '搞笑'] },
+  { id: 3, title: '美食探店Vlog模板', usage: '1.5万', type: 'video', tags: ['Vlog', '美食', '探店'] },
+  { id: 4, title: '传统纹样设计素材', usage: '9,800', type: 'poster', tags: ['设计', '纹样', '素材'] },
+  { id: 5, title: '海河夜景视频片头', usage: '8,500', type: 'video', tags: ['视频', '夜景', '片头'] },
+  { id: 6, title: '天津建筑线描素材', usage: '7,200', type: 'poster', tags: ['插画', '建筑', '素材'] },
 ];
 
 const InspirationHub: React.FC = () => {
   const { isDark } = useTheme();
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [savedIdeas, setSavedIdeas] = useState<number[]>([]);
-  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const [activeMainCategory, setActiveMainCategory] = useState('tianjin-culture');
+  const [activeSubCategory, setActiveSubCategory] = useState('all');
+  const [sortBy, setSortBy] = useState('views');
+  const [timeRange, setTimeRange] = useState('24h');
 
-  const categories = [
-    { id: 'all', label: '全部', icon: Layers, count: 24 },
-    { id: 'hot', label: '热门话题', icon: Flame, count: 6 },
-    { id: 'template', label: '创作模板', icon: Wand2, count: 12 },
-    { id: 'ai', label: 'AI灵感', icon: Sparkles, count: 8 },
-    { id: 'challenge', label: '创作挑战', icon: Trophy, count: 3 },
-  ];
+  // 获取当前主分类
+  const currentCategory = mainCategories.find(c => c.id === activeMainCategory);
 
-  const toggleSave = (id: number) => {
-    setSavedIdeas(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'video': return Video;
-      case 'image': return ImageIcon;
-      default: return FileText;
+  // 获取当前数据
+  const getCurrentData = () => {
+    switch (activeMainCategory) {
+      case 'tianjin-culture':
+        return tianjinCultureData;
+      case 'brand-tasks':
+        return brandTasksData;
+      case 'creative-events':
+        return creativeEventsData;
+      case 'hot-topics':
+        return hotTopicsData;
+      case 'ai-inspiration':
+        return aiInspirationData;
+      case 'templates':
+        return templatesData;
+      default:
+        return tianjinCultureData;
     }
   };
 
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'up': return <TrendIcon className="w-3 h-3 text-emerald-500" />;
-      case 'down': return <TrendIcon className="w-3 h-3 text-rose-500 rotate-180" />;
-      default: return <div className="w-3 h-3 rounded-full bg-amber-400" />;
-    }
-  };
+  const currentData = getCurrentData();
 
   return (
-    <div className="space-y-8">
-      {/* Hero Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`relative overflow-hidden rounded-3xl ${isDark ? 'bg-gray-800/50' : 'bg-white'} shadow-xl border ${isDark ? 'border-gray-700/50' : 'border-gray-100'}`}
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10" />
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-pink-400/20 to-orange-400/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-        
-        <div className="relative px-8 py-10">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 }}
-                className="flex items-center gap-3 mb-4"
-              >
-                <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/25">
-                  <Lightbulb className="w-6 h-6 text-white" />
-                </div>
-                <span className={`text-sm font-medium px-3 py-1 rounded-full ${isDark ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700'}`}>
-                  每日更新
-                </span>
-              </motion.div>
-              
-              <motion.h1
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className={`text-3xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}
-              >
-                创作灵感中心
-              </motion.h1>
-              
-              <motion.p
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className={`text-lg max-w-xl ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
-              >
-                发现热门话题，获取AI创作建议，参与创作挑战，让你的创意无限迸发
-              </motion.p>
-            </div>
-            
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4 }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`hidden md:flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
-                isDark 
-                  ? 'bg-gray-700/80 text-gray-200 hover:bg-gray-700 border border-gray-600' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
-              }`}
-            >
-              <RefreshCw className="w-4 h-4" />
-              刷新灵感
-            </motion.button>
-          </div>
+    <div className="space-y-6">
+      {/* 页面标题 */}
+      <div className="flex items-center gap-4 mb-6">
+        <div className={`p-3 rounded-xl bg-gradient-to-br from-rose-500 to-pink-500 shadow-lg shadow-rose-500/25`}>
+          <Zap className="w-6 h-6 text-white" />
         </div>
-      </motion.div>
+        <div>
+          <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>创作灵感</h1>
+          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>探索津门文化，发现创作机会</p>
+        </div>
+      </div>
 
-      {/* Category Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide"
-      >
-        {categories.map((cat, index) => {
+      {/* 主分类标签栏 */}
+      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+        {mainCategories.map((cat) => {
           const Icon = cat.icon;
-          const isActive = activeCategory === cat.id;
+          const isActive = activeMainCategory === cat.id;
           return (
             <motion.button
               key={cat.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 * index }}
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setActiveCategory(cat.id)}
+              onClick={() => {
+                setActiveMainCategory(cat.id);
+                setActiveSubCategory('all');
+              }}
               className={`flex items-center gap-2 px-5 py-3 rounded-2xl whitespace-nowrap transition-all duration-300 ${
                 isActive
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25'
+                  ? `bg-gradient-to-r ${cat.color} text-white shadow-lg`
                   : isDark
-                  ? 'bg-gray-800/80 text-gray-300 hover:bg-gray-700 border border-gray-700'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 shadow-sm'
+                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 shadow-sm'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : ''}`} />
+              <Icon className="w-4 h-4" />
               <span className="font-medium">{cat.label}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                isActive 
-                  ? 'bg-white/20 text-white' 
-                  : isDark 
-                    ? 'bg-gray-700 text-gray-400' 
-                    : 'bg-gray-100 text-gray-500'
-              }`}>
-                {cat.count}
-              </span>
             </motion.button>
           );
         })}
-      </motion.div>
+      </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column */}
-        <div className="lg:col-span-8 space-y-6">
-          
-          {/* Hot Topics Section */}
-          {(activeCategory === 'all' || activeCategory === 'hot') && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`rounded-3xl ${isDark ? 'bg-gray-800/50' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700/50' : 'border-gray-100'} overflow-hidden`}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-xl ${isDark ? 'bg-orange-500/20' : 'bg-orange-100'}`}>
-                      <Flame className="w-5 h-5 text-orange-500" />
-                    </div>
-                    <div>
-                      <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        热门话题
-                      </h2>
-                      <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                        实时更新的热门创作主题
-                      </p>
-                    </div>
-                  </div>
-                  <motion.button
-                    whileHover={{ x: 4 }}
-                    className={`flex items-center gap-1 text-sm font-medium ${
-                      isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-700'
-                    }`}
-                  >
-                    查看更多
-                    <ChevronRight className="w-4 h-4" />
-                  </motion.button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {hotTopics.map((topic, index) => (
-                    <motion.div
-                      key={topic.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      whileHover={{ scale: 1.02, y: -2 }}
-                      onMouseEnter={() => setHoveredCard(topic.id)}
-                      onMouseLeave={() => setHoveredCard(null)}
-                      className={`group flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all duration-300 ${
-                        isDark 
-                          ? 'bg-gray-700/50 hover:bg-gray-700 border border-gray-600/50 hover:border-gray-500' 
-                          : 'bg-gray-50 hover:bg-white border border-transparent hover:border-gray-200 shadow-sm hover:shadow-md'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`flex items-center justify-center w-10 h-10 rounded-xl font-bold text-lg ${
-                          index < 3 
-                            ? 'bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-lg shadow-orange-500/25' 
-                            : isDark 
-                              ? 'bg-gray-600 text-gray-400' 
-                              : 'bg-gray-200 text-gray-500'
-                        }`}>
-                          {index + 1}
-                        </div>
-                        <div>
-                          <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {topic.title}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                              {topic.views}次浏览
-                            </span>
-                            {topic.hot && (
-                              <span className="flex items-center gap-1 text-xs text-orange-500 font-medium">
-                                <Flame className="w-3 h-3" />
-                                热门
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {getTrendIcon(topic.trend)}
-                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                          isDark ? 'bg-gray-600/50 text-gray-400' : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {topic.category}
-                        </span>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* AI Suggestions Section */}
-          {(activeCategory === 'all' || activeCategory === 'ai') && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`rounded-3xl ${isDark ? 'bg-gray-800/50' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700/50' : 'border-gray-100'} overflow-hidden`}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-xl ${isDark ? 'bg-purple-500/20' : 'bg-purple-100'}`}>
-                      <Sparkles className="w-5 h-5 text-purple-500" />
-                    </div>
-                    <div>
-                      <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        AI 创作建议
-                      </h2>
-                      <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                        基于你的创作风格智能推荐
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
-                    isDark ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-100 text-purple-700'
-                  }`}>
-                    <Zap className="w-3 h-3" />
-                    智能推荐
-                  </span>
-                </div>
-
-                <div className="space-y-4">
-                  {aiSuggestions.map((suggestion, index) => {
-                    const Icon = suggestion.icon;
-                    return (
-                      <motion.div
-                        key={suggestion.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        whileHover={{ scale: 1.01 }}
-                        className={`group relative p-5 rounded-2xl border transition-all duration-300 overflow-hidden ${
-                          isDark 
-                            ? 'bg-gradient-to-r from-purple-900/20 to-blue-900/20 border-purple-800/30 hover:border-purple-700/50' 
-                            : 'bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 hover:border-purple-300'
-                        }`}
-                      >
-                        <div className={`absolute top-0 left-0 w-1 h-full bg-gradient-to-b ${suggestion.color}`} />
-                        
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 pl-4">
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className={`p-2 rounded-lg bg-gradient-to-br ${suggestion.color}`}>
-                                <Icon className="w-4 h-4 text-white" />
-                              </div>
-                              <h3 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {suggestion.title}
-                              </h3>
-                            </div>
-                            
-                            <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {suggestion.desc}
-                            </p>
-                            
-                            <div className="flex items-center gap-4 mb-4">
-                              <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full ${
-                                isDark ? 'bg-gray-700/50 text-gray-300' : 'bg-white text-gray-600 shadow-sm'
-                              }`}>
-                                <Target className="w-3 h-3" />
-                                难度: {suggestion.difficulty}
-                              </span>
-                              <span className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full ${
-                                isDark ? 'bg-gray-700/50 text-gray-300' : 'bg-white text-gray-600 shadow-sm'
-                              }`}>
-                                <Eye className="w-3 h-3" />
-                                预估曝光: {suggestion.estimatedViews}
-                              </span>
-                            </div>
-                            
-                            <div className="flex flex-wrap gap-2">
-                              {suggestion.tags.map((tag, i) => (
-                                <span
-                                  key={i}
-                                  className={`text-xs px-3 py-1 rounded-full font-medium ${
-                                    isDark 
-                                      ? 'bg-blue-900/30 text-blue-300' 
-                                      : 'bg-blue-100 text-blue-700'
-                                  }`}
-                                >
-                                  #{tag}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => toggleSave(suggestion.id)}
-                            className={`p-2.5 rounded-xl transition-all ${
-                              savedIdeas.includes(suggestion.id)
-                                ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/25'
-                                : isDark
-                                ? 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                            }`}
-                          >
-                            <Heart className={`w-4 h-4 ${savedIdeas.includes(suggestion.id) ? 'fill-current' : ''}`} />
-                          </motion.button>
-                        </div>
-                        
-                        <motion.button
-                          whileHover={{ scale: 1.01 }}
-                          whileTap={{ scale: 0.99 }}
-                          className="w-full mt-5 py-3 text-sm font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-shadow"
-                        >
-                          使用这个创意
-                        </motion.button>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Creative Challenges Section */}
-          {(activeCategory === 'all' || activeCategory === 'challenge') && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`rounded-3xl ${isDark ? 'bg-gray-800/50' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700/50' : 'border-gray-100'} overflow-hidden`}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-xl ${isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'}`}>
-                      <Trophy className="w-5 h-5 text-emerald-500" />
-                    </div>
-                    <div>
-                      <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        创作挑战
-                      </h2>
-                      <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                        参与挑战赢取丰厚奖励
-                      </p>
-                    </div>
-                  </div>
-                  <motion.button
-                    whileHover={{ x: 4 }}
-                    className={`flex items-center gap-1 text-sm font-medium ${
-                      isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-700'
-                    }`}
-                  >
-                    全部挑战
-                    <ChevronRight className="w-4 h-4" />
-                  </motion.button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {creativeChallenges.map((challenge, index) => {
-                    const Icon = challenge.icon;
-                    return (
-                      <motion.div
-                        key={challenge.id}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.05 }}
-                        whileHover={{ scale: 1.03, y: -4 }}
-                        className={`group relative p-5 rounded-2xl cursor-pointer transition-all duration-300 overflow-hidden ${
-                          isDark 
-                            ? 'bg-gray-700/50 hover:bg-gray-700 border border-gray-600/50 hover:border-gray-500' 
-                            : 'bg-gray-50 hover:bg-white border border-transparent hover:border-gray-200 shadow-sm hover:shadow-lg'
-                        }`}
-                      >
-                        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${challenge.color}`} />
-                        
-                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${challenge.color} flex items-center justify-center mb-4 shadow-lg`}>
-                          <Icon className="w-6 h-6 text-white" />
-                        </div>
-                        
-                        <h3 className={`font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {challenge.title}
-                        </h3>
-                        <p className={`text-xs mb-4 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {challenge.desc}
-                        </p>
-                        
-                        <div className="flex items-center justify-between text-xs mb-3">
-                          <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            <Users className="w-3 h-3" />
-                            {challenge.participants}
-                          </span>
-                          <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            <Clock className="w-3 h-3" />
-                            {challenge.deadline}
-                          </span>
-                        </div>
-                        
-                        <div className={`flex items-center justify-center gap-1 py-2 px-4 rounded-xl text-sm font-bold ${
-                          isDark 
-                            ? 'bg-emerald-500/20 text-emerald-400' 
-                            : 'bg-emerald-100 text-emerald-700'
-                        }`}>
-                          <Award className="w-4 h-4" />
-                          奖金 {challenge.prize}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </div>
-            </motion.div>
-          )}
+      {/* 子分类筛选 */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {subCategories[activeMainCategory]?.map((sub) => {
+            const isActive = activeSubCategory === sub.id;
+            return (
+              <button
+                key={sub.id}
+                onClick={() => setActiveSubCategory(sub.id)}
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                  isActive
+                    ? isDark
+                      ? 'bg-gray-700 text-white'
+                      : 'bg-gray-900 text-white'
+                    : isDark
+                    ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                {sub.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Right Column */}
-        <div className="lg:col-span-4 space-y-6">
-          
-          {/* Trending Templates */}
-          {(activeCategory === 'all' || activeCategory === 'template') && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`rounded-3xl ${isDark ? 'bg-gray-800/50' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700/50' : 'border-gray-100'} overflow-hidden`}
+        {/* 排序和时间筛选 */}
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600 border border-gray-200'}`}>
+            <span>排序:</span>
+            <select 
+              value={sortBy} 
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-transparent outline-none cursor-pointer"
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-xl ${isDark ? 'bg-pink-500/20' : 'bg-pink-100'}`}>
-                      <Wand2 className="w-5 h-5 text-pink-500" />
-                    </div>
-                    <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      热门模板
-                    </h2>
-                  </div>
-                </div>
+              <option value="views">播放最高</option>
+              <option value="likes">点赞最多</option>
+              <option value="newest">最新发布</option>
+            </select>
+            <ChevronDown className="w-4 h-4" />
+          </div>
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600 border border-gray-200'}`}>
+            <Clock className="w-4 h-4" />
+            <select 
+              value={timeRange} 
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="bg-transparent outline-none cursor-pointer"
+            >
+              <option value="24h">24小时</option>
+              <option value="7d">7天</option>
+              <option value="30d">30天</option>
+            </select>
+            <ChevronDown className="w-4 h-4" />
+          </div>
+        </div>
+      </div>
 
-                <div className="space-y-4">
-                  {trendingTemplates.map((template, index) => {
-                    const TypeIcon = getTypeIcon(template.type);
-                    return (
-                      <motion.div
-                        key={template.id}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        whileHover={{ scale: 1.02, x: 4 }}
-                        className={`group flex gap-4 p-4 rounded-2xl cursor-pointer transition-all duration-300 ${
-                          isDark 
-                            ? 'bg-gray-700/50 hover:bg-gray-700 border border-gray-600/50 hover:border-gray-500' 
-                            : 'bg-gray-50 hover:bg-white border border-transparent hover:border-gray-200 shadow-sm hover:shadow-md'
-                        }`}
-                      >
-                        <div className={`w-20 h-20 rounded-xl bg-gradient-to-br ${template.color} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl transition-shadow`}>
-                          <TypeIcon className="w-8 h-8 text-white/80" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className={`font-semibold truncate mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {template.title}
-                          </h3>
-                          <div className="flex items-center gap-3 mb-2 text-xs text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <ExternalLink className="w-3 h-3" />
-                              {template.usage}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Heart className="w-3 h-3" />
-                              {template.likes}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {template.tags.slice(0, 2).map((tag, i) => (
-                              <span
-                                key={i}
-                                className={`text-[10px] px-2 py-1 rounded-md font-medium ${
-                                  isDark ? 'bg-gray-600 text-gray-300' : 'bg-white text-gray-600 shadow-sm'
-                                }`}
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-                
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={`w-full mt-5 py-3 text-sm font-semibold rounded-xl transition-all ${
-                    isDark 
-                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 border border-gray-600' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
-                  }`}
-                >
-                  查看更多模板
-                </motion.button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Popular Music */}
+      {/* 内容列表 */}
+      <div className={`rounded-2xl ${isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-200'} overflow-hidden`}>
+        <AnimatePresence mode="wait">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            key={activeMainCategory}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`rounded-3xl ${isDark ? 'bg-gray-800/50' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700/50' : 'border-gray-100'} overflow-hidden`}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
           >
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className={`p-2.5 rounded-xl ${isDark ? 'bg-cyan-500/20' : 'bg-cyan-100'}`}>
-                  <Music className="w-5 h-5 text-cyan-500" />
-                </div>
-                <div>
-                  <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    热门音乐
-                  </h2>
-                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                    为你的作品配上热门BGM
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {popularMusic.map((music, index) => (
+            {/* 津门文化列表 */}
+            {activeMainCategory === 'tianjin-culture' && (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {tianjinCultureData.map((item, index) => (
                   <motion.div
-                    key={music.id}
-                    initial={{ opacity: 0, x: 20 }}
+                    key={item.id}
+                    initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    whileHover={{ scale: 1.02, x: 4 }}
-                    className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all duration-300 ${
-                      isDark 
-                        ? 'hover:bg-gray-700/50' 
-                        : 'hover:bg-gray-50'
-                    }`}
+                    className={`group flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer`}
                   >
-                    <div className={`w-12 h-12 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'} flex items-center justify-center flex-shrink-0`}>
-                      <Music className="w-5 h-5 text-gray-400" />
+                    {/* 排名 */}
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg font-bold text-sm ${
+                      index < 3 
+                        ? 'bg-gradient-to-br from-rose-500 to-pink-500 text-white' 
+                        : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {index + 1}
                     </div>
+                    
+                    {/* 缩略图 */}
+                    <div className={`w-24 h-16 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0 overflow-hidden`}>
+                      <Video className="w-6 h-6 text-gray-400" />
+                    </div>
+                    
+                    {/* 内容 */}
                     <div className="flex-1 min-w-0">
-                      <h3 className={`font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {music.title}
+                      <h3 className={`font-semibold truncate mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {item.title}
                       </h3>
-                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {music.artist}
-                      </p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Eye className="w-3 h-3" />
+                          {item.views}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Heart className="w-3 h-3" />
+                          {item.likes}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" />
+                          {item.comments}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Share2 className="w-3 h-3" />
+                          {item.shares}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {item.tags.map((tag, i) => (
+                          <span key={i} className={`text-[10px] px-2 py-0.5 rounded ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {music.usage}
+                    
+                    {/* 分类标签 */}
+                    <span className={`px-3 py-1 rounded-lg text-xs ${isDark ? 'bg-rose-500/20 text-rose-400' : 'bg-rose-100 text-rose-700'}`}>
+                      {item.category}
+                    </span>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+
+            {/* 品牌任务列表 */}
+            {activeMainCategory === 'brand-tasks' && (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {brandTasksData.map((task, index) => (
+                  <motion.div
+                    key={task.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`group flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer`}
+                  >
+                    {/* 排名 */}
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg font-bold text-sm ${
+                      index < 3 
+                        ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white' 
+                        : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    
+                    {/* 品牌图标 */}
+                    <div className={`w-16 h-16 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0`}>
+                      <Lightbulb className="w-6 h-6 text-gray-400" />
+                    </div>
+                    
+                    {/* 内容 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-semibold truncate mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {task.title}
+                      </h3>
+                      <p className={`text-xs truncate mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {task.requirement}
                       </p>
-                      <p className={`text-xs ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                        {music.trend}
-                      </p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <BarChart3 className="w-3 h-3" />
+                          {task.participants}人参与
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          剩余{task.deadline}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* 奖励和操作 */}
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1.5 rounded-lg text-sm font-bold ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {task.reward}
+                      </span>
+                      <button className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        isDark ? 'text-amber-400 hover:bg-amber-500/10' : 'text-amber-600 hover:bg-amber-50'
+                      }`}>
+                        <ExternalLink className="w-3 h-3" />
+                        参与任务
+                      </button>
                     </div>
                   </motion.div>
                 ))}
               </div>
-            </div>
-          </motion.div>
+            )}
 
-          {/* Quick Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`rounded-3xl p-6 ${isDark ? 'bg-gradient-to-br from-indigo-600 to-purple-700' : 'bg-gradient-to-br from-indigo-500 to-purple-600'} shadow-xl shadow-indigo-500/25`}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-white/20">
-                <TrendingUp className="w-5 h-5 text-white" />
+            {/* 创作活动列表 */}
+            {activeMainCategory === 'creative-events' && (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {creativeEventsData.map((event, index) => (
+                  <motion.div
+                    key={event.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`group flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer`}
+                  >
+                    {/* 排名 */}
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg font-bold text-sm ${
+                      index < 3 
+                        ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white' 
+                        : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    
+                    {/* 活动图标 */}
+                    <div className={`w-16 h-16 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0`}>
+                      <Trophy className="w-6 h-6 text-gray-400" />
+                    </div>
+                    
+                    {/* 内容 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-semibold truncate mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {event.title}
+                      </h3>
+                      <p className={`text-xs truncate mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {event.desc}
+                      </p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <BarChart3 className="w-3 h-3" />
+                          {event.participants}人参与
+                        </span>
+                        <span className={`flex items-center gap-1 ${
+                          event.status === 'ended' ? 'text-gray-400' : 'text-emerald-500'
+                        }`}>
+                          <Clock className="w-3 h-3" />
+                          {event.deadline}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* 奖金和操作 */}
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1.5 rounded-lg text-sm font-bold ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'}`}>
+                        奖金 {event.prize}
+                      </span>
+                      <button className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        isDark ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-emerald-600 hover:bg-emerald-50'
+                      }`}>
+                        <ExternalLink className="w-3 h-3" />
+                        {event.status === 'signup' ? '立即报名' : event.status === 'ended' ? '查看结果' : '参与活动'}
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
-              <h3 className="text-white font-bold">创作数据</h3>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-3 rounded-xl bg-white/10">
-                <p className="text-2xl font-bold text-white">128</p>
-                <p className="text-xs text-white/70">今日灵感</p>
+            )}
+
+            {/* 热门话题列表 */}
+            {activeMainCategory === 'hot-topics' && (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {hotTopicsData.map((topic, index) => (
+                  <motion.div
+                    key={topic.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`group flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer`}
+                  >
+                    {/* 排名 */}
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg font-bold text-sm ${
+                      index < 3 
+                        ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white' 
+                        : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    
+                    {/* 话题图标 */}
+                    <div className={`w-16 h-16 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0`}>
+                      <Hash className="w-6 h-6 text-gray-400" />
+                    </div>
+                    
+                    {/* 内容 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-semibold truncate mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        #{topic.title}
+                      </h3>
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Eye className="w-3 h-3" />
+                          {topic.views}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <FileText className="w-3 h-3" />
+                          {topic.works}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Heart className="w-3 h-3" />
+                          {topic.likes}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Share2 className="w-3 h-3" />
+                          {topic.shares}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* 趋势 */}
+                    <div className="flex items-center gap-3">
+                      <span className="text-emerald-500 text-sm font-medium">{topic.trend}</span>
+                      <button className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        isDark ? 'text-blue-400 hover:bg-blue-500/10' : 'text-blue-600 hover:bg-blue-50'
+                      }`}>
+                        <ExternalLink className="w-3 h-3" />
+                        参与话题
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
-              <div className="text-center p-3 rounded-xl bg-white/10">
-                <p className="text-2xl font-bold text-white">45</p>
-                <p className="text-xs text-white/70">已收藏</p>
+            )}
+
+            {/* AI灵感列表 */}
+            {activeMainCategory === 'ai-inspiration' && (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {aiInspirationData.map((item, index) => (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`group flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer`}
+                  >
+                    {/* 排名 */}
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg font-bold text-sm ${
+                      index < 3 
+                        ? 'bg-gradient-to-br from-violet-500 to-purple-500 text-white' 
+                        : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    
+                    {/* AI图标 */}
+                    <div className={`w-16 h-16 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0`}>
+                      <Wand2 className="w-6 h-6 text-gray-400" />
+                    </div>
+                    
+                    {/* 内容 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-semibold truncate mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {item.title}
+                      </h3>
+                      <p className={`text-xs truncate mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {item.desc}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {item.tags.map((tag, i) => (
+                          <span key={i} className={`text-[10px] px-2 py-0.5 rounded ${isDark ? 'bg-violet-500/20 text-violet-400' : 'bg-violet-100 text-violet-700'}`}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* 难度和预估 */}
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-lg text-xs ${
+                        item.difficulty === '简单' 
+                          ? isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
+                          : item.difficulty === '中等'
+                          ? isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'
+                          : isDark ? 'bg-rose-500/20 text-rose-400' : 'bg-rose-100 text-rose-700'
+                      }`}>
+                        {item.difficulty}
+                      </span>
+                      <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        预估曝光: {item.estimatedViews}
+                      </span>
+                      <button className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        isDark ? 'text-violet-400 hover:bg-violet-500/10' : 'text-violet-600 hover:bg-violet-50'
+                      }`}>
+                        <ExternalLink className="w-3 h-3" />
+                        使用创意
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
-              <div className="text-center p-3 rounded-xl bg-white/10">
-                <p className="text-2xl font-bold text-white">12</p>
-                <p className="text-xs text-white/70">参与挑战</p>
+            )}
+
+            {/* 创作模板列表 */}
+            {activeMainCategory === 'templates' && (
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {templatesData.map((template, index) => (
+                  <motion.div
+                    key={template.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`group flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer`}
+                  >
+                    {/* 排名 */}
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg font-bold text-sm ${
+                      index < 3 
+                        ? 'bg-gradient-to-br from-cyan-500 to-blue-500 text-white' 
+                        : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    
+                    {/* 模板图标 */}
+                    <div className={`w-16 h-16 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0`}>
+                      <FileText className="w-6 h-6 text-gray-400" />
+                    </div>
+                    
+                    {/* 内容 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-semibold truncate mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {template.title}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {template.tags.map((tag, i) => (
+                          <span key={i} className={`text-[10px] px-2 py-0.5 rounded ${isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* 使用量和操作 */}
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {template.usage}人使用
+                      </span>
+                      <button className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        isDark ? 'text-cyan-400 hover:bg-cyan-500/10' : 'text-cyan-600 hover:bg-cyan-50'
+                      }`}>
+                        <ExternalLink className="w-3 h-3" />
+                        使用模板
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
-              <div className="text-center p-3 rounded-xl bg-white/10">
-                <p className="text-2xl font-bold text-white">8</p>
-                <p className="text-xs text-white/70">获奖作品</p>
-              </div>
-            </div>
+            )}
           </motion.div>
-        </div>
+        </AnimatePresence>
+      </div>
+
+      {/* 加载更多 */}
+      <div className="flex justify-center">
+        <button className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-colors ${
+          isDark 
+            ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+            : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+        }`}>
+          加载更多
+          <ChevronDown className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

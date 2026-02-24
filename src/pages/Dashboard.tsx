@@ -42,7 +42,7 @@ import {
 import OptimizedImage from '../components/OptimizedImage';
 import ActivityTimeline, { Activity } from '../components/ActivityTimeline';
 import achievementService from '../services/achievementService';
-import analyticsService from '../services/analyticsService';
+import analyticsService, { WorkPerformance } from '../services/analyticsService';
 import taskService, { Task } from '../services/taskService';
 import { useCommunityLogic } from '@/hooks/useCommunityLogic';
 import postsApi from '@/services/postService';
@@ -89,7 +89,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [creatorLevelInfo, setCreatorLevelInfo] = useState(() => achievementService.getCreatorLevelInfo());
   const [achievements, setAchievements] = useState(() => achievementService.getUnlockedAchievements());
-  const [worksPerformance, setWorksPerformance] = useState(() => analyticsService.getWorksPerformance(3));
+  const [worksPerformance, setWorksPerformance] = useState<WorkPerformance[]>([]);
   const [analyticsChartData, setAnalyticsChartData] = useState<any[] | null>(null);
   const [activePeriod, setActivePeriod] = useState<'周' | '月' | '年'>('月');
   const [noviceTasks, setNoviceTasks] = useState<Task[]>([]);
@@ -360,6 +360,19 @@ export default function Dashboard() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
+  }, []);
+
+  // 加载作品表现数据
+  useEffect(() => {
+    const loadWorksPerformance = async () => {
+      try {
+        const data = await analyticsService.getWorksPerformance(3);
+        setWorksPerformance(data);
+      } catch (error) {
+        console.warn('加载作品表现数据失败:', error);
+      }
+    };
+    loadWorksPerformance();
   }, []);
 
   // 获取热门话题数据

@@ -63,7 +63,7 @@ export default function RightSidebar({
   return (
     <aside className={`w-80 flex-shrink-0 hidden xl:block ${isDark ? 'bg-gray-900/30' : 'bg-white/30'} backdrop-blur-sm`}>
       <div className="sticky top-20 p-4 space-y-6">
-        {/* 用户等级卡片 */}
+        {/* 用户等级卡片 - 图1样式 */}
         {currentLevel && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -74,23 +74,24 @@ export default function RightSidebar({
                 : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
             }`}
           >
-            {/* 装饰背景 */}
-            <div className="absolute top-0 right-0 w-32 h-32 opacity-10">
+            {/* 装饰背景 - 皇冠图标 */}
+            <div className="absolute top-2 right-2 w-24 h-24 opacity-5">
               <Crown className="w-full h-full text-[#C02C38]" />
             </div>
 
             <div className="relative">
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl ${
+              {/* 顶部：图标和等级信息 */}
+              <div className="flex items-center gap-4 mb-5">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl ${
                   isDark ? 'bg-[#C02C38]/20' : 'bg-[#C02C38]/10'
                 }`}>
                   {currentLevel.icon}
                 </div>
-                <div>
-                  <p className={`text-xs font-medium uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                <div className="flex-1">
+                  <p className={`text-xs font-medium mb-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                     当前等级
                   </p>
-                  <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {currentLevel.name}
                   </h3>
                 </div>
@@ -102,34 +103,34 @@ export default function RightSidebar({
                   <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     升级进度
                   </span>
-                  <span className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <span className={`text-xs font-bold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     {userInfo?.levelProgress || 0}%
                   </span>
                 </div>
-                <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                <div className={`h-2.5 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${userInfo?.levelProgress || 0}%` }}
                     transition={{ duration: 1, delay: 0.2, ease: 'easeOut' }}
-                    className="h-full rounded-full bg-gradient-to-r from-[#C02C38] via-[#D04550] to-[#F59E0B]"
+                    className="h-full rounded-full bg-gradient-to-r from-[#C02C38] to-[#F59E0B]"
                   />
                 </div>
                 {nextLevel && (
                   <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    距离 <span className="text-[#C02C38] font-medium">{nextLevel.name}</span> 还需 {userInfo?.pointsToNextLevel || 0} 积分
+                    距离 <span className="text-[#C02C38] font-medium">{nextLevel.name}</span> 还需 <span className="font-bold">{userInfo?.pointsToNextLevel || 0}</span> 积分
                   </p>
                 )}
               </div>
 
-              {/* 当前积分 */}
-              <div className={`flex items-center justify-between p-3 rounded-xl ${
+              {/* 总积分 - 图1样式 */}
+              <div className={`flex items-center justify-between py-3 px-4 rounded-xl ${
                 isDark ? 'bg-gray-800/50' : 'bg-gray-100/50'
               }`}>
                 <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-[#F59E0B]" />
-                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总积分</span>
+                  <Zap className="w-5 h-5 text-[#F59E0B]" />
+                  <span className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总积分</span>
                 </div>
-                <span className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <span className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   {Math.max(0, userInfo?.currentPoints || 0).toLocaleString()}
                 </span>
               </div>

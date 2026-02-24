@@ -56,6 +56,7 @@ import type { User } from '../contexts/authContext'
 import { toast } from 'sonner'
 import { sendDirectMessage, checkIsFriend, sendFriendRequest } from '../services/messageService'
 import { useTheme } from '@/hooks/useTheme'
+import { presenceService } from '@/services/presenceService'
 
 interface AuthorProfileProps {
   currentUser?: User | null
@@ -100,7 +101,7 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
   const [searchTerm, setSearchTerm] = useState('')
   const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [activeTab, setActiveTab] = useState<'works' | 'activity' | 'achievements'>('works')
-  const [isOnline] = useState(true) // 模拟在线状态
+  const [isOnline, setIsOnline] = useState(false)
   const [activities, setActivities] = useState<UserActivity[]>([])
   const [activitiesLoading, setActivitiesLoading] = useState(false)
   
@@ -300,6 +301,24 @@ export const AuthorProfile: React.FC<AuthorProfileProps> = ({ currentUser }) => 
 
     loadAuthor()
   }, [id, currentUser])
+
+  // 订阅在线状态变化
+  useEffect(() => {
+    if (!id) return
+
+    // 初始检查在线状态
+    setIsOnline(presenceService.isUserOnline(id))
+
+    // 订阅在线用户列表变化
+    const unsubscribe = presenceService.subscribe((users) => {
+      const online = users.some(u => u.user_id === id)
+      setIsOnline(online)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [id])
 
   // 加载用户活动数据
   useEffect(() => {

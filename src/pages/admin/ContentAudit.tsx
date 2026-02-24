@@ -4,6 +4,34 @@ import { useTheme } from '@/hooks/useTheme';
 import { adminService } from '@/services/adminService';
 import { supabaseAdmin } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
+import { 
+  Shield, 
+  Search, 
+  Filter, 
+  CheckCircle, 
+  XCircle, 
+  Trash2, 
+  Settings,
+  AlertTriangle,
+  Sparkles,
+  FileText,
+  Video,
+  Image as ImageIcon,
+  MessageSquare,
+  Calendar,
+  User,
+  BarChart3,
+  Clock,
+  ChevronDown,
+  MoreHorizontal,
+  Eye,
+  CheckSquare,
+  X,
+  TrendingUp,
+  AlertCircle,
+  Bot,
+  Award
+} from 'lucide-react';
 
 interface ContentItem {
   id: string;
@@ -23,6 +51,7 @@ interface ContentItem {
   views_count?: number;
   ai_risk_score?: number;
   spam_score?: number;
+  category?: string; // 作品分类
 }
 
 interface AuditAction {
@@ -44,16 +73,154 @@ interface AuditRule {
   auto_action: 'none' | 'flag' | 'reject';
 }
 
-// 预设的审核规则
 const DEFAULT_AUDIT_RULES: AuditRule[] = [
   { id: '1', name: '敏感词检测', type: 'sensitive_words', enabled: true, threshold: 80, auto_action: 'reject' },
-  { id: '2', name: '垃圾内容识别', type: 'spam_detection', enabled: true, threshold: 70, auto_action: 'flag' },
-  { id: '3', name: 'AI生成内容检测', type: 'ai_generated', enabled: true, threshold: 85, auto_action: 'flag' },
+  { id: '2', name: '垃圾作品识别', type: 'spam_detection', enabled: true, threshold: 70, auto_action: 'flag' },
+  { id: '3', name: 'AI生成作品检测', type: 'ai_generated', enabled: true, threshold: 85, auto_action: 'flag' },
   { id: '4', name: '文化真实性评估', type: 'cultural_authenticity', enabled: true, threshold: 60, auto_action: 'flag' },
 ];
 
-// 敏感词列表
-const SENSITIVE_WORDS = ['暴力', '色情', '赌博', '毒品', '诈骗', '反动'];
+// 统计卡片组件
+const StatCard = ({ 
+  icon: Icon, 
+  label, 
+  value, 
+  color, 
+  trend,
+  delay 
+}: { 
+  icon: any; 
+  label: string; 
+  value: number; 
+  color: string;
+  trend?: string;
+  delay: number;
+}) => {
+  const colorClasses: Record<string, { bg: string; text: string; border: string; glow: string }> = {
+    blue: { bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/20', glow: 'shadow-blue-500/20' },
+    amber: { bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20', glow: 'shadow-amber-500/20' },
+    emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20', glow: 'shadow-emerald-500/20' },
+    rose: { bg: 'bg-rose-500/10', text: 'text-rose-500', border: 'border-rose-500/20', glow: 'shadow-rose-500/20' },
+    violet: { bg: 'bg-violet-500/10', text: 'text-violet-500', border: 'border-violet-500/20', glow: 'shadow-violet-500/20' },
+  };
+
+  const colors = colorClasses[color] || colorClasses.blue;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.4 }}
+      className={`relative overflow-hidden rounded-2xl border ${colors.border} ${colors.bg} backdrop-blur-sm p-5 group hover:shadow-lg ${colors.glow} transition-all duration-300`}
+    >
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</p>
+          <h3 className={`text-3xl font-bold ${colors.text}`}>{value.toLocaleString()}</h3>
+          {trend && (
+            <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+              <TrendingUp className="w-3 h-3 text-emerald-500" />
+              {trend}
+            </p>
+          )}
+        </div>
+        <div className={`p-3 rounded-xl ${colors.bg} ${colors.text}`}>
+          <Icon className="w-6 h-6" />
+        </div>
+      </div>
+      <div className={`absolute -bottom-4 -right-4 w-24 h-24 rounded-full ${colors.bg} opacity-50 blur-2xl group-hover:scale-150 transition-transform duration-500`} />
+    </motion.div>
+  );
+};
+
+// 风险指示器组件
+const RiskIndicator = ({ 
+  label, 
+  value, 
+  color 
+}: { 
+  label: string; 
+  value: number; 
+  color: 'green' | 'yellow' | 'red';
+}) => {
+  const colors = {
+    green: { bg: 'bg-emerald-500', text: 'text-emerald-500', bar: 'bg-emerald-500/20' },
+    yellow: { bg: 'bg-amber-500', text: 'text-amber-500', bar: 'bg-amber-500/20' },
+    red: { bg: 'bg-rose-500', text: 'text-rose-500', bar: 'bg-rose-500/20' },
+  };
+
+  const c = colors[color];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between items-center text-sm">
+        <span className="text-gray-600 dark:text-gray-400">{label}</span>
+        <span className={`font-semibold ${c.text}`}>{value}%</span>
+      </div>
+      <div className={`h-2 rounded-full ${c.bar} overflow-hidden`}>
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className={`h-full rounded-full ${c.bg}`}
+        />
+      </div>
+    </div>
+  );
+};
+
+// 作品类型图标
+const TypeIcon = ({ type }: { type: string }) => {
+  const icons: Record<string, any> = {
+    post: FileText,
+    comment: MessageSquare,
+    activity: Calendar,
+    work: ImageIcon,
+  };
+  const Icon = icons[type] || FileText;
+  return <Icon className="w-4 h-4" />;
+};
+
+// 状态徽章
+const StatusBadge = ({ status }: { status: string }) => {
+  const configs: Record<string, { bg: string; text: string; icon: any; label: string }> = {
+    pending: { bg: 'bg-amber-500/10', text: 'text-amber-600', icon: Clock, label: '待审核' },
+    approved: { bg: 'bg-emerald-500/10', text: 'text-emerald-600', icon: CheckCircle, label: '已通过' },
+    rejected: { bg: 'bg-rose-500/10', text: 'text-rose-600', icon: XCircle, label: '已拒绝' },
+  };
+  
+  // 如果状态为空或不存在，默认为 approved
+  const effectiveStatus = status || 'approved';
+  const config = configs[effectiveStatus] || configs.approved;
+  const Icon = config.icon;
+  
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+      <Icon className="w-3.5 h-3.5" />
+      {config.label}
+    </span>
+  );
+};
+
+// 真实性评分徽章
+const AuthenticityBadge = ({ score }: { score?: number }) => {
+  if (!score) return <span className="text-gray-400">-</span>;
+  
+  const getColor = () => {
+    if (score >= 80) return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+    if (score >= 60) return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+    if (score >= 40) return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+    return 'bg-rose-500/10 text-rose-600 border-rose-500/20';
+  };
+
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${getColor()}`}>
+      <Award className="w-4 h-4" />
+      <span className="font-semibold">{score}</span>
+      <span className="text-xs opacity-70">分</span>
+    </div>
+  );
+};
 
 export default function ContentAudit() {
   const { isDark } = useTheme();
@@ -65,6 +232,7 @@ export default function ContentAudit() {
   const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
   const [filter, setFilter] = useState('all');
   const [contentType, setContentType] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all'); // 作品分类筛选
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -77,7 +245,7 @@ export default function ContentAudit() {
   const [batchAction, setBatchAction] = useState<'approve' | 'reject'>('approve');
   const [batchReason, setBatchReason] = useState('');
   
-  // 审核规则状态
+  // 作品审核规则状态
   const [auditRules, setAuditRules] = useState<AuditRule[]>(DEFAULT_AUDIT_RULES);
   const [showRulesModal, setShowRulesModal] = useState(false);
   
@@ -90,7 +258,7 @@ export default function ContentAudit() {
     today: 0
   });
   
-  // 获取内容数据
+  // 获取津脉广场作品数据
   const fetchContents = useCallback(async () => {
     setLoading(true);
     try {
@@ -101,21 +269,30 @@ export default function ContentAudit() {
         type: contentType,
       });
       
-      // 转换数据格式并应用AI检测
+      // 调试：查看原始数据
+      console.log('Frontend received contents:', result.contents.slice(0, 3).map((c: any) => ({ 
+        id: c.id, 
+        status: c.status, 
+        title: c.title?.substring(0, 20) 
+      })));
+      
       const formattedContents: ContentItem[] = result.contents.map((item: any) => {
-        // 基于内容特征计算AI风险评分
-        const aiRiskScore = calculateAIRiskScore(item.content || item.description || '');
-        const spamScore = calculateSpamScore(item.content || item.description || '');
+        // 处理时间戳 - 如果是秒级时间戳（小于 1e12），转换为毫秒
+        let timestamp = new Date(item.created_at).getTime();
+        if (timestamp < 1000000000000) {
+          timestamp = timestamp * 1000;
+        }
         
-        return {
+        const formattedItem = {
           id: item.id,
           title: item.title || item.content?.substring(0, 50) + '...' || '无标题',
           content: item.content || item.description || '',
           creator: item.author || item.creator_name || '未知用户',
           creator_id: item.creator_id || item.author_id,
           type: item.type || 'work',
-          status: item.status || 'pending',
-          created_at: new Date(item.created_at).getTime(),
+          // 如果没有状态，默认为 approved（已发布的作品视为已通过）
+          status: item.status || 'approved',
+          created_at: timestamp,
           thumbnail: item.thumbnail || item.cover_url || item.image_url,
           videoUrl: item.videoUrl || item.video_url,
           authenticity_score: item.authenticity_score || 0,
@@ -123,14 +300,18 @@ export default function ContentAudit() {
           likes_count: item.likes || item.likes_count || 0,
           comments_count: item.comments || item.comments_count || 0,
           views_count: item.views || item.views_count || 0,
-          ai_risk_score: aiRiskScore,
-          spam_score: spamScore,
+          ai_risk_score: item.ai_risk_score || 0,
+          spam_score: item.spam_score || 0,
+          category: item.category || '', // 作品分类
         };
+        
+        console.log('Item formatted:', item.status, '->', formattedItem.status, formattedItem.title?.substring(0, 20));
+        
+        return formattedItem;
       });
       
       setContents(formattedContents);
       
-      // 更新统计数据
       const today = new Date().setHours(0, 0, 0, 0);
       setStats({
         total: formattedContents.length,
@@ -140,8 +321,8 @@ export default function ContentAudit() {
         today: formattedContents.filter(c => c.created_at >= today).length
       });
     } catch (error) {
-      console.error('获取内容数据失败:', error);
-      toast.error('获取内容数据失败');
+      console.error('获取作品数据失败:', error);
+      toast.error('获取作品数据失败');
     } finally {
       setLoading(false);
     }
@@ -150,73 +331,10 @@ export default function ContentAudit() {
   useEffect(() => {
     fetchContents();
   }, [fetchContents]);
-  
-  // 计算垃圾内容评分
-  const calculateSpamScore = (content: string): number => {
-    let score = 0;
-    const lowerContent = content.toLowerCase();
-    
-    // 检查敏感词
-    SENSITIVE_WORDS.forEach(word => {
-      if (lowerContent.includes(word)) score += 30;
-    });
-    
-    // 检查重复字符
-    if (/(.)\1{4,}/.test(content)) score += 20;
-    
-    // 检查链接数量
-    const linkCount = (content.match(/http/g) || []).length;
-    if (linkCount > 3) score += 15;
-    
-    // 检查全大写比例
-    const upperCaseRatio = (content.match(/[A-Z]/g) || []).length / content.length;
-    if (upperCaseRatio > 0.5) score += 10;
-    
-    // 检查内容长度（过短的内容可能是垃圾）
-    if (content.length < 20) score += 25;
-    
-    // 检查特殊字符比例
-    const specialCharRatio = (content.match(/[^\w\s\u4e00-\u9fa5]/g) || []).length / content.length;
-    if (specialCharRatio > 0.3) score += 15;
-    
-    return Math.min(score, 100);
-  };
-  
-  // 计算AI生成内容风险评分
-  const calculateAIRiskScore = (content: string): number => {
-    let score = 0;
-    
-    // 检查过于完美的格式（可能是AI生成）
-    const hasPerfectStructure = /^[\u4e00-\u9fa5]+[，。！？]/.test(content) && 
-                                (content.match(/[，。！？]/g) || []).length > content.length / 20;
-    if (hasPerfectStructure) score += 20;
-    
-    // 检查重复模式
-    const sentences = content.split(/[。！？]/);
-    const uniqueSentences = new Set(sentences);
-    if (sentences.length > 3 && uniqueSentences.size / sentences.length < 0.7) {
-      score += 25;
-    }
-    
-    // 检查过于通用的表达
-    const genericPatterns = ['众所周知', '不言而喻', '总而言之', '综上所述', '首先', '其次', '最后'];
-    genericPatterns.forEach(pattern => {
-      if (content.includes(pattern)) score += 5;
-    });
-    
-    // 检查情感词汇密度（AI生成内容往往情感词汇较少）
-    const emotionalWords = ['喜欢', '讨厌', '开心', '难过', '激动', '失望', '热爱', '痛恨'];
-    const emotionalCount = emotionalWords.reduce((count, word) => 
-      count + (content.includes(word) ? 1 : 0), 0);
-    if (emotionalCount < 2 && content.length > 100) score += 15;
-    
-    return Math.min(score, 100);
-  };
-  
-  // 获取审核操作记录
+
+  // 获取作品审核操作记录
   const fetchAuditActions = async (contentId: string) => {
     try {
-      // 从审计日志获取真实的审核记录
       const { data: auditLogs, error } = await supabaseAdmin
         .from('audit_logs')
         .select('*')
@@ -225,12 +343,10 @@ export default function ContentAudit() {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('获取审核记录失败:', error);
         setAuditActions([]);
         return;
       }
       
-      // 转换数据格式
       const actions: AuditAction[] = auditLogs?.map((log: any) => ({
         id: log.id,
         content_id: contentId,
@@ -244,13 +360,12 @@ export default function ContentAudit() {
       
       setAuditActions(actions);
     } catch (error) {
-      console.error('获取审核记录失败:', error);
       setAuditActions([]);
     }
   };
   
-  // 处理单个审核操作
-  const handleAuditAction = async (contentId: string, action: 'approve' | 'reject' | 'delete') => {
+  // 处理单个作品审核操作
+  const handleAuditAction = async (contentId: string, action: 'approve' | 'reject') => {
     setActionLoading(true);
     try {
       const content = contents.find(c => c.id === contentId);
@@ -259,35 +374,57 @@ export default function ContentAudit() {
       const success = await adminService.auditContent(
         contentId, 
         contentType, 
-        action === 'delete' ? 'reject' : action,
+        action,
         action === 'reject' ? reason : undefined
       );
       
       if (success) {
-        // 更新本地状态
         setContents(prev => prev.map(item => 
           item.id === contentId 
             ? { ...item, status: action === 'approve' ? 'approved' : 'rejected' }
             : item
         ));
         
-        toast.success(`内容已${action === 'approve' ? '通过' : action === 'reject' ? '拒绝' : '删除'}`);
+        toast.success(`作品已${action === 'approve' ? '通过' : '拒绝'}`);
         setReason('');
-        
-        // 刷新内容列表
         await fetchContents();
       } else {
         toast.error('操作失败，请重试');
       }
     } catch (error) {
-      console.error('审核操作失败:', error);
-      toast.error('审核操作失败');
+      toast.error('作品审核操作失败');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 处理删除作品
+  const handleDeleteContent = async (contentId: string) => {
+    if (!confirm('确定要删除这个作品吗？此操作不可恢复！')) return;
+    
+    setActionLoading(true);
+    try {
+      const content = contents.find(c => c.id === contentId);
+      const contentType = content?.type || 'work';
+      
+      const success = await adminService.deleteContent(contentId, contentType);
+      
+      if (success) {
+        setContents(prev => prev.filter(item => item.id !== contentId));
+        if (selectedContent?.id === contentId) setSelectedContent(null);
+        toast.success('作品已删除');
+        await fetchContents();
+      } else {
+        toast.error('删除失败，请重试');
+      }
+    } catch (error) {
+      toast.error('删除作品失败');
     } finally {
       setActionLoading(false);
     }
   };
   
-  // 处理批量审核
+  // 处理批量作品审核
   const handleBatchAudit = async () => {
     if (selectedItems.size === 0) return;
     
@@ -307,29 +444,22 @@ export default function ContentAudit() {
           batchAction === 'reject' ? batchReason : undefined
         );
         
-        if (success) {
-          successCount++;
-        } else {
-          failCount++;
-        }
+        if (success) successCount++;
+        else failCount++;
       }
       
       if (successCount > 0) {
-        toast.success(`成功${batchAction === 'approve' ? '通过' : '拒绝'} ${successCount} 条内容`);
+        toast.success(`成功${batchAction === 'approve' ? '通过' : '拒绝'} ${successCount} 条作品`);
       }
-      if (failCount > 0) {
-        toast.error(`${failCount} 条内容处理失败`);
-      }
+      if (failCount > 0) toast.error(`${failCount} 条作品处理失败`);
       
-      // 清空选择并刷新
       setSelectedItems(new Set());
       setIsBatchMode(false);
       setShowBatchModal(false);
       setBatchReason('');
       await fetchContents();
     } catch (error) {
-      console.error('批量审核失败:', error);
-      toast.error('批量审核失败');
+      toast.error('批量作品审核失败');
     } finally {
       setActionLoading(false);
     }
@@ -338,11 +468,8 @@ export default function ContentAudit() {
   // 切换内容选择
   const toggleItemSelection = (contentId: string) => {
     const newSelection = new Set(selectedItems);
-    if (newSelection.has(contentId)) {
-      newSelection.delete(contentId);
-    } else {
-      newSelection.add(contentId);
-    }
+    if (newSelection.has(contentId)) newSelection.delete(contentId);
+    else newSelection.add(contentId);
     setSelectedItems(newSelection);
   };
   
@@ -357,9 +484,8 @@ export default function ContentAudit() {
   
   // 处理内容选择
   const handleContentSelect = (content: ContentItem) => {
-    if (isBatchMode) {
-      toggleItemSelection(content.id);
-    } else {
+    if (isBatchMode) toggleItemSelection(content.id);
+    else {
       setSelectedContent(content);
       fetchAuditActions(content.id);
     }
@@ -370,6 +496,7 @@ export default function ContentAudit() {
     .filter(item => {
       if (filter !== 'all' && item.status !== filter) return false;
       if (contentType !== 'all' && item.type !== contentType) return false;
+      if (selectedCategory !== 'all' && item.category !== selectedCategory) return false;
       if (searchTerm && !item.title.toLowerCase().includes(searchTerm.toLowerCase()) && !item.content.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       return true;
     })
@@ -398,609 +525,566 @@ export default function ContentAudit() {
       minute: '2-digit'
     });
   };
-  
-  // 获取状态标签样式
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-600';
-      case 'approved':
-        return 'bg-green-100 text-green-600';
-      case 'rejected':
-        return 'bg-red-100 text-red-600';
-      default:
-        return 'bg-gray-100 text-gray-600';
-    }
+
+  // 获取风险等级
+  const getRiskLevel = (aiScore?: number, spamScore?: number) => {
+    const ai = aiScore || 0;
+    const spam = spamScore || 0;
+    const max = Math.max(ai, spam);
+    
+    if (max >= 70) return { level: 'high', color: 'red', label: '高风险' };
+    if (max >= 40) return { level: 'medium', color: 'yellow', label: '中风险' };
+    return { level: 'low', color: 'green', label: '低风险' };
   };
-  
-  // 获取内容类型标签样式
-  const getTypeBadgeClass = (type: string) => {
-    switch (type) {
-      case 'post':
-        return 'bg-blue-100 text-blue-600';
-      case 'comment':
-        return 'bg-purple-100 text-purple-600';
-      case 'activity':
-        return 'bg-orange-100 text-orange-600';
-      case 'work':
-        return 'bg-pink-100 text-pink-600';
-      default:
-        return 'bg-gray-100 text-gray-600';
-    }
-  };
-  
-  // 获取内容类型中文名称
-  const getTypeName = (type: string) => {
-    switch (type) {
-      case 'post':
-        return '帖子';
-      case 'comment':
-        return '评论';
-      case 'activity':
-        return '活动';
-      case 'work':
-        return '作品';
-      default:
-        return type;
-    }
-  };
-  
-  // 获取真实性评分颜色
-  const getAuthenticityColor = (score?: number) => {
-    if (!score) return 'text-gray-400';
-    if (score >= 80) return 'text-green-500';
-    if (score >= 60) return 'text-yellow-500';
-    return 'text-red-500';
-  };
-  
-  // 获取真实性评分描述
-  const getAuthenticityDescription = (score?: number) => {
-    if (!score) return '未评估';
-    if (score >= 80) return '优秀';
-    if (score >= 60) return '良好';
-    if (score >= 40) return '一般';
-    return '较差';
-  };
-  
-  // 获取风险等级颜色
-  const getRiskColor = (score?: number) => {
-    if (!score) return 'text-gray-400';
-    if (score >= 80) return 'text-red-500';
-    if (score >= 50) return 'text-yellow-500';
-    return 'text-green-500';
-  };
-  
+
   if (loading) {
     return (
-      <div className={`flex items-center justify-center min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <div className={`flex items-center justify-center min-h-screen ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
         <div className="flex flex-col items-center gap-4">
-          <div className={`w-12 h-12 border-4 ${isDark ? 'border-gray-600 border-t-red-600' : 'border-gray-200 border-t-red-600'} border-t-transparent rounded-full animate-spin`}></div>
-          <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>正在加载内容数据...</p>
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-red-200 border-t-red-600 rounded-full animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Shield className="w-6 h-6 text-red-600" />
+            </div>
+          </div>
+          <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>正在加载津脉广场作品数据...</p>
         </div>
       </div>
     );
   }
-  
+
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}
-    >
+    <div className={`min-h-screen p-6 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+      {/* 页面标题 */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-3 bg-gradient-to-br from-red-500 to-rose-600 rounded-xl shadow-lg shadow-red-500/25">
+            <Shield className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">津脉广场作品管理</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">管理津脉广场的用户作品，包括审核、评分和删除操作</p>
+          </div>
+        </div>
+      </motion.div>
+
       {/* 统计卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        {[
-          { label: '全部内容', value: stats.total, color: 'blue' },
-          { label: '待审核', value: stats.pending, color: 'yellow' },
-          { label: '已通过', value: stats.approved, color: 'green' },
-          { label: '已拒绝', value: stats.rejected, color: 'red' },
-          { label: '今日新增', value: stats.today, color: 'purple' },
-        ].map((stat, index) => (
-          <motion.div
-            key={stat.label}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <StatCard icon={BarChart3} label="全部作品" value={stats.total} color="blue" trend="+12%" delay={0} />
+        <StatCard icon={Clock} label="待审核" value={stats.pending} color="amber" delay={0.1} />
+        <StatCard icon={CheckCircle} label="已通过" value={stats.approved} color="emerald" delay={0.2} />
+        <StatCard icon={XCircle} label="已拒绝" value={stats.rejected} color="rose" delay={0.3} />
+        <StatCard icon={Sparkles} label="今日新增" value={stats.today} color="violet" delay={0.4} />
+      </div>
+
+      {/* 主要内容区域 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 左侧内容列表 */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* 工具栏 */}
+          <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
+            transition={{ delay: 0.2 }}
+            className={`p-4 rounded-2xl border ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white border-gray-200'} backdrop-blur-sm`}
           >
-            <div className={`text-2xl font-bold text-${stat.color}-500`}>{stat.value}</div>
-            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{stat.label}</div>
-          </motion.div>
-        ))}
-      </div>
-      
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* 左侧内容列表 */}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <div className="flex items-center gap-4">
-              <h2 className="text-xl font-bold">内容审核</h2>
-              <button
-                onClick={() => setShowRulesModal(true)}
-                className={`px-3 py-1 rounded-lg text-sm ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
-              >
-                <i className="fas fa-cog mr-1"></i>审核规则
-              </button>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-              {/* 批量操作按钮 */}
-              <button
-                onClick={() => {
-                  setIsBatchMode(!isBatchMode);
-                  setSelectedItems(new Set());
-                }}
-                className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isBatchMode 
-                    ? 'bg-red-600 text-white' 
-                    : isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
-                }`}
-              >
-                {isBatchMode ? '退出批量' : '批量操作'}
-              </button>
-              
-              {isBatchMode && selectedItems.size > 0 && (
-                <>
-                  <button
-                    onClick={() => { setBatchAction('approve'); setShowBatchModal(true); }}
-                    className="px-3 py-2 rounded-lg text-sm bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                  >
-                    批量通过 ({selectedItems.size})
-                  </button>
-                  <button
-                    onClick={() => { setBatchAction('reject'); setShowBatchModal(true); }}
-                    className="px-3 py-2 rounded-lg text-sm bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
-                  >
-                    批量拒绝 ({selectedItems.size})
-                  </button>
-                </>
-              )}
-              
-              <div className={`relative ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded-full px-4 py-2 flex-1 sm:flex-none sm:w-64`}>
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* 搜索框 */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="搜索内容..."
+                  placeholder="搜索作品标题或描述..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-transparent border-none outline-none w-full text-sm"
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all ${
+                    isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                  }`}
                 />
-                <i className={`fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}></i>
               </div>
-              
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className={`px-3 py-2 rounded-lg text-sm ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'} border`}
-              >
-                <option value="all">全部状态</option>
-                <option value="pending">待审核</option>
-                <option value="approved">已通过</option>
-                <option value="rejected">已拒绝</option>
-              </select>
-              
-              <select
-                value={contentType}
-                onChange={(e) => setContentType(e.target.value)}
-                className={`px-3 py-2 rounded-lg text-sm ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'} border`}
-              >
-                <option value="all">全部类型</option>
-                <option value="post">帖子</option>
-                <option value="comment">评论</option>
-                <option value="activity">活动</option>
-                <option value="work">作品</option>
-              </select>
+
+              {/* 筛选器 */}
+              <div className="flex gap-2 flex-wrap">
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className={`pl-9 pr-8 py-2.5 rounded-xl border text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 ${
+                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'
+                    }`}
+                  >
+                    <option value="all">全部状态</option>
+                    <option value="pending">待审核</option>
+                    <option value="approved">已通过</option>
+                    <option value="rejected">已拒绝</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
+
+                {/* 作品分类下拉选择 */}
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className={`pl-9 pr-8 py-2.5 rounded-xl border text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 ${
+                      isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'
+                    }`}
+                  >
+                    <option value="all">全部分类</option>
+                    <option value="国潮设计">国潮设计</option>
+                    <option value="品牌联名">品牌联名</option>
+                    <option value="校园活动">校园活动</option>
+                    <option value="文旅推广">文旅推广</option>
+                    <option value="纹样设计">纹样设计</option>
+                    <option value="插画设计">插画设计</option>
+                    <option value="工艺创新">工艺创新</option>
+                    <option value="老字号品牌">老字号品牌</option>
+                    <option value="包装设计">包装设计</option>
+                    <option value="共创设计">共创设计</option>
+                    <option value="非遗传承">非遗传承</option>
+                    <option value="IP设计">IP设计</option>
+                    <option value="数字艺术">数字艺术</option>
+                    <option value="3D设计">3D设计</option>
+                    <option value="AI设计">AI设计</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
+
+                {/* 批量操作按钮 */}
+                <button
+                  onClick={() => {
+                    setIsBatchMode(!isBatchMode);
+                    setSelectedItems(new Set());
+                  }}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isBatchMode 
+                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/25' 
+                      : isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <CheckSquare className="w-4 h-4 inline mr-2" />
+                  {isBatchMode ? '退出批量' : '批量操作'}
+                </button>
+
+                <button
+                  onClick={() => setShowRulesModal(true)}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Settings className="w-4 h-4 inline mr-2" />
+                  审核规则
+                </button>
+              </div>
             </div>
-          </div>
-          
-          {/* 排序选项 */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              {isBatchMode && (
-                <>
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.size === filteredAndSortedContents.length && filteredAndSortedContents.length > 0}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded"
-                  />
-                  <span className="text-sm">全选</span>
-                </>
-              )}
-              <div className="text-sm text-gray-500">共 {filteredAndSortedContents.length} 条内容</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm">排序：</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className={`px-2 py-1 rounded text-xs ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'} border`}
+
+            {/* 批量操作栏 */}
+            {isBatchMode && selectedItems.size > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 flex items-center gap-3"
               >
-                <option value="created_at">创建时间</option>
-                <option value="title">标题</option>
-                <option value="authenticity_score">真实性评分</option>
-                <option value="ai_risk_score">AI风险</option>
-              </select>
-              <button
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className={`p-1 rounded ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
-              >
-                <i className={`fas ${sortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down'}`}></i>
-              </button>
-            </div>
-          </div>
-          
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  已选择 <span className="font-semibold text-red-500">{selectedItems.size}</span> 项
+                </span>
+                <div className="flex-1" />
+                <button
+                  onClick={() => { setBatchAction('approve'); setShowBatchModal(true); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-colors"
+                >
+                  <CheckCircle className="w-4 h-4 inline mr-1.5" />
+                  批量通过
+                </button>
+                <button
+                  onClick={() => { setBatchAction('reject'); setShowBatchModal(true); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-colors"
+                >
+                  <XCircle className="w-4 h-4 inline mr-1.5" />
+                  批量拒绝
+                </button>
+              </motion.div>
+            )}
+          </motion.div>
+
           {/* 内容列表 */}
-          <div className={`overflow-y-auto max-h-[calc(100vh-400px)] rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-            <table className="min-w-full">
-              <thead>
-                <tr className={isDark ? 'bg-gray-700' : 'bg-gray-50'}>
-                  {isBatchMode && <th className="px-2 py-3 text-left text-sm font-medium w-8"></th>}
-                  <th className="px-4 py-3 text-left text-sm font-medium">内容信息</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">类型</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">状态</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">真实性</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">风险</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">创建时间</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700">
-                {filteredAndSortedContents.length === 0 ? (
-                  <tr>
-                    <td colSpan={isBatchMode ? 8 : 7} className="px-4 py-10 text-center">
-                      <div className="text-gray-400">
-                        <i className="fas fa-file-alt text-4xl mb-2"></i>
-                        <p>暂无符合条件的内容</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAndSortedContents.map((content) => {
-                    const authenticityScore = content.authenticity_score || 0;
-                    const isHighRisk = (content.ai_risk_score || 0) > 70 || (content.spam_score || 0) > 70;
-                    
-                    return (
-                      <tr 
-                        key={content.id} 
-                        className={`hover:bg-gray-700/50 cursor-pointer ${selectedContent?.id === content.id ? (isDark ? 'bg-gray-700/30' : 'bg-gray-50') : ''} ${isHighRisk ? 'bg-red-50/5' : ''}`}
-                        onClick={() => handleContentSelect(content)}
-                      >
-                        {isBatchMode && (
-                          <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={selectedItems.has(content.id)}
-                              onChange={() => toggleItemSelection(content.id)}
-                              className="w-4 h-4 rounded"
-                            />
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-sm">
-                          <div className="flex items-start">
-                            {/* 视频作品显示视频预览 */}
-                            {content.videoUrl ? (
-                              <div className="w-16 h-16 rounded-lg mr-3 flex-shrink-0 overflow-hidden bg-gray-900 relative">
-                                <video
-                                  src={content.videoUrl}
-                                  className="w-full h-full object-cover"
-                                  muted
-                                  playsInline
-                                  loop
-                                  autoPlay
-                                  preload="auto"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                  <span className="bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                                    <i className="fas fa-video text-[6px]"></i>
-                                    视频
-                                  </span>
-                                </div>
-                              </div>
-                            ) : content.thumbnail ? (
-                              <img
-                                src={content.thumbnail}
-                                alt={content.title}
-                                className="w-16 h-16 rounded-lg object-cover mr-3 flex-shrink-0"
-                              />
-                            ) : null}
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium truncate">{content.title}</div>
-                              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-1`}>
-                                作者：{content.creator}
-                              </div>
-                              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} line-clamp-2`}>
-                                {content.content}
-                              </div>
+          <div className="space-y-3">
+            {filteredAndSortedContents.length === 0 ? (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className={`p-12 rounded-2xl border text-center ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white border-gray-200'}`}
+              >
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <FileText className="w-10 h-10 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">暂无内容</h3>
+                <p className="text-sm text-gray-500">当前筛选条件下没有符合条件的内容</p>
+              </motion.div>
+            ) : (
+              filteredAndSortedContents.map((content, index) => {
+                const risk = getRiskLevel(content.ai_risk_score, content.spam_score);
+                const isSelected = selectedContent?.id === content.id;
+                const isChecked = selectedItems.has(content.id);
+
+                return (
+                  <motion.div
+                    key={content.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    onClick={() => handleContentSelect(content)}
+                    className={`group relative p-4 rounded-2xl border cursor-pointer transition-all duration-200 ${
+                      isSelected 
+                        ? 'border-red-500 bg-red-50/50 dark:bg-red-900/10 shadow-lg shadow-red-500/10' 
+                        : isDark 
+                          ? 'bg-gray-900/50 border-gray-800 hover:border-gray-700 hover:bg-gray-800/50' 
+                          : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
+                    }`}
+                  >
+                    <div className="flex gap-4">
+                      {/* 批量选择框 */}
+                      {isBatchMode && (
+                        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                          <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-colors ${
+                            isChecked 
+                              ? 'bg-red-500 border-red-500' 
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}>
+                            {isChecked && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 缩略图 */}
+                      <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-800">
+                        {content.videoUrl ? (
+                          <>
+                            <video src={content.videoUrl} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                              <Video className="w-6 h-6 text-white" />
                             </div>
+                          </>
+                        ) : content.thumbnail ? (
+                          <img src={content.thumbnail} alt={content.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <ImageIcon className="w-8 h-8 text-gray-400" />
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs ${getTypeBadgeClass(content.type)}`}>
-                            {getTypeName(content.type)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeClass(content.status)}`}>
-                            {content.status === 'pending' ? '待审核' : content.status === 'approved' ? '已通过' : '已拒绝'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <div className="flex items-center">
-                            <span className={`font-medium ${getAuthenticityColor(authenticityScore)}`}>
-                              {authenticityScore}%
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <div className="flex flex-col gap-1">
-                            {content.ai_risk_score > 50 && (
-                              <span className={`text-xs ${getRiskColor(content.ai_risk_score)}`}>
-                                AI: {content.ai_risk_score}%
+                        )}
+                      </div>
+
+                      {/* 内容信息 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 dark:text-white truncate mb-1 group-hover:text-red-500 transition-colors">
+                              {content.title}
+                            </h3>
+                            <div className="flex items-center gap-3 text-sm text-gray-500 mb-2">
+                              <span className="flex items-center gap-1">
+                                <User className="w-3.5 h-3.5" />
+                                {content.creator}
                               </span>
-                            )}
-                            {content.spam_score > 50 && (
-                              <span className={`text-xs ${getRiskColor(content.spam_score)}`}>
-                                垃圾: {content.spam_score}%
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5" />
+                                {formatTime(content.created_at)}
                               </span>
-                            )}
-                            {content.ai_risk_score <= 50 && content.spam_score <= 50 && (
-                              <span className="text-xs text-green-500">低风险</span>
-                            )}
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                              {content.content}
+                            </p>
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {new Date(content.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {content.status === 'pending' && !isBatchMode && (
-                            <div className="flex gap-1">
-                              <button 
+
+                          {/* 状态徽章 */}
+                          <StatusBadge status={content.status} />
+                        </div>
+
+                        {/* 评分信息 */}
+                        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                          <AuthenticityBadge score={content.authenticity_score} />
+                          
+                          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${
+                            risk.color === 'red' ? 'bg-rose-500/10 text-rose-600' :
+                            risk.color === 'yellow' ? 'bg-amber-500/10 text-amber-600' :
+                            'bg-emerald-500/10 text-emerald-600'
+                          }`}>
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            {risk.label}
+                          </div>
+
+                          <div className="flex-1" />
+
+                          {/* 操作按钮 */}
+                          {!isBatchMode && (
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {content.status === 'pending' && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAuditAction(content.id, 'approve');
+                                    }}
+                                    disabled={actionLoading}
+                                    className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-colors"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAuditAction(content.id, 'reject');
+                                    }}
+                                    disabled={actionLoading}
+                                    className="p-2 rounded-lg bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-colors"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleAuditAction(content.id, 'approve');
+                                  handleDeleteContent(content.id);
                                 }}
                                 disabled={actionLoading}
-                                className={`p-1 rounded text-xs bg-green-100 text-green-600 hover:bg-green-200 transition-colors`}
+                                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                title="删除作品"
                               >
-                                通过
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAuditAction(content.id, 'reject');
-                                }}
-                                disabled={actionLoading}
-                                className={`p-1 rounded text-xs bg-red-100 text-red-600 hover:bg-red-200 transition-colors`}
-                              >
-                                拒绝
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
           </div>
         </div>
-        
-        {/* 右侧内容详情 */}
-        {!isBatchMode && (
-          <div className="w-full md:w-1/3 min-w-0">
-            <h3 className="text-lg font-bold mb-4">内容详情</h3>
-            
+
+        {/* 右侧详情面板 */}
+        <div className="lg:col-span-1">
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className={`sticky top-6 rounded-2xl border overflow-hidden max-h-[calc(100vh-6rem)] flex flex-col ${
+              isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white border-gray-200'
+            }`}
+          >
             {selectedContent ? (
-              <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded-xl p-4 h-full flex flex-col`}>
-                {/* 内容基本信息 */}
-                <div className="mb-6">
-                  {selectedContent.thumbnail && (
-                    <img 
-                      src={selectedContent.thumbnail} 
-                      alt={selectedContent.title} 
-                      className="w-full h-48 object-cover rounded-lg mb-4" 
-                    />
-                  )}
-                  
-                  <h4 className="text-lg font-bold mb-2">{selectedContent.title}</h4>
-                  <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
-                    <div>作者：{selectedContent.creator}</div>
-                    <div>类型：{getTypeName(selectedContent.type)}</div>
-                    <div>创建时间：{formatTime(selectedContent.created_at)}</div>
+              <div className="p-6 overflow-y-auto">
+                {/* 标题 */}
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">内容详情</h3>
+                  <button 
+                    onClick={() => setSelectedContent(null)}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* 媒体预览 */}
+                {selectedContent.thumbnail && (
+                  <div className="relative rounded-xl overflow-hidden mb-6 bg-gray-100 dark:bg-gray-800">
+                    {selectedContent.videoUrl ? (
+                      <video 
+                        src={selectedContent.videoUrl} 
+                        className="w-full aspect-video object-cover"
+                        controls
+                      />
+                    ) : (
+                      <img 
+                        src={selectedContent.thumbnail} 
+                        alt={selectedContent.title}
+                        className="w-full aspect-video object-cover"
+                      />
+                    )}
                   </div>
-                  
-                  <div className="mb-4">
-                    <h5 className="font-medium mb-2">内容</h5>
-                    <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-600' : 'bg-gray-100'} text-sm max-h-40 overflow-y-auto`}>
-                      {selectedContent.content}
+                )}
+
+                {/* 基本信息 */}
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">{selectedContent.title}</h4>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge status={selectedContent.status} />
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+                        isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        <TypeIcon type={selectedContent.type} />
+                        {selectedContent.type === 'post' ? '帖子' : 
+                         selectedContent.type === 'comment' ? '评论' :
+                         selectedContent.type === 'activity' ? '活动' : '作品'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">作者</span>
+                        <p className="font-medium text-gray-900 dark:text-white">{selectedContent.creator}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">发布时间</span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {formatTime(selectedContent.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 内容描述 */}
+                  <div>
+                    <span className="text-sm text-gray-500 mb-2 block">内容描述</span>
+                    <div className={`p-4 rounded-xl text-sm max-h-40 overflow-y-auto ${
+                      isDark ? 'bg-gray-800/50 text-gray-300' : 'bg-gray-50 text-gray-600'
+                    }`}>
+                      {selectedContent.content || '暂无描述'}
                     </div>
                   </div>
                 </div>
-                
-                {/* 内容统计 */}
-                {selectedContent.type === 'post' && (
-                  <div className="grid grid-cols-3 gap-2 mb-6">
-                    <div className={`p-2 rounded ${isDark ? 'bg-gray-600' : 'bg-gray-100'} text-center`}>
-                      <div className="text-lg font-bold">{selectedContent.likes_count || 0}</div>
-                      <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>点赞</div>
+
+                {/* 风险评估 */}
+                <div className="mb-6">
+                  <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    风险评估
+                  </h5>
+                  <div className={`p-4 rounded-xl space-y-4 ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                    <RiskIndicator 
+                      label="AI生成风险" 
+                      value={selectedContent.ai_risk_score || 0}
+                      color={(selectedContent.ai_risk_score || 0) >= 70 ? 'red' : (selectedContent.ai_risk_score || 0) >= 40 ? 'yellow' : 'green'}
+                    />
+                    <RiskIndicator 
+                      label="垃圾内容风险" 
+                      value={selectedContent.spam_score || 0}
+                      color={(selectedContent.spam_score || 0) >= 70 ? 'red' : (selectedContent.spam_score || 0) >= 40 ? 'yellow' : 'green'}
+                    />
+                  </div>
+                </div>
+
+                {/* 真实性评估 */}
+                <div className="mb-6">
+                  <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Award className="w-4 h-4 text-emerald-500" />
+                    真实性评估
+                  </h5>
+                  <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">文化真实性评分</span>
+                      <span className={`text-2xl font-bold ${
+                        (selectedContent.authenticity_score || 0) >= 80 ? 'text-emerald-500' :
+                        (selectedContent.authenticity_score || 0) >= 60 ? 'text-blue-500' :
+                        (selectedContent.authenticity_score || 0) >= 40 ? 'text-amber-500' : 'text-rose-500'
+                      }`}>
+                        {selectedContent.authenticity_score || 0}%
+                      </span>
                     </div>
-                    <div className={`p-2 rounded ${isDark ? 'bg-gray-600' : 'bg-gray-100'} text-center`}>
-                      <div className="text-lg font-bold">{selectedContent.comments_count || 0}</div>
-                      <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>评论</div>
-                    </div>
-                    <div className={`p-2 rounded ${isDark ? 'bg-gray-600' : 'bg-gray-100'} text-center`}>
-                      <div className="text-lg font-bold">{selectedContent.views_count || 0}</div>
-                      <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>浏览</div>
+                    <div className={`h-3 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} overflow-hidden`}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${selectedContent.authenticity_score || 0}%` }}
+                        transition={{ duration: 0.8 }}
+                        className={`h-full rounded-full ${
+                          (selectedContent.authenticity_score || 0) >= 80 ? 'bg-emerald-500' :
+                          (selectedContent.authenticity_score || 0) >= 60 ? 'bg-blue-500' :
+                          (selectedContent.authenticity_score || 0) >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+                        }`}
+                      />
                     </div>
                   </div>
+                </div>
+
+                {/* 作品分类 */}
+                {selectedContent.category && (
+                  <div className="mb-6">
+                    <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">作品分类</h5>
+                    <span className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                      isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'
+                    }`}>
+                      {selectedContent.category}
+                    </span>
+                  </div>
                 )}
-                
-                {/* 文化元素分析 */}
+
+                {/* 文化元素 */}
                 {selectedContent.cultural_elements && selectedContent.cultural_elements.length > 0 && (
                   <div className="mb-6">
-                    <h5 className="font-medium mb-2">文化元素</h5>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedContent.cultural_elements.map((element, index) => (
-                        <span key={index} className={`px-2 py-1 rounded-full text-xs ${isDark ? 'bg-gray-600' : 'bg-gray-100'}`}>
+                    <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">检测到的文化元素</h5>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedContent.cultural_elements.map((element, idx) => (
+                        <span 
+                          key={idx}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                            isDark ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'
+                          }`}
+                        >
                           {element}
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
-                
-                {/* 风险评估 */}
-                <div className="mb-6">
-                  <h5 className="font-medium mb-2">风险评估</h5>
-                  <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-600' : 'bg-gray-100'}`}>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>AI生成风险</span>
-                          <span className={getRiskColor(selectedContent.ai_risk_score)}>{selectedContent.ai_risk_score || 0}%</span>
-                        </div>
-                        <div className={`w-full bg-gray-300 rounded-full h-2 ${isDark ? 'bg-gray-500' : 'bg-gray-200'}`}>
-                          <div 
-                            className={`h-2 rounded-full ${(selectedContent.ai_risk_score || 0) >= 70 ? 'bg-red-500' : (selectedContent.ai_risk_score || 0) >= 40 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                            style={{ width: `${selectedContent.ai_risk_score || 0}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>垃圾内容风险</span>
-                          <span className={getRiskColor(selectedContent.spam_score)}>{selectedContent.spam_score || 0}%</span>
-                        </div>
-                        <div className={`w-full bg-gray-300 rounded-full h-2 ${isDark ? 'bg-gray-500' : 'bg-gray-200'}`}>
-                          <div 
-                            className={`h-2 rounded-full ${(selectedContent.spam_score || 0) >= 70 ? 'bg-red-500' : (selectedContent.spam_score || 0) >= 40 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                            style={{ width: `${selectedContent.spam_score || 0}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* 真实性评估 */}
-                <div className="mb-6">
-                  <h5 className="font-medium mb-2">真实性评估</h5>
-                  <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-600' : 'bg-gray-100'}`}>
-                    {(() => {
-                      const score = selectedContent.authenticity_score || 0;
-                      return (
-                        <>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm">真实性评分</span>
-                            <span className={`font-bold ${getAuthenticityColor(score)}`}>
-                              {score}%
-                            </span>
-                          </div>
-                          <div className={`w-full bg-gray-300 rounded-full h-2.5 ${isDark ? 'bg-gray-500' : 'bg-gray-200'}`}>
-                            <div 
-                              className={`h-2.5 rounded-full ${score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                              style={{ width: `${score}%` }}
-                            ></div>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-                
+
                 {/* 审核操作 */}
                 {selectedContent.status === 'pending' && (
-                  <div className="mb-6">
-                    <h5 className="font-medium mb-2">审核操作</h5>
-                    
-                    <div className="mb-3">
-                      <label className="block text-sm font-medium mb-1">拒绝原因（可选）</label>
-                      <textarea
-                        placeholder="请输入拒绝原因..."
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        className={`w-full p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors ${isDark ? 'bg-gray-600 border-gray-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'} border`}
-                        rows={3}
-                      ></textarea>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <button 
+                  <div className="space-y-3">
+                    <textarea
+                      placeholder="请输入拒绝原因（可选）..."
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      className={`w-full p-3 rounded-xl border text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 ${
+                        isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                      }`}
+                      rows={3}
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
                         onClick={() => handleAuditAction(selectedContent.id, 'approve')}
                         disabled={actionLoading}
-                        className={`flex-1 px-3 py-2 rounded text-sm bg-green-100 text-green-600 hover:bg-green-200 transition-colors ${actionLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-500 text-white font-medium hover:bg-emerald-600 disabled:opacity-50 transition-colors"
                       >
-                        {actionLoading ? '处理中...' : '通过'}
+                        <CheckCircle className="w-4 h-4" />
+                        通过
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleAuditAction(selectedContent.id, 'reject')}
                         disabled={actionLoading}
-                        className={`flex-1 px-3 py-2 rounded text-sm bg-red-100 text-red-600 hover:bg-red-200 transition-colors ${actionLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rose-500 text-white font-medium hover:bg-rose-600 disabled:opacity-50 transition-colors"
                       >
-                        {actionLoading ? '处理中...' : '拒绝'}
+                        <XCircle className="w-4 h-4" />
+                        拒绝
                       </button>
                     </div>
                   </div>
                 )}
-                
-                {/* 拒绝原因展示 */}
-                {selectedContent.status === 'rejected' && (
-                  <div className="mb-6">
-                    <h5 className="font-medium mb-2">拒绝原因</h5>
-                    <div className={`p-2 rounded ${isDark ? 'bg-gray-600' : 'bg-gray-100'} text-sm`}>
-                      {auditActions.find(action => action.content_id === selectedContent.id && action.action === 'reject')?.reason || '未提供原因'}
-                    </div>
-                  </div>
-                )}
-                
-                {/* 审核记录 */}
-                <div className="flex-1 min-h-0">
-                  <h5 className="font-medium mb-2">审核记录</h5>
-                  <div className={`overflow-y-auto max-h-40 ${isDark ? 'bg-gray-600' : 'bg-gray-100'} rounded-lg p-3`}>
-                    {auditActions.length === 0 ? (
-                      <div className="text-center py-4">
-                        <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>暂无审核记录</p>
-                      </div>
-                    ) : (
-                      auditActions.map((action) => (
-                        <div key={action.id} className={`${isDark ? 'bg-gray-700' : 'bg-white'} rounded p-2 mb-2`}>
-                          <div className="flex justify-between items-start">
-                            <div className="flex items-center">
-                              <span className={`font-medium ${action.action === 'approve' ? 'text-green-500' : action.action === 'reject' ? 'text-red-500' : 'text-orange-500'}`}>
-                                {action.action === 'approve' ? '通过' : action.action === 'reject' ? '拒绝' : '删除'}
-                              </span>
-                              <span className={`ml-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                由 {action.admin_name}
-                              </span>
-                            </div>
-                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {formatTime(action.created_at)}
-                            </span>
-                          </div>
-                          {action.reason && (
-                            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                              原因：{action.reason}
-                            </p>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
               </div>
             ) : (
-              <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded-xl p-12 text-center`}>
-                <i className="fas fa-file-alt text-4xl mb-4 text-gray-400"></i>
-                <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>请选择一个内容查看详情</p>
+              <div className="p-12 text-center flex-1 flex flex-col items-center justify-center">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <Eye className="w-10 h-10 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">选择内容查看详情</h3>
+                <p className="text-sm text-gray-500">点击左侧列表中的内容项查看详细信息和审核选项</p>
               </div>
             )}
-          </div>
-        )}
+          </motion.div>
+        </div>
       </div>
-      
+
       {/* 批量操作模态框 */}
       <AnimatePresence>
         {showBatchModal && (
@@ -1008,48 +1092,66 @@ export default function ContentAudit() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             onClick={() => setShowBatchModal(false)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className={`w-full max-w-md rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl p-6`}
+              className={`w-full max-w-md rounded-2xl shadow-2xl p-6 ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white'}`}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-bold mb-4">
-                批量{batchAction === 'approve' ? '通过' : '拒绝'} ({selectedItems.size} 条内容)
-              </h3>
+              <div className="flex items-center gap-3 mb-6">
+                <div className={`p-3 rounded-xl ${batchAction === 'approve' ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
+                  {batchAction === 'approve' ? (
+                    <CheckCircle className="w-6 h-6 text-emerald-500" />
+                  ) : (
+                    <XCircle className="w-6 h-6 text-rose-500" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    批量{batchAction === 'approve' ? '通过' : '拒绝'}
+                  </h3>
+                  <p className="text-sm text-gray-500">已选择 {selectedItems.size} 条内容</p>
+                </div>
+              </div>
               
               {batchAction === 'reject' && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">拒绝原因</label>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    拒绝原因
+                  </label>
                   <textarea
                     value={batchReason}
                     onChange={(e) => setBatchReason(e.target.value)}
                     placeholder="请输入批量拒绝的原因..."
-                    className={`w-full p-3 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'} border`}
+                    className={`w-full p-4 rounded-xl border text-sm resize-none focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 ${
+                      isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                    }`}
                     rows={4}
-                  ></textarea>
+                  />
                 </div>
               )}
               
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowBatchModal(false)}
-                  className={`flex-1 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+                  className={`flex-1 py-3 rounded-xl font-medium transition-colors ${
+                    isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
                 >
                   取消
                 </button>
                 <button
                   onClick={handleBatchAudit}
                   disabled={actionLoading || (batchAction === 'reject' && !batchReason.trim())}
-                  className={`flex-1 py-2 rounded-lg ${
+                  className={`flex-1 py-3 rounded-xl font-medium text-white transition-colors disabled:opacity-50 ${
                     batchAction === 'approve' 
-                      ? 'bg-green-600 hover:bg-green-700' 
-                      : 'bg-red-600 hover:bg-red-700'
-                  } text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                      ? 'bg-emerald-500 hover:bg-emerald-600' 
+                      : 'bg-rose-500 hover:bg-rose-600'
+                  }`}
                 >
                   {actionLoading ? '处理中...' : `确认${batchAction === 'approve' ? '通过' : '拒绝'}`}
                 </button>
@@ -1058,7 +1160,7 @@ export default function ContentAudit() {
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       {/* 审核规则模态框 */}
       <AnimatePresence>
         {showRulesModal && (
@@ -1066,38 +1168,68 @@ export default function ContentAudit() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             onClick={() => setShowRulesModal(false)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className={`w-full max-w-2xl rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl p-6 max-h-[90vh] overflow-y-auto`}
+              className={`w-full max-w-2xl rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white'}`}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold">审核规则配置</h3>
-                <button
-                  onClick={() => setShowRulesModal(false)}
-                  className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <i className="fas fa-times"></i>
-                </button>
+              <div className={`p-6 border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-red-500/10 rounded-lg">
+                      <Settings className="w-5 h-5 text-red-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">审核规则配置</h3>
+                      <p className="text-sm text-gray-500">配置自动化内容审核的各项规则</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowRulesModal(false)}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
               
-              <div className="space-y-4">
+              <div className="p-6 overflow-y-auto max-h-[60vh] space-y-4">
                 {auditRules.map((rule) => (
-                  <div key={rule.id} className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h4 className="font-medium">{rule.name}</h4>
-                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          {rule.type === 'sensitive_words' && '检测敏感词汇和不当内容'}
-                          {rule.type === 'spam_detection' && '识别垃圾信息和重复内容'}
-                          {rule.type === 'ai_generated' && '检测AI生成的内容'}
-                          {rule.type === 'cultural_authenticity' && '评估文化元素的真实性'}
-                        </p>
+                  <div 
+                    key={rule.id} 
+                    className={`p-5 rounded-xl border transition-all ${
+                      rule.enabled 
+                        ? isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'
+                        : isDark ? 'bg-gray-900/50 border-gray-800 opacity-60' : 'bg-gray-100/50 border-gray-200 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${
+                          rule.type === 'sensitive_words' ? 'bg-rose-500/10 text-rose-500' :
+                          rule.type === 'spam_detection' ? 'bg-amber-500/10 text-amber-500' :
+                          rule.type === 'ai_generated' ? 'bg-violet-500/10 text-violet-500' :
+                          'bg-emerald-500/10 text-emerald-500'
+                        }`}>
+                          {rule.type === 'sensitive_words' ? <AlertCircle className="w-5 h-5" /> :
+                           rule.type === 'spam_detection' ? <AlertTriangle className="w-5 h-5" /> :
+                           rule.type === 'ai_generated' ? <Bot className="w-5 h-5" /> :
+                           <Award className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white">{rule.name}</h4>
+                          <p className="text-sm text-gray-500">
+                            {rule.type === 'sensitive_words' && '检测敏感词汇和不当内容'}
+                            {rule.type === 'spam_detection' && '识别垃圾信息和重复内容'}
+                            {rule.type === 'ai_generated' && '检测AI生成的内容'}
+                            {rule.type === 'cultural_authenticity' && '评估文化元素的真实性'}
+                          </p>
+                        </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -1110,52 +1242,62 @@ export default function ContentAudit() {
                           }}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-red-600"></div>
+                        <div className="w-12 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 dark:peer-focus:ring-red-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-red-500"></div>
                       </label>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">阈值 ({rule.threshold}%)</label>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={rule.threshold}
-                          onChange={(e) => {
-                            setAuditRules(prev => prev.map(r => 
-                              r.id === rule.id ? { ...r, threshold: parseInt(e.target.value) } : r
-                            ));
-                          }}
-                          className="w-full"
-                        />
+                    {rule.enabled && (
+                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            阈值: {rule.threshold}%
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={rule.threshold}
+                            onChange={(e) => {
+                              setAuditRules(prev => prev.map(r => 
+                                r.id === rule.id ? { ...r, threshold: parseInt(e.target.value) } : r
+                              ));
+                            }}
+                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-red-500"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            自动操作
+                          </label>
+                          <select
+                            value={rule.auto_action}
+                            onChange={(e) => {
+                              setAuditRules(prev => prev.map(r => 
+                                r.id === rule.id ? { ...r, auto_action: e.target.value as any } : r
+                              ));
+                            }}
+                            className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 ${
+                              isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
+                            }`}
+                          >
+                            <option value="none">无操作</option>
+                            <option value="flag">标记审核</option>
+                            <option value="reject">自动拒绝</option>
+                          </select>
+                        </div>
                       </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-1">自动操作</label>
-                        <select
-                          value={rule.auto_action}
-                          onChange={(e) => {
-                            setAuditRules(prev => prev.map(r => 
-                              r.id === rule.id ? { ...r, auto_action: e.target.value as any } : r
-                            ));
-                          }}
-                          className={`w-full p-2 rounded-lg text-sm ${isDark ? 'bg-gray-600 border-gray-500' : 'bg-white border-gray-300'} border`}
-                        >
-                          <option value="none">无</option>
-                          <option value="flag">标记</option>
-                          <option value="reject">自动拒绝</option>
-                        </select>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
               
-              <div className="mt-6 flex gap-3">
+              <div className={`p-6 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} flex gap-3`}>
                 <button
                   onClick={() => setShowRulesModal(false)}
-                  className={`flex-1 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
+                  className={`flex-1 py-3 rounded-xl font-medium transition-colors ${
+                    isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
                 >
                   取消
                 </button>
@@ -1164,7 +1306,7 @@ export default function ContentAudit() {
                     toast.success('审核规则已保存');
                     setShowRulesModal(false);
                   }}
-                  className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors"
+                  className="flex-1 py-3 rounded-xl font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
                 >
                   保存规则
                 </button>
@@ -1173,6 +1315,6 @@ export default function ContentAudit() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }

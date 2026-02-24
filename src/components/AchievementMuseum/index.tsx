@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { useAchievements } from './hooks/useAchievements';
+import { useAuth } from '@/hooks/useAuth';
 import LeftSidebar from './components/LeftSidebar';
 import MainContent from './components/MainContent';
 import RightSidebar from './components/RightSidebar';
@@ -9,6 +10,9 @@ import type { Achievement } from './types';
 
 export default function AchievementMuseum() {
   const { isDark } = useTheme();
+  const { user } = useAuth();
+  const userId = user?.id;
+  
   const {
     achievements,
     filteredAchievements,
@@ -21,7 +25,7 @@ export default function AchievementMuseum() {
     updateFilter,
     resetFilter,
     toggleViewMode,
-  } = useAchievements();
+  } = useAchievements(userId);
 
   // 选中的成就详情
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);

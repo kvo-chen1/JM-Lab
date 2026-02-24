@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import achievementService from '@/services/achievementService';
+import { useAuth } from '@/hooks/useAuth';
 import type {
   Achievement,
   AchievementStats,
@@ -102,7 +103,11 @@ const creatorLevels: CreatorLevel[] = [
   { level: 7, name: '创作传奇', icon: '💎', requiredPoints: 5000, benefits: ['传奇创作工具', 'IP孵化支持'], description: '创作界的传奇人物' },
 ];
 
-export function useAchievements(userId?: string) {
+export function useAchievements(externalUserId?: string) {
+  const { user } = useAuth();
+  // 优先使用外部传入的 userId，如果没有则使用当前登录用户
+  const userId = externalUserId || user?.id;
+  
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [stats, setStats] = useState<AchievementStats | null>(null);
   const [userInfo, setUserInfo] = useState<UserAchievementInfo | null>(null);
@@ -126,14 +131,18 @@ export function useAchievements(userId?: string) {
       setIsLoading(true);
       setError(null);
       try {
+        console.log('[useAchievements] 开始加载数据...');
+        
         // 从服务器获取用户成就数据
         await achievementService.fetchUserAchievements();
 
         // 从服务器获取积分数据
-        await achievementService.fetchPointsStats();
+        console.log('[useAchievements] 获取积分数据, userId:', userId);
+        await achievementService.fetchPointsStats(userId);
+        console.log('[useAchievements] 积分数据获取完成');
 
         // 获取成就数据
-        const allAchievements = achievementService.getAllAchievements();
+        const allAchievements = await achievementService.getAllAchievements();
         setAchievements(allAchievements);
 
         // 获取统计数据
@@ -145,7 +154,9 @@ export function useAchievements(userId?: string) {
         });
 
         // 获取用户等级信息（包含最新积分）
+        console.log('[useAchievements] 获取等级信息...');
         const levelInfo = achievementService.getCreatorLevelInfo(userId || 'current');
+        console.log('[useAchievements] 等级信息:', levelInfo);
         setUserInfo(levelInfo);
       } catch (err) {
         setError('加载成就数据失败');
@@ -262,9 +273,9 @@ export function useAchievements(userId?: string) {
       await achievementService.fetchUserAchievements();
 
       // 从服务器刷新积分数据
-      await achievementService.fetchPointsStats();
+      await achievementService.fetchPointsStats(userId);
 
-      const allAchievements = achievementService.getAllAchievements();
+      const allAchievements = await achievementService.getAllAchievements();
       setAchievements(allAchievements);
 
       const achievementStats = achievementService.getAchievementStats();

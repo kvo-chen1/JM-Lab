@@ -170,6 +170,12 @@ const SearchResults = createLazyComponent(() => import(/* webpackChunkName: "pag
   name: 'search'
 });
 
+// 动态内容展示页面 - 懒加载
+const Feed = createLazyComponent(() => import(/* webpackChunkName: "pages-feed" */ "@/pages/Feed"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'feed'
+});
+
 const CreateLayout = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/CreateLayout"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
@@ -333,6 +339,10 @@ const BusinessCooperation = createLazyComponent(() => import(/* webpackChunkName
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'business'
 });
+const BrandServiceAgreement = createLazyComponent(() => import(/* webpackChunkName: "pages-business" */ "@/pages/BrandServiceAgreement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'brand-agreement'
+});
 const Authenticity = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Authenticity"), {
   priority: ROUTE_PRIORITIES.LOW
 });
@@ -356,6 +366,10 @@ const UserCollection = createLazyComponent(() => import(/* webpackChunkName: "pa
 const Notifications = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Notifications"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'notifications'
+});
+const MessageCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/MessageCenter"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'message-center'
 });
 
 // 移动端瀑布流作品展示页面
@@ -484,12 +498,12 @@ import { GuideProvider } from '@/contexts/GuideContext';
 import { Onboarding } from '@/components/Onboarding';
 import { AuthContext } from '@/contexts/authContext';
 import { EventProvider } from '@/contexts/EventContext';
-import { ThemeProvider } from '@/hooks/useTheme';
 
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, user } = React.useContext(AuthContext);
+  const { isDark } = useTheme();
   // 添加响应式布局状态 - 服务器端和客户端初始状态必须一致
   const [isMobile, setIsMobile] = useState(false);
   // 添加用户反馈状态
@@ -723,8 +737,7 @@ export default function App() {
       <NotificationProvider>
         <GuideProvider>
           <EventProvider>
-            <ThemeProvider>
-              <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
+            <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
             {Analytics && <Analytics />}
             {SpeedInsights && <SpeedInsights />}
             <Routes location={location} key={location.pathname}>
@@ -809,6 +822,9 @@ export default function App() {
           {/* 津小脉AI助手移动端页面 */}
           <Route path="/ai-assistant" element={<LazyComponent><PrivateRoute><AIAssistantMobile /></PrivateRoute></LazyComponent>} />
           
+          {/* 动态内容展示页面 */}
+          <Route path="/feed" element={<LazyComponent><PrivateRoute><Feed /></PrivateRoute></LazyComponent>} />
+          
           {/* 大型组件和低频访问页面使用懒加载 */}
 
 
@@ -823,6 +839,7 @@ export default function App() {
           <Route path="/brand" element={<LazyComponent><PrivateRoute><BrandGuide /></PrivateRoute></LazyComponent>} />
           <Route path="/business" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
           <Route path="/business-cooperation" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
+          <Route path="/brand-service-agreement" element={<LazyComponent><BrandServiceAgreement isDark={isDark} /></LazyComponent>} />
           <Route path="/input" element={<LazyComponent><PrivateRoute><InputHub /></PrivateRoute></LazyComponent>} />
           <Route path="/generate" element={<LazyComponent><PrivateRoute><Generation /></PrivateRoute></LazyComponent>} />
           <Route path="/authenticity" element={<LazyComponent><PrivateRoute><Authenticity /></PrivateRoute></LazyComponent>} />
@@ -838,6 +855,7 @@ export default function App() {
           <Route path="/collection" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
           <Route path="/collections" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
           <Route path="/notifications" element={<LazyComponent><PrivateRoute><Notifications /></PrivateRoute></LazyComponent>} />
+          <Route path="/messages" element={<LazyComponent><PrivateRoute><MessageCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/component-showcase" element={<ComponentShowcase />} />
           <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/knowledge/:type/:id" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
@@ -880,12 +898,12 @@ export default function App() {
           {/* 移动端瀑布流作品展示页面 */}
           <Route path="/mobile-works" element={<LazyComponent><MobileWorksGalleryDemo /></LazyComponent>} />
           
+          {/* 创作者中心路由 - 使用 SidebarLayout 布局 */}
+          <Route path="/creator-center" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
+          <Route path="/creator-center/:tab" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
+          
           {/* 管理员路由 - 懒加载 */}
         </Route>
-        
-        {/* 创作者中心路由 - 独立于 SidebarLayout，使用自己的布局 */}
-        <Route path="/creator-center" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
-        <Route path="/creator-center/:tab" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
         
         {/* 管理员路由 - 独立于 SidebarLayout */}
         <Route path="/admin" element={<LazyComponent><AdminRoute component={Admin} /></LazyComponent>} />
@@ -940,7 +958,6 @@ export default function App() {
       {/* 滚动位置恢复 */}
       <ScrollRestoration />
     </div>
-            </ThemeProvider>
           </EventProvider>
         </GuideProvider>
       </NotificationProvider>

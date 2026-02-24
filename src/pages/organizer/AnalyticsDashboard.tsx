@@ -1,8 +1,9 @@
-import { useState, useEffect, useContext, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
+import { createPortal } from 'react-dom';
 import organizerAnalyticsService, {
   TimeRange,
   DashboardStats,
@@ -36,6 +37,8 @@ import {
   Activity as ActivityIcon,
   Trophy,
   TrendingUp,
+  Layers,
+  ChevronRight,
 } from 'lucide-react';
 
 // 时间范围选项
@@ -67,6 +70,9 @@ export default function AnalyticsDashboard() {
   const [trendMetric, setTrendMetric] = useState<string>('submissions');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isEventDropdownOpen, setIsEventDropdownOpen] = useState(false);
+  const eventDropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
 
   // 数据状态
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -75,6 +81,7 @@ export default function AnalyticsDashboard() {
   const [topWorks, setTopWorks] = useState<TopWorkDetail[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [events, setEvents] = useState<EventSummary[]>([]);
+  const [selectedEventData, setSelectedEventData] = useState<EventSummary | null>(null);
 
   // 加载数据
   const loadData = useCallback(async () => {
@@ -90,7 +97,7 @@ export default function AnalyticsDashboard() {
         activitiesData,
         eventsData,
       ] = await Promise.all([
-        organizerAnalyticsService.getDashboardStats(user.id, timeRange),
+        organizerAnalyticsService.getDashboardStats(user.id, timeRange, selectedEvent === 'all' ? undefined : selectedEvent),
         organizerAnalyticsService.getWorksTrend(
           user.id,
           selectedEvent === 'all' ? undefined : selectedEvent,
@@ -106,7 +113,7 @@ export default function AnalyticsDashboard() {
           10,
           'views'
         ),
-        organizerAnalyticsService.getRecentActivities(user.id, 20),
+        organizerAnalyticsService.getRecentActivities(user.id, 20, selectedEvent === 'all' ? undefined : selectedEvent),
         organizerAnalyticsService.getOrganizerEvents(user.id),
       ]);
 
@@ -116,6 +123,14 @@ export default function AnalyticsDashboard() {
       setTopWorks(worksData);
       setActivities(activitiesData);
       setEvents(eventsData);
+
+      // 更新选中的活动数据
+      if (selectedEvent !== 'all') {
+        const event = eventsData.find(e => e.event_id === selectedEvent);
+        setSelectedEventData(event || null);
+      } else {
+        setSelectedEventData(null);
+      }
     } catch (error) {
       console.error('加载数据分析失败:', error);
       toast.error('加载数据失败，请稍后重试');
@@ -136,6 +151,18 @@ export default function AnalyticsDashboard() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isEventDropdownOpen && eventDropdownRef.current && !eventDropdownRef.current.contains(event.target as Node)) {
+        setIsEventDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isEventDropdownOpen]);
 
   // 格式化数字
   const formatNumber = (num: number | undefined | null) => {
@@ -184,28 +211,143 @@ export default function AnalyticsDashboard() {
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
 
-          {/* 活动筛选 */}
-          <div className="relative">
-            <select
-              value={selectedEvent}
-              onChange={(e) => setSelectedEvent(e.target.value)}
-              className={`
-                appearance-none pl-4 pr-10 py-2 rounded-xl border text-sm font-medium min-w-[140px]
-                ${isDark
-                  ? 'bg-gray-800 border-gray-700 text-white'
-                  : 'bg-white border-gray-200 text-gray-900'
+          {/* 活动筛选 - 自定义下拉 */}
+          <div className="relative" ref={eventDropdownRef}>
+            <button
+              onClick={() => {
+                if (!isEventDropdownOpen && eventDropdownRef.current) {
+                  const rect = eventDropdownRef.current.getBoundingClientRect();
+                  setDropdownPosition({
+                    top: rect.bottom + window.scrollY + 8,
+                    right: window.innerWidth - rect.right - window.scrollX,
+                  });
                 }
-                focus:outline-none focus:ring-2 focus:ring-blue-500/20
+                setIsEventDropdownOpen(!isEventDropdownOpen);
+              }}
+              className={`
+                flex items-center gap-2 pl-4 pr-10 py-2 rounded-xl border text-sm font-medium min-w-[160px]
+                ${isDark
+                  ? 'bg-gray-800 border-gray-700 text-white hover:bg-gray-700'
+                  : 'bg-white border-gray-200 text-gray-900 hover:bg-gray-50'
+                }
+                focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors
               `}
             >
-              <option value="all">全部活动</option>
-              {events.map((event) => (
-                <option key={event.event_id} value={event.event_id}>
-                  {event.event_title}
-                </option>
-              ))}
-            </select>
-            <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <Layers className="w-4 h-4 text-blue-500" />
+              <span className="truncate">
+                {selectedEvent === 'all' ? '全部活动' : selectedEventData?.event_title || '选择活动'}
+              </span>
+            </button>
+            <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none transition-transform ${isEventDropdownOpen ? 'rotate-180' : ''}`} />
+
+            {/* 下拉菜单 - 使用 Portal 渲染到 body */}
+            {isEventDropdownOpen && createPortal(
+              <AnimatePresence>
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  style={{
+                    position: 'fixed',
+                    top: dropdownPosition.top,
+                    right: dropdownPosition.right,
+                    zIndex: 9999,
+                  }}
+                  className={`
+                    w-72 rounded-xl border shadow-2xl overflow-hidden
+                    ${isDark
+                      ? 'bg-gray-800 border-gray-700'
+                      : 'bg-white border-gray-200'
+                    }
+                  `}
+                >
+                  {/* 全部活动选项 */}
+                  <button
+                    onClick={() => {
+                      setSelectedEvent('all');
+                      setIsEventDropdownOpen(false);
+                    }}
+                    className={`
+                      w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
+                      ${selectedEvent === 'all'
+                        ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600')
+                        : (isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-50 text-gray-700')
+                      }
+                    `}
+                  >
+                    <div className={`
+                      w-8 h-8 rounded-lg flex items-center justify-center
+                      ${selectedEvent === 'all'
+                        ? 'bg-blue-500 text-white'
+                        : (isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500')
+                      }
+                    `}>
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium">全部活动</div>
+                      <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        查看所有活动的汇总数据
+                      </div>
+                    </div>
+                    {selectedEvent === 'all' && (
+                      <CheckCircle className="w-5 h-5 text-blue-500" />
+                    )}
+                  </button>
+
+                  {/* 分隔线 */}
+                  {events.length > 0 && (
+                    <div className={`h-px mx-4 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                  )}
+
+                  {/* 活动列表 */}
+                  <div className="max-h-64 overflow-y-auto py-2">
+                    {events.length === 0 ? (
+                      <div className={`px-4 py-4 text-center text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        暂无活动
+                      </div>
+                    ) : (
+                      events.map((event) => (
+                        <button
+                          key={event.event_id}
+                          onClick={() => {
+                            setSelectedEvent(event.event_id);
+                            setIsEventDropdownOpen(false);
+                          }}
+                          className={`
+                            w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
+                            ${selectedEvent === event.event_id
+                              ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600')
+                              : (isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-50 text-gray-700')
+                            }
+                          `}
+                        >
+                          <div className={`
+                            w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold
+                            ${selectedEvent === event.event_id
+                              ? 'bg-blue-500 text-white'
+                              : (isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500')
+                            }
+                          `}>
+                            {event.event_title.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{event.event_title}</div>
+                            <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              {event.total_submissions} 作品 · {event.total_views} 浏览
+                            </div>
+                          </div>
+                          {selectedEvent === event.event_id && (
+                            <CheckCircle className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              </AnimatePresence>,
+              document.body
+            )}
           </div>
 
           {/* 刷新按钮 */}
@@ -240,6 +382,70 @@ export default function AnalyticsDashboard() {
         </div>
       </motion.div>
 
+      {/* 选中活动信息卡片 */}
+      <AnimatePresence mode="wait">
+        {selectedEventData && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={`
+              rounded-2xl border p-5
+              ${isDark ? 'bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-blue-800/30' : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200'}
+            `}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={`
+                  w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold
+                  ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}
+                `}>
+                  {selectedEventData.event_title.charAt(0)}
+                </div>
+                <div>
+                  <h3 className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {selectedEventData.event_title}
+                  </h3>
+                  <div className={`flex items-center gap-4 text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <span className="flex items-center gap-1">
+                      <CalendarDays className="w-4 h-4" />
+                      {selectedEventData.start_date && selectedEventData.end_date
+                        ? `${new Date(selectedEventData.start_date).toLocaleDateString('zh-CN')} - ${new Date(selectedEventData.end_date).toLocaleDateString('zh-CN')}`
+                        : '时间待定'}
+                    </span>
+                    <span className={`
+                      px-2 py-0.5 rounded-full text-xs
+                      ${selectedEventData.status === 'active' 
+                        ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600')
+                        : selectedEventData.status === 'ended'
+                        ? (isDark ? 'bg-gray-500/20 text-gray-400' : 'bg-gray-100 text-gray-600')
+                        : (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600')
+                      }
+                    `}>
+                      {selectedEventData.status === 'active' ? '进行中' 
+                        : selectedEventData.status === 'ended' ? '已结束' 
+                        : '筹备中'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedEvent('all')}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                  ${isDark 
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-700' 
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}
+                `}
+              >
+                <span>查看全部</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 核心指标卡片 */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -248,21 +454,21 @@ export default function AnalyticsDashboard() {
         className="grid grid-cols-2 md:grid-cols-4 gap-4"
       >
         <StatCard
-          title="作品总数"
+          title={selectedEventData ? "活动作品数" : "作品总数"}
           value={formatNumber(stats?.totalSubmissions || 0)}
           icon={Upload}
           color="blue"
           loading={isLoading}
         />
         <StatCard
-          title="总投票数"
+          title={selectedEventData ? "活动投票数" : "总投票数"}
           value={formatNumber(stats?.totalVotes || 0)}
           icon={Eye}
           color="green"
           loading={isLoading}
         />
         <StatCard
-          title="总点赞数"
+          title={selectedEventData ? "活动点赞数" : "总点赞数"}
           value={formatNumber(stats?.totalLikes || 0)}
           icon={Heart}
           color="pink"

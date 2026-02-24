@@ -566,16 +566,31 @@
 }
 
 /* 链接样式 */
-.dark a:not([class*="button"]) {
+.dark a:not([class*="button"]):not([class*="nav"]):not(nav a) {
   color: var(--color-primary-light);
   transition: all var(--transition-fast);
   text-decoration: none;
 }
 
-.dark a:not([class*="button"]):hover {
+.dark a:not([class*="button"]):not([class*="nav"]):not(nav a):hover {
   color: var(--color-primary);
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* 侧边栏导航链接样式 - 白色 */
+.dark aside a,
+.dark nav a,
+.dark [class*="sidebar"] a,
+.dark [class*="nav-item"] {
+  color: #ffffff !important;
+}
+
+.dark aside a:hover,
+.dark nav a:hover,
+.dark [class*="sidebar"] a:hover,
+.dark [class*="nav-item"]:hover {
+  color: #ffffff !important;
 }
 
 /* Toast 通知 */

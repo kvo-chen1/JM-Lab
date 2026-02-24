@@ -631,22 +631,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
           </button>
-          <button 
-            className={styles.scrollToBottomButton} 
-            onClick={() => {
-              const bottomRecommended = document.getElementById('bottom-recommended');
-              if (bottomRecommended) {
-                bottomRecommended.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              } else {
-                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-              }
-            }}
-            title="滑动到底部"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 5v14M19 12l-7 7-7-7"/>
-            </svg>
-          </button>
+
         </div>
 
         {/* 左侧：作品详情 */}

@@ -22,14 +22,13 @@ const FeedbackManagement = lazy(() => import('./FeedbackManagement'));
 const ContentAudit = lazy(() => import('./ContentAudit'));
 const AuditLog = lazy(() => import('./AuditLog'));
 const UserAudit = lazy(() => import('./UserAudit'));
-const EventAudit = lazy(() => import('./EventAudit'));
+const EventManagement = lazy(() => import('./EventManagement'));
 const ProductManagement = lazy(() => import('./ProductManagement'));
 const NotificationManagement = lazy(() => import('./NotificationManagement'));
 const SystemMonitor = lazy(() => import('./SystemMonitor'));
 
 // 新增管理模块
-const CommunityManagement = lazy(() => import('./CommunityManagement'));
-const ContentManagement = lazy(() => import('./ContentManagement'));
+const JinmaiCommunityManagement = lazy(() => import('./JinmaiCommunityManagement'));
 const KnowledgeBaseManagement = lazy(() => import('./KnowledgeBaseManagement'));
 const TemplateManagement = lazy(() => import('./TemplateManagement'));
 const AchievementManagement = lazy(() => import('./AchievementManagement'));
@@ -37,7 +36,7 @@ const AIFeedbackManagement = lazy(() => import('./AIFeedbackManagement'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'eventAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor' | 'communities' | 'contentManagement' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -73,6 +72,12 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const savedTab = safeLocalStorage.getItem('admin_active_tab');
     return (savedTab as TabType) || 'dashboard';
+  });
+
+  // 侧边栏收缩状态
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = safeLocalStorage.getItem('admin_sidebar_collapsed');
+    return saved === 'true';
   });
 
   // 使用导航通知 hook
@@ -145,6 +150,11 @@ export default function Admin() {
   useEffect(() => {
     safeLocalStorage.setItem('admin_active_tab', activeTab);
   }, [activeTab]);
+
+  // 保存侧边栏收缩状态到 localStorage
+  useEffect(() => {
+    safeLocalStorage.setItem('admin_sidebar_collapsed', isSidebarCollapsed.toString());
+  }, [isSidebarCollapsed]);
 
   // 保存密码验证状态到 sessionStorage
   useEffect(() => {
@@ -404,19 +414,19 @@ export default function Admin() {
       <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'} text-white`}>
         <div className="flex">
           {/* 侧边栏骨架屏 */}
-          <div className={`w-64 h-screen ${isDark ? 'bg-gray-800' : 'bg-white'} fixed`}>
+          <div className={`h-screen ${isDark ? 'bg-gray-800' : 'bg-white'} fixed transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
             <div className="p-6">
-              <div className={`h-8 w-32 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse mb-8`}></div>
+              <div className={`h-8 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse mb-8 ${isSidebarCollapsed ? 'w-8 mx-auto' : 'w-32'}`}></div>
               <div className="space-y-4">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div key={i} className={`h-10 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></div>
+                  <div key={i} className={`h-10 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse ${isSidebarCollapsed ? 'w-10 mx-auto' : 'w-full'}`}></div>
                 ))}
               </div>
             </div>
           </div>
-          
+
           {/* 主内容骨架屏 */}
-          <div className="ml-64 flex-1 p-8">
+          <div className={`flex-1 p-8 transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
             <div className="space-y-8">
               <div className="flex justify-between">
                 <div className={`h-8 w-40 rounded ${isDark ? 'bg-gray-800' : 'bg-white'} animate-pulse`}></div>
@@ -479,111 +489,12 @@ export default function Admin() {
         notifications={notifications}
         onMarkAsViewed={markAsViewed}
         totalUnreadCount={totalUnreadCount}
+        isCollapsed={isSidebarCollapsed}
+        onCollapse={setIsSidebarCollapsed}
       />
-      
+
       {/* 主内容区 */}
-      <main className="ml-64 flex-1 p-8 h-screen overflow-y-auto">
-        {/* 顶部导航 */}
-        <div className="flex justify-between items-center mb-8">
-           <h1 className="text-2xl font-bold">
-             {activeTab === 'dashboard' && '管理控制台'}
-             {activeTab === 'audit' && '审核活动发布'}
-             {activeTab === 'analytics' && '数据分析'}
-             {activeTab === 'adoption' && '品牌管理'}
-             {activeTab === 'users' && '用户管理'}
-             {activeTab === 'campaigns' && '活动管理'}
-             {activeTab === 'creators' && '创作者管理'}
-             {activeTab === 'orders' && '订单管理'}
-             {activeTab === 'feedback' && '反馈管理'}
-             {activeTab === 'permissions' && '权限管理'}
-             {activeTab === 'settings' && '系统设置'}
-             {activeTab === 'contentAudit' && '内容审核管理'}
-             {activeTab === 'auditLog' && '审计日志'}
-             {activeTab === 'userAudit' && '用户行为审计'}
-             {activeTab === 'eventAudit' && '活动审核管理'}
-             {activeTab === 'productManagement' && '商品管理'}
-             {activeTab === 'notificationManagement' && '消息通知管理'}
-             {activeTab === 'systemMonitor' && '系统监控'}
-             {activeTab === 'communities' && '社群管理'}
-             {activeTab === 'contentManagement' && '内容管理'}
-             {activeTab === 'knowledgeBase' && '知识库管理'}
-             {activeTab === 'templates' && '作品模板管理'}
-             {activeTab === 'achievements' && '成就管理'}
-             {activeTab === 'aiFeedback' && 'AI反馈管理'}
-           </h1>
-          
-          <div className="flex items-center space-x-4">
-            <div className={`relative ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-full px-4 py-2`}>
-              <input
-                type="text"
-                placeholder="搜索..."
-                className="bg-transparent border-none outline-none w-40 text-sm"
-              />
-              <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-            </div>
-            
-            <button 
-              onClick={() => navigate('/events')}
-              className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'} transition-colors flex items-center`}
-            >
-              <i className="fas fa-globe mr-2"></i>
-              津脉活动
-            </button>
-            
-            <button 
-              onClick={() => navigate('/my-activities')}
-              className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'} transition-colors flex items-center`}
-            >
-              <i className="fas fa-user mr-2"></i>
-              我的活动
-            </button>
-            
-            {/* 通知刷新按钮 */}
-            <button
-              onClick={refreshNotifications}
-              disabled={notificationsLoading}
-              className={`
-                p-2 rounded-lg flex items-center gap-2
-                ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'}
-                transition-colors disabled:opacity-50
-              `}
-              title="刷新通知"
-            >
-              <i className={`fas fa-sync-alt ${notificationsLoading ? 'fa-spin' : ''}`}></i>
-              {totalUnreadCount > 0 && (
-                <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full">
-                  {totalUnreadCount}
-                </span>
-              )}
-            </button>
-
-            {/* 标记全部为已读 */}
-            {totalUnreadCount > 0 && (
-              <button
-                onClick={markAllAsViewed}
-                className={`
-                  p-2 rounded-lg text-sm
-                  ${isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-white hover:bg-gray-100 text-gray-600'}
-                  transition-colors
-                `}
-                title="标记全部为已读"
-              >
-                <i className="fas fa-check-double mr-1"></i>
-                全部已读
-              </button>
-            )}
-
-            <div className="relative">
-              <button className={`p-2 rounded-full ${isDark ? 'bg-gray-800' : 'bg-white'} transition-colors`}>
-                <i className="far fa-bell"></i>
-                {totalUnreadCount > 0 && (
-                  <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full animate-pulse"></span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-        
+      <main className={`flex-1 p-8 h-screen overflow-y-auto transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
         {/* 控制台内容 */}
         {activeTab === 'dashboard' && (
           <motion.div
@@ -1498,20 +1409,7 @@ export default function Admin() {
           </Suspense>
         )}
 
-        {/* 活动审核管理页面 */}
-        {activeTab === 'eventAudit' && (
-          <Suspense fallback={
-            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
-              />
-            </div>
-          }>
-            <EventAudit />
-          </Suspense>
-        )}
+
 
         {/* 商品管理页面 */}
         {activeTab === 'productManagement' && (
@@ -1558,8 +1456,8 @@ export default function Admin() {
           </Suspense>
         )}
 
-        {/* 社群管理页面 */}
-        {activeTab === 'communities' && (
+        {/* 津脉社区管理页面 */}
+        {activeTab === 'jinmaiCommunity' && (
           <Suspense fallback={
             <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
               <motion.div
@@ -1569,22 +1467,7 @@ export default function Admin() {
               />
             </div>
           }>
-            <CommunityManagement />
-          </Suspense>
-        )}
-
-        {/* 内容管理页面 */}
-        {activeTab === 'contentManagement' && (
-          <Suspense fallback={
-            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
-              />
-            </div>
-          }>
-            <ContentManagement />
+            <JinmaiCommunityManagement />
           </Suspense>
         )}
 
@@ -1648,257 +1531,19 @@ export default function Admin() {
           </Suspense>
         )}
 
-        {/* 活动管理页面（合并审核活动发布） */}
+        {/* 活动管理页面 */}
         {activeTab === 'campaigns' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold">活动管理</h2>
-              <button className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center">
-                <i className="fas fa-plus mr-2"></i>
-                创建活动
-              </button>
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-blue-200 border-t-blue-500 rounded-full"
+              />
             </div>
-
-            {/* 标签切换：活动审核 / 活动列表 */}
-            <div className="flex space-x-4 mb-6 border-b border-gray-200 dark:border-gray-700">
-              {[
-                { id: 'pending', label: `活动审核 (${pendingWorks.length})` },
-                { id: 'list', label: '活动列表' },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setEventActiveTab(tab.id as 'pending' | 'list')}
-                  className={`pb-3 px-2 text-sm font-medium transition-colors relative ${
-                    eventActiveTab === tab.id
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
-                  }`}
-                >
-                  {tab.label}
-                  {eventActiveTab === tab.id && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600"
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* 活动审核标签页 */}
-            {eventActiveTab === 'pending' && (
-              <div className="space-y-4">
-                <h3 className="font-medium mb-4">待审核活动</h3>
-                {pendingWorks.length === 0 ? (
-                  <div className={`p-8 text-center rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                    <i className="fas fa-check-circle text-4xl text-green-500 mb-3"></i>
-                    <p className="text-gray-500">暂无待审核的活动</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4">
-                    {pendingWorks.map((submission) => (
-                      <div key={submission.id} className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} transition-transform hover:scale-[1.02]`}>
-                        <div className="flex flex-col md:flex-row">
-                          <img 
-                            src={submission.thumbnail} 
-                            alt={submission.title} 
-                            className="w-full md:w-48 h-32 object-cover rounded-lg mb-4 md:mb-0 md:mr-4"
-                          />
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start mb-2">
-                              <h4 className="font-medium">{submission.title}</h4>
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                submission.status === 'pending' 
-                                  ? 'bg-yellow-100 text-yellow-600' 
-                                  : 'bg-green-100 text-green-600'
-                              }`}>
-                                {submission.status === 'pending' ? '待审核' : '已通过'}
-                              </span>
-                            </div>
-                            <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {submission.description}
-                            </p>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-4 text-sm text-gray-500">
-                                <span><i className="fas fa-user mr-1"></i>{submission.creator}</span>
-                                <span><i className="fas fa-calendar mr-1"></i>{submission.date}</span>
-                              </div>
-                              <div className="flex space-x-2">
-                                <button 
-                                  onClick={() => handleAudit(submission.id, 'approved')}
-                                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
-                                >
-                                  通过
-                                </button>
-                                <button 
-                                  onClick={() => handleAudit(submission.id, 'rejected')}
-                                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
-                                >
-                                  拒绝
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 活动列表标签页 */}
-            {eventActiveTab === 'list' && (
-              <>
-                {/* 活动数据概览 */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                  {[
-                    { title: '已发布', value: events.filter((e: any) => e.status === 'published').length.toString(), icon: 'activity', color: 'blue' },
-                    { title: '总活动数', value: events.length.toString(), icon: 'calendar-alt', color: 'green' },
-                    { title: '待审核', value: events.filter((e: any) => e.status === 'pending').length.toString(), icon: 'clock', color: 'yellow' },
-                    { title: '草稿', value: events.filter((e: any) => e.status === 'draft').length.toString(), icon: 'file-alt', color: 'gray' },
-                  ].map((stat, index) => (
-                    <div
-                      key={index}
-                      className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{stat.title}</p>
-                          <h3 className="text-xl font-bold">{stat.value}</h3>
-                        </div>
-                        <div className={`p-2 rounded-full bg-${stat.color}-100 text-${stat.color}-600`}>
-                          <i className={`fas fa-${stat.icon} text-lg`}></i>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* 活动列表 */}
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium">活动列表</h3>
-                    <div className="flex space-x-2">
-                      <div className={`relative ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded-full px-4 py-1.5`}>
-                        <input
-                          type="text"
-                          placeholder="搜索活动..."
-                          value={eventSearch}
-                          onChange={(e) => setEventSearch(e.target.value)}
-                          className="bg-transparent border-none outline-none w-40 text-sm"
-                        />
-                        <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
-                      </div>
-                      <select
-                        value={eventStatusFilter}
-                        onChange={(e) => setEventStatusFilter(e.target.value)}
-                        className={`px-3 py-1.5 rounded-lg text-sm ${
-                          isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'
-                        } border`}
-                      >
-                        <option value="all">全部状态</option>
-                        <option value="published">已发布</option>
-                        <option value="pending">待审核</option>
-                        <option value="draft">草稿</option>
-                        <option value="rejected">已拒绝</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className={`overflow-x-auto rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <table className="min-w-full">
-                      <thead>
-                        <tr className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                          <th className="px-4 py-3 text-left text-sm font-medium">活动名称</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">开始日期</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">结束日期</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">参与人数</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">提交作品</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">状态</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-700">
-                        {eventsLoading ? (
-                          <tr>
-                            <td colSpan={7} className="px-4 py-10 text-center">
-                              <div className="flex items-center justify-center">
-                                <i className="fas fa-spinner fa-spin text-xl mr-2"></i>
-                                <span>加载活动数据中...</span>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : events.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="px-4 py-10 text-center">
-                              <div className="text-gray-400">
-                                <i className="fas fa-calendar text-4xl mb-2"></i>
-                                <p>暂无活动数据</p>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : (
-                          events
-                            .filter((campaign: any) =>
-                              eventSearch === '' || campaign.name?.toLowerCase().includes(eventSearch.toLowerCase())
-                            )
-                            .map((campaign: any) => (
-                              <tr key={campaign.id} className="hover:bg-gray-700/50">
-                                <td className="px-4 py-3 text-sm">{campaign.name || campaign.title || '未命名活动'}</td>
-                                <td className="px-4 py-3 text-sm">{campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : '-'}</td>
-                                <td className="px-4 py-3 text-sm">{campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : '-'}</td>
-                                <td className="px-4 py-3 text-sm">{campaign.participants_count || 0}</td>
-                                <td className="px-4 py-3 text-sm">{campaign.submissions_count || 0}</td>
-                                <td className="px-4 py-3 text-sm">
-                                  <span className={`px-2 py-1 rounded-full text-xs ${
-                                    campaign.status === 'published'
-                                      ? 'bg-green-100 text-green-600'
-                                      : campaign.status === 'pending'
-                                        ? 'bg-yellow-100 text-yellow-600'
-                                        : campaign.status === 'draft'
-                                          ? 'bg-gray-100 text-gray-600'
-                                          : 'bg-red-100 text-red-600'
-                                  }`}>
-                                    {campaign.status === 'published' ? '已发布' :
-                                     campaign.status === 'pending' ? '待审核' :
-                                     campaign.status === 'draft' ? '草稿' : '已拒绝'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-sm">
-                                  <div className="flex space-x-2">
-                                    <button className={`p-1.5 rounded ${
-                                      isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'
-                                    }`}>
-                                      <i className="fas fa-eye text-blue-500"></i>
-                                    </button>
-                                    <button className={`p-1.5 rounded ${
-                                      isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'
-                                    }`}>
-                                      <i className="fas fa-edit text-green-500"></i>
-                                    </button>
-                                    <button className={`p-1.5 rounded ${
-                                      isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'
-                                    }`}>
-                                      <i className="fas fa-chart-bar text-purple-500"></i>
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </>
-            )}
-          </motion.div>
+          }>
+            <EventManagement />
+          </Suspense>
         )}
         
         {/* 创作者管理页面 */}

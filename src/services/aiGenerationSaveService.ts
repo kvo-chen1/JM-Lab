@@ -5,6 +5,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { downloadAndUploadImage, downloadAndUploadVideo } from './imageService';
 
 // AI生成记录接口
 export interface AIGenerationRecord {
@@ -25,6 +26,7 @@ export interface SaveOptions {
   source?: string;
   sourceId?: string;
   metadata?: Record<string, any>;
+  uploadToStorage?: boolean; // 是否上传到永久存储
 }
 
 class AIGenerationSaveService {
@@ -33,7 +35,7 @@ class AIGenerationSaveService {
   /**
    * 保存AI生成记录到数据库
    */
-  async saveGeneration(record: AIGenerationRecord): Promise<{ success: boolean; id?: string; error?: string }> {
+  async saveGeneration(record: AIGenerationRecord, options?: { uploadToStorage?: boolean }): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -44,15 +46,42 @@ class AIGenerationSaveService {
         return { success: true };
       }
 
+      let finalResultUrl = record.resultUrl;
+      let finalThumbnailUrl = record.thumbnailUrl || record.resultUrl;
+
+      // 如果需要上传到永久存储
+      if (options?.uploadToStorage && record.resultUrl) {
+        try {
+          console.log('[AIGenerationSave] Uploading to permanent storage...');
+          if (record.type === 'image') {
+            // 上传到 ai-generations bucket，使用 'images' 作为子目录
+            finalResultUrl = await downloadAndUploadImage(record.resultUrl, 'images', 'ai-generations');
+            finalThumbnailUrl = finalResultUrl;
+          } else if (record.type === 'video') {
+            finalResultUrl = await downloadAndUploadVideo(record.resultUrl);
+            finalThumbnailUrl = finalResultUrl;
+          }
+          console.log('[AIGenerationSave] Uploaded to permanent storage:', finalResultUrl);
+        } catch (uploadError: any) {
+          console.error('[AIGenerationSave] Failed to upload to storage:', uploadError);
+          // 上传失败仍然使用原始URL保存到数据库
+          toast.warning('图片上传到永久存储失败，使用的是临时链接');
+        }
+      }
+
       const { data, error } = await supabase
         .from(this.TABLE_NAME)
         .insert({
           user_id: user.id,
           type: record.type,
           prompt: record.prompt,
-          result_url: record.resultUrl,
-          thumbnail_url: record.thumbnailUrl || record.resultUrl,
-          metadata: record.metadata || {},
+          result_url: finalResultUrl,
+          thumbnail_url: finalThumbnailUrl,
+          metadata: {
+            ...record.metadata,
+            originalUrl: record.resultUrl, // 保存原始URL
+            isPermanent: options?.uploadToStorage && finalResultUrl !== record.resultUrl
+          },
           source: record.source || 'unknown',
           source_id: record.sourceId,
           created_at: new Date().toISOString()
@@ -246,7 +275,7 @@ class AIGenerationSaveService {
       source: options?.source,
       sourceId: options?.sourceId,
       metadata: options?.metadata
-    });
+    }, { uploadToStorage: options?.uploadToStorage ?? true }); // 默认上传到永久存储
   }
 
   /**
@@ -269,7 +298,7 @@ class AIGenerationSaveService {
       source: options?.source,
       sourceId: options?.sourceId,
       metadata: options?.metadata
-    });
+    }, { uploadToStorage: options?.uploadToStorage ?? true }); // 默认上传到永久存储
   }
 }
 

@@ -9,6 +9,7 @@ import { CommunityInviteMessage } from '@/components/CommunityInviteMessage';
 import { AuthContext } from '@/contexts/authContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { presenceService } from '@/services/presenceService';
 
 interface Message {
   id: string;
@@ -37,6 +38,7 @@ const ChatPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [otherUser, setOtherUser] = useState<UserInfo | null>(null);
+  const [isOnline, setIsOnline] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const subscriptionRef = useRef<any>(null);
 
@@ -47,6 +49,7 @@ const ChatPage: React.FC = () => {
       loadOtherUserInfo();
       markAsRead();
       subscribeToMessages();
+      subscribeToPresence();
     }
     
     return () => {
@@ -56,6 +59,22 @@ const ChatPage: React.FC = () => {
       }
     };
   }, [userId, currentUser]);
+
+  // 订阅在线状态
+  const subscribeToPresence = () => {
+    if (!userId) return;
+    
+    // 检查用户是否在线
+    setIsOnline(presenceService.isUserOnline(userId));
+    
+    // 订阅在线用户列表变化
+    const unsubscribe = presenceService.subscribe((users) => {
+      const online = users.some(u => u.user_id === userId);
+      setIsOnline(online);
+    });
+    
+    return unsubscribe;
+  };
 
   // 滚动到底部
   useEffect(() => {
@@ -260,13 +279,15 @@ const ChatPage: React.FC = () => {
                   alt={otherUser?.username}
                   className="w-10 h-10 rounded-full object-cover bg-gray-100"
                 />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></span>
+                {isOnline && (
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></span>
+                )}
               </div>
               <div>
                 <h2 className="font-semibold text-gray-800 dark:text-white">
                   {otherUser?.username || otherUser?.name || '未知用户'}
                 </h2>
-                <p className="text-xs text-gray-500">在线</p>
+                <p className="text-xs text-gray-500">{isOnline ? '在线' : '不在线'}</p>
               </div>
             </div>
           </div>

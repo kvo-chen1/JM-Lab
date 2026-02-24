@@ -28,8 +28,12 @@ import {
   useReducedMotion
 } from '@/utils/accessibility'
 import { userService } from '@/services/apiService'
+import userStatsService from '@/services/userStatsService'
+import { getFollowingList, getFollowersList } from '@/services/postService'
 import { uploadImage } from '@/services/imageService'
 import { supabase } from '@/lib/supabase'
+import supabasePointsService from '@/services/supabasePointsService'
+import achievementService from '@/services/achievementService'
 
 // 响应式动画速度控制
 const useResponsiveAnimation = () => {
@@ -70,7 +74,7 @@ import SearchBar, { SearchSuggestion } from '@/components/SearchBar'
 import searchService from '@/services/searchService'
 import PWAInstallButton from '@/components/PWAInstallButton'
 import { playNotificationSound, sendDesktopNotification, requestDesktopNotificationPermission } from '../utils/notificationUtils'
-import NotificationPanel, { Notification, NotificationSettings } from './NotificationPanel'
+import { messageService } from '@/services/messageService'
 
 
 
@@ -79,7 +83,8 @@ interface SidebarLayoutProps {
 }
 
 export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
-  const { theme = 'light', isDark = false, toggleTheme = () => {}, setTheme = () => {} } = useTheme()
+  const themeContext = useTheme()
+  const { theme = 'light', isDark = false, toggleTheme = () => {}, setTheme = () => {} } = themeContext || {}
   const { isAuthenticated, user, logout, updateUser } = useContext(AuthContext)
   const { friendRequests, getFriendRequests } = useFriendContext()
   const { t } = useTranslation()
@@ -285,7 +290,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   // 中文注释：滚动超过一定距离后显示"回到顶部"悬浮按钮，提升长页可用性
   const [showBackToTop, setShowBackToTop] = useState(false)
@@ -293,29 +297,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   // 中文注释：问题反馈弹层显示状态
   const [showFeedback, setShowFeedback] = useState(false)
 
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
-    try {
-      const stored = localStorage.getItem('notificationSettings');
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    return {
-      enableSound: true,
-      enableDesktop: true,
-      maxNotifications: 50,
-      notificationTypes: {
-        like: true,
-        join: true,
-        message: true,
-        mention: true,
-        task: true,
-        points: true,
-        system: true,
-        learning: true,
-        creation: true,
-        social: true,
-      },
-    };
-  });
+
   // 语言菜单ref
   const languageRef = useRef<HTMLDivElement | null>(null)
   // 语言菜单状态
@@ -338,157 +320,108 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     return () => document.removeEventListener('mousedown', handler)
   }, [showLanguageMenu])
   
-  const notifRef = useRef<HTMLDivElement | null>(null)
-  // 初始化通知状态
-  const [notifications, setNotifications] = useState<Notification[]>([])
+  // 初始化通知状态 - 从消息服务获取未读数量
+  const [unreadCount, setUnreadCount] = useState(0)
   
-  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
-  
-  // 监听用户变化，根据用户类型加载通知数据
+  // 监听用户变化，获取未读消息数量
   useEffect(() => {
-    console.log('[SidebarLayout] User changed:', user?.id, 'isAuthenticated:', isAuthenticated);
-    if (!user) {
-      console.log('[SidebarLayout] No user, clearing notifications');
-      setNotifications([])
-      return
+    if (!user?.id) {
+      setUnreadCount(0);
+      return;
     }
 
-    if (!user.id.startsWith('phone_user_')) {
-      console.log('[SidebarLayout] Fetching notifications for user:', user.id);
-      const fetchNotifications = async () => {
-        try {
-          const token = localStorage.getItem('token');
-          console.log('[SidebarLayout] Token exists:', !!token);
-          // 如果没有 token，不调用需要认证的 API
-          if (!token) {
-            console.log('[SidebarLayout] No token, skipping notifications fetch');
-            setNotifications([]);
-            return;
-          }
-          console.log('[SidebarLayout] Calling /api/notifications...');
-          const response = await fetch('/api/notifications', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          console.log('[SidebarLayout] Response status:', response.status);
-          // 如果返回 401，静默处理，不显示错误
-          if (response.status === 401) {
-            setNotifications([]);
-            return;
-          }
-          const data = await response.json();
-          if (data.code === 0 && data.data && Array.isArray(data.data.list)) {
-            // 映射后端通知类型到前端 category
-            const mapNotificationType = (type: string): Notification['category'] => {
-              const typeMap: Record<string, Notification['category']> = {
-                'system': 'system',
-                'message': 'message',
-                'like': 'like',
-                'join': 'join',
-                'mention': 'mention',
-                'task': 'task',
-                'points': 'points',
-                'learning': 'learning',
-                'creation': 'creation',
-                'social': 'social',
-                'ranking_published': 'system'
-              };
-              return typeMap[type] || 'system';
-            };
-
-            const mappedNotifications: Notification[] = data.data.list.map((n: any) => {
-              // 根据通知类型生成 actionUrl
-              let actionUrl: string | undefined;
-              // PostgreSQL 返回的 JSONB 字段
-              const notificationData = n.data;
-              if (notificationData && typeof notificationData === 'object') {
-                if (notificationData.event_id) {
-                  actionUrl = `/events/${notificationData.event_id}`;
-                } else if (notificationData.work_id) {
-                  actionUrl = `/post/${notificationData.work_id}`;
-                } else if (notificationData.user_id) {
-                  actionUrl = `/profile/${notificationData.user_id}`;
-                }
-              }
-
-              return {
-                id: n.id.toString(),
-                title: n.title,
-                description: n.content,
-                time: new Date(n.created_at).toLocaleString(),
-                read: n.is_read,
-                type: n.type === 'warning' ? 'warning' : n.type === 'success' ? 'success' : 'info',
-                category: mapNotificationType(n.type),
-                actionUrl,
-                timestamp: new Date(n.created_at).getTime(),
-                sound: false
-              };
-            });
-            setNotifications(mappedNotifications);
-          }
-        } catch (error) {
-          console.error('Failed to fetch notifications:', error);
-        }
-      };
-      fetchNotifications();
-    } else {
-       // Phone user: load mock data
-       const now = Date.now()
-       setNotifications([
-        { id: 'n1', title: t('notification.welcome'), description: t('notification.dailyReward'), time: t('notification.justNow'), read: false, type: 'success', category: 'system', timestamp: now },
-        { id: 'n2', title: t('notification.systemUpdate'), description: t('notification.systemUpdateDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'system', timestamp: now - 3600000 },
-        { id: 'n3', title: t('notification.newTutorial'), description: t('notification.newTutorialDesc'), time: t('notification.daysAgo'), read: true, type: 'info', category: 'learning', timestamp: now - 86400000 },
-        { id: 'n4', title: t('notification.workLiked'), description: t('notification.workLikedDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'like', timestamp: now - 7200000 },
-        { id: 'n5', title: t('notification.newMember'), description: t('notification.newMemberDesc'), time: `30 ${t('notification.minutesAgo')}`, read: false, type: 'info', category: 'join', timestamp: now - 1800000 },
-        { id: 'n6', title: t('notification.privateMessage'), description: t('notification.privateMessageDesc'), time: `1 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'message', timestamp: now - 3600000 },
-        { id: 'n7', title: t('notification.mention'), description: t('notification.mentionDesc'), time: `2 ${t('notification.hoursAgo')}`, read: false, type: 'info', category: 'mention', timestamp: now - 7200000 },
-        { id: 'n8', title: t('notification.taskCompleted'), description: t('notification.taskCompletedDesc'), time: `3 ${t('notification.hoursAgo')}`, read: true, type: 'success', category: 'task', timestamp: now - 10800000 },
-        { id: 'n9', title: t('notification.pointsAdded'), description: t('notification.pointsAddedDesc'), time: `4 ${t('notification.hoursAgo')}`, read: false, type: 'success', category: 'points', timestamp: now - 14400000 },
-        { id: 'n10', title: t('notification.systemWarning'), description: t('notification.systemWarningDesc'), time: `5 ${t('notification.hoursAgo')}`, read: true, type: 'warning', category: 'system', timestamp: now - 18000000 },
-      ])
-    }
-  }, [user, t]);
-
-  // 移除本地存储同步，确保数据隔离
-  /*
-  useEffect(() => {
-    debouncedSave('notifications', notifications)
-  }, [notifications, debouncedSave])
-  */
-
-  // 使用防抖函数保存通知设置
-  const debouncedSaveNotificationSettings = useCallback(debounce(() => {
-    if (typeof localStorage === 'undefined') return
-    try {
-      localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings))
-    } catch (error) {
-      console.error('Failed to save notification settings:', error)
-    }
-  }, 200), [notificationSettings])
-  
-  // 保存通知设置到本地存储 - 使用防抖函数优化
-  useEffect(() => {
-    debouncedSaveNotificationSettings()
-  }, [notificationSettings, debouncedSaveNotificationSettings])
-  useEffect(() => {
-    // 只在浏览器环境中添加事件监听
-    if (typeof document === 'undefined') return
-    
-    const handler = (e: MouseEvent) => {
-      if (!notifRef.current) return
-      if (!notifRef.current.contains(e.target as Node)) {
-        setShowNotifications(false)
+    const fetchUnreadCount = async () => {
+      try {
+        const count = await messageService.getUnreadCount(user.id);
+        setUnreadCount(count);
+      } catch (error) {
+        console.error('Failed to fetch unread count:', error);
       }
-    }
-    if (showNotifications) {
-      document.addEventListener('mousedown', handler)
-    }
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showNotifications])
+    };
+
+    fetchUnreadCount();
+
+    // 订阅实时消息更新
+    const unsubscribe = messageService.subscribeToMessages(user.id, () => {
+      // 新消息到达时增加未读计数
+      setUnreadCount(prev => prev + 1);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user?.id]);
+
+
 
   // 中文注释：用户头像菜单相关状态与引用
   const [showUserMenu, setShowUserMenu] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
+
+  // 用户统计数据
+  const [userStats, setUserStats] = useState({
+    worksCount: 0,
+    followersCount: 0,
+    followingCount: 0
+  })
+
+  // 用户积分和等级数据
+  const [userPoints, setUserPoints] = useState(0)
+  const [creatorLevelInfo, setCreatorLevelInfo] = useState<{
+    currentLevel: { level: number; name: string; icon: string; minPoints: number; maxPoints: number };
+    nextLevel: { level: number; name: string; minPoints: number } | null;
+    levelProgress: number;
+    pointsToNextLevel: number;
+  } | null>(null)
+
+  // 获取用户统计数据和积分数据
+  useEffect(() => {
+    if (user?.id) {
+      // 并行获取关注列表、粉丝列表和作品数量
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      
+      Promise.all([
+        getFollowingList().catch(() => []),
+        getFollowersList().catch(() => []),
+        // 获取作品数量 - 使用较大的limit确保获取所有作品
+        token ? fetch(`/api/works?creator_id=${user.id}&limit=100`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).then(res => res.ok ? res.json() : { data: [] }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        // 获取积分数据
+        supabasePointsService.getUserBalance(user.id).catch(() => null)
+      ]).then(([following, followers, worksResult, pointsBalance]) => {
+        // API返回的是data数组，直接使用数组长度
+        const worksCount = worksResult?.data?.length || 0;
+
+        setUserStats({
+          worksCount: worksCount,
+          followersCount: followers.length,
+          followingCount: following.length
+        })
+
+        // 设置积分数据
+        const points = pointsBalance?.balance || 0
+        setUserPoints(Math.max(0, points))
+        
+        // 获取等级信息
+        const levelInfo = achievementService.getCreatorLevelInfo(user.id)
+        setCreatorLevelInfo(levelInfo)
+      })
+    }
+  }, [user?.id])
+
+  // 中文注释：处理退出登录
+  const handleLogout = async () => {
+    try {
+      await logout()
+      toast.success(t('header.logoutSuccess') || '退出登录成功')
+      navigate('/')
+    } catch (error) {
+      toast.error(t('header.logoutError') || '退出登录失败')
+    }
+  }
+
   // 中文注释：点击外部关闭用户菜单
   useEffect(() => {
     // 只在浏览器环境中添加事件监听
@@ -593,53 +526,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     }
   }, [width, collapsed])
 
-  // 添加通知动画效果
-  const [newNotification, setNewNotification] = useState<Notification | null>(null)
-  
 
-
-  // 添加新通知的函数
-  const addNotification = useCallback((notification: Omit<Notification, 'id' | 'read' | 'time' | 'timestamp'>) => {
-    // 检查是否允许该类型通知
-    if (!notificationSettings.notificationTypes[notification.category]) {
-      return;
-    }
-    
-    const now = Date.now()
-    const newNotif: Notification = {
-      ...notification,
-      id: `n${now}`,
-      read: false,
-      time: t('notification.justNow'),
-      timestamp: now,
-      sound: notification.sound ?? true,
-    }
-    
-    setNotifications(prev => [newNotif, ...prev].slice(0, notificationSettings.maxNotifications))
-    setNewNotification(newNotif)
-    
-    // 播放通知声音
-    if (notificationSettings.enableSound && newNotif.sound) {
-      playNotificationSound(notification.category);
-    }
-    
-    // 发送桌面通知
-    if (notificationSettings.enableDesktop) {
-      requestDesktopNotificationPermission().then(granted => {
-        if (granted) {
-          sendDesktopNotification(newNotif.title, {
-            body: newNotif.description || '',
-            tag: newNotif.id,
-          });
-        }
-      });
-    }
-    
-    // 3秒后清除新通知标记
-    setTimeout(() => {
-      setNewNotification(null)
-    }, 3000)
-  }, [notificationSettings])
 
   useEffect(() => {
     // 只在浏览器环境中添加事件监听
@@ -666,15 +553,14 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
         return
       }
       
-      // 添加通知快捷键
+      // 消息中心快捷键
       if (e.key === 'n' && !isTyping) {
         e.preventDefault()
-        setShowNotifications(v => !v)
+        navigate('/messages')
       }
       
       // ESC 键关闭各种弹出内容
       if (e.key === 'Escape') {
-        if (showNotifications) setShowNotifications(false)
         if (showFeedback) setShowFeedback(false)
         if (showUserMenu) setShowUserMenu(false)
         if (showSearchDropdown) setShowSearchDropdown(false)
@@ -717,7 +603,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggleTheme, showNotifications, showFeedback, showUserMenu, showSearchDropdown, prefetchRoute, navigate, setCollapsed])
+  }, [toggleTheme, showFeedback, showUserMenu, showSearchDropdown, prefetchRoute, navigate, setCollapsed])
 
   // 中文注释：当滚动距离超过 480px 时展示“回到顶部”按钮
   useEffect(() => {
@@ -737,8 +623,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   // 中文注释：暗色主题下的导航项悬停效果优化，使用蓝色主题
   // 统一导航项高度和内边距，避免激活时布局变化
   // 平板端优化：在平板尺寸(md)下增加垂直内边距(py-3)，提升触摸体验；桌面端(lg)保持原样
+  // 折叠状态下使用更紧凑的内边距
   const navItemClass = useMemo(() => (
-    `${isDark ? 'hover:text-blue-200 hover:bg-blue-800/40 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center px-3 py-2 md:py-3 lg:py-2 rounded-lg transition-all duration-200 ${collapsed ? 'justify-center py-3' : ''}`
+    `${isDark ? 'hover:text-blue-200 hover:bg-blue-800/40 text-[13px]' : 'hover:bg-[var(--bg-hover)]'} flex items-center rounded-lg transition-all duration-200 ${collapsed ? 'justify-center py-2 px-2' : 'px-3 py-2.5'}`
   ), [isDark, collapsed])
 
   // 中文注释：主题激活态使用CSS变量，确保主题变化时样式同步更新
@@ -839,40 +726,37 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           </div>
         </div>
 
-        <nav className="px-2 pt-3 pb-4 space-y-3">
+        <nav className={`px-2 pt-2 pb-4 ${collapsed ? 'space-y-1.5' : 'space-y-3'}`}>
           {navigationGroups.map((group) => (
             <motion.div
               key={group.id}
-              className={`rounded-xl ${isDark ? 'bg-blue-900/20 backdrop-blur-md border border-blue-500/30' : 'bg-gray-50 border border-gray-100'} ${collapsed ? 'p-3' : 'p-3'} transition-all duration-300 hover:shadow-md dark:hover:shadow-lg hover:shadow-gray-100/50 dark:hover:shadow-blue-900/30`}
+              className={`rounded-xl ${isDark ? 'bg-blue-900/20 backdrop-blur-md border border-blue-500/30' : 'bg-gray-50 border border-gray-100'} ${collapsed ? 'p-2' : 'p-3'} transition-all duration-300 hover:shadow-md dark:hover:shadow-lg hover:shadow-gray-100/50 dark:hover:shadow-blue-900/30`}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: getDuration(0.3), delay: getDelay(0.1) }}
             >
               {!collapsed && (
                 <motion.h3
-                  className={`${isDark ? 'text-[10px] text-blue-300' : 'text-[11px] text-blue-600'} font-semibold mb-2 uppercase tracking-wider flex items-center transition-all duration-300 ease-in-out opacity-100`}
+                  className={`${isDark ? 'text-[11px] text-blue-300/80' : 'text-[12px] text-blue-600'} font-medium mb-2.5 flex items-center transition-all duration-300 ease-in-out opacity-100`}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: getDuration(0.2), delay: getDelay(0.1) }}
                 >
-                  <span className="mr-2 w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                  <span className="relative overflow-hidden">
-                    <span className="relative z-10">{t(navGroupIdToTranslationKey[group.id] || group.title)}</span>
-                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-current transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></span>
-                  </span>
+                  <span className="mr-1.5 w-1 h-1 rounded-full bg-blue-400/60"></span>
+                  <span className="tracking-wide">{t(navGroupIdToTranslationKey[group.id] || group.title)}</span>
                 </motion.h3>
               )}
-              <div className={`${collapsed ? 'space-y-3' : 'space-y-1.5'}`}>
+              <div className={`${collapsed ? 'space-y-1' : 'space-y-1.5'}`}>
                 {group.items.map((item, index) => (
                   <NavLink
                     key={item.id}
                     to={`${item.path}${item.search || ''}`}
                     title={collapsed ? item.label : undefined}
                     onMouseEnter={() => debouncedPrefetch(item.id)}
-                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-[#E2E8F0]' : 'text-gray-700')} relative overflow-hidden group ${collapsed ? 'justify-center px-2 py-4' : ''}`}
+                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-white' : 'text-gray-700')} relative overflow-hidden group ${collapsed ? 'justify-center px-2 py-2' : ''}`}
                     end
                   >
-                    <i className={`fas ${item.icon} ${collapsed ? 'mr-0 text-xl' : 'mr-3 text-base'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 text-current ${collapsed ? 'w-8' : 'w-5'} text-center flex-shrink-0`}></i>
+                    <i className={`fas ${item.icon} ${collapsed ? 'mr-0 text-xl' : 'mr-3 text-base'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 ${isDark ? 'text-white' : 'text-current'} ${collapsed ? 'w-8' : 'w-5'} text-center flex-shrink-0`}></i>
                     {!collapsed && (
                       <span
                         className="flex-1 transition-all duration-300 ease-in-out opacity-100 truncate font-medium"
@@ -917,7 +801,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           }
         }}
       >
-        {/* 中文注释：暗色头部采用蓝色渐变背景与毛玻璃 */}
+        {/* 中文注释：暗色头部采用蓝色渐变背景与毛玻璃 - 在管理后台页面隐藏 */}
+        {!location.pathname.startsWith('/admin') && (
         <motion.header
           className={`sticky top-0 z-[60] ${isDark ? 'bg-gradient-to-r from-[#0F172A]/98 via-[#1E3A5F]/95 to-[#0F172A]/98 backdrop-blur-xl text-blue-50 shadow-[0_4px_20px_rgba(59,130,246,0.15)]' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-blue-500/50' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3`}
           initial={{ opacity: 0, y: -20 }}
@@ -925,16 +810,16 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           transition={{ duration: getDuration(0.5), delay: getDelay(0.1) }}
           style={{ overflow: 'visible' }}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-end">
             <motion.div 
-              className="flex items-center space-x-3 flex-1 min-w-0"
+              className="flex items-center gap-3 flex-1 min-w-0 justify-end"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
             >
-              {/* 中文注释：搜索框 - 使用增强的SearchBar组件 */}
+              {/* 搜索框 - 靠右对齐 */}
               <motion.div
-                className="relative search-container w-full"
+                className="relative search-container flex-1 w-full"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
@@ -954,160 +839,37 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               </motion.div>
             </motion.div>
             <motion.div 
-              className="flex items-center space-x-2 flex-shrink-0"
+              className="flex items-center space-x-2 flex-shrink-0 ml-8"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
             >
               <div className="flex items-center space-x-3">
-              {/* 主题切换按钮 */}
-              <motion.div className="relative">
-                <motion.button
-                  className={`theme-dropdown-button p-2 rounded-lg transition-all duration-300 flex items-center space-x-1 ${
-                    isDark ? 'bg-blue-900/50 hover:bg-blue-800/60 ring-1 ring-blue-500/50 text-blue-100 hover:ring-blue-400' :
-                    theme === 'blue' ? 'bg-blue-50 hover:bg-blue-100 ring-1 ring-blue-200 text-blue-800 hover:ring-blue-300' :
-                    theme === 'green' ? 'bg-green-50 hover:bg-green-100 ring-1 ring-green-200 text-green-800 hover:ring-green-300' :
-                    theme === 'tianjin' ? 'bg-[#1E5F8E]/10 hover:bg-[#1E5F8E]/20 ring-1 ring-[#1E5F8E]/30 text-[#1E5F8E] hover:ring-[#1E5F8E]/50' :
-                    'bg-white hover:bg-gray-50 ring-1 ring-gray-200 text-gray-900 hover:ring-gray-300'
-                  }`}
-                  aria-label={t('header.toggleTheme')}
-                  onClick={() => setShowThemeDropdown(v => !v)}
-                  title={t('header.toggleTheme')}
-                  whileHover={{ scale: 1.1, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
+              {/* 用户头像 - B站风格头像覆盖卡片 */}
+              {isAuthenticated && (
+                <motion.div 
+                  className="relative" 
+                  ref={userMenuRef}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: getDuration(0.3), delay: getDelay(0.3) }}
+                  onMouseEnter={() => setShowUserMenu(true)}
+                  onMouseLeave={() => setShowUserMenu(false)}
                 >
-                  <i className={`fas ${
-                    theme === 'dark' ? 'fa-moon' : 
-                    theme === 'light' ? 'fa-sun' : 
-                    theme === 'blue' ? 'fa-water' : 
-                    theme === 'green' ? 'fa-leaf' : 
-                    theme === 'tianjin' ? 'fa-landmark' : 
-                    'fa-dungeon'
-                  } transition-transform duration-300 hover:scale-110`}></i>
-                  <i className={`fas fa-chevron-down transition-transform duration-200 ${showThemeDropdown ? 'rotate-180' : ''}`}></i>
-                </motion.button>
-                {showThemeDropdown && (
-                  <motion.div
-                    className={`theme-dropdown-menu absolute right-0 mt-2 w-40 rounded-xl shadow-lg ring-1 z-[100] ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`}
-                    role="menu"
-                    aria-label={t('header.toggleTheme')}
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: getDuration(0.2), delay: getDelay(0.1) }}
-                  >
-                    <ul className="py-1">
-                      {themeConfig.map((themeOption, index) => (
-                        <motion.li 
-                          key={themeOption.value}
-                          initial={{ opacity: 0, x: 10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: getDuration(0.1), delay: getDelay(0.05 * index) }}
-                        >
-                          <button
-                            className={`w-full text-left px-4 py-2 flex items-center space-x-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} ${theme === themeOption.value ? (isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 font-semibold') : ''}`}
-                            onClick={() => {
-                              setTheme(themeOption.value);
-                              setShowThemeDropdown(false);
-                            }}
-                            role="menuitem"
-                          >
-                            <i className={themeOption.icon}></i>
-                            <span>{themeOption.label}</span>
-                          </button>
-                        </motion.li>
-                      ))}
-                    </ul>
-                  </motion.div>
-                )}
-              </motion.div>
-              
-
-              
-              {/* 中文注释：问题反馈入口 */}
-              <motion.button
-                className={`p-2 rounded-lg ${isDark ? 'hover:bg-blue-800/50 ring-1 ring-blue-500/50 text-blue-100 hover:ring-blue-400' : 'hover:bg-gray-50 ring-1 ring-gray-200'}`}
-                aria-label={t('header.feedback')}
-                title={t('header.feedback')}
-                onClick={() => setShowFeedback(true)}
-                whileHover={{ scale: 1.1, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <i className="fas fa-bug"></i>
-              </motion.button>
-              {/* 好友管理按钮 */}
-              <motion.button
-                className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-blue-900/40 ring-1 ring-blue-500/50 hover:bg-blue-800/50 hover:ring-blue-400 text-blue-100' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md relative`}
-                aria-label="好友管理"
-                title="好友管理"
-                onClick={() => navigate('/friends')}
-                whileHover={{ scale: 1.1, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <i className="fas fa-user-friends transition-transform duration-300 hover:scale-110"></i>
-                {friendRequests && friendRequests.length > 0 && (
-                  <motion.span
-                    className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600 text-white text-xs font-bold shadow-lg"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: [1, 1.2, 1] }}
-                    transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }}
-                  >
-                    {friendRequests.length}
-                  </motion.span>
-                )}
-              </motion.button>
-              <motion.div className="relative" ref={notifRef}>
-                <motion.button
-                className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${isDark ? 'bg-blue-900/40 ring-1 ring-blue-500/50 hover:bg-blue-800/50 hover:ring-blue-400 text-blue-100' : 'bg-white/70 ring-1 ring-gray-200 hover:bg-gray-50 hover:ring-blue-500'} hover:shadow-md relative`}
-                aria-label={t('header.notifications')}
-                aria-expanded={showNotifications}
-                onClick={() => setShowNotifications(v => !v)}
-                title={`${unreadCount > 0 ? t('notification.unreadCount', { count: unreadCount }) : t('notification.view')}`}
-                whileHover={{ scale: 1.1, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <i className="fas fa-bell transition-transform duration-300 hover:scale-110"></i>
-                  {unreadCount > 0 && (
-                    <motion.span 
-                      className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600 text-white text-xs font-bold shadow-lg"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }}
-                    >
-                      {unreadCount}
-                    </motion.span>
-                  )}
-                </motion.button>
-                {showNotifications && (
-                  <NotificationPanel
-                    notifications={notifications}
-                    setNotifications={setNotifications}
-                    unreadCount={unreadCount}
-                    isDark={isDark}
-                    onClose={() => setShowNotifications(false)}
-                    notificationSettings={notificationSettings}
-                    setNotificationSettings={setNotificationSettings}
-                  />
-                )}
-              </motion.div>
-              
-              {/* 创作者仪表盘 - 已移除 */}
-              
-              {isAuthenticated ? (
-                <motion.div className="relative" ref={userMenuRef}>
                   <motion.button
-                    className="flex items-center space-x-2"
+                    className="flex items-center group relative z-10"
                     aria-label="用户菜单"
                     aria-expanded={showUserMenu}
-                    onClick={() => setShowUserMenu(v => !v)}
-                    whileHover={{ scale: 1.1, y: -2 }}
+                    whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.95 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
                     {user?.avatar && user.avatar.trim() ? (
-                      <div className="relative h-8 w-8 rounded-full ring-2 ring-offset-2 ring-offset-background ring-primary/50">
+                      <div className={`relative h-14 w-14 rounded-full overflow-hidden transition-all duration-300 ${showUserMenu ? 'shadow-2xl scale-110' : 'group-hover:shadow-xl'}`}>
                         <img 
                           src={user.avatar} 
                           alt={user?.username || '用户头像'} 
-                          className="h-full w-full rounded-full object-cover transition-transform duration-300 hover:scale-110"
+                          className="h-full w-full rounded-full object-cover transition-transform duration-300 group-hover:scale-110"
                           loading="lazy"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
@@ -1115,7 +877,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                             const parent = target.parentElement;
                             if (parent) {
                               const defaultAvatar = document.createElement('div');
-                              defaultAvatar.className = `absolute inset-0 rounded-full flex items-center justify-center text-white font-bold ${isDark ? 'bg-blue-600' : 'bg-orange-500'}`;
+                              defaultAvatar.className = `absolute inset-0 rounded-full flex items-center justify-center text-white font-bold text-xl ${isDark ? 'bg-gradient-to-br from-blue-500 to-purple-600' : 'bg-gradient-to-br from-orange-400 to-pink-500'}`;
                               defaultAvatar.textContent = user?.username?.charAt(0) || 'U';
                               parent.appendChild(defaultAvatar);
                             }
@@ -1123,78 +885,321 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         />
                       </div>
                     ) : (
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white font-bold ${isDark ? 'bg-blue-600' : 'bg-orange-500'} ring-2 ring-offset-2 ring-offset-background ring-primary/50`}>
+                      <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white font-bold text-xl transition-all duration-300 ${showUserMenu ? 'shadow-xl' : 'group-hover:shadow-lg'} ${isDark ? 'bg-gradient-to-br from-blue-500 to-purple-600' : 'bg-gradient-to-br from-orange-400 to-pink-500'}`}>
                         {user?.username?.charAt(0) || 'U'}
                       </div>
                     )}
                   </motion.button>
                   {showUserMenu && (
                     <motion.div
-                      className={`absolute right-0 mt-2 w-56 rounded-xl shadow-lg ring-1 z-[100] ${isDark ? 'bg-gray-800 ring-gray-700' : 'bg-white ring-gray-200'}`}
+                      className={`absolute right-[-120px] top-12 w-72 rounded-2xl shadow-2xl z-[5] ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}
                       role="menu"
                       aria-label="用户菜单"
                       initial={{ opacity: 0, y: -10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       transition={{ duration: getDuration(0.2), delay: getDelay(0.1) }}
+                      onMouseEnter={() => setShowUserMenu(true)}
+                      onMouseLeave={() => setShowUserMenu(false)}
                     >
-                      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                        <p className="text-sm">{user?.username}</p>
-                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{user?.email}</p>
+                      {/* 用户信息区域 */}
+                      <div className={`pt-3 pb-3 px-5 text-center border-b ${isDark ? 'border-gray-700/50' : 'border-gray-100'}`}>
+                        {/* 用户名 */}
+                        <h3 className={`font-bold text-base mt-1 mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{user?.username}</h3>
+                        
+                        {/* 等级进度条 - 使用积分系统 */}
+                        {creatorLevelInfo ? (
+                          <>
+                            <div className="flex items-center justify-center gap-2 mb-1">
+                              <span className={`text-xs px-2 py-0.5 rounded font-bold ${isDark ? 'bg-[#C02C38]/20 text-[#C02C38]' : 'bg-[#C02C38]/10 text-[#C02C38]'}`}>
+                                {creatorLevelInfo.currentLevel.name}
+                              </span>
+                              <div className={`w-32 h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                <div 
+                                  className="h-full bg-gradient-to-r from-[#C02C38] to-[#F59E0B] rounded-full transition-all duration-500"
+                                  style={{ width: `${creatorLevelInfo.levelProgress}%` }}
+                                ></div>
+                              </div>
+                              {creatorLevelInfo.nextLevel && (
+                                <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  {creatorLevelInfo.nextLevel.name}
+                                </span>
+                              )}
+                            </div>
+                            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              当前积分 <span className="font-medium">{userPoints.toLocaleString()}</span>
+                              {creatorLevelInfo.nextLevel && (
+                                <>，距离 <span className="text-[#C02C38] font-medium">{creatorLevelInfo.nextLevel.name}</span> 还需 <span className="font-medium">{creatorLevelInfo.pointsToNextLevel}</span> 积分</>
+                              )}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-center gap-2 mb-1">
+                              <span className={`text-xs px-2 py-0.5 rounded font-bold ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>LV4</span>
+                              <div className={`w-32 h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                <div className="h-full w-3/5 bg-gradient-to-r from-pink-400 to-pink-500 rounded-full"></div>
+                              </div>
+                              <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>LV5</span>
+                            </div>
+                            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>当前成长6443，距离升级Lv.5还需要4357</p>
+                          </>
+                        )}
+                        
+                        {/* 统计数据 */}
+                        <div className="flex items-center justify-center gap-8 mt-3 pt-3 border-t border-dashed border-gray-300/30">
+                          <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setShowUserMenu(false); navigate('/friends'); }}>
+                            <p className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{userStats.followingCount}</p>
+                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>关注</p>
+                          </div>
+                          <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setShowUserMenu(false); navigate('/friends'); }}>
+                            <p className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{userStats.followersCount}</p>
+                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>粉丝</p>
+                          </div>
+                          <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setShowUserMenu(false); navigate('/dashboard'); }}>
+                            <p className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{userStats.worksCount}</p>
+                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>作品</p>
+                          </div>
+                        </div>
                       </div>
-                      <ul className="py-1">
+
+                      {/* 会员推广卡片 */}
+                      {user?.membershipStatus === 'active' ? (
+                        <div className={`px-3 py-2 mx-3 mt-3 rounded-lg ${isDark ? 'bg-gradient-to-r from-amber-500/15 to-yellow-500/15 border border-amber-500/25' : 'bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100'}`}>
+                          <p className={`text-sm font-medium ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>
+                            {user?.membershipLevel === 'vip' ? 'VIP会员' : '高级会员'} 生效中
+                          </p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>享受专属特权与服务</p>
+                            <button className={`px-2 py-0.5 rounded text-xs font-medium transition-all duration-200 ${isDark ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30' : 'bg-white text-amber-600 hover:bg-amber-50 shadow-sm border border-amber-200'}`}>
+                              会员中心
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={`px-3 py-2 mx-3 mt-3 rounded-lg ${isDark ? 'bg-gradient-to-r from-blue-500/15 to-cyan-500/15 border border-blue-500/25' : 'bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100'}`}>
+                          <p className={`text-sm font-medium ${isDark ? 'text-blue-300' : 'text-blue-600'}`}>升级会员解锁更多功能</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>享受无限创作与专属特权</p>
+                            <button className={`px-2 py-0.5 rounded text-xs font-medium transition-all duration-200 ${isDark ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30' : 'bg-white text-blue-600 hover:bg-blue-50 shadow-sm border border-blue-200'}`}>
+                              立即升级
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 菜单项 */}
+                      <ul className="py-2 px-2">
                         {[
-                          { label: t('header.profile'), path: '/dashboard' },
-                          { label: t('header.analytics'), path: '/analytics' },
-                          { label: '我的活动', path: '/my-activities' },
-                          { label: t('header.membershipCenter'), path: '/membership' },
-                          { label: t('header.myCollection'), path: '/collection' },
-                          { label: t('header.backToOfficialWebsite'), path: '/landing.html', isExternal: true },
-                          { label: t('common.drafts'), path: '/drafts' },
-                          { label: t('header.settings'), path: '/settings' }
+                          { label: '个人中心', path: '/dashboard', icon: 'fa-user' },
+                          { label: '数据分析', path: '/analytics', icon: 'fa-chart-line' },
+                          { label: '设置', path: '/settings', icon: 'fa-cog' },
+                          { label: '返回官网', path: '/', icon: 'fa-home' }
                         ].map((item, index) => (
-                          <motion.li 
+                          <motion.li
                             key={item.path}
                             initial={{ opacity: 0, x: 10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: getDuration(0.1), delay: getDelay(0.05 * index) }}
                           >
-                            <button 
-                              className={`w-full text-left px-4 py-2 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-all duration-200 hover:bg-primary/5 hover:pl-5`}
+                            <button
+                              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group/item ${isDark ? 'hover:bg-gray-700/50 text-gray-200' : 'hover:bg-gray-100 text-gray-700'}`}
                               onClick={() => {
                                 setShowUserMenu(false);
-                                if (item.isExternal) {
-                                  window.location.href = item.path;
-                                } else {
-                                  navigate(item.path);
-                                }
+                                navigate(item.path);
                               }}
                             >
-                              {item.label}
+                              <i className={`fas ${item.icon} w-5 text-center text-base transition-colors ${isDark ? 'text-gray-400 group-hover/item:text-pink-400' : 'text-gray-400 group-hover/item:text-pink-500'}`}></i>
+                              <span className="flex-1 text-left text-sm font-medium">{item.label}</span>
+                              <i className="fas fa-chevron-right text-xs text-gray-300 group-hover/item:text-gray-400 transition-all transform group-hover/item:translate-x-1"></i>
                             </button>
                           </motion.li>
                         ))}
-                        <motion.li
-                          initial={{ opacity: 0, x: 10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: getDuration(0.1), delay: getDelay(0.4) }}
-                        >
-                          <PWAInstallButton asMenuItem isDark={isDark} />
-                        </motion.li>
-                        <motion.li 
-                          className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} mt-2`}
-                          initial={{ opacity: 0, x: 10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: getDuration(0.1), delay: getDelay(0.45) }}
-                        >
-                          <button className={`w-full text-left px-4 py-2 text-red-600 ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-all duration-200 hover:bg-red-50 hover:pl-5`} onClick={() => { setShowUserMenu(false); logout() }}>{t('header.logout')}</button>
-                        </motion.li>
                       </ul>
+
+                      {/* 主题切换 - 悬浮显示子菜单 */}
+                      <div className={`border-t ${isDark ? 'border-gray-700/50' : 'border-gray-100'} py-1 px-2 relative group/theme`}>
+                        <button
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group/item ${isDark ? 'hover:bg-gray-700/50 text-gray-200' : 'hover:bg-gray-100 text-gray-700'}`}
+                        >
+                          <i className={`fas fa-moon w-5 text-center text-base transition-colors ${isDark ? 'text-gray-400 group-hover/item:text-pink-400' : 'text-gray-400 group-hover/item:text-pink-500'}`}></i>
+                          <span className="flex-1 text-left text-sm font-medium">主题: {themeConfig.find(t => t.value === theme)?.label || '浅色'}</span>
+                          <i className="fas fa-chevron-right text-xs text-gray-300 group-hover/item:text-gray-400 transition-all transform group-hover/item:translate-x-1"></i>
+                        </button>
+                        {/* 主题子菜单 */}
+                        <div className={`absolute left-full top-0 ml-2 w-40 rounded-lg shadow-lg z-[10] opacity-0 invisible group-hover/theme:opacity-100 group-hover/theme:visible transition-all duration-200 max-h-80 overflow-y-auto ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+                          <ul className="py-1">
+                            {themeConfig.map((themeOption) => (
+                              <li key={themeOption.value}>
+                                <button
+                                  className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 ${isDark ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-gray-50 text-gray-700'} ${theme === themeOption.value ? (isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 font-semibold') : ''}`}
+                                  onClick={() => setTheme(themeOption.value)}
+                                >
+                                  <i className={`${themeOption.icon} w-4 text-center`}></i>
+                                  <span className="flex-1">{themeOption.label}</span>
+                                  {theme === themeOption.value && <i className="fas fa-check text-xs"></i>}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      
+                      {/* 退出登录 */}
+                      <div className={`border-t ${isDark ? 'border-gray-700/50' : 'border-gray-100'} py-2 px-2 mb-1`}>
+                        <motion.button 
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group/item ${isDark ? 'hover:bg-red-500/10 text-red-400' : 'hover:bg-red-50 text-red-500'}`}
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            handleLogout();
+                          }}
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: getDuration(0.1), delay: getDelay(0.3) }}
+                        >
+                          <i className="fas fa-sign-out-alt w-5 text-center text-lg"></i>
+                          <span className="flex-1 text-left text-sm font-medium">{t('header.logout')}</span>
+                        </motion.button>
+                      </div>
                     </motion.div>
                   )}
                 </motion.div>
-              ) : (
-                <NavLink 
-                  to="/login" 
+              )}
+
+              
+
+              
+              {/* 问题反馈入口 */}
+              <motion.button
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                aria-label={t('header.feedback')}
+                title={t('header.feedback')}
+                onClick={() => setShowFeedback(true)}
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <i className="fas fa-bug text-lg"></i>
+                <span className="text-[10px]">反馈</span>
+              </motion.button>
+              {/* 好友管理按钮 */}
+              <motion.button
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                aria-label="好友"
+                title="好友"
+                onClick={() => navigate('/friends')}
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <div className="relative">
+                  <i className="fas fa-user-friends text-lg"></i>
+                  {friendRequests && friendRequests.length > 0 && (
+                    <motion.span
+                      className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                    >
+                      {friendRequests.length > 99 ? '99+' : friendRequests.length}
+                    </motion.span>
+                  )}
+                </div>
+                <span className="text-[10px]">好友</span>
+              </motion.button>
+
+              {/* 动态入口 */}
+              <motion.button
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                aria-label="动态"
+                title="查看动态"
+                onClick={() => navigate('/feed')}
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <i className="fas fa-rss text-lg"></i>
+                <span className="text-[10px]">动态</span>
+              </motion.button>
+
+              {/* 消息入口 */}
+              <motion.button
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                aria-label="消息"
+                title="消息"
+                onClick={() => navigate('/messages')}
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <div className="relative">
+                  <i className="fas fa-bell text-lg"></i>
+                  {unreadCount > 0 && (
+                    <motion.span
+                      className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </motion.span>
+                  )}
+                </div>
+                <span className="text-[10px]">消息</span>
+              </motion.button>
+
+              {/* 收藏入口 */}
+              <motion.button
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                aria-label="收藏"
+                title="收藏"
+                onClick={() => navigate('/collection')}
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <i className="fas fa-star text-lg"></i>
+                <span className="text-[10px]">收藏</span>
+              </motion.button>
+
+              {/* 草稿箱入口 */}
+              <motion.button
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                aria-label="草稿箱"
+                title="草稿箱"
+                onClick={() => navigate('/drafts')}
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <i className="fas fa-file-alt text-lg"></i>
+                <span className="text-[10px]">草稿箱</span>
+              </motion.button>
+
+              {/* 我的活动入口 */}
+              <motion.button
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                aria-label="我的活动"
+                title="我的活动"
+                onClick={() => navigate('/my-events')}
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <i className="fas fa-calendar-alt text-lg"></i>
+                <span className="text-[10px]">我的活动</span>
+              </motion.button>
+
+              {/* 创作者仪表盘 - 已移除 */}
+
+              {/* 去创作按钮 - 模仿B站投稿按钮 */}
+              {isAuthenticated && (
+                <motion.button
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#ff6699] hover:bg-[#ff4d88] text-white font-medium text-sm transition-colors duration-200"
+                  aria-label="发布"
+                  title="发布"
+                  onClick={() => navigate('/create')}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <i className="fas fa-upload text-sm"></i>
+                  <span>发布</span>
+                </motion.button>
+              )}
+
+              {!isAuthenticated && (
+                <NavLink
+                  to="/login"
                   className={`px-3 py-1 rounded-md ${isDark ? 'bg-gray-800 ring-1 ring-gray-700 text-white' : 'bg-white ring-1 ring-gray-200 text-gray-900'} transition-all duration-300 hover:bg-primary/10 hover:ring-primary/50 hover:shadow-sm`}
                 >
                   {t('header.login')}
@@ -1206,6 +1211,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           {/* 面包屑导航 */}
 
         </motion.header>
+        )}
 
         {children}
         {/* 中文注释：全局“回到顶部”悬浮按钮（自适应暗色/浅色主题） */}

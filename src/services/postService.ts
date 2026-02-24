@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { uploadImage } from './imageService';
 import { generatePlaceholderSvg } from '@/utils/imageUrlUtils';
+import { contentScoringService } from './contentScoringService';
+import { contentModerationService } from './contentModerationService';
 
 // 评论反应类型
 export type CommentReaction = 'like' | 'heart' | 'laugh' | 'wow' | 'sad' | 'angry';
@@ -1289,6 +1291,30 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
   }
 
   try {
+    // ========== 自动内容审核 ==========
+    const workId = crypto.randomUUID();
+    console.log('[createWorkViaBackend] Starting content moderation...');
+    
+    const moderationResult = await contentModerationService.moderateContent(
+      workId,
+      'work',
+      p.title || '',
+      p.description,
+      currentUser.id
+    );
+
+    console.log('[createWorkViaBackend] Moderation result:', moderationResult);
+
+    // 如果审核未通过，抛出错误
+    if (!moderationResult.approved) {
+      const errorMessage = moderationResult.reason 
+        ? `该内容包含违规信息，请修改后重新提交。原因：${moderationResult.reason}`
+        : '该内容包含违规信息，请修改后重新提交';
+      
+      console.warn('[createWorkViaBackend] Content rejected by moderation:', moderationResult);
+      throw new Error(errorMessage);
+    }
+
     // 判断是否为视频 - 优先使用 p.type 字段或 videoUrl
     const isVideo = p.type === 'video' || p.videoUrl;
     console.log('[createWorkViaBackend] isVideo check:', { 
@@ -1353,7 +1379,24 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
     if (p.videoUrl) {
       workData.video_url = p.videoUrl;
     }
-    
+
+    // 计算内容评分
+    try {
+      const scores = contentScoringService.calculateScores(
+        p.description || '',
+        p.title,
+        p.description
+      );
+      workData.authenticity_score = scores.authenticity_score;
+      workData.ai_risk_score = scores.ai_risk_score;
+      workData.spam_score = scores.spam_score;
+      workData.cultural_elements = scores.cultural_elements;
+      console.log('[createWorkViaBackend] Content scores calculated:', scores);
+    } catch (scoreError) {
+      console.warn('[createWorkViaBackend] Failed to calculate content scores:', scoreError);
+      // 评分失败不影响作品创建
+    }
+
     console.log('[createWorkViaBackend] Sending workData:', { title: workData.title, type: workData.type, video_url: workData.video_url, thumbnail: workData.thumbnail?.substring(0, 50) });
     
     const response = await fetch('/api/works', {
@@ -1504,12 +1547,36 @@ async function addPostDirectToWorks(p: Partial<Post>, currentUser?: User): Promi
       throw new Error('请先登录后再发布作品')
     }
 
+    // ========== 自动内容审核 ==========
+    const workId = crypto.randomUUID();
+    console.log('[addPostDirectToWorks] Starting content moderation...');
+    
+    const moderationResult = await contentModerationService.moderateContent(
+      workId,
+      'work',
+      p.title || '',
+      p.description,
+      finalUserId
+    );
+
+    console.log('[addPostDirectToWorks] Moderation result:', moderationResult);
+
+    // 如果审核未通过，抛出错误
+    if (!moderationResult.approved) {
+      const errorMessage = moderationResult.reason 
+        ? `该内容包含违规信息，请修改后重新提交。原因：${moderationResult.reason}`
+        : '该内容包含违规信息，请修改后重新提交';
+      
+      console.warn('[addPostDirectToWorks] Content rejected by moderation:', moderationResult);
+      throw new Error(errorMessage);
+    }
+
     const isVideo = p.type === 'video' || p.videoUrl;
     const now = Date.now();
     
     // 构建插入数据，匹配 works 表结构
     const insertData: any = {
-      id: crypto.randomUUID(),
+      id: workId,
       creator_id: finalUserId,
       title: p.title,
       description: p.description || '',
@@ -1544,6 +1611,23 @@ async function addPostDirectToWorks(p: Partial<Post>, currentUser?: User): Promi
     // 如果有标签，添加到 tags
     if (p.tags && p.tags.length > 0) {
       insertData.tags = p.tags;
+    }
+
+    // 计算内容评分
+    try {
+      const scores = contentScoringService.calculateScores(
+        p.description || '',
+        p.title,
+        p.description
+      );
+      insertData.authenticity_score = scores.authenticity_score;
+      insertData.ai_risk_score = scores.ai_risk_score;
+      insertData.spam_score = scores.spam_score;
+      insertData.cultural_elements = scores.cultural_elements;
+      console.log('[addPostDirectToWorks] Content scores calculated:', scores);
+    } catch (scoreError) {
+      console.warn('[addPostDirectToWorks] Failed to calculate content scores:', scoreError);
+      // 评分失败不影响作品创建
     }
 
     console.log('[addPostDirectToWorks] Inserting to works table:', {

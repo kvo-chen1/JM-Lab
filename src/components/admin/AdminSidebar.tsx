@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import NavNotificationBadge from '@/components/NavNotificationBadge';
 import type { NavItemType } from '@/hooks/useNavNotifications';
 import type { NavNotificationsMap } from '@/hooks/useNavNotifications';
@@ -24,19 +25,19 @@ interface AdminSidebarProps {
   notifications?: NavNotificationsMap;
   onMarkAsViewed?: (navItem: NavItemType) => void;
   totalUnreadCount?: number;
+  isCollapsed?: boolean;
+  onCollapse?: (collapsed: boolean) => void;
 }
 
 const navItems: AdminNavItem[] = [
   { id: 'dashboard', name: '控制台', icon: 'tachometer-alt' },
-  { id: 'campaigns', name: '活动管理', icon: 'calendar-alt', showNotification: true },
-  { id: 'eventAudit', name: '活动审核', icon: 'clipboard-check', showNotification: true },
-  { id: 'communities', name: '社群管理', icon: 'users-cog', showNotification: true },
-  { id: 'contentManagement', name: '内容管理', icon: 'newspaper' },
-  { id: 'knowledgeBase', name: '知识库管理', icon: 'book' },
-  { id: 'templates', name: '作品模板管理', icon: 'layer-group' },
-  { id: 'achievements', name: '成就管理', icon: 'trophy' },
+  { id: 'campaigns', name: '津脉活动管理', icon: 'calendar-alt', showNotification: true },
+  { id: 'jinmaiCommunity', name: '津脉社区管理', icon: 'users-cog', showNotification: true },
+  { id: 'knowledgeBase', name: '文化知识库管理', icon: 'book' },
+  { id: 'templates', name: '津脉作品模板管理', icon: 'layer-group' },
+  { id: 'contentAudit', name: '津脉广场作品管理', icon: 'file-alt', showNotification: true },
   { id: 'aiFeedback', name: 'AI反馈管理', icon: 'robot', showNotification: true },
-  { id: 'contentAudit', name: '内容审核', icon: 'file-alt', showNotification: true },
+  { id: 'achievements', name: '成就管理', icon: 'trophy' },
   { id: 'analytics', name: '数据分析', icon: 'chart-bar' },
   { id: 'adoption', name: '品牌管理', icon: 'star' },
   { id: 'users', name: '用户管理', icon: 'users', showNotification: true },
@@ -61,6 +62,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   notifications,
   onMarkAsViewed,
   totalUnreadCount = 0,
+  isCollapsed = false,
+  onCollapse,
 }) => {
   const handleTabChange = (tabId: string) => {
     // 标记为已查看
@@ -73,15 +76,16 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   return (
     <aside
       className={`
-        w-64 h-screen fixed top-0 left-0 z-30 flex flex-col
+        h-screen fixed top-0 left-0 z-30 flex flex-col
+        ${isCollapsed ? 'w-20' : 'w-64'}
         ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
         border-r
-        transition-colors duration-300
+        transition-all duration-300
       `}
     >
       {/* Logo 区域 */}
-      <div className="p-6 flex-shrink-0">
-        <div className="flex items-center space-x-1 mb-6">
+      <div className={`p-6 flex-shrink-0 ${isCollapsed ? 'px-4' : ''}`}>
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-1'} mb-6`}>
           <motion.span
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
@@ -89,33 +93,37 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           >
             AI
           </motion.span>
-          <motion.span
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}
-          >
-            共创
-          </motion.span>
-          <motion.span
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="ml-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full relative"
-          >
-            管理端
-            {totalUnreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-              </span>
-            )}
-          </motion.span>
+          {!isCollapsed && (
+            <>
+              <motion.span
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}
+              >
+                共创
+              </motion.span>
+              <motion.span
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+                className="ml-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full relative"
+              >
+                管理端
+                {totalUnreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                  </span>
+                )}
+              </motion.span>
+            </>
+          )}
         </div>
       </div>
 
       {/* 导航菜单 - 可滚动区域 */}
-      <nav className="flex-1 overflow-y-auto px-4 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent min-h-0">
+      <nav className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent min-h-0 ${isCollapsed ? 'px-2' : 'px-4'}`}>
         <ul className="space-y-1">
           {navItems.map((item, index) => {
             const isActive = activeTab === item.id;
@@ -133,8 +141,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 <button
                   onClick={() => handleTabChange(item.id)}
                   className={`
-                    w-full flex items-center justify-between px-3 py-2.5 rounded-xl
+                    w-full flex items-center rounded-xl
                     transition-all duration-200 group relative
+                    ${isCollapsed ? 'justify-center px-2 py-3' : 'justify-between px-3 py-2.5'}
                     ${isActive
                       ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
                       : isDark
@@ -142,28 +151,37 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }
                   `}
+                  title={isCollapsed ? item.name : undefined}
                 >
                   {/* 左侧内容 */}
-                  <div className="flex items-center min-w-0 flex-1">
+                  <div className={`flex items-center min-w-0 ${isCollapsed ? '' : 'flex-1'}`}>
                     <i
                       className={`
-                        fas fa-${item.icon} mr-3 w-4 text-center text-sm
+                        fas fa-${item.icon} text-center text-sm
                         transition-transform duration-200
                         ${isActive ? 'scale-110' : 'group-hover:scale-105'}
+                        ${isCollapsed ? 'w-5 text-base' : 'mr-3 w-4'}
                       `}
                     />
-                    <span className="text-sm font-medium truncate">{item.name}</span>
+                    {!isCollapsed && <span className="text-sm font-medium truncate">{item.name}</span>}
                   </div>
 
                   {/* 通知标记 */}
                   {showNotification && (
-                    <div className="ml-2 flex-shrink-0">
-                      <NavNotificationBadge
-                        count={notificationState.count}
-                        size="sm"
-                        variant={notificationState.hasNew ? 'error' : 'default'}
-                        pulse={notificationState.hasNew}
-                      />
+                    <div className={`flex-shrink-0 ${isCollapsed ? 'absolute -top-1 -right-1' : 'ml-2'}`}>
+                      {isCollapsed ? (
+                        <span className="flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                        </span>
+                      ) : (
+                        <NavNotificationBadge
+                          count={notificationState.count}
+                          size="sm"
+                          variant={notificationState.hasNew ? 'error' : 'default'}
+                          pulse={notificationState.hasNew}
+                        />
+                      )}
                     </div>
                   )}
 
@@ -188,42 +206,95 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
         className={`
-          flex-shrink-0 p-4 border-t
+          flex-shrink-0 border-t
           ${isDark ? 'border-gray-700' : 'border-gray-200'}
+          ${isCollapsed ? 'p-3' : 'p-4'}
         `}
       >
-        <div className="flex items-center">
-          <div className="relative">
-            <img
-              src={user?.avatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Admin%20avatar'}
-              alt={user?.username || '管理员'}
-              className="h-10 w-10 rounded-full mr-3 object-cover border-2 border-transparent hover:border-red-500 transition-colors"
-            />
-            <span className="absolute bottom-0 right-3 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></span>
+        {isCollapsed ? (
+          <div className="flex flex-col items-center space-y-3">
+            <div className="relative">
+              <img
+                src={user?.avatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Admin%20avatar'}
+                alt={user?.username || '管理员'}
+                className="h-10 w-10 rounded-full object-cover border-2 border-transparent hover:border-red-500 transition-colors"
+              />
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></span>
+            </div>
+            <button
+              onClick={onLogout}
+              className="
+                p-2 rounded-lg
+                text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20
+                transition-colors
+                group
+              "
+              aria-label="退出登录"
+              title="退出登录"
+            >
+              <i className="fas fa-sign-out-alt group-hover:scale-110 transition-transform" />
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className={`font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {user?.username || '管理员'}
-            </p>
-            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              超级管理员
-            </p>
+        ) : (
+          <div className="flex items-center">
+            <div className="relative">
+              <img
+                src={user?.avatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Admin%20avatar'}
+                alt={user?.username || '管理员'}
+                className="h-10 w-10 rounded-full mr-3 object-cover border-2 border-transparent hover:border-red-500 transition-colors"
+              />
+              <span className="absolute bottom-0 right-3 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {user?.username || '管理员'}
+              </p>
+              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                超级管理员
+              </p>
+            </div>
+            <button
+              onClick={onLogout}
+              className="
+                p-2 rounded-lg
+                text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20
+                transition-colors
+                group
+              "
+              aria-label="退出登录"
+              title="退出登录"
+            >
+              <i className="fas fa-sign-out-alt group-hover:scale-110 transition-transform" />
+            </button>
           </div>
-          <button
-            onClick={onLogout}
-            className="
-              p-2 rounded-lg
-              text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20
-              transition-colors
-              group
-            "
-            aria-label="退出登录"
-            title="退出登录"
-          >
-            <i className="fas fa-sign-out-alt group-hover:scale-110 transition-transform" />
-          </button>
-        </div>
+        )}
       </motion.div>
+
+      {/* 收起/展开按钮 */}
+      {onCollapse && (
+        <div className={`flex-shrink-0 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} ${isCollapsed ? 'p-2' : 'p-3'}`}>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onCollapse(!isCollapsed)}
+            className={`w-full flex items-center justify-center rounded-lg transition-colors ${
+              isDark
+                ? 'hover:bg-gray-700 text-gray-400'
+                : 'hover:bg-gray-100 text-gray-500'
+            } ${isCollapsed ? 'p-2' : 'p-2 gap-2'}`}
+            title={isCollapsed ? '展开菜单' : '收起菜单'}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="w-5 h-5" />
+            ) : (
+              <>
+                <ChevronLeft className="w-5 h-5" />
+                <span className="text-sm">收起菜单</span>
+              </>
+            )}
+          </motion.button>
+        </div>
+      )}
     </aside>
   );
 };

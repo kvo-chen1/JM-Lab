@@ -956,7 +956,7 @@ export const uploadImageWithProgress = async (
   }
 };
 
-export const uploadImage = async (file: File, folder: string = 'works'): Promise<string> => {
+export const uploadImage = async (file: File, folder: string = 'works', bucket?: string): Promise<string> => {
   try {
     // 动态导入 supabase 避免循环依赖
     const { supabase, supabaseAdmin, isSupabaseConfigured } = await import('@/lib/supabase');
@@ -967,6 +967,9 @@ export const uploadImage = async (file: File, folder: string = 'works'): Promise
       // 如果 Supabase 未配置，直接尝试后端上传
       return await uploadToBackend(file);
     }
+
+    // 使用指定的 bucket 或默认 bucket
+    const targetBucket = bucket || DEFAULT_BUCKET;
 
     // 生成唯一文件名
     const fileExt = file.name.split('.').pop() || 'jpg';
@@ -979,7 +982,7 @@ export const uploadImage = async (file: File, folder: string = 'works'): Promise
     
     // 首先尝试使用普通 supabase 客户端上传
     const { error: userUploadError } = await supabase.storage
-      .from(DEFAULT_BUCKET)
+      .from(targetBucket)
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
@@ -991,7 +994,7 @@ export const uploadImage = async (file: File, folder: string = 'works'): Promise
     if (uploadError && supabaseAdmin && supabaseAdmin !== supabase) {
       console.warn('[uploadImage] User upload failed, trying admin upload:', uploadError.message);
       const { error: adminUploadError } = await supabaseAdmin.storage
-        .from(DEFAULT_BUCKET)
+        .from(targetBucket)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
@@ -1008,7 +1011,7 @@ export const uploadImage = async (file: File, folder: string = 'works'): Promise
 
     // 获取公开 URL（使用普通客户端即可）
     const { data } = supabase.storage
-      .from(DEFAULT_BUCKET)
+      .from(targetBucket)
       .getPublicUrl(filePath);
 
     if (!data.publicUrl) {
@@ -1247,7 +1250,7 @@ export const downloadAndUploadVideo = async (videoUrl: string): Promise<string> 
 };
 
 // 下载图片并上传到永久存储
-export const downloadAndUploadImage = async (imageUrl: string, folder: string = 'works'): Promise<string> => {
+export const downloadAndUploadImage = async (imageUrl: string, folder: string = 'works', bucket?: string): Promise<string> => {
   try {
     console.log('[downloadAndUploadImage] Downloading image from:', imageUrl);
     
@@ -1288,8 +1291,8 @@ export const downloadAndUploadImage = async (imageUrl: string, folder: string = 
     const fileName = `image-${Date.now()}.${contentType.split('/')[1] || 'jpg'}`;
     const file = new File([blob], fileName, { type: contentType });
     
-    // 上传图片
-    const uploadedUrl = await uploadImage(file, folder);
+    // 上传图片，传递 bucket 参数
+    const uploadedUrl = await uploadImage(file, folder, bucket);
     console.log('[downloadAndUploadImage] Image uploaded to:', uploadedUrl);
     
     return uploadedUrl;

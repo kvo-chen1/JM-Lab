@@ -1393,11 +1393,8 @@ class AdminService {
       if (type === 'all' || type === 'work') {
         let worksQuery = supabaseAdmin
           .from('works')
-          .select('*', { count: 'exact' });
-
-        if (status !== 'all') {
-          worksQuery = worksQuery.eq('status', status);
-        }
+          .select('*', { count: 'exact' })
+          .eq('source', '津脉广场'); // 只获取津脉广场的作品
 
         const { data: works } = await worksQuery
           .order('created_at', { ascending: false });
@@ -1412,12 +1409,23 @@ class AdminService {
 
           const userMap = new Map(users?.map(u => [u.id, u]) || []);
 
-          allContents = [...allContents, ...works.map(work => ({
-            ...work,
-            type: 'work',
-            author: userMap.get(work.creator_id)?.username || '未知用户',
-            author_avatar: userMap.get(work.creator_id)?.avatar_url,
-          }))];
+          const formattedWorks = works.map(work => {
+            const formattedWork = {
+              ...work,
+              type: 'work',
+              author: userMap.get(work.creator_id)?.username || '未知用户',
+              author_avatar: userMap.get(work.creator_id)?.avatar_url,
+              status: work.status || 'approved', // 如果没有状态，默认为 approved
+            };
+            return formattedWork;
+          });
+
+          // 如果指定了状态筛选，在前端进行过滤
+          if (status !== 'all') {
+            allContents = [...allContents, ...formattedWorks.filter(w => w.status === status)];
+          } else {
+            allContents = [...allContents, ...formattedWorks];
+          }
         }
       }
 
@@ -1426,10 +1434,6 @@ class AdminService {
         let commentsQuery = supabaseAdmin
           .from('comments')
           .select('*', { count: 'exact' });
-
-        if (status !== 'all') {
-          commentsQuery = commentsQuery.eq('status', status);
-        }
 
         const { data: comments } = await commentsQuery
           .order('created_at', { ascending: false });
@@ -1444,14 +1448,21 @@ class AdminService {
 
           const userMap = new Map(users?.map(u => [u.id, u]) || []);
 
-          allContents = [...allContents, ...comments.map(comment => ({
+          const formattedComments = comments.map(comment => ({
             ...comment,
             type: 'comment',
             title: comment.content?.substring(0, 50) + '...',
             author: userMap.get(comment.author_id)?.username || '未知用户',
             author_avatar: userMap.get(comment.author_id)?.avatar_url,
-            status: comment.status || 'pending',
-          }))];
+            status: comment.status || 'approved', // 如果没有状态，默认为 approved
+          }));
+
+          // 如果指定了状态筛选，在前端进行过滤
+          if (status !== 'all') {
+            allContents = [...allContents, ...formattedComments.filter(c => c.status === status)];
+          } else {
+            allContents = [...allContents, ...formattedComments];
+          }
         }
       }
 
@@ -1503,6 +1514,38 @@ class AdminService {
       return true;
     } catch (error) {
       console.error('审核内容失败:', error);
+      return false;
+    }
+  }
+
+  // 删除内容
+  async deleteContent(contentId: string, contentType: string): Promise<boolean> {
+    try {
+      if (contentType === 'work') {
+        // 先删除关联数据
+        await supabaseAdmin.from('works_likes').delete().eq('work_id', contentId);
+        await supabaseAdmin.from('works_bookmarks').delete().eq('work_id', contentId);
+        await supabaseAdmin.from('work_comments').delete().eq('work_id', contentId);
+        
+        // 删除作品
+        const { error } = await supabaseAdmin
+          .from('works')
+          .delete()
+          .eq('id', contentId);
+
+        if (error) throw error;
+      } else if (contentType === 'comment') {
+        const { error } = await supabaseAdmin
+          .from('comments')
+          .delete()
+          .eq('id', contentId);
+
+        if (error) throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('删除内容失败:', error);
       return false;
     }
   }
@@ -1721,7 +1764,7 @@ class AdminService {
   async getNotifications() {
     try {
       const { data, error } = await supabaseAdmin
-        .from('notifications')
+        .from('admin_notifications')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -1747,11 +1790,11 @@ class AdminService {
   }) {
     try {
       const { data, error } = await supabaseAdmin
-        .from('notifications')
+        .from('admin_notifications')
         .insert({
           ...notification,
           status: notification.scheduled_at ? 'scheduled' : 'draft',
-          created_at: Date.now(),
+          created_at: new Date().toISOString(),
           recipients_count: 0,
           read_count: 0,
           click_count: 0
@@ -1775,7 +1818,7 @@ class AdminService {
     try {
       // 获取通知详情
       const { data: notification, error: fetchError } = await supabaseAdmin
-        .from('notifications')
+        .from('admin_notifications')
         .select('*')
         .eq('id', id)
         .single();
@@ -1787,48 +1830,72 @@ class AdminService {
       // 获取目标用户
       let targetUsers: string[] = [];
       if (notification.target === 'all') {
-        const { data: users } = await supabaseAdmin
+        const { data: users, error: usersError } = await supabaseAdmin
           .from('users')
           .select('id');
+        if (usersError) {
+          console.error('获取用户列表失败:', usersError);
+          throw usersError;
+        }
         targetUsers = users?.map(u => u.id) || [];
       } else if (notification.target === 'vip') {
-        const { data: users } = await supabaseAdmin
+        const { data: users, error: usersError } = await supabaseAdmin
           .from('users')
           .select('id')
-          .in('membership_level', ['premium', 'vip']);
+          .in('membership_level', ['premium', 'vip', 'gold', 'platinum']);
+        if (usersError) {
+          console.error('获取VIP用户列表失败:', usersError);
+          throw usersError;
+        }
         targetUsers = users?.map(u => u.id) || [];
       } else if (notification.target === 'specific' && notification.target_users) {
         targetUsers = notification.target_users;
       }
 
-      // 创建用户通知记录
-      const userNotifications = targetUsers.map(userId => ({
-        user_id: userId,
-        notification_id: id,
-        title: notification.title,
-        content: notification.content,
-        type: notification.type,
-        is_read: false,
-        created_at: Date.now()
-      }));
+      if (targetUsers.length === 0) {
+        throw new Error('没有目标用户');
+      }
 
-      if (userNotifications.length > 0) {
+      // 向每个用户发送系统消息（使用 notifications 表，与消息中心兼容）
+      const batchSize = 100; // 每批插入100条，避免超出限制
+      const batches = Math.ceil(targetUsers.length / batchSize);
+      let successCount = 0;
+
+      for (let i = 0; i < batches; i++) {
+        const batch = targetUsers.slice(i * batchSize, (i + 1) * batchSize);
+        const userNotifications = batch.map(userId => ({
+          user_id: userId,
+          title: notification.title,
+          content: notification.content,
+          type: 'system', // 系统通知类型
+          is_read: false,
+          created_at: new Date().toISOString(),
+          sender_id: null, // 系统消息没有发送者
+          data: {
+            admin_notification_id: id,
+            notification_type: notification.type,
+            target: notification.target
+          }
+        }));
+
         const { error: insertError } = await supabaseAdmin
-          .from('user_notifications')
+          .from('notifications')
           .insert(userNotifications);
 
         if (insertError) {
-          console.error('创建用户通知失败:', insertError);
+          console.error(`批量插入通知失败 (批次 ${i + 1}/${batches}):`, insertError);
+        } else {
+          successCount += batch.length;
         }
       }
 
       // 更新通知状态
       const { error: updateError } = await supabaseAdmin
-        .from('notifications')
+        .from('admin_notifications')
         .update({
           status: 'sent',
-          sent_at: Date.now(),
-          recipients_count: targetUsers.length
+          sent_at: new Date().toISOString(),
+          recipients_count: successCount
         })
         .eq('id', id);
 
@@ -1836,7 +1903,7 @@ class AdminService {
         throw updateError;
       }
 
-      return true;
+      return { success: true, recipients_count: successCount };
     } catch (error) {
       console.error('发送通知失败:', error);
       throw error;
@@ -1845,15 +1912,24 @@ class AdminService {
 
   async deleteNotification(id: string) {
     try {
-      // 先删除关联的用户通知
-      await supabaseAdmin
-        .from('user_notifications')
-        .delete()
-        .eq('notification_id', id);
+      // 删除已发送的系统通知（从用户的消息中心中删除）
+      const { data: adminNotif } = await supabaseAdmin
+        .from('admin_notifications')
+        .select('status')
+        .eq('id', id)
+        .single();
 
-      // 再删除通知
+      if (adminNotif?.status === 'sent') {
+        // 如果已发送，需要删除用户消息中心中的对应消息
+        await supabaseAdmin
+          .from('notifications')
+          .delete()
+          .eq('data->admin_notification_id', id);
+      }
+
+      // 删除管理后台的通知记录
       const { error } = await supabaseAdmin
-        .from('notifications')
+        .from('admin_notifications')
         .delete()
         .eq('id', id);
 
@@ -1872,7 +1948,7 @@ class AdminService {
     try {
       // 获取所有已发送通知
       const { data: notifications, error } = await supabaseAdmin
-        .from('notifications')
+        .from('admin_notifications')
         .select('*')
         .eq('status', 'sent');
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-export type NavItemType = 
+export type NavItemType =
   | 'feedback'
   | 'eventAudit'
   | 'contentAudit'
@@ -10,7 +10,7 @@ export type NavItemType =
   | 'permissions'
   | 'productManagement'
   | 'notificationManagement'
-  | 'communities'
+  | 'jinmaiCommunity'
   | 'campaigns'
   | 'users'
   | 'creators';
@@ -70,7 +70,7 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
       permissions: { ...initialState },
       productManagement: { ...initialState },
       notificationManagement: { ...initialState },
-      communities: { ...initialState },
+      jinmaiCommunity: { ...initialState },
       campaigns: { ...initialState },
       users: { ...initialState },
       creators: { ...initialState },
@@ -206,14 +206,14 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
         };
       }
 
-      // 处理社群管理结果
+      // 处理津脉社区管理结果
       if (communitiesResult.status === 'fulfilled' && communitiesResult.value.count !== null) {
         const count = communitiesResult.value.count;
-        newNotifications.communities = {
-          ...newNotifications.communities,
+        newNotifications.jinmaiCommunity = {
+          ...newNotifications.jinmaiCommunity,
           count,
-          hasNew: count > 0 && (!newNotifications.communities.lastViewedAt || 
-            Date.now() - newNotifications.communities.lastViewedAt.getTime() < 300000),
+          hasNew: count > 0 && (!newNotifications.jinmaiCommunity.lastViewedAt ||
+            Date.now() - newNotifications.jinmaiCommunity.lastViewedAt.getTime() < 300000),
         };
       }
 

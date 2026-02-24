@@ -3,6 +3,61 @@
  * 用于收集和上报用户行为数据
  */
 
+// 导出类型定义
+export type MetricType = 'views' | 'likes' | 'comments' | 'shares' | 'favorites' | 'followers' | 'engagement';
+export type TimeRange = 'day' | 'week' | 'month' | 'quarter' | 'year';
+export type GroupBy = 'hour' | 'day' | 'week' | 'month';
+export type ExportFormat = 'json' | 'csv' | 'pdf';
+
+export interface AnalyticsQueryParams {
+  metric: MetricType;
+  timeRange: TimeRange;
+  groupBy: GroupBy;
+  filters?: {
+    userId?: string;
+    workId?: string;
+    theme?: string;
+  };
+}
+
+export interface WorkPerformance {
+  workId: string;
+  title: string;
+  thumbnail: string;
+  type: 'image' | 'video';
+  videoUrl?: string;
+  author: string;
+  metrics: {
+    views: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    favorites: number;
+  };
+  trend: 'up' | 'down' | 'stable';
+  growth: number;
+}
+
+export interface UserActivity {
+  userId: string;
+  username: string;
+  avatar: string;
+  engagementScore: number;
+  metrics: {
+    worksCreated: number;
+    totalViews: number;
+    totalLikes: number;
+    followers: number;
+  };
+}
+
+export interface ThemeTrend {
+  theme: string;
+  worksCount: number;
+  viewsCount: number;
+  growth: number;
+}
+
 class AnalyticsService {
   private sessionId: string;
   private deviceType: string;
@@ -229,6 +284,195 @@ class AnalyticsService {
   // 追踪页面浏览
   public trackPageView(pagePath?: string, pageTitle?: string): void {
     this.recordPageView();
+  }
+
+  // 获取作品表现数据
+  public async getWorksPerformance(limit: number = 5): Promise<WorkPerformance[]> {
+    try {
+      const response = await fetch(`/api/analytics/works-performance?limit=${limit}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch works performance');
+      }
+      return await response.json();
+    } catch (error) {
+      console.warn('获取作品表现数据失败:', error);
+      // 返回模拟数据作为后备
+      return this.getMockWorksPerformance(limit);
+    }
+  }
+
+  // 获取用户活动数据
+  public async getUserActivity(limit: number = 5): Promise<UserActivity[]> {
+    try {
+      const response = await fetch(`/api/analytics/user-activity?limit=${limit}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch user activity');
+      }
+      return await response.json();
+    } catch (error) {
+      console.warn('获取用户活动数据失败:', error);
+      // 返回模拟数据作为后备
+      return this.getMockUserActivity(limit);
+    }
+  }
+
+  // 获取主题趋势数据
+  public async getThemeTrends(limit: number = 5): Promise<ThemeTrend[]> {
+    try {
+      const response = await fetch(`/api/analytics/theme-trends?limit=${limit}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch theme trends');
+      }
+      return await response.json();
+    } catch (error) {
+      console.warn('获取主题趋势数据失败:', error);
+      // 返回模拟数据作为后备
+      return this.getMockThemeTrends(limit);
+    }
+  }
+
+  // 下载导出数据
+  public async downloadExport(params: AnalyticsQueryParams, format: ExportFormat): Promise<void> {
+    try {
+      const queryString = new URLSearchParams({
+        metric: params.metric,
+        timeRange: params.timeRange,
+        groupBy: params.groupBy,
+        format: format,
+        ...(params.filters?.userId && { userId: params.filters.userId }),
+        ...(params.filters?.workId && { workId: params.filters.workId }),
+        ...(params.filters?.theme && { theme: params.filters.theme }),
+      }).toString();
+
+      const response = await fetch(`/api/analytics/export?${queryString}`);
+      if (!response.ok) {
+        throw new Error('Failed to export data');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analytics-export-${Date.now()}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.warn('导出数据失败:', error);
+      throw error;
+    }
+  }
+
+  // 模拟数据生成方法
+  private getMockWorksPerformance(limit: number): WorkPerformance[] {
+    const mockData: WorkPerformance[] = [
+      {
+        workId: '1',
+        title: '津脉广场夜景',
+        thumbnail: 'https://picsum.photos/seed/work1/100/100',
+        type: 'image',
+        author: '摄影师小王',
+        metrics: { views: 12580, likes: 892, comments: 156, shares: 89, favorites: 234 },
+        trend: 'up',
+        growth: 23.5,
+      },
+      {
+        workId: '2',
+        title: '海河风光',
+        thumbnail: 'https://picsum.photos/seed/work2/100/100',
+        type: 'video',
+        videoUrl: 'https://example.com/video1.mp4',
+        author: '旅行达人',
+        metrics: { views: 9876, likes: 654, comments: 98, shares: 67, favorites: 189 },
+        trend: 'up',
+        growth: 15.2,
+      },
+      {
+        workId: '3',
+        title: '天津美食探店',
+        thumbnail: 'https://picsum.photos/seed/work3/100/100',
+        type: 'image',
+        author: '吃货小李',
+        metrics: { views: 8654, likes: 543, comments: 87, shares: 45, favorites: 156 },
+        trend: 'stable',
+        growth: 2.1,
+      },
+      {
+        workId: '4',
+        title: '意式风情街',
+        thumbnail: 'https://picsum.photos/seed/work4/100/100',
+        type: 'image',
+        author: '城市探索者',
+        metrics: { views: 7234, likes: 432, comments: 65, shares: 34, favorites: 123 },
+        trend: 'down',
+        growth: -5.3,
+      },
+      {
+        workId: '5',
+        title: '五大道漫步',
+        thumbnail: 'https://picsum.photos/seed/work5/100/100',
+        type: 'video',
+        videoUrl: 'https://example.com/video2.mp4',
+        author: '历史爱好者',
+        metrics: { views: 6543, likes: 387, comments: 54, shares: 28, favorites: 98 },
+        trend: 'up',
+        growth: 8.7,
+      },
+    ];
+    return mockData.slice(0, limit);
+  }
+
+  private getMockUserActivity(limit: number): UserActivity[] {
+    const mockData: UserActivity[] = [
+      {
+        userId: '1',
+        username: '创作者小明',
+        avatar: 'https://picsum.photos/seed/user1/100/100',
+        engagementScore: 95,
+        metrics: { worksCreated: 45, totalViews: 125000, totalLikes: 8900, followers: 2300 },
+      },
+      {
+        userId: '2',
+        username: '摄影师阿华',
+        avatar: 'https://picsum.photos/seed/user2/100/100',
+        engagementScore: 88,
+        metrics: { worksCreated: 32, totalViews: 98000, totalLikes: 6500, followers: 1800 },
+      },
+      {
+        userId: '3',
+        username: '美食博主',
+        avatar: 'https://picsum.photos/seed/user3/100/100',
+        engagementScore: 82,
+        metrics: { worksCreated: 28, totalViews: 87000, totalLikes: 5400, followers: 1500 },
+      },
+      {
+        userId: '4',
+        username: '旅行家',
+        avatar: 'https://picsum.photos/seed/user4/100/100',
+        engagementScore: 76,
+        metrics: { worksCreated: 25, totalViews: 72000, totalLikes: 4300, followers: 1200 },
+      },
+      {
+        userId: '5',
+        username: '城市记录者',
+        avatar: 'https://picsum.photos/seed/user5/100/100',
+        engagementScore: 71,
+        metrics: { worksCreated: 22, totalViews: 65000, totalLikes: 3800, followers: 980 },
+      },
+    ];
+    return mockData.slice(0, limit);
+  }
+
+  private getMockThemeTrends(limit: number): ThemeTrend[] {
+    const mockData: ThemeTrend[] = [
+      { theme: '津脉广场', worksCount: 1234, viewsCount: 567000, growth: 23.5 },
+      { theme: '海河风光', worksCount: 987, viewsCount: 432000, growth: 18.2 },
+      { theme: '天津美食', worksCount: 876, viewsCount: 389000, growth: 15.7 },
+      { theme: '五大道', worksCount: 654, viewsCount: 298000, growth: 12.3 },
+      { theme: '意式风情', worksCount: 543, viewsCount: 234000, growth: -3.2 },
+    ];
+    return mockData.slice(0, limit);
   }
 }
 

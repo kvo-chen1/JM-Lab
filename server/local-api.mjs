@@ -61,6 +61,7 @@ import { supabaseServer } from './supabase-server.mjs'
 import membershipRoutes from './routes/membership.mjs'
 import searchRoutes from './routes/search.mjs'
 import paymentRoutes from './routes/payment.mjs'
+import moderationRoutes from './routes/moderation.mjs'
 import { generateOAuthUrl, handleOAuthCallback, getConfiguredProviders, isOAuthConfigured } from './oauth-providers.mjs'
 
 // 内存中存储验证码 (email -> { code, expiresAt })
@@ -756,6 +757,13 @@ async function route(req, res, u, path) {
   if (path.startsWith('/api/payment')) {
     console.log('[Route] Delegating to payment routes:', path)
     await paymentRoutes(req, res)
+    return
+  }
+
+  // 内容审核管理路由
+  if (path.startsWith('/api/admin/moderation')) {
+    console.log('[Route] Delegating to moderation routes:', path)
+    await moderationRoutes(req, res)
     return
   }
 
@@ -5568,6 +5576,58 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 获取用户统计数据 (/api/users/:userId/stats)
+  if (req.method === 'GET' && path.startsWith('/api/users/') && path.endsWith('/stats')) {
+    const userId = path.split('/')[3]
+    if (!userId) {
+      sendJson(res, 400, { code: 1, message: '用户ID不能为空' })
+      return
+    }
+
+    try {
+      console.log('[API] Getting user stats for userId:', userId)
+
+      // 获取数据库连接
+      const db = getDB()
+
+      // 查询用户统计数据
+      const { rows } = await db.query(`
+        SELECT
+          u.id,
+          u.username,
+          u.followers_count,
+          u.following_count,
+          COUNT(DISTINCT w.id) as works_count,
+          COUNT(DISTINCT f.id) as favorites_count
+        FROM users u
+        LEFT JOIN works w ON u.id = w.creator_id
+        LEFT JOIN favorites f ON u.id = f.user_id
+        WHERE u.id = $1
+        GROUP BY u.id, u.username, u.followers_count, u.following_count
+      `, [userId])
+
+      if (rows.length === 0) {
+        sendJson(res, 404, { code: 1, message: '用户不存在' })
+        return
+      }
+
+      const row = rows[0]
+      const stats = {
+        worksCount: parseInt(row.works_count) || 0,
+        followersCount: parseInt(row.followers_count) || 0,
+        followingCount: parseInt(row.following_count) || 0,
+        favoritesCount: parseInt(row.favorites_count) || 0
+      }
+
+      console.log('[API] User stats retrieved:', stats)
+      sendJson(res, 200, { code: 0, data: stats })
+    } catch (error) {
+      console.error('[API] Get user stats failed:', error)
+      sendJson(res, 500, { code: 1, message: '获取用户统计数据失败: ' + error.message })
+    }
+    return
+  }
+
   // 获取用户创建的活动
   if (req.method === 'GET' && path.startsWith('/api/users/') && path.endsWith('/events')) {
     const userId = path.split('/')[3]
@@ -6878,7 +6938,7 @@ if (!isVercel) {
 
   // WebSocket 服务配置（仅本地开发环境）
   // 使用 IIFE 来支持 async/await
-  (async () => {
+  ;(async () => {
     try {
       const { WebSocketServer } = await import('ws');
       const wss = new WebSocketServer({ server, path: '/ws' });

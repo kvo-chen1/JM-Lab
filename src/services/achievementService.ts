@@ -3,6 +3,7 @@
  */
 import apiClient from '../lib/apiClient';
 import { toast } from 'sonner';
+import supabasePointsService from './supabasePointsService';
 
 // 创作者等级类型定义
 export interface CreatorLevel {
@@ -498,55 +499,100 @@ class AchievementService {
   }
 
   // 从服务器获取积分统计
-  async fetchPointsStats(): Promise<void> {
+  async fetchPointsStats(userId?: string): Promise<void> {
     try {
+      console.log('[AchievementService] 开始获取积分数据...');
+      
+      // 优先使用 supabasePointsService 获取积分（与积分商城保持一致）
+      if (userId) {
+        try {
+          const balance = await supabasePointsService.getUserBalance(userId);
+          console.log('[AchievementService] 从 supabasePointsService 获取积分:', balance);
+          
+          if (balance && typeof balance.balance === 'number') {
+            this.userPoints = Math.max(0, balance.balance);
+            console.log('[AchievementService] 积分已更新为:', this.userPoints);
+            
+            // 获取积分记录
+            const { records } = await supabasePointsService.getPointsRecords(userId, { limit: 50 });
+            this.pointsRecords = records.map(r => ({
+              id: r.id,
+              source: r.source,
+              type: r.source_type as any,
+              points: r.points,
+              date: new Date(r.created_at).toISOString().split('T')[0],
+              description: r.description,
+              balanceAfter: r.balance_after,
+              created_at: new Date(r.created_at).getTime()
+            }));
+            
+            // 检测等级变化
+            const oldLevel = this.lastLevel;
+            const newLevelInfo = this.getCreatorLevelInfo();
+            this.lastLevel = newLevelInfo.currentLevel.level;
+            
+            // 如果等级提升，显示通知
+            if (newLevelInfo.currentLevel.level > oldLevel) {
+              this.showLevelUpNotification(newLevelInfo.currentLevel);
+            }
+            return;
+          }
+        } catch (supabaseError) {
+          console.warn('[AchievementService] supabasePointsService 获取失败，回退到旧API:', supabaseError);
+        }
+      }
+      
+      // 回退到旧API（兼容旧数据）
       const response = await apiClient.get<{ total: number, records: any[] }>('/api/user/points');
+      console.log('[AchievementService] 旧API积分响应:', response);
+      
       if (response.ok && response.data) {
-        // 保存旧积分和等级
         const oldPoints = this.userPoints;
         const oldLevel = this.lastLevel;
         
-        // 更新积分数据，确保total是数字
-        this.userPoints = typeof response.data.total === 'number' ? response.data.total : 0;
-        this.pointsRecords = response.data.records.map(r => {
-          // 处理日期格式兼容性
-          let timestamp: number;
-          if (typeof r.created_at === 'string') {
-            // 如果是 ISO 日期字符串，直接解析
-            timestamp = new Date(r.created_at).getTime();
-          } else if (typeof r.created_at === 'number') {
-            // 如果已经是数字（毫秒时间戳）
-            timestamp = r.created_at;
-          } else {
-            // 默认值
-            timestamp = Date.now();
-          }
-          
-          return {
-            id: r.id,
-            source: r.source,
-            type: r.type as any,
-            points: r.points,
-            date: new Date(timestamp).toISOString().split('T')[0],
-            description: r.description,
-            balanceAfter: r.balance_after,
-            created_at: timestamp
-          };
-        });
+        const rawTotal = response.data.total;
+        let newPoints = 0;
+        if (typeof rawTotal === 'number' && !isNaN(rawTotal)) {
+          newPoints = rawTotal;
+        } else if (typeof rawTotal === 'string' && rawTotal !== '') {
+          newPoints = parseFloat(rawTotal) || 0;
+        }
         
-        // 检测等级变化
+        const isValidNumber = typeof rawTotal === 'number' && !isNaN(rawTotal);
+        const isValidString = typeof rawTotal === 'string' && rawTotal !== '' && !isNaN(parseFloat(rawTotal));
+        
+        if (isValidNumber || isValidString) {
+          this.userPoints = newPoints;
+          console.log('[AchievementService] 积分已更新为:', newPoints);
+        }
+        
+        if (response.data.records && Array.isArray(response.data.records)) {
+          this.pointsRecords = response.data.records.map(r => {
+            const timestamp = typeof r.created_at === 'string' 
+              ? new Date(r.created_at).getTime()
+              : typeof r.created_at === 'number' ? r.created_at : Date.now();
+            return {
+              id: r.id,
+              source: r.source,
+              type: r.type as any,
+              points: r.points,
+              date: new Date(timestamp).toISOString().split('T')[0],
+              description: r.description,
+              balanceAfter: r.balance_after,
+              created_at: timestamp
+            };
+          });
+        }
+        
         const newLevelInfo = this.getCreatorLevelInfo();
         this.lastLevel = newLevelInfo.currentLevel.level;
         
-        // 如果等级提升，显示通知
         if (newLevelInfo.currentLevel.level > oldLevel) {
           this.showLevelUpNotification(newLevelInfo.currentLevel);
         }
       }
     } catch (error) {
-      console.error('Fetch points stats failed:', error);
-      // 确保在获取失败时，积分值为0
-      this.userPoints = 0;
+      console.error('[AchievementService] 获取积分失败:', error);
     }
   }
 

@@ -20,12 +20,14 @@ import {
   ArrowUpRight,
   Building2,
   Users,
-  PiggyBank
+  PiggyBank,
+  Target
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreatorCenter } from '@/hooks/useCreatorCenter';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import BrandTaskParticipation from '@/pages/creator/BrandTaskParticipation';
 
 // 格式化金额
 const formatCurrency = (amount: number): string => {
@@ -62,13 +64,26 @@ const monetizationChannels = [
     stats: '0% 分成比例'
   },
   {
+    id: 'brand-tasks',
+    title: '品牌任务',
+    desc: '参与品牌任务，按效果获得激励',
+    icon: Target,
+    gradient: 'from-violet-500 via-purple-600 to-fuchsia-600',
+    bgColor: 'bg-purple-50 dark:bg-purple-950/30',
+    iconBg: 'bg-purple-500',
+    status: 'active',
+    features: ['按效果计费', '自由参与', '高额激励'],
+    stats: '去参与 →',
+    link: '/creator-center/monetization?tab=brand-tasks'
+  },
+  {
     id: 'sponsorship',
     title: '品牌合作',
     desc: '与品牌方合作创作内容',
     icon: Building2,
-    gradient: 'from-violet-500 via-purple-600 to-fuchsia-600',
-    bgColor: 'bg-purple-50 dark:bg-purple-950/30',
-    iconBg: 'bg-purple-500',
+    gradient: 'from-pink-500 via-rose-500 to-red-500',
+    bgColor: 'bg-pink-50 dark:bg-pink-950/30',
+    iconBg: 'bg-pink-500',
     status: 'active',
     features: ['优质品牌', '自由接单', '高价合作'],
     stats: '0 个合作中'
@@ -78,9 +93,9 @@ const monetizationChannels = [
     title: '粉丝打赏',
     desc: '接受粉丝的支持与鼓励',
     icon: Gift,
-    gradient: 'from-pink-500 via-rose-500 to-red-500',
-    bgColor: 'bg-pink-50 dark:bg-pink-950/30',
-    iconBg: 'bg-pink-500',
+    gradient: 'from-amber-400 via-orange-500 to-red-500',
+    bgColor: 'bg-orange-50 dark:bg-orange-950/30',
+    iconBg: 'bg-orange-500',
     status: 'active',
     features: ['即时到账', '全额归你', '感谢粉丝'],
     stats: '0 次打赏'
@@ -90,9 +105,9 @@ const monetizationChannels = [
     title: '会员订阅',
     desc: '粉丝订阅获取专属内容',
     icon: Star,
-    gradient: 'from-amber-400 via-orange-500 to-red-500',
-    bgColor: 'bg-orange-50 dark:bg-orange-950/30',
-    iconBg: 'bg-orange-500',
+    gradient: 'from-cyan-400 via-blue-500 to-indigo-500',
+    bgColor: 'bg-cyan-50 dark:bg-cyan-950/30',
+    iconBg: 'bg-cyan-500',
     status: 'pending',
     features: ['专属内容', '粉丝特权', '稳定收入'],
     stats: '即将上线'
@@ -111,7 +126,7 @@ const MIN_FOLLOWERS_FOR_TASKS = 200; // 最低粉丝数要求
 const MonetizationCenter: React.FC = () => {
   const { isDark } = useTheme();
   const { revenue, stats, businessTasks, taskApplications, revenueRecords, loading, applyForTask, createWithdrawal } = useCreatorCenter();
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'history' | 'brand-tasks'>('overview');
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [taskFilter, setTaskFilter] = useState('all');
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -373,6 +388,7 @@ const MonetizationCenter: React.FC = () => {
         <div className={`flex border-b ${isDark ? 'border-gray-700/50' : 'border-gray-100'}`}>
           {[
             { id: 'overview', label: '变现渠道', icon: Sparkles },
+            { id: 'brand-tasks', label: '品牌任务', icon: Target },
             { id: 'orders', label: '商单广场', icon: Briefcase },
             { id: 'history', label: '收入明细', icon: FileText },
           ].map((tab) => {
@@ -422,6 +438,7 @@ const MonetizationCenter: React.FC = () => {
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: index * 0.05 }}
+                      onClick={() => channel.link && (window.location.href = channel.link || '')}
                       className={`relative overflow-hidden p-6 rounded-2xl border ${
                         isDark 
                           ? 'bg-gray-700/30 border-gray-600/50 hover:bg-gray-700/50' 
@@ -469,6 +486,17 @@ const MonetizationCenter: React.FC = () => {
                     </motion.div>
                   );
                 })}
+              </motion.div>
+            )}
+
+            {activeTab === 'brand-tasks' && (
+              <motion.div
+                key="brand-tasks"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <BrandTaskParticipation />
               </motion.div>
             )}
 

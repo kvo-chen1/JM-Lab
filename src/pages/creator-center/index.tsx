@@ -5,15 +5,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useParams, useNavigate } from 'react-router-dom';
 import CreatorSidebar from './components/CreatorSidebar';
 import CreatorOverview from './components/CreatorOverview';
-import GrowthSystem from './components/GrowthSystem';
+import HotPromotion from './components/HotPromotion';
 import MonetizationCenter from './components/MonetizationCenter';
 import InspirationHub from './components/InspirationHub';
 import DataAnalytics from './components/DataAnalytics';
-import CreatorHeader from './components/CreatorHeader';
 
-export type CreatorTab = 'overview' | 'growth' | 'monetization' | 'inspiration' | 'analytics';
+export type CreatorTab = 'overview' | 'promotion' | 'monetization' | 'inspiration' | 'analytics';
 
-const validTabs: CreatorTab[] = ['overview', 'growth', 'monetization', 'inspiration', 'analytics'];
+const validTabs: CreatorTab[] = ['overview', 'promotion', 'monetization', 'inspiration', 'analytics'];
 
 const CreatorCenter: React.FC = () => {
   const { isDark } = useTheme();
@@ -52,8 +51,8 @@ const CreatorCenter: React.FC = () => {
     switch (activeTab) {
       case 'overview':
         return <CreatorOverview />;
-      case 'growth':
-        return <GrowthSystem />;
+      case 'promotion':
+        return <HotPromotion />;
       case 'monetization':
         return <MonetizationCenter />;
       case 'inspiration':
@@ -66,14 +65,9 @@ const CreatorCenter: React.FC = () => {
   };
 
   return (
-    <div className={`fixed inset-0 z-50 ${isDark ? 'bg-gray-900' : 'bg-gray-50'} overflow-hidden`}>
-      <CreatorHeader 
-        user={user} 
-        isDark={isDark}
-        onMenuToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-      />
-      
-      <div className="flex h-[calc(100vh-4rem)] mt-16">
+    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <div className="flex">
+        {/* 创作者中心内部侧边栏 - 使用 sticky 定位 */}
         <CreatorSidebar
           activeTab={activeTab}
           onTabChange={handleTabChange}
@@ -83,12 +77,9 @@ const CreatorCenter: React.FC = () => {
           isMobile={isMobile}
         />
 
-        <main 
-          className={`flex-1 overflow-y-auto transition-all duration-300 pt-0 ${
-            isSidebarCollapsed ? 'ml-20' : 'ml-64'
-          }`}
-        >
-          <div className="p-6 lg:p-8 pt-6">
+        {/* 主内容区域 */}
+        <main className="flex-1 overflow-auto">
+          <div className="p-6 lg:p-8">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}

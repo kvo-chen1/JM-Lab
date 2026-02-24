@@ -402,7 +402,11 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
         // 设置积分数据
         const points = pointsBalance?.balance || 0
-        setUserPoints(Math.max(0, points))
+        const validPoints = Math.max(0, points)
+        setUserPoints(validPoints)
+        
+        // 更新 achievementService 的积分状态
+        achievementService['userPoints'] = validPoints
         
         // 获取等级信息
         const levelInfo = achievementService.getCreatorLevelInfo(user.id)
@@ -847,16 +851,17 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               <div className="flex items-center space-x-3">
               {/* 用户头像 - B站风格头像覆盖卡片 */}
               {isAuthenticated && (
-                <motion.div 
-                  className="relative" 
+                <motion.div
+                  className="relative cursor-pointer"
                   ref={userMenuRef}
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: getDuration(0.3), delay: getDelay(0.3) }}
                   onMouseEnter={() => setShowUserMenu(true)}
                   onMouseLeave={() => setShowUserMenu(false)}
+                  onClick={() => navigate('/dashboard')}
                 >
-                  <motion.button
+                  <motion.div
                     className="flex items-center group relative z-10"
                     aria-label="用户菜单"
                     aria-expanded={showUserMenu}
@@ -889,7 +894,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         {user?.username?.charAt(0) || 'U'}
                       </div>
                     )}
-                  </motion.button>
+                  </motion.div>
                   {showUserMenu && (
                     <motion.div
                       className={`absolute right-[-120px] top-12 w-72 rounded-2xl shadow-2xl z-[5] ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}

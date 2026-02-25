@@ -355,7 +355,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             type: type,
             likes: w.likes || 0,
             comments: [],
-            date: w.date || (w.created_at ? new Date(w.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+            date: w.date || (w.created_at ? new Date(w.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
             author: {
               id: w.creator_id || w.user_id || w.author_id || w.creator || w.author ||
                    w.authorId || w.creatorId || w.userId ||
@@ -722,7 +722,7 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
           type: w.type || 'image',
           likes: w.likes || 0,
           comments: [],
-          date: w.date || (w.created_at ? new Date(w.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+          date: w.date || (w.created_at ? new Date(w.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
           author: {
             id: w.creator_id || w.user_id || w.author_id || w.creator || w.author ||
                  w.authorId || w.creatorId || w.userId ||
@@ -2365,7 +2365,7 @@ export async function getWorkComments(workId: string): Promise<Comment[]> {
           return result.data.map((c: any) => ({
             id: c.id.toString(),
             content: c.content,
-            date: typeof c.created_at === 'string' ? c.created_at : new Date(c.created_at * 1000).toISOString(),
+            date: typeof c.created_at === 'string' ? c.created_at : new Date(c.created_at).toISOString(),
             author: c.user?.username || '用户',
             authorAvatar: c.user?.avatar_url || '',
             likes: c.likes || 0,

@@ -27,7 +27,7 @@ interface MobileCommentDrawerProps {
   commentCount: number;
   currentUser?: UserProfile | AuthUser | null;
   postId?: string;
-  onSendComment: (content: string, images?: File[]) => Promise<void>;
+  onSendComment: (content: string, images?: File[], parentId?: string) => Promise<void>;
   onLikeComment: (comment: Comment) => void;
   onDeleteComment: (commentId: string) => void;
   onReplyToComment: (comment: Comment) => void;
@@ -107,7 +107,8 @@ export const MobileCommentDrawer: React.FC<MobileCommentDrawerProps> = ({
     }
 
     try {
-      await onSendComment(commentText, commentImages);
+      // 传递 replyToComment?.id 作为 parentId 参数
+      await onSendComment(commentText, commentImages, replyToComment?.id);
       setCommentText('');
       setCommentImages([]);
       setCommentImagePreviews([]);

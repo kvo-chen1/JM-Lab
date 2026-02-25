@@ -132,8 +132,13 @@ export const eventService = {
       if (typeof ts === 'number') {
         return new Date(ts * 1000).toISOString();
       }
-      // 如果已经是字符串，直接返回
+      // 如果已经是字符串
       if (typeof ts === 'string') {
+        // 检查是否是纯数字字符串（秒级时间戳）
+        if (/^\d+$/.test(ts)) {
+          return new Date(parseInt(ts, 10) * 1000).toISOString();
+        }
+        // 已经是 ISO 字符串或其他格式，直接返回
         return ts;
       }
       return undefined;

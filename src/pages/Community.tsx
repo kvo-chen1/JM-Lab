@@ -278,7 +278,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
               onToggleFavorite={onToggleFavorite}
               onToggleLike={onToggleLike}
               onAddComment={onAddComment}
-              onOpenThread={(id) => navigate(`/community/${activeCommunityId}/post/${id}`)}
+              onOpenThread={(id) => console.log('Thread clicked', id)}
               onViewThread={(id) => console.log('View thread', id)}
               onCreateThread={onCreateThread}
               onDeleteThread={onDeleteThread}

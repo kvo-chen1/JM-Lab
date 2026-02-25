@@ -67,9 +67,21 @@ export default function OrganizerEventDetail() {
 
   const formatDate = (timestamp: number | string | undefined) => {
     if (!timestamp) return '-';
-    const date = typeof timestamp === 'number' 
-      ? new Date(timestamp * 1000) 
-      : new Date(timestamp);
+    let date: Date;
+    if (typeof timestamp === 'number') {
+      // 数字类型：假设是秒级时间戳，转换为毫秒
+      date = new Date(timestamp * 1000);
+    } else if (typeof timestamp === 'string') {
+      // 检查是否是纯数字字符串（秒级时间戳）
+      if (/^\d+$/.test(timestamp)) {
+        date = new Date(parseInt(timestamp, 10) * 1000);
+      } else {
+        // ISO 字符串或其他格式
+        date = new Date(timestamp);
+      }
+    } else {
+      date = new Date(timestamp);
+    }
     return format(date, 'yyyy年MM月dd日 HH:mm', { locale: zhCN });
   };
 

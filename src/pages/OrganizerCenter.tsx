@@ -15,6 +15,7 @@ import AnalyticsDashboard from './organizer/AnalyticsDashboard';
 import OrganizerSettings from './organizer/OrganizerSettings';
 import MobileOrganizerCenter from './organizer/MobileOrganizerCenter';
 import BrandTaskManager from './organizer/BrandTaskManager';
+import FundManagement from './organizer/FundManagement';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard, StatCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
@@ -25,7 +26,7 @@ import { PrizeManager } from '@/components/prize';
 import { aiGenerationService, ImageGenerationParams, VideoGenerationParams, GenerationTask } from '@/services/aiGenerationService';
 import { llmService } from '@/services/llmService';
 import Modal from '@/components/ui/Modal';
-import { Wand2, Image as ImageIcon2, Film, Sparkles, CheckCircle2, XCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { Wand2, Image as ImageIcon2, Film, Sparkles, CheckCircle2, XCircle, RefreshCw, Loader2, Wallet } from 'lucide-react';
 import { Prize, PrizeCreateRequest } from '@/types/prize';
 import { prizeService } from '@/services/prizeService';
 import EventTypeSelector from '@/components/events/EventTypeSelector';
@@ -87,7 +88,7 @@ function useIsMobile() {
 // 活动状态筛选类型
 type StatusFilter = 'all' | 'draft' | 'pending' | 'published' | 'rejected';
 type ViewMode = 'list' | 'grid';
-type TabType = 'activities' | 'create' | 'works' | 'analytics' | 'settings' | 'brand-tasks';
+type TabType = 'activities' | 'create' | 'works' | 'analytics' | 'settings' | 'brand-tasks' | 'funds';
 type StepType = 'basic' | 'type' | 'content' | 'media' | 'prizes' | 'settings' | 'preview';
 
 // 状态配置
@@ -130,7 +131,7 @@ export default function OrganizerCenter() {
   const [showBrandSwitch, setShowBrandSwitch] = useState(false);
 
   // 当前标签页 - 从 URL 查询参数中读取，默认为 'activities'
-  const validTabs: TabType[] = ['activities', 'create', 'works', 'brand-tasks', 'analytics', 'settings'];
+  const validTabs: TabType[] = ['activities', 'create', 'works', 'brand-tasks', 'analytics', 'settings', 'funds'];
   const tabFromUrl = searchParams.get('tab') as TabType;
   const [activeTab, setActiveTab] = useState<TabType>(
     validTabs.includes(tabFromUrl) ? tabFromUrl : 'activities'
@@ -607,7 +608,21 @@ export default function OrganizerCenter() {
   // 格式化日期
   const formatDate = (date: Date | string | number | undefined) => {
     if (!date) return '-';
-    const d = typeof date === 'number' ? new Date(date * 1000) : new Date(date);
+    let d: Date;
+    if (typeof date === 'number') {
+      // 数字类型：假设是秒级时间戳，转换为毫秒
+      d = new Date(date * 1000);
+    } else if (typeof date === 'string') {
+      // 检查是否是纯数字字符串（秒级时间戳）
+      if (/^\d+$/.test(date)) {
+        d = new Date(parseInt(date, 10) * 1000);
+      } else {
+        // ISO 字符串或其他格式
+        d = new Date(date);
+      }
+    } else {
+      d = date;
+    }
     return new Intl.DateTimeFormat('zh-CN', {
       month: 'short',
       day: 'numeric',
@@ -1193,6 +1208,7 @@ export default function OrganizerCenter() {
     { id: 'brand-tasks' as TabType, label: '品牌任务', icon: Target },
     { id: 'analytics' as TabType, label: '数据分析', icon: BarChart3 },
     { id: 'settings' as TabType, label: '主办方设置', icon: Settings },
+    { id: 'funds' as TabType, label: '资金管理', icon: Wallet },
   ];
 
   // 如果正在检查品牌状态，显示加载中
@@ -1207,8 +1223,8 @@ export default function OrganizerCenter() {
     );
   }
 
-  // 如果没有通过品牌验证，显示提示
-  if (userBrands.length === 0) {
+  // 如果没有通过品牌验证，且当前不是资金管理页面，显示提示
+  if (userBrands.length === 0 && activeTab !== 'funds') {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -2633,6 +2649,19 @@ export default function OrganizerCenter() {
               transition={{ duration: 0.2 }}
             >
               <OrganizerSettings />
+            </motion.div>
+          )}
+
+          {/* 资金管理标签 */}
+          {activeTab === 'funds' && (
+            <motion.div
+              key="funds"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <FundManagement />
             </motion.div>
           )}
         </AnimatePresence>

@@ -2785,14 +2785,61 @@ async function route(req, res, u, path) {
         isNewUser: user.isNewUser || false // 标记是否为新用户
       };
       
+      // 获取 Supabase session（用于前端 RLS 查询）
+      let supabaseSession = null;
+      console.log(`[API] 准备获取 Supabase session，supabaseUserId: ${supabaseUserId}, supabaseServer: ${!!supabaseServer}`);
+      try {
+        if (supabaseUserId && supabaseServer) {
+          console.log(`[API] 尝试获取 Supabase session，用户ID: ${supabaseUserId}`);
+          // 使用 signInWithPassword 获取 session
+          // 注意：我们使用随机密码创建用户，需要重新设置密码
+          const tempPassword = randomUUID();
+          
+          // 先更新用户密码
+          const { error: updateError } = await supabaseServer.auth.admin.updateUserById(
+            supabaseUserId,
+            { password: tempPassword }
+          );
+          
+          if (updateError) {
+            console.warn('[API] 更新 Supabase 用户密码失败:', updateError.message);
+          } else {
+            // 使用新密码登录获取 session
+            const { data: signInData, error: signInError } = await supabaseServer.auth.signInWithPassword({
+              email: email,
+              password: tempPassword
+            });
+            
+            if (signInError) {
+              console.warn('[API] Supabase 登录获取 session 失败:', signInError.message);
+            } else if (signInData.session) {
+              supabaseSession = {
+                access_token: signInData.session.access_token,
+                refresh_token: signInData.session.refresh_token
+              };
+              console.log('[API] Supabase session 获取成功');
+            }
+          }
+        }
+      } catch (sessionError) {
+        console.warn('[API] 获取 Supabase session 失败:', sessionError.message);
+      }
+      
+      const responseData = {
+        user: userForFrontend,
+        token: token,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7天过期
+      };
+      
+      // 如果有 supabaseSession，添加到响应中
+      if (supabaseSession) {
+        responseData.supabaseSession = supabaseSession;
+      }
+      
       sendJson(res, 200, {
         code: 0,
         message: '登录成功',
-        data: {
-          user: userForFrontend,
-          token: token,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7天过期
-        }
+        data: responseData
       })
     } catch (error) {
       console.error('[API] 登录失败:', error);
@@ -2911,6 +2958,159 @@ async function route(req, res, u, path) {
     } catch (error) {
       console.error('[API] Get user info failed:', error)
       sendJson(res, 500, { code: 1, message: '获取用户信息失败' })
+    }
+    return
+  }
+
+  // ==================== 品牌账户 API ====================
+  
+  // 获取品牌账户 (/api/brand/account)
+  if (req.method === 'GET' && path === '/api/brand/account') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      console.log(`[API] 获取品牌账户，用户ID: ${decoded.userId}`)
+      
+      // 使用 supabaseServer (Service Role Key) 绕过 RLS
+      const { data, error } = await supabaseServer
+        .from('brand_accounts')
+        .select('*')
+        .eq('user_id', decoded.userId)
+        .single()
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // 记录不存在
+          sendJson(res, 200, { code: 0, data: null, message: '账户不存在' })
+          return
+        }
+        console.error('[API] 获取品牌账户失败:', error)
+        sendJson(res, 500, { code: 1, message: '获取品牌账户失败' })
+        return
+      }
+      
+      sendJson(res, 200, { code: 0, data })
+    } catch (error) {
+      console.error('[API] 获取品牌账户异常:', error)
+      sendJson(res, 500, { code: 1, message: '获取品牌账户失败' })
+    }
+    return
+  }
+  
+  // 创建品牌账户 (/api/brand/account)
+  if (req.method === 'POST' && path === '/api/brand/account') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      console.log(`[API] 创建品牌账户，用户ID: ${decoded.userId}`)
+      
+      const body = await readBody(req)
+      const { brand_id } = body || {}
+      
+      // 检查账户是否已存在
+      const { data: existingAccount } = await supabaseServer
+        .from('brand_accounts')
+        .select('id')
+        .eq('user_id', decoded.userId)
+        .single()
+      
+      if (existingAccount) {
+        sendJson(res, 200, { code: 0, data: existingAccount, message: '账户已存在' })
+        return
+      }
+      
+      // 创建新账户
+      const insertData = {
+        user_id: decoded.userId,
+        brand_id: brand_id || null,
+        total_balance: 0,
+        available_balance: 0,
+        frozen_balance: 0,
+        total_deposited: 0,
+        total_spent: 0,
+        total_withdrawn: 0,
+        status: 'active'
+      }
+      
+      const { data, error } = await supabaseServer
+        .from('brand_accounts')
+        .insert(insertData)
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('[API] 创建品牌账户失败:', error)
+        sendJson(res, 500, { code: 1, message: '创建品牌账户失败' })
+        return
+      }
+      
+      console.log('[API] 品牌账户创建成功:', data.id)
+      sendJson(res, 200, { code: 0, data, message: '账户创建成功' })
+    } catch (error) {
+      console.error('[API] 创建品牌账户异常:', error)
+      sendJson(res, 500, { code: 1, message: '创建品牌账户失败' })
+    }
+    return
+  }
+  
+  // 获取交易记录 (/api/brand/transactions)
+  if (req.method === 'GET' && path === '/api/brand/transactions') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`)
+      const type = url.searchParams.get('type')
+      const page = parseInt(url.searchParams.get('page') || '1')
+      const limit = parseInt(url.searchParams.get('limit') || '20')
+      
+      console.log(`[API] 获取交易记录，用户ID: ${decoded.userId}, 类型: ${type}, 页码: ${page}`)
+      
+      let query = supabaseServer
+        .from('brand_transactions')
+        .select('*', { count: 'exact' })
+        .eq('user_id', decoded.userId)
+      
+      if (type && type !== 'all') {
+        query = query.eq('type', type)
+      }
+      
+      const from = (page - 1) * limit
+      const to = from + limit - 1
+      
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to)
+      
+      if (error) {
+        console.error('[API] 获取交易记录失败:', error)
+        sendJson(res, 500, { code: 1, message: '获取交易记录失败' })
+        return
+      }
+      
+      sendJson(res, 200, { 
+        code: 0, 
+        data: { 
+          transactions: data || [], 
+          total: count || 0,
+          page,
+          limit
+        } 
+      })
+    } catch (error) {
+      console.error('[API] 获取交易记录异常:', error)
+      sendJson(res, 500, { code: 1, message: '获取交易记录失败' })
     }
     return
   }

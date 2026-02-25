@@ -22,14 +22,14 @@ const quickActions = [
   { label: '发布作品', desc: '分享你的创意', icon: Sparkles, color: 'from-blue-500 to-blue-600', path: '/create' },
   { label: '查看数据', desc: '分析作品表现', icon: TrendingUp, color: 'from-green-500 to-green-600', path: '/creator-center/analytics' },
   { label: '参与活动', desc: '赢取奖励', icon: Award, color: 'from-orange-500 to-orange-600', path: '/cultural-events' },
-  { label: '提升等级', desc: '解锁更多权益', icon: Zap, color: 'from-purple-500 to-purple-600', path: '/creator-center/growth' },
+  { label: '提升等级', desc: '解锁更多权益', icon: Zap, color: 'from-purple-500 to-purple-600', path: '/achievements' },
 ];
 
 const tasks = [
-  { title: '完善个人资料', reward: '+50 经验值', progress: 80 },
-  { title: '发布首个作品', reward: '+100 经验值', progress: 100, completed: true },
-  { title: '获得10个赞', reward: '+30 经验值', progress: 60 },
-  { title: '关注5位创作者', reward: '+20 经验值', progress: 40 },
+  { title: '完善个人资料', reward: '+50 积分', progress: 80 },
+  { title: '发布首个作品', reward: '+100 积分', progress: 100, completed: true },
+  { title: '获得10个赞', reward: '+30 积分', progress: 60 },
+  { title: '关注5位创作者', reward: '+20 积分', progress: 40 },
 ];
 
 // 格式化数字

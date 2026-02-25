@@ -18,31 +18,23 @@ async function getCurrentUser(): Promise<UserInfo | null> {
     // 首先尝试从 Supabase 获取 session
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
+      console.log('[getCurrentUser] 从 Supabase session 获取用户:', session.user.id);
       return {
         id: session.user.id,
         email: session.user.email,
       };
     }
 
-    // 如果 Supabase session 不存在，尝试从 localStorage 获取
+    // 如果 Supabase session 不存在，尝试从 localStorage 获取用户信息
+    // 注意：后端返回的 token 不能用于恢复 Supabase session
+    // 需要通过 Supabase 直接登录或使用后端返回的 supabaseSession
     const userStr = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
     
-    if (userStr && token) {
+    if (userStr) {
       const user = JSON.parse(userStr);
       if (user?.id) {
-        // 尝试恢复 Supabase session
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (refreshToken) {
-          try {
-            await supabase.auth.setSession({
-              access_token: token,
-              refresh_token: refreshToken,
-            });
-          } catch (e) {
-            console.warn('恢复 Supabase session 失败:', e);
-          }
-        }
+        console.log('[getCurrentUser] 从 localStorage 获取用户:', user.id);
+        console.warn('[getCurrentUser] 警告: Supabase session 不存在，RLS 查询可能会失败');
         return {
           id: user.id,
           email: user.email,
@@ -50,6 +42,7 @@ async function getCurrentUser(): Promise<UserInfo | null> {
       }
     }
 
+    console.warn('[getCurrentUser] 用户未登录');
     return null;
   } catch (error) {
     console.error('获取当前用户失败:', error);
@@ -319,7 +312,8 @@ class BrandTaskService {
           ...data,
           publisher_id: user.id,
           remaining_budget: data.total_budget,
-          status: 'draft',
+          status: 'published',
+          published_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -607,15 +601,31 @@ class BrandTaskService {
 
       const { data, error } = await supabase
         .from('brand_task_participants')
-        .select(`
-          *,
-          task:brand_tasks(*)
-        `)
+        .select('*')
         .eq('creator_id', user.id)
         .order('applied_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      const participants = data || [];
+      
+      // 获取任务信息
+      const taskIds = [...new Set(participants.map(p => p.task_id).filter(Boolean))];
+      if (taskIds.length > 0) {
+        const { data: tasksData } = await supabase
+          .from('brand_tasks')
+          .select('*')
+          .in('id', taskIds);
+        
+        const tasksMap = new Map(tasksData?.map(t => [t.id, t]) || []);
+        
+        return participants.map(p => ({
+          ...p,
+          task: tasksMap.get(p.task_id) || undefined
+        }));
+      }
+      
+      return participants;
     } catch (error) {
       console.error('获取我的参与记录失败:', error);
       return [];
@@ -631,11 +641,7 @@ class BrandTaskService {
 
       let query = supabase
         .from('brand_task_submissions')
-        .select(`
-          *,
-          task:brand_tasks(title, brand_name),
-          work:works(id, title, thumbnail, view_count)
-        `)
+        .select('*')
         .eq('creator_id', user.id);
 
       if (taskId) {
@@ -646,7 +652,36 @@ class BrandTaskService {
         .order('submitted_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      const submissions = data || [];
+      
+      // 获取任务信息
+      const taskIds = [...new Set(submissions.map(s => s.task_id).filter(Boolean))];
+      let tasksMap = new Map();
+      if (taskIds.length > 0) {
+        const { data: tasksData } = await supabase
+          .from('brand_tasks')
+          .select('id, title, brand_name')
+          .in('id', taskIds);
+        tasksMap = new Map(tasksData?.map(t => [t.id, t]) || []);
+      }
+      
+      // 获取作品信息
+      const workIds = [...new Set(submissions.map(s => s.work_id).filter(Boolean))];
+      let worksMap = new Map();
+      if (workIds.length > 0) {
+        const { data: worksData } = await supabase
+          .from('works')
+          .select('id, title, thumbnail, view_count')
+          .in('id', workIds);
+        worksMap = new Map(worksData?.map(w => [w.id, w]) || []);
+      }
+      
+      return submissions.map(s => ({
+        ...s,
+        task: tasksMap.get(s.task_id) || undefined,
+        work: worksMap.get(s.work_id) || undefined
+      }));
     } catch (error) {
       console.error('获取我的提交记录失败:', error);
       return [];
@@ -757,15 +792,31 @@ class BrandTaskService {
     try {
       const { data, error } = await supabase
         .from('brand_task_participants')
-        .select(`
-          *,
-          creator:users(id, username, avatar_url)
-        `)
+        .select('*')
         .eq('task_id', taskId)
         .order('applied_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      // 获取参与者用户信息
+      const participants = data || [];
+      const creatorIds = [...new Set(participants.map(p => p.creator_id).filter(Boolean))];
+      
+      if (creatorIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', creatorIds);
+        
+        const usersMap = new Map(usersData?.map(u => [u.id, u]) || []);
+        
+        return participants.map(p => ({
+          ...p,
+          creator: usersMap.get(p.creator_id) || undefined
+        }));
+      }
+      
+      return participants;
     } catch (error) {
       console.error('获取任务参与者失败:', error);
       return [];
@@ -776,11 +827,7 @@ class BrandTaskService {
     try {
       let query = supabase
         .from('brand_task_submissions')
-        .select(`
-          *,
-          creator:users(id, username, avatar_url),
-          work:works(id, title, thumbnail, view_count)
-        `)
+        .select('*')
         .eq('task_id', taskId);
 
       if (status) {
@@ -791,7 +838,38 @@ class BrandTaskService {
         .order('submitted_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      const submissions = data || [];
+      
+      // 获取创作者信息
+      const creatorIds = [...new Set(submissions.map(s => s.creator_id).filter(Boolean))];
+      if (creatorIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', creatorIds);
+        
+        const usersMap = new Map(usersData?.map(u => [u.id, u]) || []);
+        
+        // 获取作品信息
+        const workIds = [...new Set(submissions.map(s => s.work_id).filter(Boolean))];
+        let worksMap = new Map();
+        if (workIds.length > 0) {
+          const { data: worksData } = await supabase
+            .from('works')
+            .select('id, title, thumbnail, view_count')
+            .in('id', workIds);
+          worksMap = new Map(worksData?.map(w => [w.id, w]) || []);
+        }
+        
+        return submissions.map(s => ({
+          ...s,
+          creator: usersMap.get(s.creator_id) || undefined,
+          work: worksMap.get(s.work_id) || undefined
+        }));
+      }
+      
+      return submissions;
     } catch (error) {
       console.error('获取任务提交失败:', error);
       return [];
@@ -900,18 +978,65 @@ class BrandTaskService {
   async getBrandAccount(): Promise<BrandAccount | null> {
     try {
       const user = await getCurrentUser();
-      if (!user) return null;
+      if (!user) {
+        console.warn('[getBrandAccount] 用户未登录');
+        return null;
+      }
 
-      const { data, error } = await supabase
-        .from('brand_accounts')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      // 检查 Supabase session 是否有效
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        // 使用 Supabase 直接查询
+        console.log('[getBrandAccount] 使用 Supabase session 查询');
+        const { data, error } = await supabase
+          .from('brand_accounts')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
 
-      if (error && error.code !== 'PGRST116') throw error;
-      return data;
-    } catch (error) {
-      console.error('获取品牌账户失败:', error);
+        if (error) {
+          if (error.code === 'PGRST116') {
+            console.log('[getBrandAccount] 账户不存在，需要创建');
+            return null;
+          }
+          console.error('[getBrandAccount] 查询账户失败:', error);
+          throw error;
+        }
+        return data;
+      } else {
+        // 使用后端 API 查询（绕过 RLS）
+        console.log('[getBrandAccount] Supabase session 不存在，使用后端 API 查询');
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('[getBrandAccount] 未找到 token，无法调用后端 API');
+          return null;
+        }
+        
+        const response = await fetch('/api/brand/account', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          console.error('[getBrandAccount] 后端 API 调用失败:', response.status);
+          return null;
+        }
+        
+        const result = await response.json();
+        if (result.code !== 0) {
+          console.error('[getBrandAccount] 后端 API 返回错误:', result.message);
+          return null;
+        }
+        
+        console.log('[getBrandAccount] 后端 API 返回:', result.data ? '有数据' : '无数据');
+        return result.data;
+      }
+    } catch (error: any) {
+      console.error('[getBrandAccount] 获取品牌账户失败:', error);
       return null;
     }
   }
@@ -919,24 +1044,81 @@ class BrandTaskService {
   async createBrandAccount(brandId?: string): Promise<BrandAccount | null> {
     try {
       const user = await getCurrentUser();
-      if (!user) return null;
+      if (!user) {
+        console.warn('[createBrandAccount] 用户未登录');
+        return null;
+      }
 
-      const { data, error } = await supabase
-        .from('brand_accounts')
-        .insert({
+      // 检查 Supabase session 是否有效
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        // 使用 Supabase 直接创建
+        console.log('[createBrandAccount] 使用 Supabase session 创建账户');
+        const insertData: Record<string, unknown> = {
           user_id: user.id,
-          brand_id,
           total_balance: 0,
           available_balance: 0,
           frozen_balance: 0,
-        })
-        .select()
-        .single();
+          total_deposited: 0,
+          total_spent: 0,
+          total_withdrawn: 0,
+          status: 'active',
+        };
+        if (brandId) {
+          insertData.brand_id = brandId;
+        }
 
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('创建品牌账户失败:', error);
+        const { data, error } = await supabase
+          .from('brand_accounts')
+          .insert(insertData)
+          .select()
+          .single();
+
+        if (error) {
+          if (error.code === '23505') {
+            console.log('[createBrandAccount] 账户已存在，尝试获取现有账户');
+            return await this.getBrandAccount();
+          }
+          console.error('[createBrandAccount] 创建账户失败:', error);
+          throw error;
+        }
+        console.log('[createBrandAccount] 账户创建成功:', data);
+        return data;
+      } else {
+        // 使用后端 API 创建（绕过 RLS）
+        console.log('[createBrandAccount] Supabase session 不存在，使用后端 API 创建');
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('[createBrandAccount] 未找到 token，无法调用后端 API');
+          return null;
+        }
+        
+        const response = await fetch('/api/brand/account', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ brand_id: brandId })
+        });
+        
+        if (!response.ok) {
+          console.error('[createBrandAccount] 后端 API 调用失败:', response.status);
+          return null;
+        }
+        
+        const result = await response.json();
+        if (result.code !== 0) {
+          console.error('[createBrandAccount] 后端 API 返回错误:', result.message);
+          return null;
+        }
+        
+        console.log('[createBrandAccount] 后端 API 创建账户成功:', result.data);
+        return result.data;
+      }
+    } catch (error: any) {
+      console.error('[createBrandAccount] 创建品牌账户失败:', error);
       return null;
     }
   }
@@ -1006,34 +1188,84 @@ class BrandTaskService {
     try {
       const user = await getCurrentUser();
       if (!user) {
+        console.warn('[getTransactions] 用户未登录');
         return { transactions: [], total: 0 };
       }
 
-      const { type, page = 1, limit = 20 } = options || {};
+      // 检查 Supabase session 是否有效
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        // 使用 Supabase 直接查询
+        console.log('[getTransactions] 使用 Supabase session 查询');
+        const { type, page = 1, limit = 20 } = options || {};
 
-      let query = supabase
-        .from('brand_transactions')
-        .select('*', { count: 'exact' })
-        .eq('user_id', user.id);
+        let query = supabase
+          .from('brand_transactions')
+          .select('*', { count: 'exact' })
+          .eq('user_id', user.id);
 
-      if (type && type !== 'all') {
-        query = query.eq('type', type);
+        if (type && type !== 'all') {
+          query = query.eq('type', type);
+        }
+
+        const from = (page - 1) * limit;
+        const to = from + limit - 1;
+
+        const { data, error, count } = await query
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (error) {
+          console.error('[getTransactions] 查询交易记录失败:', error);
+          throw error;
+        }
+
+        return {
+          transactions: data || [],
+          total: count || 0,
+        };
+      } else {
+        // 使用后端 API 查询（绕过 RLS）
+        console.log('[getTransactions] Supabase session 不存在，使用后端 API 查询');
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('[getTransactions] 未找到 token，无法调用后端 API');
+          return { transactions: [], total: 0 };
+        }
+        
+        const { type, page = 1, limit = 20 } = options || {};
+        const params = new URLSearchParams();
+        if (type && type !== 'all') params.append('type', type);
+        params.append('page', String(page));
+        params.append('limit', String(limit));
+        
+        const response = await fetch(`/api/brand/transactions?${params}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          console.error('[getTransactions] 后端 API 调用失败:', response.status);
+          return { transactions: [], total: 0 };
+        }
+        
+        const result = await response.json();
+        if (result.code !== 0) {
+          console.error('[getTransactions] 后端 API 返回错误:', result.message);
+          return { transactions: [], total: 0 };
+        }
+        
+        console.log('[getTransactions] 后端 API 返回交易记录:', result.data?.transactions?.length || 0);
+        return {
+          transactions: result.data?.transactions || [],
+          total: result.data?.total || 0,
+        };
       }
-
-      const from = (page - 1) * limit;
-      const to = from + limit - 1;
-
-      const { data, error, count } = await query
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (error) throw error;
-
-      return {
-        transactions: data || [],
-        total: count || 0,
-      };
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取交易记录失败:', error);
       return { transactions: [], total: 0 };
     }
@@ -1058,10 +1290,7 @@ class BrandTaskService {
 
       let query = supabase
         .from('creator_earnings')
-        .select(`
-          *,
-          task:brand_tasks(title, brand_name)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .eq('creator_id', user.id);
 
       if (status && status !== 'all') {
@@ -1076,6 +1305,27 @@ class BrandTaskService {
         .range(from, to);
 
       if (error) throw error;
+      
+      const earnings = data || [];
+      
+      // 获取任务信息
+      const taskIds = [...new Set(earnings.map(e => e.task_id).filter(Boolean))];
+      if (taskIds.length > 0) {
+        const { data: tasksData } = await supabase
+          .from('brand_tasks')
+          .select('id, title, brand_name')
+          .in('id', taskIds);
+        
+        const tasksMap = new Map(tasksData?.map(t => [t.id, t]) || []);
+        
+        return {
+          earnings: earnings.map(e => ({
+            ...e,
+            task: tasksMap.get(e.task_id) || undefined
+          })),
+          total: count || 0
+        };
+      }
 
       return {
         earnings: data || [],

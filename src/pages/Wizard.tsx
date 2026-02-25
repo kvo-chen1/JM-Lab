@@ -394,16 +394,35 @@ export default function Wizard() {
   // 将外部图片 URL 转换为 Base64
   const imageUrlToBase64 = async (url: string): Promise<string | null> => {
     try {
-      // 使用代理或 CORS 代理获取图片
+      // 优先使用后端代理下载图片（解决CORS问题）
+      console.log('[Wizard] Downloading image via proxy:', url.substring(0, 100));
+      const proxyResponse = await fetch('/api/image/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageUrl: url }),
+      });
+
+      if (proxyResponse.ok) {
+        const result = await proxyResponse.json();
+        if (result.code === 0 && result.data?.base64) {
+          console.log('[Wizard] Image downloaded via proxy, size:', (result.data.size / 1024).toFixed(2), 'KB');
+          return result.data.base64;
+        }
+      }
+
+      // 如果代理失败，尝试直接获取（可能适用于同源图片）
+      console.warn('[Wizard] Proxy download failed, trying direct fetch...');
       const response = await fetch(url, {
         mode: 'cors',
         cache: 'no-cache',
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch image: ${response.status}`);
       }
-      
+
       const blob = await response.blob();
       return new Promise((resolve, reject) => {
         const reader = new FileReader();

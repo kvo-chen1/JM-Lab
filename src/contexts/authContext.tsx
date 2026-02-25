@@ -851,7 +851,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       // 存储用户信息和token到本地
       const token = sessionData.access_token || sessionData.token || data.data?.token || '';
-      const refreshToken = sessionData.refresh_token || '';
+      const refreshToken = sessionData.refresh_token || token || ''; // 如果没有 refresh_token，使用 token 作为备选
+      
+      if (!refreshToken) {
+        console.warn('[loginWithCode] 警告: refreshToken 为空，Supabase session 可能无法恢复');
+      }
       
       safeLocalStorage.setItem('token', token);
       safeLocalStorage.setItem('refreshToken', refreshToken);
@@ -859,27 +863,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       safeLocalStorage.setItem('isAuthenticated', 'true');
       
       // 同步 Supabase session（如果后端返回了 Supabase session）
+      console.log('[Auth] 检查登录响应中的 supabaseSession:', {
+        hasSupabaseSession: !!data.data?.supabaseSession,
+        hasAccessToken: !!data.data?.supabaseSession?.access_token,
+        hasRefreshToken: !!data.data?.supabaseSession?.refresh_token
+      });
+      
       if (supabase && data.data?.supabaseSession) {
         try {
-          await supabase.auth.setSession({
+          console.log('[Auth] 正在同步 Supabase session...');
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
             access_token: data.data.supabaseSession.access_token,
             refresh_token: data.data.supabaseSession.refresh_token
           });
-          console.log('[Auth] Supabase session 已同步');
+          if (sessionError) {
+            console.error('[Auth] 同步 Supabase session 失败:', sessionError);
+          } else {
+            console.log('[Auth] Supabase session 已同步，用户ID:', sessionData.session?.user?.id);
+          }
         } catch (syncError) {
-          console.warn('[Auth] 同步 Supabase session 失败:', syncError);
+          console.error('[Auth] 同步 Supabase session 异常:', syncError);
         }
-      } else if (supabase && token && refreshToken) {
-        // 尝试使用 token 恢复 Supabase session
-        try {
-          await supabase.auth.setSession({
-            access_token: token,
-            refresh_token: refreshToken
-          });
-          console.log('[Auth] Supabase session 已通过 token 恢复');
-        } catch (syncError) {
-          console.warn('[Auth] 通过 token 恢复 Supabase session 失败:', syncError);
-        }
+      } else {
+        console.warn('[Auth] 后端未返回 supabaseSession，RLS 查询可能无法执行');
       }
       
       // 更新状态
@@ -1047,13 +1053,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
     
     // 优先使用 session 中的 token，否则使用 userData 中的 token
-    const token = sessionData?.access_token || userData?.token;
-    const refreshToken = sessionData?.refresh_token || userData?.refreshToken || token;
+    const token = sessionData?.access_token || userData?.token || '';
+    const refreshToken = sessionData?.refresh_token || userData?.refreshToken || token || '';
     
-    localStorage.setItem('token', token);
-    localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('user', JSON.stringify(userWithMembership));
-    localStorage.setItem('isAuthenticated', 'true');
+    if (!token) {
+      console.error('[handleLoginSuccess] 无法获取 token，登录可能失败');
+    }
+    if (!refreshToken) {
+      console.warn('[handleLoginSuccess] 警告: refreshToken 为空，Supabase session 可能无法恢复');
+    }
+    
+    safeLocalStorage.setItem('token', token);
+    safeLocalStorage.setItem('refreshToken', refreshToken);
+    safeLocalStorage.setItem('user', JSON.stringify(userWithMembership));
+    safeLocalStorage.setItem('isAuthenticated', 'true');
     
     // 同步到 Supabase 认证状态（用于 RLS 策略）
     try {

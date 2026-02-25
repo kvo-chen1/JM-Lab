@@ -138,7 +138,21 @@ const EventListItem = ({
   
   const formatDate = (date: Date | string | number | undefined) => {
     if (!date) return '-';
-    const d = typeof date === 'number' ? new Date(date * 1000) : new Date(date);
+    let d: Date;
+    if (typeof date === 'number') {
+      // 数字类型：假设是秒级时间戳，转换为毫秒
+      d = new Date(date * 1000);
+    } else if (typeof date === 'string') {
+      // 检查是否是纯数字字符串（秒级时间戳）
+      if (/^\d+$/.test(date)) {
+        d = new Date(parseInt(date, 10) * 1000);
+      } else {
+        // ISO 字符串或其他格式
+        d = new Date(date);
+      }
+    } else {
+      d = date;
+    }
     return new Intl.DateTimeFormat('zh-CN', {
       month: 'short',
       day: 'numeric',

@@ -1231,7 +1231,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   setShowMessageDropdown(false)
                 }}
                 onMouseLeave={() => {
-                  setTimeout(() => setShowFeedDropdown(false), 200)
+                  setShowFeedDropdown(false)
                 }}
               >
                 <motion.button
@@ -1356,7 +1356,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   setShowFeedDropdown(false)
                 }}
                 onMouseLeave={() => {
-                  setTimeout(() => setShowMessageDropdown(false), 200)
+                  setShowMessageDropdown(false)
                 }}
               >
                 <motion.button

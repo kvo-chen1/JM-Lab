@@ -78,10 +78,6 @@ const WorkDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'work-detail'
 });
-const ThreadDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/ThreadDetail"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'thread-detail'
-});
 
 // 2. 其他高频页面改为懒加载
 const Dashboard = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Dashboard"), {
@@ -808,7 +804,6 @@ export default function App() {
           <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id/:channel" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
-          <Route path="/community/:id/post/:postId" element={<LazyComponent><PrivateRoute><ThreadDetail /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id/admin" element={<LazyComponent><PrivateRoute><CommunityAdminPanelWrapper /></PrivateRoute></LazyComponent>} />
           <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
           <Route path="/chat/:userId" element={<LazyComponent><PrivateRoute><ChatPage /></PrivateRoute></LazyComponent>} />
@@ -880,6 +875,7 @@ export default function App() {
           <Route path="/edit-activity/:id" element={<LazyComponent><PrivateRoute><EditActivity /></PrivateRoute></LazyComponent>} />
           <Route path="/my-activities" element={<LazyComponent><PrivateRoute><MyActivities /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer" element={<LazyComponent><PrivateRoute><OrganizerCenter /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer-center" element={<LazyComponent><PrivateRoute><OrganizerCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer/events/:id" element={<LazyComponent><PrivateRoute><OrganizerEventDetail /></PrivateRoute></LazyComponent>} />
           <Route path="/ranking/:eventId" element={<LazyComponent><PrivateRoute><EventRanking /></PrivateRoute></LazyComponent>} />
           

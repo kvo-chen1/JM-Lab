@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import { brandTaskService, BrandTask, TaskStats } from '@/services/brandTaskService';
+import { brandTaskService, BrandTask, TaskStats, BrandTaskParticipant, BrandTaskSubmission } from '@/services/brandTaskService';
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -50,6 +50,7 @@ import {
   Image as ImageIcon,
   Video,
   MapPin,
+  User,
   Tag,
   ChevronLeft,
   FilterX,
@@ -249,7 +250,7 @@ interface TaskCardProps {
   isDark: boolean;
 }
 
-function TaskCard({ task, isSelected, onClick, isDark }: TaskCardProps) {
+const TaskCard = React.forwardRef<HTMLDivElement, TaskCardProps>(function TaskCard({ task, isSelected, onClick, isDark }, ref) {
   const status = statusConfig[task.status];
   const StatusIcon = status.icon;
   
@@ -261,6 +262,7 @@ function TaskCard({ task, isSelected, onClick, isDark }: TaskCardProps) {
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -375,7 +377,7 @@ function TaskCard({ task, isSelected, onClick, isDark }: TaskCardProps) {
       </div>
     </motion.div>
   );
-}
+});
 
 // 任务详情面板 - 右侧
 interface TaskDetailPanelProps {
@@ -398,11 +400,15 @@ function TaskDetailPanel({
   onComplete 
 }: TaskDetailPanelProps) {
   const [stats, setStats] = useState<TaskStats | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings'>('overview');
+  const [participants, setParticipants] = useState<BrandTaskParticipant[]>([]);
+  const [submissions, setSubmissions] = useState<BrandTaskSubmission[]>([]);
+  const [activeTab, setActiveTab] = useState<'overview' | 'participants' | 'submissions' | 'analytics' | 'settings'>('overview');
 
   useEffect(() => {
     if (task) {
       brandTaskService.getTaskStats(task.id).then(setStats);
+      brandTaskService.getTaskParticipants(task.id).then(setParticipants);
+      brandTaskService.getTaskSubmissions(task.id).then(setSubmissions);
     }
   }, [task]);
 
@@ -450,6 +456,8 @@ function TaskDetailPanel({
       <div className={`flex gap-1 p-2 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
         {[
           { id: 'overview', label: '概览', icon: BarChart3 },
+          { id: 'participants', label: '参与者', icon: Users },
+          { id: 'submissions', label: '作品', icon: FileText },
           { id: 'analytics', label: '数据', icon: TrendingUp },
           { id: 'settings', label: '设置', icon: MoreHorizontal },
         ].map(tab => (
@@ -578,6 +586,256 @@ function TaskDetailPanel({
           </div>
         )}
 
+        {activeTab === 'participants' && (
+          <div className="space-y-4">
+            <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  申请者列表 ({participants.length})
+                </h4>
+              </div>
+              {participants.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+                  <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>暂无申请者</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {participants.map((participant) => (
+                    <div
+                      key={participant.id}
+                      className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-white'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {participant.creator?.avatar_url ? (
+                          <img
+                            src={participant.creator.avatar_url}
+                            alt={participant.creator.username}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                            <User className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {participant.creator?.username || '未知用户'}
+                          </p>
+                          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                            {new Date(participant.applied_at).toLocaleDateString('zh-CN')}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          participant.status === 'approved'
+                            ? isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
+                            : participant.status === 'rejected'
+                            ? isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'
+                            : isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {participant.status === 'approved' ? '已通过'
+                            : participant.status === 'rejected' ? '已拒绝'
+                            : '待审核'}
+                        </span>
+                      </div>
+
+                      {/* 审核按钮 */}
+                      {participant.status === 'applied' && (
+                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                          <button
+                            onClick={async () => {
+                              const success = await brandTaskService.approveParticipant(participant.id);
+                              if (success) {
+                                toast.success('已通过申请');
+                                // 刷新参与者列表
+                                if (task) {
+                                  const updatedParticipants = await brandTaskService.getTaskParticipants(task.id);
+                                  setParticipants(updatedParticipants);
+                                }
+                              } else {
+                                toast.error('审核失败');
+                              }
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            通过
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const success = await brandTaskService.rejectParticipant(participant.id);
+                              if (success) {
+                                toast.success('已拒绝申请');
+                                // 刷新参与者列表
+                                if (task) {
+                                  const updatedParticipants = await brandTaskService.getTaskParticipants(task.id);
+                                  setParticipants(updatedParticipants);
+                                }
+                              } else {
+                                toast.error('操作失败');
+                              }
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            拒绝
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'submissions' && (
+          <div className="space-y-4">
+            <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  作品列表 ({submissions.length})
+                </h4>
+              </div>
+              {submissions.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+                  <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>暂无作品提交</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {submissions.map((submission) => (
+                    <div
+                      key={submission.id}
+                      className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-white'}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {submission.work?.thumbnail ? (
+                          <img
+                            src={submission.work.thumbnail}
+                            alt={submission.work.title}
+                            className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className={`w-16 h-16 rounded-lg flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                            <FileText className={`w-6 h-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {submission.work?.title || '未命名作品'}
+                          </p>
+                          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                            创作者: {submission.creator?.username || '未知用户'}
+                          </p>
+                          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                            提交时间: {new Date(submission.submitted_at).toLocaleDateString('zh-CN')}
+                          </p>
+                          {submission.final_reward !== null && (
+                            <p className={`text-xs font-medium mt-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                              奖励: ¥{submission.final_reward}
+                            </p>
+                          )}
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          submission.status === 'approved'
+                            ? isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
+                            : submission.status === 'rejected'
+                            ? isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'
+                            : isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {submission.status === 'approved' ? '已通过'
+                            : submission.status === 'rejected' ? '已拒绝'
+                            : '待审核'}
+                        </span>
+                      </div>
+
+                      {/* 审核按钮 */}
+                      {submission.status === 'pending' && (
+                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                          <button
+                            onClick={async () => {
+                              const success = await brandTaskService.approveSubmission(submission.id);
+                              if (success) {
+                                toast.success('已通过作品');
+                                if (task) {
+                                  const updatedSubmissions = await brandTaskService.getTaskSubmissions(task.id);
+                                  setSubmissions(updatedSubmissions);
+                                }
+                              } else {
+                                toast.error('审核失败');
+                              }
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            通过
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const success = await brandTaskService.rejectSubmission(submission.id, '作品不符合要求');
+                              if (success) {
+                                toast.success('已拒绝作品');
+                                if (task) {
+                                  const updatedSubmissions = await brandTaskService.getTaskSubmissions(task.id);
+                                  setSubmissions(updatedSubmissions);
+                                }
+                              } else {
+                                toast.error('操作失败');
+                              }
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            拒绝
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 奖励发放按钮 */}
+                      {submission.status === 'approved' && submission.final_reward === null && (
+                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                          <button
+                            onClick={async () => {
+                              // 计算奖励
+                              const reward = await brandTaskService.calculateReward(
+                                submission.id,
+                                submission.work?.view_count || 0,
+                                0, // likes
+                                0, // favorites
+                                0  // shares
+                              );
+                              if (reward !== null) {
+                                const success = await brandTaskService.updateSubmissionReward(submission.id, reward);
+                                if (success) {
+                                  toast.success(`已发放奖励 ¥${reward}`);
+                                  if (task) {
+                                    const updatedSubmissions = await brandTaskService.getTaskSubmissions(task.id);
+                                    setSubmissions(updatedSubmissions);
+                                  }
+                                } else {
+                                  toast.error('奖励发放失败');
+                                }
+                              } else {
+                                toast.error('计算奖励失败');
+                              }
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                            计算并发放奖励
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'analytics' && (
           <div className="space-y-5">
             <div className={`p-4 rounded-xl ${isDark ? 'bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/20' : 'bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-100'}`}>
@@ -614,6 +872,49 @@ function TaskDetailPanel({
                   <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{item.label}</p>
                 </div>
               ))}
+            </div>
+
+            {/* 详细统计 */}
+            <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+              <h4 className={`text-sm font-medium mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>详细统计</h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>参与人数</span>
+                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {task.current_participants}/{task.max_participants}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>作品数量</span>
+                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {submissions.length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已审核作品</span>
+                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {submissions.filter(s => s.status === 'approved').length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>待审核作品</span>
+                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {submissions.filter(s => s.status === 'pending').length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已发放奖励</span>
+                  <span className={`text-sm font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                    ¥{submissions.reduce((sum, s) => sum + (s.final_reward || 0), 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>剩余预算</span>
+                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    ¥{(task.remaining_budget || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -705,7 +1006,7 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
     brand_id: '',
     brand_name: '',
     required_tags: [''],
-    required_location: '津脉广场',
+    required_location: '商单广场',
     content_requirements: [''],
     participation_conditions: [''],
     start_date: '',
@@ -1273,8 +1574,8 @@ export default function BrandTaskManager() {
   // 过滤任务
   const filteredTasks = tasks.filter(task => {
     const matchesFilter = activeFilter === 'all' || task.status === activeFilter;
-    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         task.brand_name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (task.title?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+                         (task.brand_name?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     return matchesFilter && matchesSearch;
   });
 
@@ -1346,7 +1647,7 @@ export default function BrandTaskManager() {
         </div>
         <div className="flex items-center gap-3">
           <Link
-            to="/organizer-center?tab=settings"
+            to="/organizer-center?tab=funds"
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               isDark ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'
             }`}

@@ -12,9 +12,13 @@ import { useCommunityStore } from '@/stores/communityStore';
 import { AuthContext } from '@/contexts/authContext';
 import { communityService } from '@/services/communityService';
 import type { UserProfile } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import styles from './WorkDetail.module.scss';
 import WorkShareModal from '@/components/share/WorkShareModal';
-import { Users, MessageCircle, Link2, X } from 'lucide-react';
+import { Users, MessageCircle, Link2, X, AtSign } from 'lucide-react';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { trackWorkView } from '@/utils/browseHistory';
+import { MentionPicker } from '@/components/comment/MentionPicker';
 
 // 常用表情列表
 const EMOJI_LIST = [
@@ -100,6 +104,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
   const { currentUser: storeUser } = useCommunityStore();
   const { user: authUser } = React.useContext(AuthContext);
   const { isDark } = useTheme();
+  const { addNotification } = useNotifications();
   
   const currentUser = propUser || storeUser || authUser;
   
@@ -123,6 +128,11 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
   const [activeCommentMenu, setActiveCommentMenu] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isWorkShareModalOpen, setIsWorkShareModalOpen] = useState(false);
+  
+  // @好友功能状态
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [mentionSearchQuery, setMentionSearchQuery] = useState('');
+  const [mentionedUsers, setMentionedUsers] = useState<Array<{ id: string; username: string }>>([]);
 
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const replyInputRef = useRef<HTMLInputElement>(null);
@@ -168,17 +178,113 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
       try {
         setLoading(true);
         setError(null);
-        
+
         // 记录浏览量
         postsApi.recordView(id, 'works').catch(err => {
           console.warn('记录浏览量失败:', err);
         });
-        
+
+        console.log('[WorkDetail] Loading post with currentUser:', currentUser?.id);
         const allPosts = await postsApi.getPosts(undefined, currentUser?.id);
-        const postData = allPosts.find(p => p.id === id);
+        console.log('[WorkDetail] Loaded posts count:', allPosts.length);
+        let postData = allPosts.find(p => p.id === id);
+        console.log('[WorkDetail] Found post:', postData?.id, 'isLiked:', postData?.isLiked, 'likes:', postData?.likes);
+
+        // 如果没有找到帖子，尝试从 Supabase 获取
+        if (!postData) {
+          try {
+            console.log('[WorkDetail] Post not found in allPosts, trying to get from Supabase...');
+            const { data: workData, error: workError } = await supabase
+              .from('works')
+              .select('*')
+              .eq('id', id)
+              .single();
+
+            if (!workError && workData) {
+              console.log('[WorkDetail] Found work in Supabase:', workData.id);
+              // 检查当前用户是否点赞了该作品
+              let isLiked = false;
+              if (currentUser?.id) {
+                const { data: likeData } = await supabase
+                  .from('works_likes')
+                  .select('*')
+                  .eq('user_id', currentUser.id)
+                  .eq('work_id', id)
+                  .single();
+                isLiked = !!likeData;
+                console.log('[WorkDetail] Checked like status:', isLiked);
+              }
+
+              // 获取点赞数
+              const { count: likesCount } = await supabase
+                .from('works_likes')
+                .select('*', { count: 'exact', head: true })
+                .eq('work_id', id);
+
+              postData = {
+                id: workData.id,
+                title: workData.title,
+                thumbnail: workData.thumbnail,
+                type: workData.type || 'image',
+                likes: likesCount || 0,
+                isLiked: isLiked,
+                author: {
+                  id: workData.creator_id,
+                  username: workData.creator_name || '未知用户',
+                  avatar: workData.creator_avatar || ''
+                },
+                // 添加其他必要字段
+                comments: [],
+                date: workData.created_at,
+                category: workData.category || 'other',
+                tags: workData.tags || [],
+                description: workData.description || '',
+                views: workData.views || 0,
+                shares: 0,
+                isFeatured: false,
+                isDraft: false,
+                completionStatus: 'published',
+                creativeDirection: '',
+                culturalElements: [],
+                colorScheme: [],
+                toolsUsed: [],
+                publishType: 'explore',
+                communityId: null,
+                moderationStatus: 'approved',
+                rejectionReason: null,
+                scheduledPublishDate: null,
+                visibility: 'public',
+                commentCount: 0,
+                engagementRate: 0,
+                trendingScore: 0,
+                reach: 0,
+                moderator: null,
+                reviewedAt: null,
+                recommendationScore: 0,
+                recommendedFor: []
+              } as Post;
+            }
+          } catch (supabaseError) {
+            console.error('[WorkDetail] Error fetching from Supabase:', supabaseError);
+          }
+        }
 
         if (postData) {
           setPost(postData);
+          const isVideo = postData.type === 'video';
+          trackWorkView({
+            id: postData.id,
+            title: postData.title || '未命名作品',
+            description: postData.content?.substring(0, 100),
+            thumbnail: postData.thumbnail || postData.coverImage,
+            videoUrl: isVideo ? (postData.thumbnail || postData.coverImage) : undefined,
+            mediaType: isVideo ? 'video' : 'image',
+            creator: postData.creator ? {
+              id: postData.creator.id || '',
+              name: postData.creator.username || postData.creator.name || '未知用户',
+              avatar: postData.creator.avatar
+            } : undefined
+          });
         } else {
           try {
             const thread = await communityService.getThread(id);
@@ -319,18 +425,59 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
 
   // 处理点赞
   const handleLike = async () => {
-    if (!post?.id) return;
+    if (!post?.id || !currentUser?.id) return;
     try {
       const postId = post.id;
-      if (post.isLiked) {
-        await postsApi.unlikePost(postId, currentUser?.id);
+      const wasLiked = post.isLiked;
+      
+      // 乐观更新：立即更新本地状态
+      const newLikedState = !wasLiked;
+      const newLikesCount = (post.likes || 0) + (newLikedState ? 1 : -1);
+      setPost(prev => prev ? { ...prev, isLiked: newLikedState, likes: newLikesCount } : null);
+      
+      if (wasLiked) {
+        await postsApi.unlikePost(postId, currentUser.id);
       } else {
-        await postsApi.likePost(postId, currentUser?.id);
+        await postsApi.likePost(postId, currentUser.id);
+        
+        // 发送作品点赞通知给作者
+        // 获取作品作者ID - author 字段是 User 对象
+        console.log('[handleLike] Full post object:', post);
+        console.log('[handleLike] Post author field:', post.author, 'type:', typeof post.author);
+        const authorId = typeof post.author === 'object' && post.author ? post.author.id : null;
+        console.log('[handleLike] Extracted authorId:', authorId, 'currentUser.id:', currentUser.id);
+        
+        // 检查 authorId 是否有效（不是 unknown、null、undefined 或空字符串）
+        const isValidAuthorId = authorId && 
+          String(authorId) !== 'unknown' && 
+          String(authorId) !== 'null' && 
+          String(authorId) !== 'undefined' && 
+          String(authorId).trim() !== '';
+        
+        if (isValidAuthorId && String(authorId) !== String(currentUser.id)) {
+          console.log('[handleLike] Sending work like notification to author:', authorId);
+          addNotification({
+            type: 'work_liked',
+            title: '作品被点赞',
+            content: `${currentUser.username || '有人'} 点赞了你的作品《${post.title}》`,
+            senderId: String(currentUser.id),
+            senderName: currentUser.username || '未知用户',
+            recipientId: String(authorId),
+            priority: 'low',
+            link: `/work/${postId}`
+          });
+        } else {
+          console.log('[handleLike] Skipping work like notification - invalid authorId or same user');
+        }
       }
+      
+      // 后台同步最新数据
       const updatedPost = await postsApi.getPosts().then(posts => posts.find(p => p.id === postId));
       if (updatedPost) setPost(updatedPost);
     } catch (error) {
       console.error('点赞操作失败:', error);
+      // 如果失败，恢复原始状态
+      setPost(prev => prev ? { ...prev, isLiked: post.isLiked, likes: post.likes } : null);
     }
   };
 
@@ -407,19 +554,128 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
     commentInputRef.current?.focus();
   };
 
+  // 处理@好友输入
+  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    const cursorPosition = e.target.selectionStart;
+    setCommentText(value);
+    
+    // 检测@触发
+    const textBeforeCursor = value.slice(0, cursorPosition);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+    
+    if (lastAtIndex !== -1) {
+      const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
+      // 如果@后面没有空格且长度不超过20，显示选择器
+      if (!textAfterAt.includes(' ') && textAfterAt.length <= 20) {
+        setMentionSearchQuery(textAfterAt);
+        setShowMentionPicker(true);
+      } else {
+        setShowMentionPicker(false);
+      }
+    } else {
+      setShowMentionPicker(false);
+    }
+  };
+
+  // 选择@好友
+  const handleMentionSelect = (user: { id: string; username: string }) => {
+    const textarea = commentInputRef.current;
+    if (!textarea) return;
+    
+    const cursorPosition = textarea.selectionStart;
+    const textBeforeCursor = commentText.slice(0, cursorPosition);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+    
+    // 替换@后面的文本为选中的用户名
+    const newText = 
+      commentText.slice(0, lastAtIndex) + 
+      `@${user.username} ` + 
+      commentText.slice(cursorPosition);
+    
+    setCommentText(newText);
+    setMentionedUsers(prev => [...prev, user]);
+    setShowMentionPicker(false);
+    
+    // 聚焦并设置光标位置
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPosition = lastAtIndex + user.username.length + 2; // +2 for @ and space
+      textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+    }, 0);
+  };
+
+  // 渲染带@高亮的评论文本
+  const renderCommentText = (text: string) => {
+    // 匹配@用户名格式
+    const mentionRegex = /@([^\s@]+)/g;
+    const parts = text.split(mentionRegex);
+    
+    return (
+      <>
+        {parts.map((part, index) => {
+          // 奇数索引是匹配到的用户名
+          if (index % 2 === 1) {
+            return (
+              <span 
+                key={index} 
+                className={styles.mentionHighlight}
+                onClick={() => {
+                  // 可以跳转到用户主页
+                  navigate(`/author/${part}`);
+                }}
+              >
+                @{part}
+              </span>
+            );
+          }
+          return <span key={index}>{part}</span>;
+        })}
+      </>
+    );
+  };
+
   // 发送评论
   const handleSendComment = async () => {
     if (!post?.id) return;
+    if (!currentUser?.id) {
+      toast.error('请先登录后再评论');
+      return;
+    }
     if (!commentText.trim() && commentImages.length === 0) {
       toast.error('请输入评论内容或上传图片');
       return;
     }
     setIsUploading(true);
     try {
-      await addComment(post.id, commentText, undefined, currentUser as any, commentImages);
+      // 如果只上传图片没有文字，发送空格作为内容（后端要求内容不能为空）
+      const contentToSend = commentText.trim() || ' ';
+      await addComment(post.id, contentToSend, undefined, currentUser as any, commentImages);
+      
+      // 发送@通知给被提及的好友
+      if (mentionedUsers.length > 0) {
+        for (const mentionedUser of mentionedUsers) {
+          // 检查评论内容中确实包含该用户的@（可能用户删除了@）
+          if (contentToSend.includes(`@${mentionedUser.username}`)) {
+            addNotification({
+              type: 'mention',
+              title: '有人在评论中提到了你',
+              content: `${currentUser.username || '有人'} 在作品《${post.title}》的评论中提到了你`,
+              senderId: String(currentUser.id),
+              senderName: currentUser.username || '未知用户',
+              senderAvatar: currentUser.avatar,
+              recipientId: mentionedUser.id,
+              priority: 'medium',
+              link: `/work/${post.id}`,
+            });
+          }
+        }
+      }
+      
       setCommentText('');
       setCommentImages([]);
       setCommentImagePreviews([]);
+      setMentionedUsers([]);
       toast.success('评论发送成功！');
       const updatedComments = await postsApi.getWorkComments(post.id);
       setComments(updatedComments);
@@ -688,7 +944,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
                   alt={post.title}
                   className={styles.mediaContent}
                   controls={true}
-                  autoPlay={false}
+                  autoPlay={true}
                   muted={true}
                   loop={true}
                   playsInline={true}
@@ -755,13 +1011,27 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
 
             {/* 评论区 */}
             <div id="comments-section" className={styles.commentsSection}>
-              <h3 
-                className={styles.commentsTitle}
-                onClick={() => setCommentsExpanded(!commentsExpanded)}
-                aria-expanded={commentsExpanded}
-              >
-                {comments.length || post.commentCount || 0}条评论
-              </h3>
+              <div className={styles.commentsHeader}>
+                <h3 className={styles.commentsTitle}>
+                  {comments.length || post.commentCount || 0}条评论
+                </h3>
+                <button
+                  className={styles.expandButton}
+                  onClick={() => setCommentsExpanded(!commentsExpanded)}
+                  aria-expanded={commentsExpanded}
+                  aria-label={commentsExpanded ? '收起评论' : '展开评论'}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className={commentsExpanded ? styles.expanded : ''}
+                  >
+                    <polyline points="6,9 12,15 18,9"/>
+                  </svg>
+                </button>
+              </div>
 
               {/* 回复输入框 */}
               {replyToComment && (
@@ -815,7 +1085,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
                                 {new Date(comment.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
                               </span>
                             </div>
-                            <p className={styles.commentText}>{comment.content}</p>
+                            <p className={styles.commentText}>{renderCommentText(comment.content)}</p>
                             {comment.images && comment.images.length > 0 && (
                               <div className={styles.commentImages}>
                                 {comment.images.map((img, idx) => (
@@ -924,13 +1194,20 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
                   alt="Me"
                   size="sm"
                 />
-                <div className={styles.inputArea}>
+                <div className={styles.inputArea} style={{ position: 'relative' }}>
                   <textarea
                     ref={commentInputRef}
                     value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
+                    onChange={handleCommentChange}
                     placeholder="写下你的评论..."
                     rows={1}
+                  />
+                  {/* @好友选择器 */}
+                  <MentionPicker
+                    isOpen={showMentionPicker}
+                    onClose={() => setShowMentionPicker(false)}
+                    onSelect={handleMentionSelect}
+                    searchQuery={mentionSearchQuery}
                   />
                   <div className={styles.inputActions}>
                     <div className={styles.inputTools}>
@@ -953,6 +1230,28 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
                           <polyline points="21,15 16,10 5,21"/>
                         </svg>
                         <span>图片{commentImages.length > 0 && `(${commentImages.length}/4)`}</span>
+                      </button>
+                      {/* @好友按钮 */}
+                      <button 
+                        className={styles.toolButton}
+                        onClick={() => {
+                          const textarea = commentInputRef.current;
+                          if (textarea) {
+                            const cursorPosition = textarea.selectionStart;
+                            setCommentText(prev => 
+                              prev.slice(0, cursorPosition) + '@' + prev.slice(cursorPosition)
+                            );
+                            setTimeout(() => {
+                              textarea.focus();
+                              textarea.setSelectionRange(cursorPosition + 1, cursorPosition + 1);
+                              setShowMentionPicker(true);
+                              setMentionSearchQuery('');
+                            }, 0);
+                          }
+                        }}
+                      >
+                        <AtSign className="w-4 h-4" />
+                        <span>好友</span>
                       </button>
                       <div className={styles.emojiWrapper}>
                         <button 

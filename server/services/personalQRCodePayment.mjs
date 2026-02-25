@@ -179,11 +179,11 @@ class PersonalQRCodePaymentService {
         },
       };
 
-      // 更新订单状态
+      // 更新订单状态为待审核
       const { error: updateError } = await supabaseServer
         .from('membership_orders')
         .update({
-          status: 'completed', // 个人支付直接标记为完成，等待管理员审核
+          status: 'verifying', // 个人支付提交凭证后变为待审核状态
           metadata: updatedMetadata,
           paid_at: new Date().toISOString(),
         })

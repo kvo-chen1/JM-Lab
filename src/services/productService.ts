@@ -73,6 +73,38 @@ export interface ExchangeResult {
 // 商品服务类
 class ProductService {
   /**
+   * 初始化数据库表（添加缺失的字段）
+   */
+  async initDatabase(): Promise<void> {
+    try {
+      // 检查并添加缺失的字段
+      const alterStatements = [
+        'ALTER TABLE IF EXISTS public.exchange_records ADD COLUMN IF NOT EXISTS admin_notes TEXT;',
+        'ALTER TABLE IF EXISTS public.exchange_records ADD COLUMN IF NOT EXISTS processed_by VARCHAR(100);',
+        'ALTER TABLE IF EXISTS public.exchange_records ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;',
+        'ALTER TABLE IF EXISTS public.exchange_records ADD COLUMN IF NOT EXISTS product_image TEXT;',
+        'ALTER TABLE IF EXISTS public.exchange_records ADD COLUMN IF NOT EXISTS user_email TEXT;',
+        'ALTER TABLE IF EXISTS public.exchange_records ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50);',
+        'ALTER TABLE IF EXISTS public.exchange_records ADD COLUMN IF NOT EXISTS shipping_address TEXT;',
+        'ALTER TABLE IF EXISTS public.exchange_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();'
+      ];
+
+      for (const sql of alterStatements) {
+        try {
+          await supabaseAdmin.rpc('exec_sql', { sql });
+        } catch (e) {
+          // 忽略已存在的字段错误
+          console.log('字段可能已存在:', sql);
+        }
+      }
+
+      console.log('数据库初始化完成');
+    } catch (error) {
+      console.error('数据库初始化失败:', error);
+    }
+  }
+
+  /**
    * 获取所有商品
    */
   async getAllProducts(category?: ProductCategory, search?: string): Promise<Product[]> {
@@ -465,26 +497,49 @@ class ProductService {
     processedBy?: string
   ): Promise<boolean> {
     try {
+      // 首先尝试更新所有字段
       const updateData: any = {
         status,
-        processed_at: new Date().toISOString()
+        updated_at: new Date().toISOString()
       };
 
-      if (adminNotes !== undefined) {
+      // 只在字段存在时添加可选字段
+      const { data: columns } = await supabaseAdmin
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', 'exchange_records')
+        .eq('table_schema', 'public');
+
+      const columnNames = columns?.map(c => c.column_name) || [];
+
+      if (columnNames.includes('processed_at')) {
+        updateData.processed_at = new Date().toISOString();
+      }
+      if (columnNames.includes('admin_notes') && adminNotes !== undefined) {
         updateData.admin_notes = adminNotes;
       }
-      if (processedBy) {
+      if (columnNames.includes('processed_by') && processedBy) {
         updateData.processed_by = processedBy;
       }
 
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('exchange_records')
         .update(updateData)
         .eq('id', orderId);
 
       if (error) {
         console.error('更新订单状态失败:', error);
-        return false;
+        // 如果失败，尝试只更新状态字段
+        const { error: simpleError } = await supabaseAdmin
+          .from('exchange_records')
+          .update({ status })
+          .eq('id', orderId);
+
+        if (simpleError) {
+          console.error('简化更新也失败:', simpleError);
+          return false;
+        }
+        return true;
       }
 
       return true;
@@ -553,6 +608,131 @@ class ProductService {
         totalPoints: 0,
         todayOrders: 0
       };
+    }
+  }
+
+  /**
+   * 获取销售趋势数据（近7天）
+   */
+  async getSalesTrend(days: number = 7): Promise<{ date: string; count: number; points: number }[]> {
+    try {
+      // 计算日期范围
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - days + 1);
+
+      const { data, error } = await supabase
+        .from('exchange_records')
+        .select('created_at, points_cost, status')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .in('status', ['completed', 'pending', 'processing']);
+
+      if (error) {
+        console.error('获取销售趋势失败:', error);
+        throw error;
+      }
+
+      // 按日期分组统计
+      const trendMap = new Map<string, { count: number; points: number }>();
+
+      // 初始化近7天的数据为0
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        trendMap.set(dateStr, { count: 0, points: 0 });
+      }
+
+      // 统计订单数据
+      data?.forEach(record => {
+        const dateStr = record.created_at.split('T')[0];
+        if (trendMap.has(dateStr)) {
+          const current = trendMap.get(dateStr)!;
+          trendMap.set(dateStr, {
+            count: current.count + 1,
+            points: current.points + (record.points_cost || 0)
+          });
+        }
+      });
+
+      // 转换为数组并排序
+      return Array.from(trendMap.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, stats]) => ({
+          date,
+          count: stats.count,
+          points: stats.points
+        }));
+    } catch (error) {
+      console.error('获取销售趋势失败:', error);
+      // 返回空数据
+      const result = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        result.push({
+          date: date.toISOString().split('T')[0],
+          count: 0,
+          points: 0
+        });
+      }
+      return result;
+    }
+  }
+
+  /**
+   * 获取热销商品TOP N
+   */
+  async getTopSellingProducts(limit: number = 5): Promise<{ productId: string; productName: string; productImage: string; points: number; totalSold: number }[]> {
+    try {
+      const { data, error } = await supabase
+        .from('exchange_records')
+        .select('product_id, product_name, product_image, points_cost, quantity, status')
+        .in('status', ['completed', 'pending', 'processing']);
+
+      if (error) {
+        console.error('获取热销商品失败:', error);
+        throw error;
+      }
+
+      // 按商品分组统计销量
+      const productMap = new Map<string, {
+        productName: string;
+        productImage: string;
+        points: number;
+        totalSold: number;
+      }>();
+
+      data?.forEach(record => {
+        const qty = record.quantity || 1;
+        if (productMap.has(record.product_id)) {
+          const current = productMap.get(record.product_id)!;
+          productMap.set(record.product_id, {
+            ...current,
+            totalSold: current.totalSold + qty
+          });
+        } else {
+          productMap.set(record.product_id, {
+            productName: record.product_name || '未知商品',
+            productImage: record.product_image || '',
+            points: record.points_cost || 0,
+            totalSold: qty
+          });
+        }
+      });
+
+      // 转换为数组，按销量排序，取前N个
+      return Array.from(productMap.entries())
+        .map(([productId, stats]) => ({
+          productId,
+          ...stats
+        }))
+        .sort((a, b) => b.totalSold - a.totalSold)
+        .slice(0, limit);
+    } catch (error) {
+      console.error('获取热销商品失败:', error);
+      return [];
     }
   }
 

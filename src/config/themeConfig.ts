@@ -226,7 +226,7 @@ export const themePresets = {
 };
 
 // 默认主题配置
-export const defaultTheme: Theme = 'light';
+export const defaultTheme: Theme = 'pixel';
 
 // 主题切换顺序
 export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced'];

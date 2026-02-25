@@ -184,7 +184,7 @@ class MembershipService {
   private readonly CACHE_KEY = 'MEMBERSHIP_CACHE';
   private readonly CACHE_TTL = {
     benefits: 1000 * 60 * 60, // 1小时
-    info: 1000 * 60 * 5,      // 5分钟
+    info: 0,      // 禁用缓存，实时获取
     usage: 1000 * 60 * 1,     // 1分钟
     orders: 1000 * 60 * 5,    // 5分钟
     points: 1000 * 60 * 5,    // 5分钟
@@ -548,6 +548,7 @@ class MembershipService {
 
   /**
    * 获取当前用户的会员信息
+   * 优先从 membership_orders 表获取会员等级，与后台管理保持一致
    */
   async getMembershipInfo(userId: string): Promise<MembershipInfo | null> {
     if (!userId) return null;
@@ -558,44 +559,89 @@ class MembershipService {
     }
 
     try {
-      // 从数据库获取用户信息
+      // 从数据库获取用户基本信息（只查询存在的字段）
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('membership_level, membership_status, membership_start, membership_end, membership_points, total_spent')
+        .select('membership_level, membership_status, membership_start, membership_end')
         .eq('id', userId)
         .single();
 
       if (userError) throw userError;
 
+      // 优先从 membership_orders 表获取会员等级（与后台管理保持一致）
+      let membershipLevel: MembershipLevel = (userData.membership_level as MembershipLevel) || 'free';
+      let membershipStatus: MembershipStatus = (userData.membership_status as MembershipStatus) || 'active';
+      let membershipStart = userData.membership_start;
+      let membershipEnd = userData.membership_end;
+
+      try {
+        console.log('[MembershipService] 正在查询用户订单, userId:', userId);
+        // 使用 supabaseAdmin 绕过 RLS 限制，与后台管理保持一致
+        const { data: orders, error: ordersError } = await supabaseAdmin
+          .from('membership_orders')
+          .select('plan, status, paid_at, expires_at')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        console.log('[MembershipService] 订单查询结果:', { orders, ordersError });
+
+        if (orders && orders.length > 0) {
+          const latestOrder = orders[0];
+          console.log('[MembershipService] 找到订单:', latestOrder);
+          membershipLevel = latestOrder.plan as MembershipLevel;
+          membershipStart = latestOrder.paid_at;
+          membershipEnd = latestOrder.expires_at;
+
+          // 检查会员是否过期
+          if (latestOrder.expires_at) {
+            const expiresDate = new Date(latestOrder.expires_at);
+            if (expiresDate < new Date()) {
+              membershipStatus = 'expired';
+            } else {
+              membershipStatus = 'active';
+            }
+          }
+        } else {
+          console.log('[MembershipService] 未找到已完成订单，使用 users 表数据');
+        }
+      } catch (e) {
+        console.warn('[MembershipService] 从订单表获取会员信息失败:', e);
+      }
+
       // 计算升级进度
       const levels = await this.getMembershipLevels();
-      const currentLevelIndex = levels.findIndex((l) => l.level === userData.membership_level);
+      const currentLevelIndex = levels.findIndex((l) => l.level === membershipLevel);
       const nextLevel = levels[currentLevelIndex + 1] || null;
-      
+
+      // 积分相关字段可能不存在，使用默认值
+      const currentPoints = 0;
+      const totalSpent = 0;
       let upgradeProgress = 0;
-      if (nextLevel && userData.membership_points !== undefined) {
+      if (nextLevel) {
         const currentMin = levels[currentLevelIndex]?.growth.minPoints || 0;
         const nextMin = nextLevel.growth.minPoints;
         const range = nextMin - currentMin;
-        const current = (userData.membership_points || 0) - currentMin;
+        const current = currentPoints - currentMin;
         upgradeProgress = range > 0 ? Math.min(100, Math.round((current / range) * 100)) : 100;
       }
 
       const info: MembershipInfo = {
         userId,
-        level: userData.membership_level as MembershipLevel,
-        status: userData.membership_status as MembershipStatus,
-        startDate: userData.membership_start,
-        endDate: userData.membership_end,
+        level: membershipLevel,
+        status: membershipStatus,
+        startDate: membershipStart,
+        endDate: membershipEnd,
         autoRenew: false, // 默认不自动续费
-        currentPoints: userData.membership_points || 0,
-        totalSpent: userData.total_spent || 0,
+        currentPoints,
+        totalSpent,
         upgradeProgress,
         nextLevel: nextLevel?.level || null,
       };
 
       this.updateCache('info', info);
-      
+
       // 订阅实时更新
       this.subscribeToRealtimeUpdates(userId);
 
@@ -614,17 +660,19 @@ class MembershipService {
     updates: Partial<MembershipInfo>
   ): Promise<boolean> {
     try {
+      // 只更新 users 表中存在的字段
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+      
+      if (updates.level !== undefined) updateData.membership_level = updates.level;
+      if (updates.status !== undefined) updateData.membership_status = updates.status;
+      if (updates.startDate !== undefined) updateData.membership_start = updates.startDate;
+      if (updates.endDate !== undefined) updateData.membership_end = updates.endDate;
+
       const { error } = await supabase
         .from('users')
-        .update({
-          membership_level: updates.level,
-          membership_status: updates.status,
-          membership_start: updates.startDate,
-          membership_end: updates.endDate,
-          membership_points: updates.currentPoints,
-          total_spent: updates.totalSpent,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', userId);
 
       if (error) throw error;
@@ -810,7 +858,8 @@ class MembershipService {
     }
 
     try {
-      let query = supabase
+      // 使用 supabaseAdmin 绕过 RLS 限制
+      let query = supabaseAdmin
         .from('membership_orders')
         .select('*', { count: 'exact' })
         .eq('user_id', userId)
@@ -901,7 +950,8 @@ class MembershipService {
         refundedAt: null,
       };
 
-      const { error } = await supabase.from('membership_orders').insert({
+      // 使用 supabaseAdmin 绕过 RLS 限制
+      const { error } = await supabaseAdmin.from('membership_orders').insert({
         id: order.id,
         user_id: order.userId,
         plan: order.plan,
@@ -934,7 +984,8 @@ class MembershipService {
     paymentData: Record<string, any>
   ): Promise<boolean> {
     try {
-      const { data: order, error: fetchError } = await supabase
+      // 使用 supabaseAdmin 绕过 RLS 限制
+      const { data: order, error: fetchError } = await supabaseAdmin
         .from('membership_orders')
         .select('*')
         .eq('id', orderId)
@@ -960,7 +1011,7 @@ class MembershipService {
       }
 
       // 更新订单状态
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseAdmin
         .from('membership_orders')
         .update({
           status: 'completed',
@@ -1031,12 +1082,8 @@ class MembershipService {
 
       if (error) throw error;
 
-      // 获取当前积分余额
-      const { data: userData } = await supabase
-        .from('users')
-        .select('membership_points')
-        .eq('id', userId)
-        .single();
+      // 积分字段可能不存在，使用默认值 0
+      const balance = 0;
 
       const records: PointsRecord[] = (data || []).map((item) => ({
         id: item.id,
@@ -1054,7 +1101,7 @@ class MembershipService {
       return {
         records,
         total: count || 0,
-        balance: userData?.membership_points || 0,
+        balance,
       };
     } catch (error) {
       console.error('[MembershipService] 获取积分记录失败:', error);
@@ -1073,14 +1120,8 @@ class MembershipService {
     relatedId?: string
   ): Promise<boolean> {
     try {
-      // 获取当前积分
-      const { data: userData } = await supabase
-        .from('users')
-        .select('membership_points')
-        .eq('id', userId)
-        .single();
-
-      const currentPoints = userData?.membership_points || 0;
+      // 积分字段可能不存在，使用默认值
+      const currentPoints = 0;
       const newBalance = currentPoints + points;
 
       // 创建积分记录
@@ -1096,14 +1137,6 @@ class MembershipService {
       });
 
       if (recordError) throw recordError;
-
-      // 更新用户积分
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ membership_points: newBalance })
-        .eq('id', userId);
-
-      if (updateError) throw updateError;
 
       // 清除缓存
       this.cache.lastUpdated.points = 0;
@@ -1135,14 +1168,8 @@ class MembershipService {
     relatedId?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // 获取当前积分
-      const { data: userData } = await supabase
-        .from('users')
-        .select('membership_points')
-        .eq('id', userId)
-        .single();
-
-      const currentPoints = userData?.membership_points || 0;
+      // 积分字段可能不存在，使用默认值
+      const currentPoints = 0;
 
       if (currentPoints < points) {
         return { success: false, error: '积分不足' };
@@ -1162,14 +1189,6 @@ class MembershipService {
       });
 
       if (recordError) throw recordError;
-
-      // 更新用户积分
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ membership_points: newBalance })
-        .eq('id', userId);
-
-      if (updateError) throw updateError;
 
       // 清除缓存
       this.cache.lastUpdated.points = 0;

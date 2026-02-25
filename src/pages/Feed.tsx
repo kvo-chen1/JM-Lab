@@ -31,6 +31,8 @@ import { FeedFilter } from '@/components/feed/FeedFilter';
 import { FeedCard } from '@/components/feed/FeedCard';
 import { RightSidebar } from '@/components/feed/RightSidebar';
 import { FollowingUsersBar } from '@/components/feed/FollowingUsersBar';
+import { FeedDetailModal } from '@/components/feed/FeedDetailModal';
+import { FeedShareModal } from '@/components/feed/FeedShareModal';
 
 // 导入图标
 import {
@@ -44,6 +46,9 @@ export default function Feed() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // 调试：打印 user 对象
+  console.log('[Feed] Current user:', user);
+
   // 状态管理
   const [feeds, setFeeds] = useState<FeedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,6 +57,11 @@ export default function Feed() {
   const [page, setPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState<FeedFilterType>('all');
   const [activeSort, setActiveSort] = useState<FeedSortType>('latest');
+
+  // 调试：监听 activeFilter 变化
+  useEffect(() => {
+    console.log('[Feed] activeFilter changed:', activeFilter);
+  }, [activeFilter]);
   
   // 右侧栏数据
   const [hotSearch, setHotSearch] = useState<HotSearchItem[]>([]);
@@ -70,38 +80,46 @@ export default function Feed() {
     followingCount: 0
   });
 
+  // 评论弹窗状态
+  const [selectedFeed, setSelectedFeed] = useState<FeedItem | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // 分享弹窗状态
+  const [shareFeed, setShareFeed] = useState<FeedItem | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
   const feedListRef = useRef<HTMLDivElement>(null);
 
   // 加载动态列表
-  const loadFeeds = useCallback(async (isRefresh = false) => {
+  const loadFeeds = useCallback(async (isRefresh = false, targetPage?: number) => {
     if (isRefresh) {
       setIsLoading(true);
-      setPage(1);
     } else {
       setIsLoadingMore(true);
     }
 
     try {
+      const currentPage = isRefresh ? 1 : (targetPage ?? page);
       const params: FeedQueryParams = {
         filter: activeFilter,
         sort: activeSort,
-        page: isRefresh ? 1 : page,
+        page: currentPage,
         pageSize: 10,
+        currentUserId: user?.id, // 传递当前用户ID，用于活动筛选（自己及关注用户的活动）
+        // 注意：不要在这里传 userId，否则会只显示当前用户的动态
       };
 
       const response = await feedService.getFeeds(params);
-      
+
       if (isRefresh) {
         setFeeds(response.feeds);
+        setPage(2);
       } else {
         setFeeds(prev => [...prev, ...response.feeds]);
-      }
-      
-      setHasMore(response.hasMore);
-      
-      if (!isRefresh && response.feeds.length > 0) {
         setPage(prev => prev + 1);
       }
+
+      setHasMore(response.hasMore);
     } catch (error) {
       toast.error('加载动态失败，请稍后重试');
     } finally {
@@ -172,7 +190,9 @@ export default function Feed() {
 
   // 筛选或排序变化时重新加载
   useEffect(() => {
+    console.log('[Feed] Filter or sort changed:', { activeFilter, activeSort });
     loadFeeds(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFilter, activeSort]);
 
   // 无限滚动
@@ -192,7 +212,8 @@ export default function Feed() {
     }
 
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, isLoading, loadFeeds]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, isLoadingMore, isLoading]);
 
   // 发布动态
   const handlePublish = async (data: CreateFeedRequest) => {
@@ -209,37 +230,71 @@ export default function Feed() {
 
   // 点赞动态
   const handleLike = async (feedId: string) => {
+    console.log('[Feed] handleLike called, user:', user);
+    if (!user?.id) {
+      toast.error('请先登录后再点赞');
+      return;
+    }
+    console.log('[Feed] Calling likeFeed with userId:', user.id);
     try {
-      const result = await feedService.likeFeed(feedId);
+      const result = await feedService.likeFeed(feedId, user.id);
+      console.log('[Feed] likeFeed result:', result);
       if (result.success) {
-        setFeeds(prev => prev.map(feed => 
-          feed.id === feedId 
-            ? { ...feed, isLiked: !feed.isLiked, likes: result.likes }
+        setFeeds(prev => prev.map(feed =>
+          feed.id === feedId
+            ? { ...feed, isLiked: result.isLiked, likes: result.likes }
             : feed
         ));
+      } else {
+        toast.error('操作失败，请稍后重试');
       }
     } catch (error) {
+      console.error('[Feed] likeFeed error:', error);
       toast.error('操作失败');
     }
   };
 
   // 收藏动态
   const handleCollect = async (feedId: string) => {
+    if (!user?.id) {
+      toast.error('请先登录后再收藏');
+      return;
+    }
     try {
-      await feedService.collectFeed(feedId);
-      setFeeds(prev => prev.map(feed => 
-        feed.id === feedId 
-          ? { ...feed, isCollected: !feed.isCollected }
-          : feed
-      ));
-      toast.success('收藏成功');
+      const result = await feedService.collectFeed(feedId, user.id);
+      if (result.success) {
+        setFeeds(prev => prev.map(feed =>
+          feed.id === feedId
+            ? { ...feed, isCollected: result.isCollected }
+            : feed
+        ));
+        toast.success(result.isCollected ? '收藏成功' : '取消收藏成功');
+      } else {
+        toast.error('操作失败，请稍后重试');
+      }
     } catch (error) {
+      console.error('[Feed] collectFeed error:', error);
       toast.error('操作失败');
     }
   };
 
-  // 分享动态
-  const handleShare = async (feedId: string) => {
+  // 分享动态 - 打开分享弹窗
+  const handleShare = (feedId: string) => {
+    const feed = feeds.find(f => f.id === feedId);
+    if (feed) {
+      setShareFeed(feed);
+      setIsShareModalOpen(true);
+    }
+  };
+
+  // 关闭分享弹窗
+  const handleCloseShareModal = () => {
+    setIsShareModalOpen(false);
+    setShareFeed(null);
+  };
+
+  // 分享成功回调
+  const handleShareSuccess = async (feedId: string) => {
     try {
       const result = await feedService.shareFeed(feedId);
       if (result.success) {
@@ -248,24 +303,82 @@ export default function Feed() {
             ? { ...feed, shares: result.shares, isShared: true }
             : feed
         ));
-        toast.success('分享成功');
       }
     } catch (error) {
-      toast.error('分享失败');
+      console.error('分享失败:', error);
     }
   };
 
   // 点击动态卡片 - 跳转到作品详情页
   const handleOpenDetail = (feed: FeedItem) => {
-    // 根据内容类型跳转到对应的作品详情页
-    if (feed.contentType === 'video' || feed.contentType === 'image') {
-      navigate(`/works/${feed.id}`);
-    } else if (feed.contentType === 'article') {
-      navigate(`/posts/${feed.id}`);
-    } else {
-      // 默认跳转到作品页
-      navigate(`/works/${feed.id}`);
+    console.log('[handleOpenDetail] Feed clicked:', { id: feed.id, sourceType: feed.sourceType, contentType: feed.contentType });
+
+    // 检查是否是社群推荐动态
+    if (feed.id.startsWith('community_feed_')) {
+      const communityId = feed.id.replace('community_feed_', '');
+      console.log('[handleOpenDetail] Navigating to community:', communityId);
+      navigate(`/community/${communityId}`);
+      return;
     }
+
+    // 检查是否是公告动态
+    if (feed.id.startsWith('announcement_')) {
+      console.log('[handleOpenDetail] Announcement clicked, no navigation');
+      // 公告类型不跳转，或者可以显示详情弹窗
+      return;
+    }
+
+    // 检查是否有分享目标
+    if (feed.shareTarget?.url) {
+      console.log('[handleOpenDetail] Navigating to shareTarget.url:', feed.shareTarget.url);
+      navigate(feed.shareTarget.url);
+      return;
+    }
+
+    // 根据 sourceType 判断数据来源，跳转到对应页面
+    if (feed.sourceType === 'post') {
+      // Post 类型的数据统一跳转到帖子详情页
+      console.log('[handleOpenDetail] Navigating to /post/', feed.id);
+      navigate(`/post/${feed.id}`);
+    } else if (feed.sourceType === 'work') {
+      // Work 类型的数据跳转到作品页
+      console.log('[handleOpenDetail] Navigating to /works/', feed.id);
+      navigate(`/works/${feed.id}`);
+    } else {
+      // 兼容旧逻辑：根据内容类型跳转
+      console.log('[handleOpenDetail] No sourceType, using contentType fallback');
+      if (feed.contentType === 'video' || feed.contentType === 'image') {
+        navigate(`/works/${feed.id}`);
+      } else if (feed.contentType === 'article') {
+        navigate(`/post/${feed.id}`);
+      } else {
+        // 默认跳转到帖子页
+        navigate(`/post/${feed.id}`);
+      }
+    }
+  };
+
+  // 打开评论弹窗
+  const handleOpenComment = (feed: FeedItem) => {
+    setSelectedFeed(feed);
+    setIsDetailModalOpen(true);
+  };
+
+  // 关闭评论弹窗
+  const handleCloseDetail = () => {
+    setIsDetailModalOpen(false);
+    setSelectedFeed(null);
+  };
+
+  // 评论添加成功
+  const handleCommentAdded = (feedId: string) => {
+    setFeeds(prev => prev.map(feed =>
+      feed.id === feedId
+        ? { ...feed, comments: feed.comments + 1 }
+        : feed
+    ));
+    // 同时更新 selectedFeed
+    setSelectedFeed(prev => prev ? { ...prev, comments: prev.comments + 1 } : null);
   };
 
   // 关注用户
@@ -318,23 +431,24 @@ export default function Feed() {
     }
   };
 
-  // 选择关注用户筛选
+  // 选择关注用户筛选（与主筛选组合）
   const handleSelectFollowingUser = useCallback(async (userId: string | null) => {
     setSelectedFollowingUserId(userId);
     setIsLoading(true);
     try {
       if (userId) {
-        // 获取特定用户的动态
+        // 获取特定用户的动态（同时应用主筛选和排序）
         const response = await feedService.getFeeds({
-          userId,
+          filter: activeFilter,
           sort: activeSort,
+          userId,
           page: 1,
           pageSize: 10,
         });
         setFeeds(response.feeds);
         setHasMore(response.hasMore);
       } else {
-        // 重新加载全部动态
+        // 重新加载全部动态（保持当前主筛选和排序）
         await loadFeeds(true);
       }
     } catch (error) {
@@ -342,7 +456,8 @@ export default function Feed() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeSort, loadFeeds]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilter, activeSort]);
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-950' : 'bg-[#f1f2f3]'}`}>
@@ -402,6 +517,7 @@ export default function Feed() {
                       onShare={() => handleShare(feed.id)}
                       onClick={() => handleOpenDetail(feed)}
                       onFollow={(isFollowing) => handleFollowUser(feed.author.id, isFollowing)}
+                      onComment={() => handleOpenComment(feed)}
                     />
                   </motion.div>
                 ))}
@@ -458,6 +574,27 @@ export default function Feed() {
         </div>
       </div>
 
+      {/* 评论详情弹窗 */}
+      <FeedDetailModal
+        feed={selectedFeed}
+        isOpen={isDetailModalOpen}
+        onClose={handleCloseDetail}
+        onLike={handleLike}
+        onCollect={handleCollect}
+        onShare={handleShare}
+        onCommentAdded={handleCommentAdded}
+        currentUserId={user?.id}
+        currentUserName={user?.username || user?.name}
+        currentUserAvatar={user?.avatar}
+      />
+
+      {/* 分享弹窗 */}
+      <FeedShareModal
+        isOpen={isShareModalOpen}
+        onClose={handleCloseShareModal}
+        feed={shareFeed}
+        onShareSuccess={() => shareFeed && handleShareSuccess(shareFeed.id)}
+      />
     </div>
   );
 }

@@ -438,6 +438,7 @@ export const MobileCommentDrawer: React.FC<MobileCommentDrawerProps> = ({
                               className={`w-7 h-7 flex items-center justify-center rounded transition-colors text-lg ${
                                 isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
                               }`}
+                              style={{ fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif', lineHeight: 1.5 }}
                             >
                               {emoji}
                             </button>

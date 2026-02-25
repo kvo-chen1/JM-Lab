@@ -1,6 +1,63 @@
 import { supabase } from '@/lib/supabase';
 
 // ==========================================================================
+// 辅助函数：获取当前用户信息
+// ==========================================================================
+
+interface UserInfo {
+  id: string;
+  email?: string;
+}
+
+/**
+ * 获取当前登录用户信息
+ * 优先从 Supabase session 获取，如果不存在则从 localStorage 获取
+ */
+async function getCurrentUser(): Promise<UserInfo | null> {
+  try {
+    // 首先尝试从 Supabase 获取 session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      return {
+        id: session.user.id,
+        email: session.user.email,
+      };
+    }
+
+    // 如果 Supabase session 不存在，尝试从 localStorage 获取
+    const userStr = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    
+    if (userStr && token) {
+      const user = JSON.parse(userStr);
+      if (user?.id) {
+        // 尝试恢复 Supabase session
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (refreshToken) {
+          try {
+            await supabase.auth.setSession({
+              access_token: token,
+              refresh_token: refreshToken,
+            });
+          } catch (e) {
+            console.warn('恢复 Supabase session 失败:', e);
+          }
+        }
+        return {
+          id: user.id,
+          email: user.email,
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('获取当前用户失败:', error);
+    return null;
+  }
+}
+
+// ==========================================================================
 // 类型定义
 // ==========================================================================
 
@@ -251,8 +308,8 @@ class BrandTaskService {
 
   async createTask(data: CreateTaskRequest): Promise<BrandTask | null> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const user = await getCurrentUser();
+      if (!user) {
         throw new Error('请先登录');
       }
 
@@ -260,7 +317,7 @@ class BrandTaskService {
         .from('brand_tasks')
         .insert({
           ...data,
-          publisher_id: session.user.id,
+          publisher_id: user.id,
           remaining_budget: data.total_budget,
           status: 'draft',
         })
@@ -439,8 +496,8 @@ class BrandTaskService {
     limit?: number;
   }): Promise<{ tasks: BrandTask[]; total: number }> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const user = await getCurrentUser();
+      if (!user) {
         return { tasks: [], total: 0 };
       }
 
@@ -449,7 +506,7 @@ class BrandTaskService {
       let query = supabase
         .from('brand_tasks')
         .select('*', { count: 'exact' })
-        .eq('publisher_id', session.user.id);
+        .eq('publisher_id', user.id);
 
       if (status && status !== 'all') {
         query = query.eq('status', status);
@@ -480,8 +537,8 @@ class BrandTaskService {
 
   async applyForTask(taskId: string, message?: string, portfolioLinks?: string[]): Promise<boolean> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const user = await getCurrentUser();
+      if (!user) {
         throw new Error('请先登录');
       }
 
@@ -489,7 +546,7 @@ class BrandTaskService {
         .from('brand_task_participants')
         .insert({
           task_id: taskId,
-          creator_id: session.user.id,
+          creator_id: user.id,
           status: 'applied',
           application_message: message,
           portfolio_links: portfolioLinks || [],
@@ -505,8 +562,8 @@ class BrandTaskService {
 
   async submitWork(data: SubmitWorkRequest): Promise<BrandTaskSubmission | null> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const user = await getCurrentUser();
+      if (!user) {
         throw new Error('请先登录');
       }
 
@@ -515,7 +572,7 @@ class BrandTaskService {
         .from('brand_task_participants')
         .select('id')
         .eq('task_id', data.task_id)
-        .eq('creator_id', session.user.id)
+        .eq('creator_id', user.id)
         .single();
 
       if (!participant) {
@@ -527,7 +584,7 @@ class BrandTaskService {
         .insert({
           ...data,
           participant_id: participant.id,
-          creator_id: session.user.id,
+          creator_id: user.id,
           status: 'pending',
         })
         .select()
@@ -543,8 +600,8 @@ class BrandTaskService {
 
   async getMyParticipations(): Promise<BrandTaskParticipant[]> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const user = await getCurrentUser();
+      if (!user) {
         return [];
       }
 
@@ -554,7 +611,7 @@ class BrandTaskService {
           *,
           task:brand_tasks(*)
         `)
-        .eq('creator_id', session.user.id)
+        .eq('creator_id', user.id)
         .order('applied_at', { ascending: false });
 
       if (error) throw error;
@@ -567,8 +624,8 @@ class BrandTaskService {
 
   async getMySubmissions(taskId?: string): Promise<BrandTaskSubmission[]> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const user = await getCurrentUser();
+      if (!user) {
         return [];
       }
 
@@ -579,7 +636,7 @@ class BrandTaskService {
           task:brand_tasks(title, brand_name),
           work:works(id, title, thumbnail, view_count)
         `)
-        .eq('creator_id', session.user.id);
+        .eq('creator_id', user.id);
 
       if (taskId) {
         query = query.eq('task_id', taskId);
@@ -842,13 +899,13 @@ class BrandTaskService {
 
   async getBrandAccount(): Promise<BrandAccount | null> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return null;
+      const user = await getCurrentUser();
+      if (!user) return null;
 
       const { data, error } = await supabase
         .from('brand_accounts')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
@@ -861,13 +918,13 @@ class BrandTaskService {
 
   async createBrandAccount(brandId?: string): Promise<BrandAccount | null> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return null;
+      const user = await getCurrentUser();
+      if (!user) return null;
 
       const { data, error } = await supabase
         .from('brand_accounts')
         .insert({
-          user_id: session.user.id,
+          user_id: user.id,
           brand_id,
           total_balance: 0,
           available_balance: 0,
@@ -886,14 +943,14 @@ class BrandTaskService {
 
   async deposit(amount: number, paymentMethod: string, reference: string): Promise<boolean> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return false;
+      const user = await getCurrentUser();
+      if (!user) return false;
 
       // 获取账户
       let { data: account } = await supabase
         .from('brand_accounts')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
         .single();
 
       // 如果没有账户，创建一个
@@ -910,7 +967,7 @@ class BrandTaskService {
         .from('brand_transactions')
         .insert({
           account_id: account.id,
-          user_id: session.user.id,
+          user_id: user.id,
           type: 'deposit',
           amount,
           balance_after: newBalance,
@@ -947,17 +1004,17 @@ class BrandTaskService {
     limit?: number;
   }): Promise<{ transactions: BrandTransaction[]; total: number }> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const user = await getCurrentUser();
+      if (!user) {
         return { transactions: [], total: 0 };
       }
 
       const { type, page = 1, limit = 20 } = options || {};
-      
+
       let query = supabase
         .from('brand_transactions')
         .select('*', { count: 'exact' })
-        .eq('user_id', session.user.id);
+        .eq('user_id', user.id);
 
       if (type && type !== 'all') {
         query = query.eq('type', type);
@@ -992,20 +1049,20 @@ class BrandTaskService {
     limit?: number;
   }): Promise<{ earnings: CreatorEarning[]; total: number }> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const user = await getCurrentUser();
+      if (!user) {
         return { earnings: [], total: 0 };
       }
 
       const { status, page = 1, limit = 20 } = options || {};
-      
+
       let query = supabase
         .from('creator_earnings')
         .select(`
           *,
           task:brand_tasks(title, brand_name)
         `, { count: 'exact' })
-        .eq('creator_id', session.user.id);
+        .eq('creator_id', user.id);
 
       if (status && status !== 'all') {
         query = query.eq('status', status);
@@ -1037,8 +1094,8 @@ class BrandTaskService {
     this_month: number;
   }> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const user = await getCurrentUser();
+      if (!user) {
         return {
           total_earnings: 0,
           pending_earnings: 0,
@@ -1050,7 +1107,7 @@ class BrandTaskService {
       const { data, error } = await supabase
         .from('creator_earnings')
         .select('amount, status, created_at')
-        .eq('creator_id', session.user.id);
+        .eq('creator_id', user.id);
 
       if (error) throw error;
 

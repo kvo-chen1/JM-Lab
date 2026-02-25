@@ -531,8 +531,8 @@ class AchievementService {
             const newLevelInfo = this.getCreatorLevelInfo();
             this.lastLevel = newLevelInfo.currentLevel.level;
             
-            // 如果等级提升，显示通知
-            if (newLevelInfo.currentLevel.level > oldLevel) {
+            // 如果等级提升且不是首次加载，显示通知
+            if (this.initialized && newLevelInfo.currentLevel.level > oldLevel) {
               this.showLevelUpNotification(newLevelInfo.currentLevel);
             }
             return;
@@ -587,7 +587,8 @@ class AchievementService {
         const newLevelInfo = this.getCreatorLevelInfo();
         this.lastLevel = newLevelInfo.currentLevel.level;
         
-        if (newLevelInfo.currentLevel.level > oldLevel) {
+        // 如果等级提升且不是首次加载，显示通知
+        if (this.initialized && newLevelInfo.currentLevel.level > oldLevel) {
           this.showLevelUpNotification(newLevelInfo.currentLevel);
         }
       }

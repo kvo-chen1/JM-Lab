@@ -25,6 +25,7 @@ export interface NavItem {
 interface LeftSidebarProps {
   isDark: boolean;
   user: UserType | null;
+  membershipLevel?: string;
   activeTab: string;
   onTabChange: (tabId: string) => void;
   isCollapsed?: boolean;
@@ -34,11 +35,14 @@ interface LeftSidebarProps {
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
   isDark,
   user,
+  membershipLevel,
   activeTab,
   onTabChange,
   isCollapsed = false,
   onToggleCollapse
 }) => {
+  // 优先使用传入的会员等级，否则使用 user 对象中的
+  const currentLevel = membershipLevel || user?.membershipLevel || 'free';
   const navItems: NavItem[] = [
     { id: 'overview', label: '会员概览', icon: User, description: '查看会员状态和权益' },
     { id: 'subscription', label: '订阅管理', icon: CreditCard, description: '管理您的订阅计划' },
@@ -86,7 +90,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       <div className={`p-5 ${isDark ? 'border-b border-slate-700/50' : 'border-b border-gray-100'}`}>
         <div className={`
           relative overflow-hidden rounded-2xl p-4
-          bg-gradient-to-br ${getMembershipColor(user?.membershipLevel)}
+          bg-gradient-to-br ${getMembershipColor(currentLevel)}
           border backdrop-blur-sm
           ${isDark ? 'border-slate-700/50' : 'border-gray-200'}
         `}>
@@ -121,12 +125,12 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   {user?.username || '用户'}
                 </h3>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  {getMembershipIcon(user?.membershipLevel)}
+                  {getMembershipIcon(currentLevel)}
                   <span className={`text-xs font-medium ${
-                    user?.membershipLevel === 'vip' ? 'text-purple-500' :
-                    user?.membershipLevel === 'premium' ? 'text-blue-500' : 'text-gray-500'
+                    currentLevel === 'vip' ? 'text-purple-500' :
+                    currentLevel === 'premium' ? 'text-blue-500' : 'text-gray-500'
                   }`}>
-                    {getMembershipText(user?.membershipLevel)}
+                    {getMembershipText(currentLevel)}
                   </span>
                 </div>
               </div>

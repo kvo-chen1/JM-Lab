@@ -88,7 +88,8 @@ export function WorkShareModal({ isOpen, onClose, onBack, preselectedWork }: Wor
         receiverId: selectedUser.id,
         workId: selectedWork.id,
         workTitle: selectedWork.title,
-        workThumbnail: selectedWork.thumbnail,
+        workThumbnail: selectedWork.thumbnail || selectedWork.cover_url || '',
+        workUrl: selectedWork.url || '',
         workType: selectedWork.type,
         message: message.trim(),
       });

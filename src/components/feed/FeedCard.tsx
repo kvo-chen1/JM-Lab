@@ -30,6 +30,7 @@ interface FeedCardProps {
   onShare: () => void;
   onClick: () => void;
   onFollow: (isFollowing: boolean) => void;
+  onComment?: () => void;
 }
 
 // 格式化数字
@@ -74,13 +75,14 @@ function getVerifiedIcon(type?: string) {
   }
 }
 
-export function FeedCard({ 
-  feed, 
-  onLike, 
-  onCollect, 
-  onShare, 
+export function FeedCard({
+  feed,
+  onLike,
+  onCollect,
+  onShare,
   onClick,
-  onFollow 
+  onFollow,
+  onComment
 }: FeedCardProps) {
   const { isDark } = useTheme();
   const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});
@@ -348,7 +350,11 @@ export function FeedCard({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onClick();
+                if (onComment) {
+                  onComment();
+                } else {
+                  onClick();
+                }
               }}
               className={`flex items-center gap-1 transition-colors ${
                 isDark

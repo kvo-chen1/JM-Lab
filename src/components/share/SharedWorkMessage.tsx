@@ -2,11 +2,13 @@ import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { Image, Eye, Heart, FileText, Video, FileAudio, MoreHorizontal, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useRef } from 'react';
 
 interface SharedWorkMessageProps {
   workId: string;
   workTitle: string;
   workThumbnail?: string;
+  workUrl?: string;  // 视频/音频播放URL
   workType?: string;
   message?: string;
   senderName?: string;
@@ -33,6 +35,7 @@ export function SharedWorkMessage({
   workId,
   workTitle,
   workThumbnail,
+  workUrl,
   workType = 'image',
   message,
   senderName,
@@ -41,10 +44,16 @@ export function SharedWorkMessage({
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const MediaIcon = mediaTypeIcons[workType as keyof typeof mediaTypeIcons] || Image;
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const handleClick = () => {
     navigate(`/square/${workId}`);
   };
+
+  // 判断是否为视频且有播放URL
+  // 如果 workUrl 为空但 workThumbnail 是视频文件，则使用 workThumbnail 作为视频 URL
+  const videoUrl = workUrl || (workThumbnail?.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? workThumbnail : undefined);
+  const isVideo = workType === 'video' && videoUrl;
 
   if (isCompact) {
     return (
@@ -58,9 +67,19 @@ export function SharedWorkMessage({
             : 'bg-white border border-gray-200 hover:border-gray-300 shadow-sm'
         }`}
       >
-        {/* 缩略图 */}
+        {/* 缩略图/视频 */}
         <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0">
-          {workThumbnail ? (
+          {isVideo ? (
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              muted
+              loop
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover"
+            />
+          ) : workThumbnail ? (
             <img
               src={workThumbnail}
               alt={workTitle}
@@ -143,13 +162,23 @@ export function SharedWorkMessage({
       {/* 作品卡片 */}
       <motion.div
         whileHover={{ backgroundColor: isDark ? 'rgba(55, 65, 81, 0.5)' : 'rgba(249, 250, 251, 1)' }}
-        onClick={handleClick}
         className="p-4 cursor-pointer transition-colors"
       >
         <div className="flex gap-4">
-          {/* 缩略图 */}
+          {/* 缩略图/视频播放器 */}
           <div className="relative w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
-            {workThumbnail ? (
+            {isVideo ? (
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                muted
+                loop
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : workThumbnail ? (
               <img
                 src={workThumbnail}
                 alt={workTitle}
@@ -181,7 +210,7 @@ export function SharedWorkMessage({
           </div>
 
           {/* 信息 */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0" onClick={handleClick}>
             <h4
               className={`font-semibold ${
                 isDark ? 'text-white' : 'text-gray-900'
@@ -194,7 +223,7 @@ export function SharedWorkMessage({
                 isDark ? 'text-gray-400' : 'text-gray-500'
               }`}
             >
-              点击查看作品详情
+              {isVideo ? '视频自动播放中，点击查看详情' : '点击查看作品详情'}
             </p>
             <div className="mt-3">
               <span

@@ -721,6 +721,20 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
 
   useEffect(() => {
     if (editTask) {
+      // 将 ISO 时间格式转换为 datetime-local 输入框需要的格式 (YYYY-MM-DDTHH:mm)
+      const formatDateTimeLocal = (dateString: string) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '';
+        // 转换为本地时间的 YYYY-MM-DDTHH:mm 格式
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      };
+
       setFormData({
         title: editTask.title,
         description: editTask.description,
@@ -731,8 +745,8 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
         required_location: editTask.required_location,
         content_requirements: editTask.content_requirements.length > 0 ? editTask.content_requirements : [''],
         participation_conditions: editTask.participation_conditions.length > 0 ? editTask.participation_conditions : [''],
-        start_date: editTask.start_date.slice(0, 16),
-        end_date: editTask.end_date.slice(0, 16),
+        start_date: formatDateTimeLocal(editTask.start_date),
+        end_date: formatDateTimeLocal(editTask.end_date),
         total_budget: editTask.total_budget.toString(),
         min_reward: editTask.min_reward?.toString() || '50',
         max_reward: editTask.max_reward?.toString() || '1000',
@@ -912,24 +926,46 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    选择品牌
+                    选择品牌 <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={formData.brand_id}
-                    onChange={e => {
-                      const brand = userBrands.find(b => b.id === e.target.value);
-                      setFormData(prev => ({
-                        ...prev,
-                        brand_id: e.target.value,
-                        brand_name: brand?.brand_name || '',
-                      }));
-                    }}
-                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                  >
-                    {userBrands.map(brand => (
-                      <option key={brand.id} value={brand.id}>{brand.brand_name}</option>
-                    ))}
-                  </select>
+                  {userBrands.length === 0 ? (
+                    <div className={`w-full px-4 py-3 rounded-lg border ${isDark ? 'border-amber-700/50 bg-amber-900/20 text-amber-400' : 'border-amber-200 bg-amber-50 text-amber-700'} text-sm`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        <span className="font-medium">暂无可用的品牌</span>
+                      </div>
+                      <p className={`text-xs ${isDark ? 'text-amber-400/70' : 'text-amber-600/80'} ml-6`}>
+                        需要品牌状态为"审核通过"或"洽谈中"才能创建任务
+                      </p>
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.brand_id}
+                      onChange={e => {
+                        const brand = userBrands.find(b => b.id === e.target.value);
+                        setFormData(prev => ({
+                          ...prev,
+                          brand_id: e.target.value,
+                          brand_name: brand?.brand_name || '',
+                        }));
+                      }}
+                      className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-600 bg-gray-700 text-gray-100' : 'border-gray-300 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer`}
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
+                        backgroundPosition: 'right 0.75rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.25rem',
+                        paddingRight: '2.5rem'
+                      }}
+                    >
+                      <option value="" disabled>请选择品牌</option>
+                      {userBrands.map(brand => (
+                        <option key={brand.id} value={brand.id} className={isDark ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-900'}>
+                          {brand.brand_name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -954,7 +990,10 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
                     type="datetime-local"
                     value={formData.start_date}
                     onChange={e => setFormData(prev => ({ ...prev, start_date: e.target.value }))}
-                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none`}
+                    style={{
+                      colorScheme: isDark ? 'dark' : 'light',
+                    }}
                   />
                 </div>
 
@@ -966,7 +1005,10 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
                     type="datetime-local"
                     value={formData.end_date}
                     onChange={e => setFormData(prev => ({ ...prev, end_date: e.target.value }))}
-                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none`}
+                    style={{
+                      colorScheme: isDark ? 'dark' : 'light',
+                    }}
                   />
                 </div>
               </div>
@@ -1184,18 +1226,38 @@ export default function BrandTaskManager() {
   // 加载用户的品牌
   const loadUserBrands = useCallback(async () => {
     try {
-      const brands = await brandPartnershipService.getMyPartnerships();
-      const approvedBrands = brands.filter(b => b.status === 'approved');
+      console.log('[BrandTaskManager] 开始加载品牌列表...');
+      console.log('[BrandTaskManager] 当前用户:', user);
+      
+      // 传入当前用户信息，避免 session 检测问题
+      const userInfo = user ? { id: user.id, email: user.email } : undefined;
+      const brands = await brandPartnershipService.getMyPartnerships(userInfo);
+      
+      console.log('[BrandTaskManager] 获取到的品牌:', brands);
+      console.log('[BrandTaskManager] 品牌状态详情:', brands.map(b => ({ id: b.id, name: b.brand_name, status: b.status })));
+      
+      // 放宽过滤条件，允许 approved 和 negotiating 状态的品牌创建任务
+      const allowedStatuses = ['approved', 'negotiating'];
+      const approvedBrands = brands.filter(b => allowedStatuses.includes(b.status));
+      console.log('[BrandTaskManager] 允许创建任务的品牌:', approvedBrands);
       setUserBrands(approvedBrands);
     } catch (error) {
-      console.error('加载品牌列表失败:', error);
+      console.error('[BrandTaskManager] 加载品牌列表失败:', error);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadTasks();
     loadUserBrands();
   }, [loadTasks, loadUserBrands]);
+
+  // 当模态框打开时，重新加载品牌列表
+  useEffect(() => {
+    if (isCreateModalOpen) {
+      console.log('[BrandTaskManager] 模态框打开，重新加载品牌列表');
+      loadUserBrands();
+    }
+  }, [isCreateModalOpen, loadUserBrands]);
 
   // 计算各状态任务数量
   const taskCounts = {
@@ -1295,7 +1357,13 @@ export default function BrandTaskManager() {
           <button
             onClick={() => {
               if (userBrands.length === 0) {
-                toast.error('您还没有入驻品牌，请先申请品牌入驻');
+                toast.error(
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">暂无可用的品牌</span>
+                    <span className="text-xs opacity-80">需要品牌状态为"审核通过"或"洽谈中"才能创建任务</span>
+                  </div>,
+                  { duration: 5000 }
+                );
                 return;
               }
               setEditTask(null);

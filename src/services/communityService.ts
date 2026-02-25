@@ -139,7 +139,7 @@ export interface Notification {
 
 export const communityService = {
   // 社区管理功能
-  async getCommunities(): Promise<Community[]> {
+  async getCommunities(includeInactive = false): Promise<Community[]> {
     // 优先尝试从后端API获取社群列表
     try {
       const response = await fetch('/api/communities');
@@ -147,7 +147,7 @@ export const communityService = {
         const result = await response.json();
         if (result.code === 0 && Array.isArray(result.data)) {
           console.log('[getCommunities] Fetched from backend API:', result.data.length);
-          return result.data.map((community: any) => ({
+          let communities = result.data.map((community: any) => ({
             id: community.id,
             name: community.name,
             description: community.description,
@@ -176,6 +176,12 @@ export const communityService = {
             createdAt: community.created_at,
             updatedAt: community.updated_at
           }));
+          
+          // 过滤掉禁用的社群（除非明确要求包含）
+          if (!includeInactive) {
+            communities = communities.filter(c => c.isActive !== false);
+          }
+          return communities;
         }
       }
     } catch (error) {
@@ -183,10 +189,17 @@ export const communityService = {
     }
 
     // 如果后端API失败，尝试从Supabase获取
-    const { data, error } = await supabase
+    let query = supabase
       .from('communities')
       .select('*')
       .order('created_at', { ascending: false });
+    
+    // 如果不需要包含禁用的社群，只获取活跃的
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+    
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -194,7 +207,7 @@ export const communityService = {
     const communityIds = data.map(c => c.id);
     const memberCounts = await getCommunityMemberCounts(communityIds);
 
-    return data.map(community => ({
+    let communities = data.map(community => ({
       id: community.id,
       name: community.name,
       description: community.description,
@@ -202,7 +215,7 @@ export const communityService = {
       topic: community.tags?.join(',') || '',
       avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
       cover: community.cover,
-      isActive: true,
+      isActive: community.is_active !== false,
       tags: community.tags || [],
       bookmarks: community.bookmarks || [],
       theme: {
@@ -223,6 +236,12 @@ export const communityService = {
       createdAt: community.created_at,
       updatedAt: community.updated_at
     }));
+    
+    // 过滤掉禁用的社群（除非明确要求包含）
+    if (!includeInactive) {
+      communities = communities.filter(c => c.isActive !== false);
+    }
+    return communities;
   },
 
   async getUserCommunities(userId: string): Promise<Community[]> {
@@ -1562,10 +1581,14 @@ export const communityService = {
     }
 
     return allItems.map(item => {
-      const user = users.find(u => u.id === item.author_id);
+      // 使用 String() 确保 UUID 比较时类型一致
+      const user = users.find(u => String(u.id) === String(item.author_id));
       const postComments = item.type === 'post' 
         ? comments.filter(c => c.post_id === item.id)
         : [];
+
+      // 优先使用 item.author_id，确保 authorId 始终有值
+      const authorId = item.author_id ? String(item.author_id) : (user?.id ? String(user.id) : null);
 
       return {
         id: item.id,
@@ -1586,7 +1609,7 @@ export const communityService = {
         author: user?.username || '未知用户',
         authorAvatar: user?.avatar_url || '',
         type: item.type,
-        authorId: user?.id,
+        authorId: authorId,
         comments: postComments
       };
     });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trophy, 
@@ -21,34 +21,40 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreatorCenter } from '@/hooks/useCreatorCenter';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import achievementService from '@/services/achievementService';
 
-const levels = [
-  { level: 1, name: '新手创作者', minXP: 0, maxXP: 100, color: 'from-gray-400 to-gray-500', icon: Star },
-  { level: 2, name: '初级创作者', minXP: 100, maxXP: 300, color: 'from-green-400 to-green-500', icon: Zap },
-  { level: 3, name: '进阶创作者', minXP: 300, maxXP: 600, color: 'from-blue-400 to-blue-500', icon: Target },
-  { level: 4, name: '资深创作者', minXP: 600, maxXP: 1000, color: 'from-purple-400 to-purple-500', icon: Trophy },
-  { level: 5, name: '专家创作者', minXP: 1000, maxXP: 1500, color: 'from-orange-400 to-orange-500', icon: Crown },
-  { level: 6, name: '大师创作者', minXP: 1500, maxXP: 2500, color: 'from-red-400 to-red-500', icon: Medal },
-  { level: 7, name: '传奇创作者', minXP: 2500, maxXP: 5000, color: 'from-yellow-400 to-yellow-500', icon: Gem },
-];
+const levelIcons: Record<number, React.ElementType> = {
+  1: Star,
+  2: Zap,
+  3: Target,
+  4: Trophy,
+  5: Crown,
+  6: Medal,
+  7: Gem,
+};
 
-
-
-const privileges = [
-  { level: 1, items: ['基础发布功能', '个人主页', '评论互动'] },
-  { level: 2, items: ['作品置顶', '数据分析', '自定义标签'] },
-  { level: 3, items: ['优先推荐', '创作工具', '专属客服'] },
-  { level: 4, items: ['广告分成', '品牌合作', '活动优先'] },
-  { level: 5, items: ['专属标识', '流量扶持', '定制服务'] },
-  { level: 6, items: ['高额分成', '专属活动', '一对一运营'] },
-  { level: 7, items: ['最高分成', '平台代言', '终身荣誉'] },
-];
+const levelColors: Record<number, string> = {
+  1: 'from-gray-400 to-gray-500',
+  2: 'from-green-400 to-green-500',
+  3: 'from-blue-400 to-blue-500',
+  4: 'from-purple-400 to-purple-500',
+  5: 'from-orange-400 to-orange-500',
+  6: 'from-red-400 to-red-500',
+  7: 'from-yellow-400 to-yellow-500',
+};
 
 const GrowthSystem: React.FC = () => {
   const { isDark } = useTheme();
   const { level, stats, works, loading } = useCreatorCenter();
   const [activeTab, setActiveTab] = useState<'levels' | 'achievements' | 'privileges'>('levels');
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const [creatorLevels, setCreatorLevels] = useState<any[]>([]);
+
+  // 加载成就等级数据
+  useEffect(() => {
+    const levels = achievementService.getAllCreatorLevels();
+    setCreatorLevels(levels);
+  }, []);
 
   // 基于真实数据计算成就
   const achievements = React.useMemo(() => {
@@ -130,8 +136,9 @@ const GrowthSystem: React.FC = () => {
     ];
   }, [stats, works]);
 
-  const currentLevel = level || { level: 1, name: '新手创作者', currentXP: 0, nextLevelXP: 100, progress: 0 };
-  const nextLevel = levels.find(l => l.level === currentLevel.level + 1);
+  const currentLevel = level || { level: 1, name: '创作新手', currentXP: 0, nextLevelXP: 100, progress: 0 };
+  const nextLevel = creatorLevels.find((l: any) => l.level === currentLevel.level + 1);
+  const currentLevelData = creatorLevels.find((l: any) => l.level === currentLevel.level);
 
   const getRarityColor = (rarity: string) => {
     const colors: Record<string, string> = {
@@ -206,9 +213,9 @@ const GrowthSystem: React.FC = () => {
       }`}>
         <div className="flex flex-col md:flex-row items-center gap-8">
           <div className="relative">
-            <div className={`w-32 h-32 rounded-full bg-gradient-to-br ${levels[currentLevel.level - 1]?.color || levels[0].color} flex items-center justify-center shadow-xl`}>
+            <div className={`w-32 h-32 rounded-full bg-gradient-to-br ${levelColors[currentLevel.level] || levelColors[1]} flex items-center justify-center shadow-xl`}>
               {(() => {
-                const IconComponent = levels[currentLevel.level - 1]?.icon || Star;
+                const IconComponent = levelIcons[currentLevel.level] || Star;
                 return <IconComponent className="w-16 h-16 text-white" />;
               })()}
             </div>
@@ -223,7 +230,7 @@ const GrowthSystem: React.FC = () => {
             </h2>
             <p className={`mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               {nextLevel 
-                ? `距离「${nextLevel.name}」还需 ${nextLevel.minXP - currentLevel.currentXP} 成长值`
+                ? `距离「${nextLevel.name}」还需 ${nextLevel.requiredPoints - currentLevel.currentXP} 积分`
                 : '已达到最高等级！'
               }
             </p>
@@ -233,7 +240,7 @@ const GrowthSystem: React.FC = () => {
                   initial={{ width: 0 }}
                   animate={{ width: `${currentLevel.progress}%` }}
                   transition={{ duration: 1, ease: 'easeOut' }}
-                  className={`h-full rounded-full bg-gradient-to-r ${levels[currentLevel.level - 1]?.color || levels[0].color}`}
+                  className={`h-full rounded-full bg-gradient-to-r ${levelColors[currentLevel.level] || levelColors[1]}`}
                 />
               </div>
               <div className="flex justify-between mt-2 text-sm">
@@ -253,7 +260,7 @@ const GrowthSystem: React.FC = () => {
               当前权益
             </p>
             <p className="text-2xl font-bold text-purple-500">
-              {privileges[currentLevel.level - 1]?.items.length || 0}
+              {currentLevelData?.benefits?.length || currentLevelData?.权益?.length || 0}
             </p>
             <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               项特权
@@ -303,10 +310,11 @@ const GrowthSystem: React.FC = () => {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-4"
               >
-                {levels.map((levelItem, index) => {
+                {creatorLevels.map((levelItem: any, index: number) => {
                   const isCurrent = levelItem.level === currentLevel.level;
-                  const isUnlocked = currentLevel.currentXP >= levelItem.minXP;
-                  const LevelIcon = levelItem.icon;
+                  const isUnlocked = currentLevel.currentXP >= levelItem.requiredPoints;
+                  const LevelIcon = levelIcons[levelItem.level] || Star;
+                  const nextLevelItem = creatorLevels[index + 1];
 
                   return (
                     <motion.div
@@ -324,7 +332,7 @@ const GrowthSystem: React.FC = () => {
                           : 'bg-gray-50'
                       }`}
                     >
-                      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${levelItem.color} flex items-center justify-center ${
+                      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${levelColors[levelItem.level]} flex items-center justify-center ${
                         !isUnlocked && 'opacity-50 grayscale'
                       }`}>
                         <LevelIcon className="w-6 h-6 text-white" />
@@ -332,7 +340,7 @@ const GrowthSystem: React.FC = () => {
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {levelItem.name}
+                            {levelItem.icon} {levelItem.name}
                           </h3>
                           {isCurrent && (
                             <span className="px-2 py-0.5 text-xs font-medium bg-blue-500 text-white rounded-full">
@@ -341,7 +349,7 @@ const GrowthSystem: React.FC = () => {
                           )}
                         </div>
                         <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {levelItem.minXP} - {levelItem.maxXP} XP
+                          {levelItem.requiredPoints} {nextLevelItem ? `- ${nextLevelItem.requiredPoints - 1}` : '+'} 积分
                         </p>
                       </div>
                       {isUnlocked ? (
@@ -434,13 +442,13 @@ const GrowthSystem: React.FC = () => {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-4"
               >
-                {privileges.map((privilege, index) => {
-                  const levelItem = levels[index];
-                  const isUnlocked = currentLevel.level >= privilege.level;
+                {creatorLevels.map((levelItem: any, index: number) => {
+                  const isUnlocked = currentLevel.level >= levelItem.level;
+                  const benefits = levelItem.benefits || levelItem.权益 || [];
 
                   return (
                     <motion.div
-                      key={privilege.level}
+                      key={levelItem.level}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
@@ -455,11 +463,11 @@ const GrowthSystem: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center gap-3 mb-4">
-                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${levelItem.color} flex items-center justify-center`}>
-                          <span className="text-sm font-bold text-white">{privilege.level}</span>
+                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${levelColors[levelItem.level]} flex items-center justify-center`}>
+                          <span className="text-sm font-bold text-white">{levelItem.level}</span>
                         </div>
                         <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {levelItem.name}
+                          {levelItem.icon} {levelItem.name}
                         </h3>
                         {isUnlocked && (
                           <span className="px-2 py-0.5 text-xs font-medium bg-green-500 text-white rounded-full">
@@ -467,8 +475,8 @@ const GrowthSystem: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {privilege.items.map((item, i) => (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {benefits.map((item: string, i: number) => (
                           <div
                             key={i}
                             className={`flex items-center gap-2 p-3 rounded-lg ${

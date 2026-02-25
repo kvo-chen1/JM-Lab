@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '@/contexts/authContext';
 import { apiClient } from '@/lib/apiClient';
 import { useTheme } from '@/hooks/useTheme';
+import { useMembership } from '@/hooks/useMembership';
 
 // 会员中心组件
 import LeftSidebar from '@/components/membership/LeftSidebar';
@@ -127,6 +128,16 @@ const Membership: React.FC = () => {
   const navigate = useNavigate();
   const { isDark } = useTheme();
 
+  // 使用 useMembership hook 获取真实会员信息
+  const {
+    membershipInfo,
+    usageStats: membershipUsageStats,
+    orders: membershipOrders,
+    ordersTotal,
+    loading: membershipLoading,
+    refreshOrders,
+  } = useMembership();
+
   const [activeTab, setActiveTab] = useState('overview');
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -140,6 +151,15 @@ const Membership: React.FC = () => {
     total: 0,
     totalPages: 0
   });
+
+  // 使用真实的会员等级（从 membership_orders 表获取）
+  const currentMembershipLevel = membershipInfo?.level || 'free';
+
+  // 调试日志
+  useEffect(() => {
+    console.log('[Membership] membershipInfo:', membershipInfo);
+    console.log('[Membership] currentMembershipLevel:', currentMembershipLevel);
+  }, [membershipInfo, currentMembershipLevel]);
 
   // 获取会员权益配置
   useEffect(() => {
@@ -206,16 +226,16 @@ const Membership: React.FC = () => {
   // 处理升级会员
   const handleUpgrade = (planId?: string) => {
     navigate('/membership/payment/personal', {
-      state: { plan: planId || (user?.membershipLevel === 'free' ? 'premium' : 'vip') }
+      state: { plan: planId || (currentMembershipLevel === 'free' ? 'premium' : 'vip') }
     });
   };
 
   // 处理续费
   const handleRenew = () => {
     // 如果当前是免费会员，则引导到升级页面
-    const targetPlan = user?.membershipLevel === 'free' ? 'premium' : user?.membershipLevel;
+    const targetPlan = currentMembershipLevel === 'free' ? 'premium' : currentMembershipLevel;
     navigate('/membership/payment/personal', {
-      state: { plan: targetPlan, renew: user?.membershipLevel !== 'free' }
+      state: { plan: targetPlan, renew: currentMembershipLevel !== 'free' }
     });
   };
 
@@ -275,6 +295,9 @@ const Membership: React.FC = () => {
             <MembershipStatusCard
               isDark={isDark}
               user={user}
+              membershipLevel={membershipInfo?.level}
+              membershipStatus={membershipInfo?.status}
+              membershipEnd={membershipInfo?.endDate}
               onRenew={handleRenew}
               onUpgrade={() => handleUpgrade()}
             />
@@ -284,7 +307,7 @@ const Membership: React.FC = () => {
               p-6 rounded-3xl border
               ${isDark ? 'bg-slate-800/30 border-slate-700' : 'bg-white border-gray-200'}
             `}>
-              <BenefitsGrid isDark={isDark} user={user} benefits={benefits} />
+              <BenefitsGrid isDark={isDark} user={user} membershipLevel={membershipInfo?.level} benefits={benefits} />
             </div>
 
             {/* 升级套餐 */}
@@ -295,6 +318,7 @@ const Membership: React.FC = () => {
               <PricingCards
                 isDark={isDark}
                 user={user}
+                membershipLevel={membershipInfo?.level}
                 onUpgrade={handleUpgrade}
                 pricing={benefits?.pricing}
               />
@@ -320,6 +344,7 @@ const Membership: React.FC = () => {
               <PricingCards
                 isDark={isDark}
                 user={user}
+                membershipLevel={membershipInfo?.level}
                 onUpgrade={handleUpgrade}
                 pricing={benefits?.pricing}
               />
@@ -333,6 +358,9 @@ const Membership: React.FC = () => {
             <MembershipStatusCard
               isDark={isDark}
               user={user}
+              membershipLevel={membershipInfo?.level}
+              membershipStatus={membershipInfo?.status}
+              membershipEnd={membershipInfo?.endDate}
               onRenew={handleRenew}
               onUpgrade={() => handleUpgrade()}
             />
@@ -427,6 +455,7 @@ const Membership: React.FC = () => {
           <LeftSidebar
             isDark={isDark}
             user={user}
+            membershipLevel={membershipInfo?.level}
             activeTab={activeTab}
             onTabChange={setActiveTab}
             isCollapsed={isLeftSidebarCollapsed}
@@ -473,6 +502,7 @@ const Membership: React.FC = () => {
                 <LeftSidebar
                   isDark={isDark}
                   user={user}
+                  membershipLevel={membershipInfo?.level}
                   activeTab={activeTab}
                   onTabChange={(tab) => {
                     setActiveTab(tab);
@@ -530,9 +560,12 @@ const Membership: React.FC = () => {
           <RightSidebar
             isDark={isDark}
             user={user}
+            membershipLevel={membershipInfo?.level}
+            membershipStatus={membershipInfo?.status}
+            membershipEnd={membershipInfo?.endDate}
             onRenew={handleRenew}
             onUpgrade={() => handleUpgrade()}
-            usageStats={usageStats}
+            usageStats={membershipUsageStats}
           />
         </aside>
       </div>
@@ -544,7 +577,7 @@ const Membership: React.FC = () => {
         backdrop-blur-sm z-30
       `}>
         <div className="flex gap-3">
-          {user?.membershipLevel !== 'free' && (
+          {currentMembershipLevel !== 'free' && (
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={handleRenew}
@@ -559,7 +592,7 @@ const Membership: React.FC = () => {
               续费会员
             </motion.button>
           )}
-          {user?.membershipLevel !== 'vip' && (
+          {currentMembershipLevel !== 'vip' && (
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={() => handleUpgrade()}

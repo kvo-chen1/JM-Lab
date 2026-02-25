@@ -246,6 +246,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             id: w.id,
             title: w.title,
             views: w.views,
+            likes: w.likes,
             thumbnail: w.thumbnail,
             thumbnail_length: w.thumbnail?.length,
             cover_url: w.cover_url,
@@ -494,7 +495,8 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           if (!authorsError && authorsData) {
             console.log('Fetched authors:', authorsData.length);
             authorsData.forEach(author => {
-              authorsMap.set(author.id, author);
+              // 使用 String() 确保键的一致性
+              authorsMap.set(String(author.id), author);
             });
           } else {
             console.error('Error fetching authors:', authorsError);
@@ -507,7 +509,8 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           const authorId = p.author_id || p.creator_id || p.user_id || p.creator || p.author || 
                           p.authorId || p.creatorId || p.userId || 
                           p.created_by || p.createdBy || p.owner_id || p.ownerId;
-          const authorFromMap = authorsMap.get(authorId);
+          // 使用 String() 确保键的一致性
+          const authorFromMap = authorsMap.get(String(authorId));
           
           // 调试：如果作者信息缺失，打印相关信息
           if (!authorFromMap && !p.author?.username && !p.creator && !p.creator_name) {
@@ -710,6 +713,7 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
           type: w.type,
           allKeys: Object.keys(w)
         });
+        const commentCount = w.comments || w.comments_count || w.commentCount || 0;
         return {
           id: w.id?.toString() || id,
           title: w.title || 'Untitled',
@@ -746,10 +750,11 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
           publishType: 'explore',
           communityId: null,
           moderationStatus: 'approved',
+          rejectionStatus: 'approved',
           rejectionReason: null,
           scheduledPublishDate: null,
           visibility: w.visibility || 'public',
-          commentCount: w.comments || 0,
+          commentCount: commentCount,
           engagementRate: 0,
           trendingScore: 0,
           recommendationScore: 0,
@@ -2343,7 +2348,7 @@ export async function unbookmarkPost(id: string, userId: string): Promise<Post |
 export async function getWorkComments(workId: string): Promise<Comment[]> {
   console.log('[getWorkComments] Called with:', workId);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  
+
   // 优先使用后端 API
   if (token) {
     try {
@@ -2352,7 +2357,7 @@ export async function getWorkComments(workId: string): Promise<Comment[]> {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         if (result.code === 0 && Array.isArray(result.data)) {
@@ -2360,7 +2365,7 @@ export async function getWorkComments(workId: string): Promise<Comment[]> {
           return result.data.map((c: any) => ({
             id: c.id.toString(),
             content: c.content,
-            date: new Date(c.created_at * 1000).toISOString(),
+            date: typeof c.created_at === 'string' ? c.created_at : new Date(c.created_at * 1000).toISOString(),
             author: c.user?.username || '用户',
             authorAvatar: c.user?.avatar_url || '',
             likes: c.likes || 0,
@@ -2372,119 +2377,19 @@ export async function getWorkComments(workId: string): Promise<Comment[]> {
             images: c.images || []
           }));
         }
-      } else if (response.status === 404) {
-        console.log('[getWorkComments] Backend API returned 404, trying Supabase');
+      } else {
+        console.error('[getWorkComments] Backend API returned', response.status);
+        return [];
       }
     } catch (error) {
       console.error('[getWorkComments] Backend API error:', error);
+      return [];
     }
-  }
-  
-  // 回退到 Supabase - 尝试 work_comments 表（work_id 是 UUID）
-  try {
-    const { data: comments, error } = await supabase
-      .from('work_comments')
-      .select('*')
-      .eq('work_id', workId)
-      .order('created_at', { ascending: true });
-    
-    if (error) {
-      console.error('[getWorkComments] work_comments error:', error);
-    } else if (comments && comments.length > 0) {
-      // 获取评论作者信息
-      const userIds = [...new Set(comments.map(c => c.user_id).filter(Boolean))];
-      let authorsMap: Map<string, any> = new Map();
-      
-      if (userIds.length > 0) {
-        const { data: authorsData } = await supabase
-          .from('users')
-          .select('id, username, avatar_url')
-          .in('id', userIds);
-        
-        if (authorsData) {
-          authorsData.forEach(author => {
-            authorsMap.set(author.id, author);
-          });
-        }
-      }
-      
-      return comments.map((c: any) => {
-        const author = authorsMap.get(c.user_id);
-        return {
-          id: c.id.toString(),
-          content: c.content,
-          date: new Date(c.created_at * 1000).toISOString(),
-          author: author?.username || '用户',
-          authorAvatar: author?.avatar_url || '',
-          likes: c.likes || 0,
-          reactions: {},
-          replies: [],
-          userId: c.user_id,
-          userReactions: [],
-          parentId: c.parent_id,
-          images: c.images || []
-        };
-      });
-    }
-  } catch (error) {
-    console.error('[getWorkComments] work_comments error:', error);
   }
 
-  // 尝试 comments 表（post_id 是 UUID）
-  try {
-    const { data: comments, error } = await supabase
-      .from('comments')
-      .select('*')
-      .eq('post_id', workId)
-      .order('created_at', { ascending: true });
-    
-    if (error) {
-      console.error('[getWorkComments] comments error:', error);
-      return [];
-    }
-    
-    if (!comments || comments.length === 0) {
-      return [];
-    }
-    
-    // 获取评论作者信息
-    const userIds = [...new Set(comments.map(c => c.user_id).filter(Boolean))];
-    let authorsMap: Map<string, any> = new Map();
-    
-    if (userIds.length > 0) {
-      const { data: authorsData } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .in('id', userIds);
-      
-      if (authorsData) {
-        authorsData.forEach(author => {
-          authorsMap.set(author.id, author);
-        });
-      }
-    }
-    
-    return comments.map((c: any) => {
-      const author = authorsMap.get(c.user_id);
-      return {
-        id: c.id.toString(),
-        content: c.content,
-        date: c.created_at,
-        author: author?.username || '用户',
-        authorAvatar: author?.avatar_url || '',
-        likes: c.likes_count || 0,
-        reactions: {},
-        replies: [],
-        userId: c.user_id,
-        userReactions: [],
-        parentId: c.parent_id,
-        images: c.images || []
-      };
-    });
-  } catch (error) {
-    console.error('[getWorkComments] comments error:', error);
-    return [];
-  }
+  // 没有token，返回空数组
+  console.log('[getWorkComments] No token, returning empty array');
+  return [];
 }
 
 // 删除作品评论
@@ -2655,105 +2560,30 @@ export async function addComment(
           console.log('[addComment] Success via backend API:', result.data);
           return { id: postId } as unknown as Post;
         }
-      } else if (response.status === 404) {
-        // 后端API不存在，记录日志但继续尝试Supabase
-        console.log('[addComment] Backend API not found (404), will try Supabase');
       } else if (response.status === 401) {
         console.warn('[addComment] Backend API returned 401 - token invalid or expired');
         const errorText = await response.text();
         console.warn('[addComment] 401 response body:', errorText);
+        throw new Error('请先登录后再评论');
       } else {
-        console.warn('[addComment] Backend API failed with status:', response.status);
+        // 后端API返回错误，获取错误信息
+        const errorText = await response.text();
+        console.error('[addComment] Backend API error:', response.status, errorText);
+        throw new Error('评论失败: ' + (errorText || '服务器错误'));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[addComment] Backend API error:', error);
+      // 如果已经抛出错误，直接抛出
+      if (error.message?.includes('请先登录') || error.message?.includes('评论失败')) {
+        throw error;
+      }
+      // 其他错误也抛出
+      throw new Error('评论失败: ' + (error.message || '网络错误'));
     }
   }
-  
-  // 尝试使用Supabase添加评论
-  try {
-    // 检查是否有Supabase会话或后端token（任一有效都认为已登录）
-    const hasSupabaseSession = await hasValidSupabaseSession();
-    const hasBackendToken = !!token;
-    
-    if (!hasSupabaseSession && !hasBackendToken) {
-      console.error('[addComment] No valid session (neither Supabase nor backend)');
-      throw new Error('请先登录后再评论');
-    }
-    
-    // 尝试获取Supabase当前用户ID，如果没有则使用传入的user.id
-    let effectiveUserId = user.id;
-    try {
-      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-      if (supabaseUser?.id) {
-        effectiveUserId = supabaseUser.id;
-        console.log('[addComment] Using Supabase user ID:', effectiveUserId);
-      } else {
-        console.log('[addComment] Using provided user ID:', effectiveUserId);
-      }
-    } catch (e) {
-      console.log('[addComment] Could not get Supabase user, using provided user ID');
-    }
-    
-    // 判断ID类型：数字ID（后端works）或UUID（可能是 posts 或 works）
-    const isNumericId = /^\d+$/.test(postId);
-    const pId = isNumericId ? parseInt(postId) : postId;
-    
-    console.log('[addComment] ID type:', isNumericId ? 'numeric' : 'uuid', 'postId:', postId);
-    
-    // 首先尝试使用 work_comments 表（适用于 works）
-    try {
-      const { error: workError } = await supabase
-        .from('work_comments')
-        .insert({
-          work_id: pId,
-          user_id: effectiveUserId,
-          content: content,
-          parent_id: parentId ? (/^\d+$/.test(parentId) ? parseInt(parentId) : parentId) : null,
-          likes: 0,
-          images: imageUrls,
-          created_at: Math.floor(Date.now() / 1000),
-          updated_at: Math.floor(Date.now() / 1000)
-        });
-      
-      if (!workError) {
-        console.log('[addComment] Success via work_comments table');
-        return { id: postId } as unknown as Post;
-      }
-      
-      // 如果 work_comments 失败，记录错误但继续尝试 comments 表
-      console.log('[addComment] work_comments failed:', workError.message);
-    } catch (workError) {
-      console.log('[addComment] work_comments error:', workError);
-    }
-    
-    // 尝试使用 comments 表（适用于 posts）
-    const { error } = await supabase
-      .from('comments')
-      .insert({
-        post_id: pId,
-        user_id: effectiveUserId,
-        author_id: effectiveUserId,
-        content: content,
-        images: imageUrls,
-        parent_id: parentId ? (/^\d+$/.test(parentId) ? parseInt(parentId) : parentId) : null
-      });
 
-    if (error) {
-      console.error('Error adding comment to Supabase:', error);
-      // 如果是RLS策略错误，提供更友好的提示
-      if (error.message?.includes('row-level security') || error.message?.includes('RLS')) {
-        throw new Error('评论失败：权限不足，请重新登录后再试');
-      }
-      throw new Error('评论失败: ' + error.message);
-    }
-
-    console.log('[addComment] Success via comments table');
-    return { id: postId } as unknown as Post;
-  } catch (error: any) {
-    console.error('[addComment] Failed:', error);
-    throw error;
-  }
+  // 如果没有token，提示登录
+  throw new Error('请先登录后再评论');
 }
 
 
@@ -2811,7 +2641,7 @@ export async function getAuthorById(userIdOrUsername: string): Promise<User | nu
     console.log('[getAuthorById] API failed for current user, trying Supabase database')
     try {
       const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_user_profile', { p_user_id: userId })
+        .rpc('get_user_profile', { p_user_id: currentUser.id })
       
       if (!rpcError && rpcData && rpcData.length > 0) {
         const userData = rpcData[0]

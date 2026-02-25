@@ -1,7 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { Heart, ThumbsUp, Share2, Check } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useContext } from 'react';
+import { ShareSelector } from '@/components/ShareSelector';
+import { AuthContext } from '@/contexts/authContext';
 
 interface WorkActionButtonsProps {
   voteCount: number;
@@ -13,6 +15,15 @@ interface WorkActionButtonsProps {
   onShare?: () => void;
   vertical?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  // 分享相关属性
+  shareData?: {
+    type: 'work' | 'activity' | 'post';
+    id: string;
+    title: string;
+    description?: string;
+    thumbnail?: string;
+    url: string;
+  };
 }
 
 const buttonSizes = {
@@ -40,10 +51,13 @@ export function WorkActionButtons({
   onShare,
   vertical = false,
   size = 'md',
+  shareData,
 }: WorkActionButtonsProps) {
   const { isDark } = useTheme();
+  const { user } = useContext(AuthContext);
   const [showVoteAnimation, setShowVoteAnimation] = useState(false);
   const [showLikeAnimation, setShowLikeAnimation] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const handleVote = () => {
     onVote();
@@ -58,6 +72,14 @@ export function WorkActionButtons({
     if (!hasLiked) {
       setShowLikeAnimation(true);
       setTimeout(() => setShowLikeAnimation(false), 1000);
+    }
+  };
+
+  const handleShare = () => {
+    if (onShare) {
+      onShare();
+    } else if (shareData) {
+      setIsShareModalOpen(true);
     }
   };
 
@@ -153,11 +175,11 @@ export function WorkActionButtons({
       </motion.button>
 
       {/* 分享按钮 */}
-      {onShare && (
+      {(onShare || shareData) && (
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={onShare}
+          onClick={handleShare}
           className={`
             flex items-center gap-2 rounded-xl font-medium transition-all duration-300
             ${buttonSizes[size].button}
@@ -172,6 +194,18 @@ export function WorkActionButtons({
         </motion.button>
       )}
     </div>
+
+    {/* 分享弹窗 */}
+    {shareData && (
+      <ShareSelector
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        shareData={shareData}
+        userId={user?.id || ''}
+        userName={user?.username || user?.name || ''}
+        userAvatar={user?.avatar}
+      />
+    )}
   );
 }
 

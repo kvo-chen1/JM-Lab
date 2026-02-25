@@ -50,11 +50,14 @@ interface PricingData {
 interface PricingCardsProps {
   isDark: boolean;
   user: UserType | null;
+  membershipLevel?: string;
   onUpgrade: (planId: string) => void;
   pricing?: PricingData;
 }
 
-const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, onUpgrade, pricing }) => {
+const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLevel, onUpgrade, pricing }) => {
+  // 优先使用传入的会员等级，否则使用 user 对象中的
+  const currentLevel = membershipLevel || user?.membershipLevel || 'free';
   // 获取价格显示
   const getPriceDisplay = (planId: string) => {
     if (pricing) {
@@ -192,8 +195,8 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, onUpgrade, pr
       >
         {plans.map((plan) => {
           const Icon = plan.icon;
-          const isCurrentPlan = user?.membershipLevel === plan.id;
-          const canUpgrade = user?.membershipLevel !== 'vip' && plan.id !== 'free' && plan.id !== user?.membershipLevel;
+          const isCurrentPlan = currentLevel === plan.id;
+          const canUpgrade = currentLevel !== 'vip' && plan.id !== 'free' && plan.id !== currentLevel;
 
           return (
             <motion.div

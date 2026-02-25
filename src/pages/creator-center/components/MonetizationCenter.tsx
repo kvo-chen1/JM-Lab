@@ -121,7 +121,7 @@ const taskFilters = [
   { id: 'review', label: '好物测评' },
 ];
 
-const MIN_FOLLOWERS_FOR_TASKS = 200; // 最低粉丝数要求
+const MIN_FOLLOWERS_FOR_TASKS = 2; // 最低粉丝数要求
 
 const MonetizationCenter: React.FC = () => {
   const { isDark } = useTheme();

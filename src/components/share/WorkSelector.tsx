@@ -43,16 +43,17 @@ export function WorkSelector({ selectedWork, onSelect, onCancel }: WorkSelectorP
               const result = await response.json();
               if (result.code === 0 && Array.isArray(result.data)) {
                 loadedWorks = result.data.map((w: any) => ({
-                  id: w.id?.toString() || '',
-                  title: w.title || '未命名作品',
-                  thumbnail: w.thumbnail || w.cover_url || '',
-                  type: w.type || 'image',
-                  status: w.status === 'published' ? '已发布' : '草稿',
-                  createdAt: w.created_at,
-                  views: w.views || 0,
-                  likes: w.likes || 0,
-                  description: w.description || '',
-                }));
+                id: w.id?.toString() || '',
+                title: w.title || '未命名作品',
+                thumbnail: w.thumbnail || w.cover_url || '',
+                url: w.url || w.file_url || w.video_url || '',
+                type: w.type || 'image',
+                status: w.status === 'published' ? '已发布' : '草稿',
+                createdAt: w.created_at,
+                views: w.views || 0,
+                likes: w.likes || 0,
+                description: w.description || '',
+              }));
               }
             }
           } catch (apiError) {
@@ -74,6 +75,7 @@ export function WorkSelector({ selectedWork, onSelect, onCancel }: WorkSelectorP
               id: w.id,
               title: w.title || '未命名作品',
               thumbnail: w.thumbnail || w.cover_url || '',
+              url: w.url || w.file_url || w.video_url || '',
               type: w.type || 'image',
               status: w.status === 'published' ? '已发布' : '草稿',
               createdAt: w.created_at,

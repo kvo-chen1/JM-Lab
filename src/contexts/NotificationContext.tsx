@@ -10,6 +10,7 @@ export type NotificationType =
   | 'post_created'
   | 'post_commented'
   | 'post_liked'
+  | 'work_liked'
   | 'comment_replied'
   | 'announcement'
   | 'mention'
@@ -37,6 +38,7 @@ export interface Notification {
   content: string;
   senderId: string;
   senderName: string;
+  senderAvatar?: string;
   recipientId: string;
   communityId?: string;
   postId?: string;
@@ -94,6 +96,7 @@ const defaultSettings: NotificationSettings = {
     post_created: true,
     post_commented: true,
     post_liked: true,
+    work_liked: true,
     comment_replied: true,
     announcement: true,
     mention: true,
@@ -173,23 +176,29 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
       if (data) {
         // 转换数据库格式为前端格式
-        const formattedNotifications: Notification[] = data.map((item: any) => ({
-          id: item.id,
-          type: item.type as NotificationType,
-          title: item.title,
-          content: item.content,
-          senderId: item.sender_id || '',
-          senderName: item.sender_name || '',
-          recipientId: item.user_id,
-          communityId: item.community_id,
-          postId: item.post_id,
-          commentId: item.comment_id,
-          createdAt: new Date(item.created_at * 1000),
-          readAt: item.read_at ? new Date(item.read_at * 1000) : undefined,
-          status: item.is_read ? 'read' : 'unread',
-          priority: (item.priority as NotificationPriority) || 'medium',
-          link: item.link
-        }));
+        const formattedNotifications: Notification[] = data.map((item: any) => {
+          // 从 data JSONB 字段中提取额外信息
+          const extraData = item.data || {};
+
+          return {
+            id: item.id,
+            type: item.type as NotificationType,
+            title: item.title,
+            content: item.content,
+            senderId: item.sender_id || '',
+            senderName: extraData.sender_name || item.sender_name || '',
+            senderAvatar: extraData.sender_avatar || '',
+            recipientId: item.user_id,
+            communityId: extraData.community_id || item.community_id,
+            postId: extraData.post_id || item.post_id,
+            commentId: extraData.comment_id || item.comment_id,
+            createdAt: new Date(item.created_at),
+            readAt: item.read_at ? new Date(item.read_at) : undefined,
+            status: item.is_read ? 'read' : 'unread',
+            priority: (extraData.priority as NotificationPriority) || item.priority || 'medium',
+            link: item.link
+          };
+        });
 
         setNotifications(formattedNotifications);
       }
@@ -225,27 +234,48 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
     // 保存到 Supabase
     try {
+      console.log('[addNotification] Saving notification:', newNotification);
+
+      // 构建插入数据，只包含数据库中存在的字段
+      const insertData: any = {
+        type: newNotification.type,
+        title: newNotification.title,
+        content: newNotification.content,
+        user_id: newNotification.recipientId,
+        sender_id: newNotification.senderId || null,
+        link: newNotification.link || null,
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+
+      // 可选字段：只在有值时才添加
+      if (newNotification.communityId) {
+        insertData.data = { ...insertData.data, community_id: newNotification.communityId };
+      }
+      if (newNotification.postId) {
+        insertData.data = { ...insertData.data, post_id: newNotification.postId };
+      }
+      if (newNotification.commentId) {
+        insertData.data = { ...insertData.data, comment_id: newNotification.commentId };
+      }
+      if (newNotification.senderName) {
+        insertData.data = { ...insertData.data, sender_name: newNotification.senderName };
+      }
+      if ((newNotification as any).senderAvatar) {
+        insertData.data = { ...insertData.data, sender_avatar: (newNotification as any).senderAvatar };
+      }
+      if (newNotification.priority) {
+        insertData.data = { ...insertData.data, priority: newNotification.priority };
+      }
+
       const { error } = await supabase
         .from('notifications')
-        .insert({
-          id: newNotification.id,
-          type: newNotification.type,
-          title: newNotification.title,
-          content: newNotification.content,
-          user_id: newNotification.recipientId,
-          sender_id: newNotification.senderId || null,
-          sender_name: newNotification.senderName || null,
-          community_id: newNotification.communityId || null,
-          post_id: newNotification.postId || null,
-          comment_id: newNotification.commentId || null,
-          priority: newNotification.priority,
-          link: newNotification.link || null,
-          is_read: false,
-          created_at: Math.floor(newNotification.createdAt.getTime() / 1000)
-        });
+        .insert(insertData);
 
       if (error) {
-        console.error('Failed to save notification to Supabase:', error);
+        console.error('[addNotification] Failed to save notification to Supabase:', error);
+      } else {
+        console.log('[addNotification] Notification saved successfully');
       }
     } catch (error) {
       console.error('Error saving notification:', error);

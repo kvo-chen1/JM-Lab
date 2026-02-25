@@ -4,6 +4,8 @@ export interface Work {
   id: string;
   title: string;
   thumbnail: string;
+  cover_url?: string;  // 视频作品的封面图字段
+  url?: string;  // 视频/音频文件的URL
   type: 'image' | 'video' | 'audio' | 'document' | 'other';
   status: '已发布' | '草稿';
   createdAt: string | number;

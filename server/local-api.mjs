@@ -832,7 +832,8 @@ async function route(req, res, u, path) {
           video_url: work.video_url?.substring(0, 50), 
           type: work.type,
           hasVideoUrl: !!work.video_url,
-          views: work.views
+          views: work.views,
+          likes: work.likes
         });
         return {
           ...work,
@@ -905,11 +906,15 @@ async function route(req, res, u, path) {
         createdDate = new Date();
       }
 
+      // 获取评论数
+      let commentsCount = work.comments || work.comments_count || 0;
+      
       const mappedWork = {
         ...work,
         videoUrl: work.video_url,
         date: createdDate.toISOString().split('T')[0],
-        author
+        author,
+        comments: commentsCount
       }
 
       sendJson(res, 200, { code: 0, data: mappedWork })
@@ -5087,7 +5092,10 @@ async function route(req, res, u, path) {
     try {
       const result = await workDB.likeWork(workId, decoded.userId)
       if (result.success) {
-        sendJson(res, 200, { code: 0, data: { isLiked: true }, message: '点赞成功' })
+        // 获取最新的点赞数
+        const likesCount = await workDB.getWorkLikesCount(workId)
+        console.log('[API] Like work success, new likes count:', likesCount)
+        sendJson(res, 200, { code: 0, data: { isLiked: true, likes: likesCount }, message: '点赞成功' })
       } else {
         sendJson(res, 400, { code: 1, message: result.error || '点赞失败' })
       }
@@ -5816,6 +5824,109 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 管理员获取控制台统计数据
+  if (req.method === 'GET' && path === '/api/admin/dashboard/stats') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+
+      // 获取总用户数
+      const { rows: userCountRows } = await db.query('SELECT COUNT(*) as count FROM users')
+      const totalUsers = parseInt(userCountRows[0]?.count || '0')
+
+      // 获取作品总数
+      const { rows: worksCountRows } = await db.query('SELECT COUNT(*) as count FROM works')
+      const totalWorks = parseInt(worksCountRows[0]?.count || '0')
+
+      // 获取待审核数量
+      const { rows: pendingRows } = await db.query("SELECT COUNT(*) as count FROM works WHERE status = 'pending'")
+      const pendingAudit = parseInt(pendingRows[0]?.count || '0')
+
+      // 获取已采纳的活动数量
+      const { rows: adoptedRows } = await db.query("SELECT COUNT(*) as count FROM events WHERE status = 'published'")
+      const adopted = parseInt(adoptedRows[0]?.count || '0')
+
+      // 计算趋势（与上月比较）
+      const lastMonth = new Date()
+      lastMonth.setMonth(lastMonth.getMonth() - 1)
+      const lastMonthStr = lastMonth.toISOString()
+
+      // 获取上月用户数
+      const { rows: lastMonthUserRows } = await db.query(
+        'SELECT COUNT(*) as count FROM users WHERE created_at < $1',
+        [lastMonthStr]
+      )
+      const lastMonthUsers = parseInt(lastMonthUserRows[0]?.count || '0')
+
+      // 获取上月作品数
+      const { rows: lastMonthWorksRows } = await db.query(
+        'SELECT COUNT(*) as count FROM works WHERE created_at < $1',
+        [lastMonthStr]
+      )
+      const lastMonthWorks = parseInt(lastMonthWorksRows[0]?.count || '0')
+
+      // 获取上月已采纳活动数
+      const { rows: lastMonthAdoptedRows } = await db.query(
+        "SELECT COUNT(*) as count FROM events WHERE status = 'published' AND created_at < $1",
+        [lastMonthStr]
+      )
+      const lastMonthAdopted = parseInt(lastMonthAdoptedRows[0]?.count || '0')
+
+      // 获取昨日待审核数
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const { rows: yesterdayPendingRows } = await db.query(
+        "SELECT COUNT(*) as count FROM works WHERE status = 'pending' AND created_at < $1",
+        [yesterday.toISOString()]
+      )
+      const yesterdayPending = parseInt(yesterdayPendingRows[0]?.count || '0')
+
+      // 计算各项趋势
+      const userTrend = lastMonthUsers > 0
+        ? Math.round(((totalUsers || 0) - lastMonthUsers) / lastMonthUsers * 100)
+        : 0
+
+      const worksTrend = lastMonthWorks > 0
+        ? Math.round(((totalWorks || 0) - lastMonthWorks) / lastMonthWorks * 100)
+        : 0
+
+      const adoptedTrend = lastMonthAdopted > 0
+        ? Math.round(((adopted || 0) - lastMonthAdopted) / lastMonthAdopted * 100)
+        : 0
+
+      const pendingTrend = (pendingAudit || 0) - (yesterdayPending || 0)
+
+      sendJson(res, 200, {
+        code: 0,
+        message: '获取统计数据成功',
+        data: {
+          totalUsers: totalUsers || 0,
+          totalWorks: totalWorks || 0,
+          pendingAudit: pendingAudit || 0,
+          adopted: adopted || 0,
+          userTrend,
+          worksTrend,
+          pendingTrend,
+          adoptedTrend
+        }
+      })
+    } catch (error) {
+      console.error('[API] 获取控制台统计数据失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取统计数据失败' })
+    }
+    return
+  }
+
   // 管理员更新用户状态
   if (req.method === 'PUT' && path.startsWith('/api/admin/users/') && path.endsWith('/status')) {
     const decoded = verifyRequestToken(req)
@@ -5839,7 +5950,7 @@ async function route(req, res, u, path) {
         chunks.push(chunk)
       }
       const body = JSON.parse(Buffer.concat(chunks).toString())
-      const { status } = body
+      const { status, banOptions } = body
       
       // 从路径中提取用户ID
       const userId = path.split('/')[4]
@@ -5856,7 +5967,7 @@ async function route(req, res, u, path) {
         return
       }
       
-      console.log(`[API] 管理员 ${decoded.userId} 更新用户 ${userId} 状态为 ${status}`)
+      console.log(`[API] 管理员 ${decoded.userId} 更新用户 ${userId} 状态为 ${status}`, banOptions)
       
       // 更新用户状态
       const { error } = await supabaseServer
@@ -5868,6 +5979,57 @@ async function route(req, res, u, path) {
         console.error('[API] 更新用户状态失败:', error)
         sendJson(res, 500, { error: 'UPDATE_FAILED', message: '更新用户状态失败: ' + error.message })
         return
+      }
+      
+      // 如果是禁用操作，处理禁用选项
+      if (status === 'banned' && banOptions) {
+        // 计算过期时间
+        let expiresAt = null;
+        if (banOptions.ban_duration && banOptions.ban_duration !== 'permanent') {
+          const durationMs = {
+            '1day': 1 * 24 * 60 * 60 * 1000,
+            '7days': 7 * 24 * 60 * 60 * 1000,
+            '30days': 30 * 24 * 60 * 60 * 1000
+          }[banOptions.ban_duration];
+          if (durationMs) {
+            expiresAt = new Date(Date.now() + durationMs).toISOString();
+          }
+        }
+        
+        // 保存禁用限制
+        const { error: banError } = await supabaseServer
+          .from('user_ban_restrictions')
+          .upsert({
+            user_id: userId,
+            disable_login: banOptions.disable_login || false,
+            disable_post: banOptions.disable_post || false,
+            disable_comment: banOptions.disable_comment || false,
+            disable_like: banOptions.disable_like || false,
+            disable_follow: banOptions.disable_follow || false,
+            ban_reason: banOptions.ban_reason || '',
+            ban_duration: banOptions.ban_duration || 'permanent',
+            banned_by: decoded.userId,
+            banned_at: new Date().toISOString(),
+            expires_at: expiresAt,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+        
+        if (banError) {
+          console.error('[API] 保存禁用限制失败:', banError);
+          // 不影响主操作，只记录错误
+        }
+      }
+      
+      // 如果是解除禁用，删除禁用限制
+      if (status === 'active') {
+        const { error: deleteError } = await supabaseServer
+          .from('user_ban_restrictions')
+          .delete()
+          .eq('user_id', userId);
+        
+        if (deleteError) {
+          console.error('[API] 删除禁用限制失败:', deleteError);
+        }
       }
       
       sendJson(res, 200, { 

@@ -371,6 +371,10 @@ const MessageCenter = createLazyComponent(() => import(/* webpackChunkName: "pag
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'message-center'
 });
+const HistoryPage = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/History/HistoryPage"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'history-page'
+});
 
 // 移动端瀑布流作品展示页面
 const MobileWorksGalleryDemo = createLazyComponent(() => import(/* webpackChunkName: "pages-mobile-gallery" */ "@/pages/MobileWorksGalleryDemo"), {
@@ -845,6 +849,7 @@ export default function App() {
           <Route path="/authenticity" element={<LazyComponent><PrivateRoute><Authenticity /></PrivateRoute></LazyComponent>} />
 
           <Route path="/drafts" element={<LazyComponent><PrivateRoute><Drafts /></PrivateRoute></LazyComponent>} />
+          <Route path="/history" element={<LazyComponent><PrivateRoute><HistoryPage /></PrivateRoute></LazyComponent>} />
           <Route path="/my-works" element={<LazyComponent><PrivateRoute><MyWorks /></PrivateRoute></LazyComponent>} />
           <Route path="/settings" element={<LazyComponent><PrivateRoute><Settings /></PrivateRoute></LazyComponent>} />
           {/* 账户设置相关路由 */}

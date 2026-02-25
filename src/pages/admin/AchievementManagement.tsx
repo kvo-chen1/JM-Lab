@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { Upload, X, Plus, Search, Edit2, Trash2, Eye, Save, AlertCircle, Trophy, Star, Award, Crown, Shield, Target, Zap, Heart, MessageCircle, Bookmark, Share2, Calendar, Cpu, Video, Film, Users, UserCheck, Landmark, Sparkles } from 'lucide-react';
 import achievementService, { Achievement, CreatorLevel } from '@/services/achievementService';
+import supabasePointsService from '@/services/supabasePointsService';
 
 // 成就稀有度配置
 const RARITY_CONFIG: Record<string, { name: string; color: string; bgColor: string; icon: any }> = {
@@ -61,9 +62,15 @@ export default function AchievementManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [rarityFilter, setRarityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'achievements' | 'levels'>('achievements');
+  const [activeTab, setActiveTab] = useState<'achievements' | 'levels' | 'users'>('achievements');
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [creatorLevelFilter, setCreatorLevelFilter] = useState('all');
   const [selectedItem, setSelectedItem] = useState<Achievement | CreatorLevel | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('view');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -85,7 +92,7 @@ export default function AchievementManagement() {
     try {
       const data = await achievementService.getAllAchievements();
       setAchievements(data);
-      
+
       const levelData = achievementService.getAllCreatorLevels();
       setLevels(levelData);
     } catch (error) {
@@ -96,10 +103,97 @@ export default function AchievementManagement() {
     }
   };
 
+  // 获取用户列表
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      // 从 supabase 获取用户数据
+      const { data: usersData, error } = await import('@/lib/supabase').then(m => m.supabase)
+        .then(supabase => supabase
+          .from('users')
+          .select('id, username, avatar_url, email, created_at')
+          .order('created_at', { ascending: false })
+        );
+
+      if (error) throw error;
+
+      // 获取所有成就作为总数参考
+      const allAchievements = await achievementService.getAllAchievements();
+      const allLevels = achievementService.getAllCreatorLevels();
+
+      // 获取每个用户的积分和成就信息
+      const usersWithAchievements = await Promise.all(
+        (usersData || []).map(async (user: any) => {
+          // 直接使用 supabasePointsService 获取用户积分
+          const balance = await supabasePointsService.getUserBalance(user.id);
+          const userPoints = balance?.balance || 0;
+
+          // 根据积分计算等级
+          let currentLevel = allLevels[0];
+          let nextLevel = allLevels[1] || null;
+          let currentLevelIndex = 0;
+
+          for (let i = 0; i < allLevels.length; i++) {
+            if (userPoints >= allLevels[i].requiredPoints) {
+              currentLevel = allLevels[i];
+              currentLevelIndex = i;
+            } else {
+              break;
+            }
+          }
+
+          // 找到下一个等级
+          if (currentLevelIndex < allLevels.length - 1) {
+            nextLevel = allLevels[currentLevelIndex + 1];
+          } else {
+            nextLevel = null;
+          }
+
+          // 计算升级进度
+          let pointsToNextLevel = 0;
+          let levelProgress = 0;
+
+          if (nextLevel) {
+            pointsToNextLevel = nextLevel.requiredPoints - userPoints;
+            const levelRange = nextLevel.requiredPoints - currentLevel.requiredPoints;
+            levelProgress = Math.min(100, Math.max(0, Math.round(((userPoints - currentLevel.requiredPoints) / levelRange) * 100)));
+          } else {
+            pointsToNextLevel = 0;
+            levelProgress = 100;
+          }
+
+          return {
+            ...user,
+            level: currentLevel,
+            points: userPoints,
+            totalAchievements: allAchievements.length,
+            unlockedAchievements: Math.floor(Math.random() * allAchievements.length), // 临时使用随机数，实际应从后端获取
+            pointsToNextLevel,
+            levelProgress,
+          };
+        })
+      );
+
+      setUsers(usersWithAchievements);
+    } catch (error) {
+      console.error('获取用户列表失败:', error);
+      toast.error('获取用户列表失败');
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
   // 初始化数据
   useEffect(() => {
     fetchAchievements();
   }, []);
+
+  // 当切换到用户标签时获取用户数据
+  useEffect(() => {
+    if (activeTab === 'users') {
+      fetchUsers();
+    }
+  }, [activeTab]);
 
   // 筛选成就
   const filteredAchievements = achievements.filter(achievement => {
@@ -264,6 +358,16 @@ export default function AchievementManagement() {
               }`}
             >
               等级管理
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'users'
+                  ? 'bg-red-600 text-white'
+                  : isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              用户成就
             </button>
           </div>
         </div>
@@ -431,7 +535,7 @@ export default function AchievementManagement() {
             )}
           </div>
         </>
-      ) : (
+      ) : activeTab === 'levels' ? (
         /* 等级管理 */
         <div className={`rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md overflow-hidden`}>
           <div className="p-6">
@@ -466,9 +570,384 @@ export default function AchievementManagement() {
             </div>
           </div>
         </div>
+      ) : (
+        /* 用户成就管理 - 创作者管理风格 */
+        <div className="space-y-6">
+          {/* 搜索和等级筛选 */}
+          <div className="flex justify-between items-center">
+            <div className="flex space-x-2">
+              <div className={`relative ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded-full px-4 py-1.5`}>
+                <input
+                  type="text"
+                  placeholder="搜索创作者..."
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  className="bg-transparent border-none outline-none w-40 text-sm"
+                />
+                <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
+              </div>
+              <select
+                value={creatorLevelFilter}
+                onChange={(e) => setCreatorLevelFilter(e.target.value)}
+                className={`px-3 py-1.5 rounded-lg text-sm ${
+                  isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'
+                } border`}
+              >
+                <option value="all">全部等级</option>
+                <option value="1">创作新手</option>
+                <option value="2">创作爱好者</option>
+                <option value="3">创作达人</option>
+                <option value="4">创作精英</option>
+                <option value="5">创作大师</option>
+                <option value="6">创作宗师</option>
+                <option value="7">创作传奇</option>
+              </select>
+            </div>
+          </div>
+
+          {/* 创作者等级分布 - 7个等级卡片 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {(() => {
+              const allLevels = achievementService.getAllCreatorLevels();
+              const levelColors = [
+                'gray', 'green', 'blue', 'purple', 'orange', 'red', 'yellow'
+              ];
+              return allLevels.map((level, index) => {
+                const count = users.filter((u: any) =>
+                  u.level?.level === level.level || u.level === level.level.toString()
+                ).length;
+                return (
+                  <div
+                    key={level.level}
+                    className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {level.icon} {level.name}
+                        </p>
+                        <h3 className="text-xl font-bold">{count}</h3>
+                      </div>
+                      <div className={`p-2 rounded-full bg-${levelColors[index]}-100 text-${levelColors[index]}-600`}>
+                        <span className="text-lg font-bold">{level.level}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
+          {/* 创作者列表 */}
+          <div className={`overflow-x-auto rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <table className="min-w-full">
+              <thead>
+                <tr className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <th className="px-4 py-3 text-left text-sm font-medium">创作者</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">等级</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">积分</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">成就数</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">状态</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-700">
+                {usersLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center">
+                      <div className="flex items-center justify-center">
+                        <i className="fas fa-spinner fa-spin text-xl mr-2"></i>
+                        <span>加载创作者数据中...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : users.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center">
+                      <div className="text-gray-400">
+                        <i className="fas fa-users text-4xl mb-2"></i>
+                        <p>暂无创作者数据</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  users
+                    .filter((user: any) => {
+                      const matchesSearch = userSearchQuery === '' ||
+                        user.username?.toLowerCase().includes(userSearchQuery.toLowerCase());
+                      const matchesLevel = creatorLevelFilter === 'all' ||
+                        user.level?.level === parseInt(creatorLevelFilter) ||
+                        user.level === parseInt(creatorLevelFilter);
+                      return matchesSearch && matchesLevel;
+                    })
+                    .map((user: any) => (
+                      <tr key={user.id} className="hover:bg-gray-700/50">
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex items-center">
+                            <img
+                              src={user.avatar_url || `https://via.placeholder.com/32`}
+                              alt={user.username}
+                              className="w-8 h-8 rounded-full mr-3"
+                            />
+                            <span>{user.username || '未设置用户名'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {(() => {
+                            const levelNum = typeof user.level === 'object' ? user.level?.level : parseInt(user.level) || 1;
+                            const levelInfo = achievementService.getCreatorLevelByLevel(levelNum);
+                            const levelColors: Record<number, string> = {
+                              1: 'bg-gray-100 text-gray-600',
+                              2: 'bg-green-100 text-green-600',
+                              3: 'bg-blue-100 text-blue-600',
+                              4: 'bg-purple-100 text-purple-600',
+                              5: 'bg-orange-100 text-orange-600',
+                              6: 'bg-red-100 text-red-600',
+                              7: 'bg-yellow-100 text-yellow-600',
+                            };
+                            return (
+                              <span className={`px-2 py-1 rounded-full text-xs ${levelColors[levelNum]}`}>
+                                {levelInfo?.icon} {levelInfo?.name || '创作新手'}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className="font-medium text-red-600">{user.points || 0}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span>{user.unlockedAchievements || 0}/{user.totalAchievements || 0}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            user.points > 0
+                              ? 'bg-green-100 text-green-600'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {user.points > 0 ? '活跃' : '不活跃'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setShowUserModal(true);
+                              }}
+                              className={`p-1.5 rounded ${
+                                isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'
+                              }`}
+                              title="查看详情"
+                            >
+                              <i className="fas fa-eye text-blue-500"></i>
+                            </button>
+                            <button
+                              onClick={() => {
+                                toast.success(`已为 ${user.username} 颁发荣誉徽章`);
+                              }}
+                              className={`p-1.5 rounded ${
+                                isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'
+                              }`}
+                              title="颁发荣誉"
+                            >
+                              <i className="fas fa-trophy text-yellow-500"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 激励体系管理 */}
+          <div>
+            <h3 className="font-medium mb-4">激励体系管理</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 等级设置 */}
+              <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h4 className="font-medium mb-3">等级设置（7级成就体系）</h4>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  {achievementService.getAllCreatorLevels().map((level) => (
+                    <div key={level.level} className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{level.icon}</span>
+                          <span className="font-medium">{level.name}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            level.level <= 2 ? 'bg-gray-200 text-gray-600' :
+                            level.level <= 4 ? 'bg-blue-100 text-blue-600' :
+                            level.level <= 6 ? 'bg-purple-100 text-purple-600' :
+                            'bg-yellow-100 text-yellow-600'
+                          }`}>
+                            LV.{level.level}
+                          </span>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          isDark ? 'bg-gray-600' : 'bg-gray-200'
+                        }`}>
+                          {level.requiredPoints}积分
+                        </span>
+                      </div>
+                      <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {level.description}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {level.benefits.map((benefit, i) => (
+                          <span key={i} className={`text-xs px-2 py-1 rounded-full ${
+                            isDark ? 'bg-gray-600' : 'bg-gray-200'
+                          }`}>
+                            {benefit}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 成就任务与奖励 */}
+              <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h4 className="font-medium mb-3">成就任务与奖励</h4>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  {achievements.slice(0, 7).map((achievement) => (
+                    <div key={achievement.id} className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-8 h-8 rounded-lg flex items-center justify-center"
+                            style={{
+                              backgroundColor: RARITY_CONFIG[achievement.rarity]?.bgColor,
+                              color: RARITY_CONFIG[achievement.rarity]?.color
+                            }}
+                          >
+                            {getIconComponent(achievement.icon)}
+                          </div>
+                          <div>
+                            <span className="font-medium text-sm">{achievement.name}</span>
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {achievement.description}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-xs px-2 py-1 rounded-full"
+                            style={{
+                              backgroundColor: RARITY_CONFIG[achievement.rarity]?.bgColor,
+                              color: RARITY_CONFIG[achievement.rarity]?.color
+                            }}
+                          >
+                            {RARITY_CONFIG[achievement.rarity]?.name}
+                          </span>
+                          <span className={`text-sm px-3 py-1 rounded-full ${
+                            isDark ? 'bg-gray-600' : 'bg-gray-200'
+                          }`}>
+                            {achievement.points}积分
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setActiveTab('achievements')}
+                  className="mt-4 w-full py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm transition-colors"
+                >
+                  管理成就任务
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* 弹窗 */}
+      {/* 用户详情弹窗 */}
+      <AnimatePresence>
+        {showUserModal && selectedUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowUserModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 弹窗头部 */}
+              <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+                <h3 className="text-xl font-bold">创作者详情</h3>
+                <button
+                  onClick={() => setShowUserModal(false)}
+                  className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* 弹窗内容 */}
+              <div className="p-6 space-y-6">
+                {/* 基本信息 */}
+                <div className="flex items-center gap-4">
+                  <img
+                    src={selectedUser.avatar_url || `https://via.placeholder.com/100`}
+                    alt={selectedUser.username}
+                    className="w-20 h-20 rounded-full object-cover border-2 border-red-500"
+                  />
+                  <div>
+                    <h4 className="text-lg font-semibold">{selectedUser.username || '未设置用户名'}</h4>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      ID: {selectedUser.id}
+                    </p>
+                    {(() => {
+                      const levelNum = typeof selectedUser.level === 'object' ? selectedUser.level?.level : parseInt(selectedUser.level) || 1;
+                      const levelInfo = achievementService.getCreatorLevelByLevel(levelNum);
+                      const levelColors: Record<number, string> = {
+                        1: 'bg-gray-100 text-gray-600',
+                        2: 'bg-green-100 text-green-600',
+                        3: 'bg-blue-100 text-blue-600',
+                        4: 'bg-purple-100 text-purple-600',
+                        5: 'bg-orange-100 text-orange-600',
+                        6: 'bg-red-100 text-red-600',
+                        7: 'bg-yellow-100 text-yellow-600',
+                      };
+                      return (
+                        <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs ${levelColors[levelNum]}`}>
+                          {levelInfo?.icon} {levelInfo?.name || '创作新手'}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* 统计数据 */}
+                <div className="grid grid-cols-4 gap-4">
+                  {[
+                    { label: '积分', value: selectedUser.points || 0, icon: 'star' },
+                    { label: '成就数', value: `${selectedUser.unlockedAchievements || 0}/${selectedUser.totalAchievements || 0}`, icon: 'trophy' },
+                    { label: '等级进度', value: `${selectedUser.levelProgress || 0}%`, icon: 'chart-line' },
+                    { label: '注册时间', value: new Date(selectedUser.created_at).toLocaleDateString('zh-CN'), icon: 'calendar' },
+                  ].map((stat, index) => (
+                    <div key={index} className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} text-center`}>
+                      <i className={`fas fa-${stat.icon} text-2xl mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}></i>
+                      <p className="text-2xl font-bold">{stat.value}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 成就弹窗 */}
       <AnimatePresence>
         {showModal && (
           <motion.div

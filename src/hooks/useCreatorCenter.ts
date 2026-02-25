@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import achievementService from '@/services/achievementService';
 
 // 创作者统计数据接口
 export interface CreatorStats {
@@ -271,64 +272,28 @@ export function useCreatorCenter() {
     }
   }, [userId]);
 
-  // 获取等级数据
+  // 获取等级数据（使用成就等级体系）
   const fetchLevel = useCallback(async () => {
     if (!userId) return;
 
     try {
-      // 获取用户作品数量来计算经验值
-      const { data: worksData, error: worksError } = await supabase
-        .from('works')
-        .select('id', { count: 'exact' })
-        .eq('creator_id', userId);
-
-      if (worksError) {
-        console.warn('获取作品数量失败:', worksError);
-      }
-
-      // 获取用户获得的点赞数
-      const { data: worksIds } = await supabase
-        .from('works')
-        .select('id')
-        .eq('creator_id', userId);
-
-      const workIds = worksIds?.map(w => w.id) || [];
-      
-      const { data: likesData } = await supabase
-        .from('works_likes')
-        .select('work_id')
-        .in('work_id', workIds);
-
-      const worksCount = worksData?.length || 0;
-      const likesCount = likesData?.length || 0;
-      
-      // 计算经验值：每个作品10分，每个点赞1分
-      const xp = worksCount * 10 + likesCount;
-      
-      // 根据经验值计算等级
-      let userLevel = 1;
-      if (xp >= 2500) userLevel = 7;
-      else if (xp >= 1500) userLevel = 6;
-      else if (xp >= 1000) userLevel = 5;
-      else if (xp >= 600) userLevel = 4;
-      else if (xp >= 300) userLevel = 3;
-      else if (xp >= 100) userLevel = 2;
-
-      const levelConfig = getLevelConfig(userLevel);
-      const progress = Math.min(Math.round((xp / levelConfig.nextLevelXP) * 100), 100);
+      // 初始化成就服务并获取等级信息
+      await achievementService.initialize();
+      await achievementService.fetchPointsStats(userId);
+      const levelInfo = achievementService.getCreatorLevelInfo(userId);
 
       setLevel({
-        level: userLevel,
-        name: levelConfig.name,
-        currentXP: xp,
-        nextLevelXP: levelConfig.nextLevelXP,
-        progress,
+        level: levelInfo.currentLevel.level,
+        name: levelInfo.currentLevel.name,
+        currentXP: levelInfo.currentPoints,
+        nextLevelXP: levelInfo.nextLevel?.requiredPoints || levelInfo.currentLevel.requiredPoints,
+        progress: levelInfo.levelProgress,
       });
     } catch (err) {
       console.error('获取等级数据失败:', err);
       setLevel({
         level: 1,
-        name: '新手创作者',
+        name: '创作新手',
         currentXP: 0,
         nextLevelXP: 100,
         progress: 0,
@@ -651,21 +616,6 @@ export function useCreatorCenter() {
     applyForTask,
     createWithdrawal,
   };
-}
-
-// 等级配置
-function getLevelConfig(level: number) {
-  const configs: Record<number, { name: string; nextLevelXP: number }> = {
-    1: { name: '新手创作者', nextLevelXP: 100 },
-    2: { name: '初级创作者', nextLevelXP: 300 },
-    3: { name: '进阶创作者', nextLevelXP: 600 },
-    4: { name: '资深创作者', nextLevelXP: 1000 },
-    5: { name: '专家创作者', nextLevelXP: 1500 },
-    6: { name: '大师创作者', nextLevelXP: 2500 },
-    7: { name: '传奇创作者', nextLevelXP: 5000 },
-  };
-
-  return configs[level] || { name: '创作者', nextLevelXP: 1000 };
 }
 
 export default useCreatorCenter;

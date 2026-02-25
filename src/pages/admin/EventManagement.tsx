@@ -33,7 +33,8 @@ import {
   Trash2,
   ChevronRight,
   Percent,
-  Target
+  Target,
+  User
 } from 'lucide-react';
 
 // 活动状态
@@ -79,6 +80,8 @@ interface AdminEvent extends Event {
   category?: string;
   participantsList?: any[];
   participants_count?: number;
+  organizerName?: string;
+  organizerAvatar?: string;
 }
 
 // 玻璃拟态卡片
@@ -306,6 +309,22 @@ export default function EventManagement() {
         console.log(`活动${i + 1}: ${e.title || e.name}, 状态: ${e.status}, 结束时间: ${e.end_date || e.end_time}`);
       });
 
+      // 获取所有组织者ID
+      const organizerIds = [...new Set((eventsData || []).map((e: any) => e.organizer_id).filter(Boolean))];
+      
+      // 获取组织者信息
+      let organizersMap = new Map();
+      if (organizerIds.length > 0) {
+        const { data: organizersData } = await supabaseAdmin
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', organizerIds);
+        
+        (organizersData || []).forEach((org: any) => {
+          organizersMap.set(org.id, org);
+        });
+      }
+
       const now = new Date();
 
       const formattedEvents: AdminEvent[] = (eventsData || []).map((event: any) => {
@@ -360,6 +379,8 @@ export default function EventManagement() {
           }
         }
 
+        const organizer = organizersMap.get(event.organizer_id);
+        
         return {
           id: event.id,
           title: event.title || event.name || '未命名活动',
@@ -369,6 +390,8 @@ export default function EventManagement() {
           endTime,
           location: event.location || '',
           organizerId: event.organizer_id || event.creator_id || event.user_id || '',
+          organizerName: organizer?.username || '未知用户',
+          organizerAvatar: organizer?.avatar_url,
           createdAt: new Date(event.created_at || Date.now()),
           updatedAt: new Date(event.updated_at || Date.now()),
           maxParticipants: event.max_participants || event.maxParticipants || 0,
@@ -473,29 +496,25 @@ export default function EventManagement() {
   // 获取参与者
   const fetchParticipants = async (eventId: string) => {
     try {
-      const { data: registrations } = await supabaseAdmin
-        .from('event_registrations')
+      // 使用 event_participants 表获取参与者
+      const { data: participants, error } = await supabaseAdmin
+        .from('event_participants')
         .select('*')
         .eq('event_id', eventId);
 
-      let participantIds: string[] = [];
-
-      if (registrations && registrations.length > 0) {
-        participantIds = registrations.map((r: any) => r.user_id).filter(Boolean);
-      } else {
-        const currentEvent = events.find(e => e.id === eventId);
-        if (currentEvent?.participantsList && currentEvent.participantsList.length > 0) {
-          participantIds = currentEvent.participantsList.map((p: any) =>
-            typeof p === 'string' ? p : p.userId || p.user_id
-          ).filter(Boolean);
-        }
+      if (error) {
+        console.error('查询参与者失败:', error);
+        toast.error('获取参与者失败');
+        return;
       }
 
-      if (participantIds.length === 0) {
+      if (!participants || participants.length === 0) {
         setParticipants([]);
         setShowParticipantsModal(true);
         return;
       }
+
+      const participantIds = participants.map((p: any) => p.user_id).filter(Boolean);
 
       const { data: users } = await supabaseAdmin
         .from('users')
@@ -503,19 +522,19 @@ export default function EventManagement() {
         .in('id', participantIds);
 
       const formattedParticipants: Participant[] = (users || []).map((user: any) => {
-        const registration = registrations?.find((r: any) => r.user_id === user.id);
+        const participant = participants?.find((p: any) => p.user_id === user.id);
         return {
           id: user.id,
           user_id: user.id,
           username: user.username || '未知用户',
           avatar_url: user.avatar_url,
-          registered_at: registration?.created_at
-            ? new Date(registration.created_at).getTime()
+          registered_at: participant?.registration_date
+            ? participant.registration_date * 1000
+            : participant?.created_at
+            ? new Date(participant.created_at).getTime()
             : Date.now(),
-          status: registration?.status === 'attended' ? 'attended' : 'registered',
-          check_in_at: registration?.check_in_at
-            ? new Date(registration.check_in_at).getTime()
-            : undefined
+          status: participant?.status || 'registered',
+          check_in_at: undefined
         };
       });
 
@@ -1363,6 +1382,28 @@ export default function EventManagement() {
 
               {/* 弹窗内容 */}
               <div className="p-6 space-y-6">
+                {/* 创建者信息 */}
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <User className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>活动创建者</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={selectedEvent.organizerAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedEvent.organizerName}`}
+                      alt={selectedEvent.organizerName}
+                      className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedEvent.organizerName}`;
+                      }}
+                    />
+                    <div>
+                      <p className="font-medium">{selectedEvent.organizerName}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>组织者</p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 信息网格 */}
                 <div className="grid grid-cols-2 gap-4">
                   {[

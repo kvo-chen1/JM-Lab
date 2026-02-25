@@ -75,6 +75,7 @@ import searchService from '@/services/searchService'
 import PWAInstallButton from '@/components/PWAInstallButton'
 import { playNotificationSound, sendDesktopNotification, requestDesktopNotificationPermission } from '../utils/notificationUtils'
 import { messageService } from '@/services/messageService'
+import { feedService } from '@/services/feedService'
 
 
 
@@ -297,7 +298,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   // 中文注释：问题反馈弹层显示状态
   const [showFeedback, setShowFeedback] = useState(false)
 
-
   // 语言菜单ref
   const languageRef = useRef<HTMLDivElement | null>(null)
   // 语言菜单状态
@@ -322,7 +322,63 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   
   // 初始化通知状态 - 从消息服务获取未读数量
   const [unreadCount, setUnreadCount] = useState(0)
-  
+  // 消息下拉菜单状态
+  const [showMessageDropdown, setShowMessageDropdown] = useState(false)
+  const messageDropdownRef = useRef<HTMLDivElement>(null)
+  const messageButtonRef = useRef<HTMLButtonElement>(null)
+
+  // 动态下拉菜单状态
+  const [showFeedDropdown, setShowFeedDropdown] = useState(false)
+  const [followingUsers, setFollowingUsers] = useState<{ id: string; name: string; avatar: string }[]>([])
+  const [recentFeeds, setRecentFeeds] = useState<{ id: string; content: string; author: { name: string; avatar: string }; createdAt: string }[]>([])
+  const feedDropdownRef = useRef<HTMLDivElement>(null)
+  const feedButtonRef = useRef<HTMLButtonElement>(null)
+
+  // 获取动态下拉菜单数据
+  useEffect(() => {
+    if (showFeedDropdown && user?.id) {
+      Promise.all([
+        feedService.getFollowingUsers(user.id),
+        feedService.getFeeds({ limit: 10, type: 'all' })
+      ]).then(([users, feedsData]) => {
+        setFollowingUsers(users.slice(0, 5).map(u => ({ id: u.id, name: u.name, avatar: u.avatar })))
+        setRecentFeeds(feedsData.feeds.slice(0, 6).map(f => ({
+          id: f.id,
+          content: f.content?.substring(0, 50) || '',
+          author: { name: f.author.name, avatar: f.author.avatar },
+          createdAt: f.createdAt
+        })))
+      }).catch(console.error)
+    }
+  }, [showFeedDropdown, user?.id])
+
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // 关闭消息下拉菜单
+      if (
+        messageDropdownRef.current &&
+        !messageDropdownRef.current.contains(event.target as Node) &&
+        messageButtonRef.current &&
+        !messageButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowMessageDropdown(false)
+      }
+      // 关闭动态下拉菜单
+      if (
+        feedDropdownRef.current &&
+        !feedDropdownRef.current.contains(event.target as Node) &&
+        feedButtonRef.current &&
+        !feedButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowFeedDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // 监听用户变化，获取未读消息数量
   useEffect(() => {
     if (!user?.id) {
@@ -430,11 +486,12 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   useEffect(() => {
     // 只在浏览器环境中添加事件监听
     if (typeof document === 'undefined') return
-    
+
     const handler = (e: MouseEvent) => {
       if (!userMenuRef.current) return
       if (!userMenuRef.current.contains(e.target as Node)) {
         setShowUserMenu(false)
+        setShowThemeDropdown(false)
       }
     }
     if (showUserMenu) document.addEventListener('mousedown', handler)
@@ -847,8 +904,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: getDuration(0.3), delay: getDelay(0.2) }}
+              style={{ overflow: 'visible' }}
             >
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3" style={{ overflow: 'visible' }}>
               {/* 用户头像 - B站风格头像覆盖卡片 */}
               {isAuthenticated && (
                 <motion.div
@@ -859,7 +917,11 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   transition={{ duration: getDuration(0.3), delay: getDelay(0.3) }}
                   onMouseEnter={() => setShowUserMenu(true)}
                   onMouseLeave={() => setShowUserMenu(false)}
-                  onClick={() => navigate('/dashboard')}
+                  onClick={() => {
+                    if (!showUserMenu) {
+                      navigate('/dashboard')
+                    }
+                  }}
                 >
                   <motion.div
                     className="flex items-center group relative z-10"
@@ -897,7 +959,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   </motion.div>
                   {showUserMenu && (
                     <motion.div
-                      className={`absolute right-[-120px] top-12 w-72 rounded-2xl shadow-2xl z-[5] ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}
+                      className={`absolute right-[-120px] top-12 w-72 rounded-2xl shadow-2xl z-[70] ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}
                       role="menu"
                       aria-label="用户菜单"
                       initial={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -911,56 +973,61 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         {/* 用户名 */}
                         <h3 className={`font-bold text-base mt-1 mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{user?.username}</h3>
                         
-                        {/* 等级进度条 - 使用积分系统 */}
-                        {creatorLevelInfo ? (
-                          <>
-                            <div className="flex items-center justify-center gap-2 mb-1">
-                              <span className={`text-xs px-2 py-0.5 rounded font-bold ${isDark ? 'bg-[#C02C38]/20 text-[#C02C38]' : 'bg-[#C02C38]/10 text-[#C02C38]'}`}>
-                                {creatorLevelInfo.currentLevel.name}
-                              </span>
-                              <div className={`w-32 h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                <div 
-                                  className="h-full bg-gradient-to-r from-[#C02C38] to-[#F59E0B] rounded-full transition-all duration-500"
-                                  style={{ width: `${creatorLevelInfo.levelProgress}%` }}
-                                ></div>
-                              </div>
-                              {creatorLevelInfo.nextLevel && (
-                                <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                  {creatorLevelInfo.nextLevel.name}
+                        {/* 等级进度条 - 使用积分系统 - 点击跳转到成就页面 */}
+                        <div
+                          className="cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); setShowUserMenu(false); navigate('/achievement-museum'); }}
+                        >
+                          {creatorLevelInfo ? (
+                            <>
+                              <div className="flex items-center justify-center gap-2 mb-1">
+                                <span className={`text-xs px-2 py-0.5 rounded font-bold ${isDark ? 'bg-[#C02C38]/20 text-[#C02C38]' : 'bg-[#C02C38]/10 text-[#C02C38]'}`}>
+                                  {creatorLevelInfo.currentLevel.name}
                                 </span>
-                              )}
-                            </div>
-                            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                              当前积分 <span className="font-medium">{userPoints.toLocaleString()}</span>
-                              {creatorLevelInfo.nextLevel && (
-                                <>，距离 <span className="text-[#C02C38] font-medium">{creatorLevelInfo.nextLevel.name}</span> 还需 <span className="font-medium">{creatorLevelInfo.pointsToNextLevel}</span> 积分</>
-                              )}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex items-center justify-center gap-2 mb-1">
-                              <span className={`text-xs px-2 py-0.5 rounded font-bold ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>LV4</span>
-                              <div className={`w-32 h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                <div className="h-full w-3/5 bg-gradient-to-r from-pink-400 to-pink-500 rounded-full"></div>
+                                <div className={`w-32 h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-[#C02C38] to-[#F59E0B] rounded-full transition-all duration-500"
+                                    style={{ width: `${creatorLevelInfo.levelProgress}%` }}
+                                  ></div>
+                                </div>
+                                {creatorLevelInfo.nextLevel && (
+                                  <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    {creatorLevelInfo.nextLevel.name}
+                                  </span>
+                                )}
                               </div>
-                              <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>LV5</span>
-                            </div>
-                            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>当前成长6443，距离升级Lv.5还需要4357</p>
-                          </>
-                        )}
+                              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                当前积分 <span className="font-medium">{userPoints.toLocaleString()}</span>
+                                {creatorLevelInfo.nextLevel && (
+                                  <>，距离 <span className="text-[#C02C38] font-medium">{creatorLevelInfo.nextLevel.name}</span> 还需 <span className="font-medium">{creatorLevelInfo.pointsToNextLevel}</span> 积分</>
+                                )}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-center gap-2 mb-1">
+                                <span className={`text-xs px-2 py-0.5 rounded font-bold ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>LV4</span>
+                                <div className={`w-32 h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                                  <div className="h-full w-3/5 bg-gradient-to-r from-pink-400 to-pink-500 rounded-full"></div>
+                                </div>
+                                <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>LV5</span>
+                              </div>
+                              <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>当前成长6443，距离升级Lv.5还需要4357</p>
+                            </>
+                          )}
+                        </div>
                         
                         {/* 统计数据 */}
                         <div className="flex items-center justify-center gap-8 mt-3 pt-3 border-t border-dashed border-gray-300/30">
-                          <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setShowUserMenu(false); navigate('/friends'); }}>
+                          <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => { e.stopPropagation(); setShowUserMenu(false); navigate('/friends'); }}>
                             <p className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{userStats.followingCount}</p>
                             <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>关注</p>
                           </div>
-                          <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setShowUserMenu(false); navigate('/friends'); }}>
+                          <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => { e.stopPropagation(); setShowUserMenu(false); navigate('/friends'); }}>
                             <p className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{userStats.followersCount}</p>
                             <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>粉丝</p>
                           </div>
-                          <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setShowUserMenu(false); navigate('/dashboard'); }}>
+                          <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => { e.stopPropagation(); setShowUserMenu(false); navigate('/dashboard'); }}>
                             <p className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{userStats.worksCount}</p>
                             <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>作品</p>
                           </div>
@@ -969,25 +1036,43 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
 
                       {/* 会员推广卡片 */}
                       {user?.membershipStatus === 'active' ? (
-                        <div className={`px-3 py-2 mx-3 mt-3 rounded-lg ${isDark ? 'bg-gradient-to-r from-amber-500/15 to-yellow-500/15 border border-amber-500/25' : 'bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100'}`}>
+                        <div
+                          className={`px-3 py-2 mx-3 mt-3 rounded-lg cursor-pointer transition-all duration-200 hover:opacity-90 ${isDark ? 'bg-gradient-to-r from-amber-500/15 to-yellow-500/15 border border-amber-500/25' : 'bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100'}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowUserMenu(false);
+                            navigate('/membership');
+                          }}
+                        >
                           <p className={`text-sm font-medium ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>
                             {user?.membershipLevel === 'vip' ? 'VIP会员' : '高级会员'} 生效中
                           </p>
                           <div className="flex items-center justify-between mt-1">
                             <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>享受专属特权与服务</p>
-                            <button className={`px-2 py-0.5 rounded text-xs font-medium transition-all duration-200 ${isDark ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30' : 'bg-white text-amber-600 hover:bg-amber-50 shadow-sm border border-amber-200'}`}>
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-medium transition-all duration-200 ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-white text-amber-600 shadow-sm border border-amber-200'}`}
+                            >
                               会员中心
-                            </button>
+                            </span>
                           </div>
                         </div>
                       ) : (
-                        <div className={`px-3 py-2 mx-3 mt-3 rounded-lg ${isDark ? 'bg-gradient-to-r from-blue-500/15 to-cyan-500/15 border border-blue-500/25' : 'bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100'}`}>
+                        <div
+                          className={`px-3 py-2 mx-3 mt-3 rounded-lg cursor-pointer transition-all duration-200 hover:opacity-90 ${isDark ? 'bg-gradient-to-r from-blue-500/15 to-cyan-500/15 border border-blue-500/25' : 'bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100'}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowUserMenu(false);
+                            navigate('/membership');
+                          }}
+                        >
                           <p className={`text-sm font-medium ${isDark ? 'text-blue-300' : 'text-blue-600'}`}>升级会员解锁更多功能</p>
                           <div className="flex items-center justify-between mt-1">
                             <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>享受无限创作与专属特权</p>
-                            <button className={`px-2 py-0.5 rounded text-xs font-medium transition-all duration-200 ${isDark ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30' : 'bg-white text-blue-600 hover:bg-blue-50 shadow-sm border border-blue-200'}`}>
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-medium transition-all duration-200 ${isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-white text-blue-600 shadow-sm border border-blue-200'}`}
+                            >
                               立即升级
-                            </button>
+                            </span>
                           </div>
                         </div>
                       )}
@@ -997,18 +1082,18 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         {[
                           { label: '个人中心', path: '/dashboard', icon: 'fa-user' },
                           { label: '数据分析', path: '/analytics', icon: 'fa-chart-line' },
-                          { label: '设置', path: '/settings', icon: 'fa-cog' },
-                          { label: '返回官网', path: '/', icon: 'fa-home' }
+                          { label: '设置', path: '/settings', icon: 'fa-cog' }
                         ].map((item, index) => (
                           <motion.li
-                            key={item.path}
+                            key={item.label}
                             initial={{ opacity: 0, x: 10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: getDuration(0.1), delay: getDelay(0.05 * index) }}
                           >
                             <button
                               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group/item ${isDark ? 'hover:bg-gray-700/50 text-gray-200' : 'hover:bg-gray-100 text-gray-700'}`}
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setShowUserMenu(false);
                                 navigate(item.path);
                               }}
@@ -1019,34 +1104,63 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                             </button>
                           </motion.li>
                         ))}
+                        {/* 返回官网 - 跳转到官网落地页 */}
+                        <motion.li
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: getDuration(0.1), delay: getDelay(0.15) }}
+                        >
+                          <button
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group/item ${isDark ? 'hover:bg-gray-700/50 text-gray-200' : 'hover:bg-gray-100 text-gray-700'}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowUserMenu(false);
+                              window.location.href = '/landing.html';
+                            }}
+                          >
+                            <i className={`fas fa-home w-5 text-center text-base transition-colors ${isDark ? 'text-gray-400 group-hover/item:text-pink-400' : 'text-gray-400 group-hover/item:text-pink-500'}`}></i>
+                            <span className="flex-1 text-left text-sm font-medium">返回官网</span>
+                            <i className="fas fa-chevron-right text-xs text-gray-300 group-hover/item:text-gray-400 transition-all transform group-hover/item:translate-x-1"></i>
+                          </button>
+                        </motion.li>
                       </ul>
 
-                      {/* 主题切换 - 悬浮显示子菜单 */}
-                      <div className={`border-t ${isDark ? 'border-gray-700/50' : 'border-gray-100'} py-1 px-2 relative group/theme`}>
+                      {/* 主题切换 */}
+                      <div className={isDark ? 'border-t border-gray-700/50 py-1 px-2' : 'border-t border-gray-100 py-1 px-2'}>
                         <button
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group/item ${isDark ? 'hover:bg-gray-700/50 text-gray-200' : 'hover:bg-gray-100 text-gray-700'}`}
+                          className={isDark ? 'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-200 hover:bg-gray-700/50' : 'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowThemeDropdown(!showThemeDropdown);
+                          }}
                         >
-                          <i className={`fas fa-moon w-5 text-center text-base transition-colors ${isDark ? 'text-gray-400 group-hover/item:text-pink-400' : 'text-gray-400 group-hover/item:text-pink-500'}`}></i>
+                          <i className="fas fa-moon w-5 text-center text-base text-gray-400"></i>
                           <span className="flex-1 text-left text-sm font-medium">主题: {themeConfig.find(t => t.value === theme)?.label || '浅色'}</span>
-                          <i className="fas fa-chevron-right text-xs text-gray-300 group-hover/item:text-gray-400 transition-all transform group-hover/item:translate-x-1"></i>
+                          <i className={showThemeDropdown ? 'fas fa-chevron-down text-xs text-gray-400' : 'fas fa-chevron-right text-xs text-gray-400'}></i>
                         </button>
-                        {/* 主题子菜单 */}
-                        <div className={`absolute left-full top-0 ml-2 w-40 rounded-lg shadow-lg z-[10] opacity-0 invisible group-hover/theme:opacity-100 group-hover/theme:visible transition-all duration-200 max-h-80 overflow-y-auto ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
-                          <ul className="py-1">
-                            {themeConfig.map((themeOption) => (
-                              <li key={themeOption.value}>
-                                <button
-                                  className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 ${isDark ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-gray-50 text-gray-700'} ${theme === themeOption.value ? (isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 font-semibold') : ''}`}
-                                  onClick={() => setTheme(themeOption.value)}
-                                >
-                                  <i className={`${themeOption.icon} w-4 text-center`}></i>
-                                  <span className="flex-1">{themeOption.label}</span>
-                                  {theme === themeOption.value && <i className="fas fa-check text-xs"></i>}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
+                        {/* 主题下拉菜单 */}
+                        {showThemeDropdown && (
+                          <div className={isDark ? 'mt-1 rounded-lg max-h-48 overflow-y-auto bg-gray-900/50 border border-gray-700/50' : 'mt-1 rounded-lg max-h-48 overflow-y-auto bg-gray-50 border border-gray-200'}>
+                            <ul className="py-1">
+                              {themeConfig.map((themeOption) => (
+                                <li key={themeOption.value}>
+                                  <button
+                                    className={theme === themeOption.value ? (isDark ? 'w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors bg-gray-700 text-white' : 'w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors bg-gray-200 font-semibold') : (isDark ? 'w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors hover:bg-gray-700 text-gray-200' : 'w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors hover:bg-gray-100 text-gray-700')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTheme(themeOption.value);
+                                      setShowThemeDropdown(false);
+                                    }}
+                                  >
+                                    <i className={`${themeOption.icon} w-4 text-center`}></i>
+                                    <span className="flex-1">{themeOption.label}</span>
+                                    {theme === themeOption.value && <i className="fas fa-check text-xs text-green-500"></i>}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                       
                       {/* 退出登录 */}
@@ -1109,42 +1223,255 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                 <span className="text-[10px]">好友</span>
               </motion.button>
 
-              {/* 动态入口 */}
-              <motion.button
-                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
-                aria-label="动态"
-                title="查看动态"
-                onClick={() => navigate('/feed')}
-                whileHover={{ scale: 1.05, y: -1 }}
-                whileTap={{ scale: 0.95 }}
+              {/* 动态入口 - 带下拉菜单 */}
+              <div 
+                className="relative inline-block"
+                onMouseEnter={() => {
+                  setShowFeedDropdown(true)
+                  setShowMessageDropdown(false)
+                }}
+                onMouseLeave={() => {
+                  setTimeout(() => setShowFeedDropdown(false), 200)
+                }}
               >
-                <i className="fas fa-rss text-lg"></i>
-                <span className="text-[10px]">动态</span>
-              </motion.button>
+                <motion.button
+                  ref={feedButtonRef}
+                  className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                  aria-label="动态"
+                  title="查看动态"
+                  onClick={() => navigate('/feed')}
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <i className="fas fa-rss text-lg"></i>
+                  <span className="text-[10px]">动态</span>
+                </motion.button>
 
-              {/* 消息入口 */}
-              <motion.button
-                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
-                aria-label="消息"
-                title="消息"
-                onClick={() => navigate('/messages')}
-                whileHover={{ scale: 1.05, y: -1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <div className="relative">
-                  <i className="fas fa-bell text-lg"></i>
-                  {unreadCount > 0 && (
-                    <motion.span
-                      className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
+                {/* 动态下拉菜单 - 关注用户 + 最近动态 */}
+                {showFeedDropdown && (
+                  <motion.div
+                    ref={feedDropdownRef}
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className={`absolute top-full -left-12 mt-2 w-80 rounded-lg shadow-xl z-[100] overflow-hidden ${
+                      isDark ? 'bg-[#1a1a2e] border border-gray-700/50' : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    {/* 关注用户 */}
+                    <div className={`px-3 py-2 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-100'}`}>
+                      <div className={`text-xs font-medium mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>关注</div>
+                      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                        {followingUsers.length > 0 ? (
+                          followingUsers.map(user => (
+                            <button
+                              key={user.id}
+                              onClick={() => {
+                                navigate(`/author/${user.id}`)
+                                setShowFeedDropdown(false)
+                              }}
+                              className="flex-shrink-0 flex flex-col items-center gap-1"
+                            >
+                              <img
+                                src={user.avatar || '/default-avatar.png'}
+                                alt={user.name}
+                                className="w-10 h-10 rounded-full object-cover border-2 border-transparent hover:border-pink-500 transition-colors"
+                              />
+                              <span className={`text-xs truncate max-w-[50px] ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {user.name}
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>暂无关注</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 最近动态 */}
+                    <div className="max-h-80 overflow-y-auto">
+                      <div className={`px-3 py-2 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-100'}`}>
+                        <div className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>最新动态</div>
+                      </div>
+                      <div className="py-1">
+                        {recentFeeds.length > 0 ? (
+                          recentFeeds.map(feed => (
+                            <button
+                              key={feed.id}
+                              onClick={() => {
+                                navigate(`/post/${feed.id}`)
+                                setShowFeedDropdown(false)
+                              }}
+                              className={`w-full px-3 py-2 flex items-start gap-2 transition-colors ${
+                                isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'
+                              }`}
+                            >
+                              <img
+                                src={feed.author.avatar || '/default-avatar.png'}
+                                alt={feed.author.name}
+                                className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                              />
+                              <div className="flex-1 min-w-0 text-left">
+                                <div className={`text-sm truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                  {feed.author.name}
+                                </div>
+                                <div className={`text-xs truncate ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                  {feed.content}...
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className={`px-3 py-4 text-center text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            暂无动态
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 查看更多 */}
+                    <button
+                      onClick={() => {
+                        navigate('/feed')
+                        setShowFeedDropdown(false)
+                      }}
+                      className={`w-full py-2 text-center text-sm border-t transition-colors ${
+                        isDark
+                          ? 'border-gray-700/50 text-gray-400 hover:bg-gray-800/50'
+                          : 'border-gray-100 text-gray-600 hover:bg-gray-50'
+                      }`}
                     >
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </motion.span>
-                  )}
-                </div>
-                <span className="text-[10px]">消息</span>
-              </motion.button>
+                      查看更多动态 →
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* 消息入口 - 带下拉菜单 */}
+              <div 
+                className="relative inline-block"
+                onMouseEnter={() => {
+                  setShowMessageDropdown(true)
+                  setShowFeedDropdown(false)
+                }}
+                onMouseLeave={() => {
+                  setTimeout(() => setShowMessageDropdown(false), 200)
+                }}
+              >
+                <motion.button
+                  ref={messageButtonRef}
+                  className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                  aria-label="消息"
+                  title="消息"
+                  onClick={() => navigate('/messages')}
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <div className="relative">
+                    <i className="fas fa-bell text-lg"></i>
+                    {unreadCount > 0 && (
+                      <motion.span
+                        className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                      >
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </motion.span>
+                    )}
+                  </div>
+                  <span className="text-[10px]">消息</span>
+                </motion.button>
+
+                {/* 消息下拉菜单 */}
+                {showMessageDropdown && (
+                  <motion.div
+                    ref={messageDropdownRef}
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className={`absolute top-full -left-12 mt-2 w-40 py-2 rounded-lg shadow-xl z-[100] ${
+                      isDark
+                        ? 'bg-[#1a1a2e] border border-gray-700/50'
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    {/* 下拉菜单项 */}
+                    <button
+                      onClick={() => {
+                        navigate('/messages?category=reply')
+                        setShowMessageDropdown(false)
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                        isDark
+                          ? 'text-gray-300 hover:bg-gray-800/50'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      回复我的
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate('/messages?category=mention')
+                        setShowMessageDropdown(false)
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                        isDark
+                          ? 'text-gray-300 hover:bg-gray-800/50'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      @我的
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate('/messages?category=like')
+                        setShowMessageDropdown(false)
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                        isDark
+                          ? 'text-gray-300 hover:bg-gray-800/50'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      收到的赞
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate('/messages?category=system')
+                        setShowMessageDropdown(false)
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                        isDark
+                          ? 'text-gray-300 hover:bg-gray-800/50'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      系统消息
+                    </button>
+                    <div className={`mx-3 my-1.5 h-px ${isDark ? 'bg-gray-700/50' : 'bg-gray-200'}`} />
+                    <button
+                      onClick={() => {
+                        navigate('/messages')
+                        setShowMessageDropdown(false)
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between transition-colors ${
+                        isDark
+                          ? 'text-gray-300 hover:bg-gray-800/50'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span>我的消息</span>
+                      {unreadCount > 0 && (
+                        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
+                    </button>
+                  </motion.div>
+                )}
+              </div>
 
               {/* 收藏入口 */}
               <motion.button
@@ -1172,12 +1499,25 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                 <span className="text-[10px]">草稿箱</span>
               </motion.button>
 
+              {/* 历史记录入口 */}
+              <motion.button
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                aria-label="历史记录"
+                title="历史记录"
+                onClick={() => navigate('/history')}
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <i className="fas fa-history text-lg"></i>
+                <span className="text-[10px]">历史</span>
+              </motion.button>
+
               {/* 我的活动入口 */}
               <motion.button
                 className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
                 aria-label="我的活动"
                 title="我的活动"
-                onClick={() => navigate('/my-events')}
+                onClick={() => navigate('/my-activities')}
                 whileHover={{ scale: 1.05, y: -1 }}
                 whileTap={{ scale: 0.95 }}
               >

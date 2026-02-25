@@ -110,20 +110,39 @@ const notificationUtils = {
     content: string,
     thread: any
   ) => {
-    if (!user || !thread) return;
+    if (!user || !thread) {
+      console.log('[sendPostNotification] Missing user or thread');
+      return;
+    }
+    
+    // 确保 recipientId 是有效的字符串
+    const recipientId = thread.authorId ? String(thread.authorId) : null;
+    if (!recipientId || recipientId === 'null' || recipientId === 'undefined') {
+      console.log('[sendPostNotification] Invalid recipientId:', thread.authorId);
+      return;
+    }
+    
+    // 确保 senderId 也是字符串
+    const senderId = user.id ? String(user.id) : null;
+    if (!senderId) {
+      console.log('[sendPostNotification] Invalid senderId:', user.id);
+      return;
+    }
     
     const notification = {
       type,
       title,
       content,
-      senderId: user.id,
-      senderName: user.username,
-      recipientId: thread.authorId || 'community',
+      senderId: senderId,
+      senderName: user.username || '未知用户',
+      recipientId: recipientId,
       communityId: thread.communityId,
       postId: thread.id,
       priority: type === 'post_liked' ? 'low' : 'medium',
       link: `/community/${thread.communityId}/post/${thread.id}`
     };
+    
+    console.log('[sendPostNotification] Sending notification:', notification);
     
     if (addNotificationWithNavigate) {
       addNotificationWithNavigate(notification, navigate);
@@ -607,7 +626,9 @@ export const useCommunityLogic = () => {
           });
           
           // 发送通知给帖子作者
-          if (thread.authorId && thread.authorId !== user.id) {
+          console.log('[handleUpvote] Checking notification - thread.authorId:', thread.authorId, 'user.id:', user.id);
+          if (thread.authorId && String(thread.authorId) !== String(user.id)) {
+            console.log('[handleUpvote] Sending like notification to author:', thread.authorId);
             notificationUtils.sendPostNotification(
               addNotification,
               addNotificationWithNavigate,
@@ -618,6 +639,8 @@ export const useCommunityLogic = () => {
               `${user.username} 点赞了你的帖子《${thread.title}》`,
               thread
             );
+          } else {
+            console.log('[handleUpvote] Skipping notification - same user or no authorId');
           }
         }
       }

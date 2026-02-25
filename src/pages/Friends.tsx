@@ -123,7 +123,7 @@ const FriendsPage: React.FC = () => {
       setUnreadCounts(counts);
 
       // 获取会话列表（包含最后一条消息预览）
-      const conversations = await getConversations();
+      const conversations = await getConversations(currentUser.id);
       console.log('[Friends] 会话列表:', conversations);
       setChatList(conversations);
     } catch (error: any) {

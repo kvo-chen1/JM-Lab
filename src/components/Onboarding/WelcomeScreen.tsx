@@ -1,10 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, CheckCircle, Sparkles } from 'lucide-react';
+import { OnboardingStep } from './types';
 
 interface WelcomeScreenProps {
   isDark: boolean;
   accentColor: string;
+  step: OnboardingStep;
+  currentStep: number;
+  totalSteps: number;
   onStart: () => void;
   onSkip: () => void;
 }
@@ -12,9 +16,15 @@ interface WelcomeScreenProps {
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   isDark,
   accentColor,
+  step,
+  currentStep,
+  totalSteps,
   onStart,
   onSkip
 }) => {
+  const isCompleteStep = step.id === 'complete';
+  const Icon = isCompleteStep ? CheckCircle : Sparkles;
+
   return (
     <motion.div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
@@ -85,9 +95,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           animate={{ scale: 1, rotate: 0 }}
           transition={{ duration: 0.6, delay: 0.3, type: 'spring', stiffness: 200 }}
         >
-          <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-          </svg>
+          {isCompleteStep ? (
+            <Icon className="w-12 h-12 text-white" />
+          ) : (
+            <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+          )}
         </motion.div>
 
         {/* 标题 */}
@@ -97,18 +111,20 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
         >
-          欢迎来到津脉智坊
+          {step.title}
         </motion.h1>
 
         {/* 副标题 */}
-        <motion.p
-          className={`text-lg md:text-xl mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-        >
-          开启您的创意之旅
-        </motion.p>
+        {step.subtitle && (
+          <motion.p
+            className={`text-lg md:text-xl mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+          >
+            {step.subtitle}
+          </motion.p>
+        )}
 
         {/* 描述 */}
         <motion.p
@@ -117,8 +133,22 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.6 }}
         >
-          在这里，AI 将成为您的创作伙伴。探索无限可能，让创意触手可及。
+          {step.description}
         </motion.p>
+
+        {/* 进度指示器 - 只在完成页面显示 */}
+        {isCompleteStep && (
+          <motion.div
+            className="flex items-center justify-center gap-2 mb-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.65 }}
+          >
+            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              已完成 {totalSteps - 1} 个步骤
+            </div>
+          </motion.div>
+        )}
 
         {/* 按钮组 */}
         <motion.div
@@ -137,26 +167,28 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             whileHover={{ scale: 1.02, boxShadow: `0 15px 40px ${accentColor}60` }}
             whileTap={{ scale: 0.98 }}
           >
-            开始探索
+            {step.primaryAction || '开始探索'}
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </motion.button>
 
-          <motion.button
-            onClick={onSkip}
-            className={`px-6 py-4 rounded-2xl font-medium transition-all ${
-              isDark
-                ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            跳过引导
-          </motion.button>
+          {!isCompleteStep && (
+            <motion.button
+              onClick={onSkip}
+              className={`px-6 py-4 rounded-2xl font-medium transition-all ${
+                isDark
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              跳过引导
+            </motion.button>
+          )}
         </motion.div>
       </motion.div>
     </motion.div>
   );
-};
+}
 
 export default WelcomeScreen;

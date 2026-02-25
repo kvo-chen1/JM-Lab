@@ -1203,14 +1203,14 @@ async function getBookmarkedActivities(
 
     console.log('[getBookmarkedActivities] Fetched events:', events);
 
-    // 创建活动映射 - 只包含有效的活动（必须有start_time和end_time）
+    // 创建活动映射 - 包含所有活动（放宽对start_time和end_time的要求）
     const eventsMap = new Map();
     events?.forEach(event => {
-      // 验证活动数据的完整性：活动必须有start_time和end_time字段
-      if (event.start_time && event.end_time) {
+      // 活动数据验证：只检查基本字段是否存在
+      if (event.id && event.title) {
         eventsMap.set(String(event.id), event);
       } else {
-        console.warn('[getBookmarkedActivities] Skipping invalid event (missing start_time or end_time):', event.id, event.title);
+        console.warn('[getBookmarkedActivities] Skipping invalid event (missing id or title):', event.id, event?.title);
       }
     });
 
@@ -1297,11 +1297,11 @@ async function getLikedActivities(
           console.log('[getLikedActivities] Backend API success:', result);
           if (result.data && Array.isArray(result.data) && result.data.length > 0) {
             // 后端返回的活动数据，转换为 CollectionItem
-            // 过滤掉无效的活动（必须有 start_time 和 end_time）
+            // 过滤掉无效的活动（只检查基本字段）
             const validEvents = result.data.filter((event: any) => {
-              const isValid = event.start_time && event.end_time;
+              const isValid = event.id && event.title;
               if (!isValid) {
-                console.warn('[getLikedActivities] Skipping invalid event from backend API (missing start_time or end_time):', event.id, event.title);
+                console.warn('[getLikedActivities] Skipping invalid event from backend API (missing id or title):', event.id, event?.title);
               }
               return isValid;
             });
@@ -1396,14 +1396,14 @@ async function getLikedActivities(
     console.log('[getLikedActivities] Fetched events:', events?.length || 0);
     console.log('[getLikedActivities] Events data:', events?.map((e: any) => ({ id: e.id, title: e.title, start_time: e.start_time, end_time: e.end_time })));
 
-    // 创建活动映射 - 只包含有效的活动（必须有start_time和end_time）
+    // 创建活动映射 - 包含所有活动（放宽对start_time和end_time的要求）
     const eventsMap = new Map();
     events?.forEach(event => {
-      // 验证活动数据的完整性：活动必须有start_time和end_time字段
-      if (event.start_time && event.end_time) {
+      // 活动数据验证：只检查基本字段是否存在
+      if (event.id && event.title) {
         eventsMap.set(String(event.id), event);
       } else {
-        console.warn('[getLikedActivities] Skipping invalid event (missing start_time or end_time):', event.id, event.title);
+        console.warn('[getLikedActivities] Skipping invalid event (missing id or title):', event.id, event?.title);
       }
     });
 

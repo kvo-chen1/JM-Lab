@@ -435,14 +435,43 @@ $desktop: 1400px;
   padding: 0 24px 24px;
 }
 
+.commentsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
 .commentsTitle {
   font-size: 18px;
   font-weight: 600;
-  margin-bottom: 16px;
-  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.expandButton {
+  @include button-reset;
+  @include flex-center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: $hover-bg;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: darken($hover-bg, 5%);
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.3s ease;
+
+    &.expanded {
+      transform: rotate(180deg);
+    }
+  }
 }
 
 .commentsList {
@@ -496,6 +525,26 @@ $desktop: 1400px;
   font-size: 14px;
   line-height: 1.5;
   margin-bottom: 8px;
+}
+
+// @好友高亮样式
+.mentionHighlight {
+  color: $secondary-color;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  
+  &:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+  }
+}
+
+// 暗黑模式下的@高亮
+.dark {
+  .mentionHighlight {
+    color: #4da3ff;
+  }
 }
 
 .commentImages {
@@ -832,13 +881,20 @@ $desktop: 1400px;
   max-height: 200px;
   overflow-y: auto;
   z-index: 101;
-  
+
   button {
     @include button-reset;
     font-size: 20px;
     padding: 4px;
     border-radius: 4px;
-    
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
+    line-height: 1.5;
+    min-width: 32px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
     &:hover {
       background: $hover-bg;
     }

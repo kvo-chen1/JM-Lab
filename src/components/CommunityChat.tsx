@@ -337,10 +337,11 @@ const CommunityChat: React.FC<CommunityChatProps> = ({
                     <div className={`absolute bottom-full right-0 mb-2 p-2 rounded-lg shadow-lg z-10 ${isDark ? 'bg-gray-800 ring-1 ring-gray-700' : 'bg-white ring-1 ring-gray-300'}`}>
                       <div className="grid grid-cols-5 gap-2">
                         {emojis.map((emoji) => (
-                          <button 
-                            key={emoji} 
-                            onClick={() => insertEmoji(emoji)} 
+                          <button
+                            key={emoji}
+                            onClick={() => insertEmoji(emoji)}
                             className={`text-xl p-1 rounded-full ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+                            style={{ fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif', lineHeight: 1.5 }}
                           >
                             {emoji}
                           </button>

@@ -49,6 +49,7 @@ interface MembershipLevel {
 interface BenefitsGridProps {
   isDark: boolean;
   user: User | null;
+  membershipLevel?: string;
   benefits?: {
     levels: {
       free: MembershipLevel;
@@ -58,7 +59,9 @@ interface BenefitsGridProps {
   } | null;
 }
 
-const BenefitsGrid: React.FC<BenefitsGridProps> = ({ isDark, user, benefits }) => {
+const BenefitsGrid: React.FC<BenefitsGridProps> = ({ isDark, user, membershipLevel, benefits }) => {
+  // 优先使用传入的会员等级，否则使用 user 对象中的
+  const currentLevel = membershipLevel || user?.membershipLevel || 'free';
   // 使用 API 数据或默认数据
   const getBenefitsData = () => {
     if (benefits?.levels) {
@@ -236,7 +239,7 @@ const BenefitsGrid: React.FC<BenefitsGridProps> = ({ isDark, user, benefits }) =
   };
 
   const getCurrentLevelValue = (benefit: typeof benefitsList[0]) => {
-    switch (user?.membershipLevel) {
+    switch (currentLevel) {
       case 'vip':
         return benefit.vip;
       case 'premium':
@@ -300,8 +303,8 @@ const BenefitsGrid: React.FC<BenefitsGridProps> = ({ isDark, user, benefits }) =
               {hasAccess && (
                 <div className={`
                   absolute top-3 right-3 w-2 h-2 rounded-full
-                  ${user?.membershipLevel === 'vip' ? 'bg-purple-500' :
-                    user?.membershipLevel === 'premium' ? 'bg-blue-500' : 'bg-gray-400'}
+                  ${currentLevel === 'vip' ? 'bg-purple-500' :
+                    currentLevel === 'premium' ? 'bg-blue-500' : 'bg-gray-400'}
                 `} />
               )}
 

@@ -133,11 +133,25 @@ class SupabasePointsService {
       .from('user_points_balance')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('获取用户积分余额失败:', error);
       return null;
+    }
+
+    // 如果没有记录，返回默认的零积分对象
+    if (!data) {
+      return {
+        id: '',
+        user_id: userId,
+        balance: 0,
+        total_earned: 0,
+        total_spent: 0,
+        version: 1,
+        last_updated_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      };
     }
 
     return data;

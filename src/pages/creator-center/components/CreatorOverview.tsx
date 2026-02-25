@@ -309,10 +309,10 @@ const CreatorOverview: React.FC = () => {
                 </div>
               </div>
               <h3 className={`mt-4 font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {level?.name || '新手创作者'}
+                {level?.name || '创作新手'}
               </h3>
               <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                距离下一等级还需 {level ? level.nextLevelXP - level.currentXP : 100} 经验值
+                距离下一等级还需 {level ? level.nextLevelXP - level.currentXP : 100} 积分
               </p>
               <div className="mt-4">
                 <div className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
@@ -322,7 +322,7 @@ const CreatorOverview: React.FC = () => {
                   />
                 </div>
                 <div className="flex justify-between mt-2 text-xs text-gray-500">
-                  <span>{level?.currentXP || 0}/{level?.nextLevelXP || 100} XP</span>
+                  <span>{level?.currentXP || 0}/{level?.nextLevelXP || 100} 积分</span>
                   <span>LV.{(level?.level || 1) + 1}</span>
                 </div>
               </div>

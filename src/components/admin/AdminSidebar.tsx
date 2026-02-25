@@ -44,7 +44,7 @@ const navItems: AdminNavItem[] = [
   { id: 'userAudit', name: '用户审计', icon: 'user-shield', showNotification: true },
   { id: 'creators', name: '创作者管理', icon: 'trophy' },
   { id: 'productManagement', name: '商品管理', icon: 'box' },
-  { id: 'orders', name: '订单管理', icon: 'shopping-cart', showNotification: true },
+  { id: 'paymentAudit', name: '支付审核', icon: 'credit-card', showNotification: true },
   { id: 'feedback', name: '反馈管理', icon: 'comments', showNotification: true },
   { id: 'permissions', name: '权限管理', icon: 'user-lock' },
   { id: 'auditLog', name: '审计日志', icon: 'history' },

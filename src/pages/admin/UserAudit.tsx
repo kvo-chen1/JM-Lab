@@ -63,6 +63,27 @@ interface AnomalyEvent {
   resolved: boolean;
 }
 
+// 禁用选项类型
+interface BanOptions {
+  login: boolean;
+  post: boolean;
+  comment: boolean;
+  like: boolean;
+  follow: boolean;
+  reason: string;
+  duration: 'permanent' | '1day' | '7days' | '30days';
+}
+
+const defaultBanOptions: BanOptions = {
+  login: true,
+  post: true,
+  comment: true,
+  like: false,
+  follow: false,
+  reason: '',
+  duration: 'permanent'
+};
+
 export default function UserAudit() {
   const { isDark } = useTheme();
   const { user: currentUser } = useContext(AuthContext);
@@ -88,6 +109,11 @@ export default function UserAudit() {
     bannedUsers: 0,
     anomaliesToday: 0
   });
+  
+  // 禁用弹窗状态
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [banningUser, setBanningUser] = useState<User | null>(null);
+  const [banOptions, setBanOptions] = useState<BanOptions>(defaultBanOptions);
   
   // 获取用户数据
   useEffect(() => {
@@ -121,48 +147,61 @@ export default function UserAudit() {
           .from('follows')
           .select('follower_id, following_id');
         
-        // 计算今日开始时间
+        // 计算今日开始时间（毫秒级时间戳）
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const todayTimestamp = today.getTime();
-        
+        const todayTimestampMs = today.getTime();
+        const todayTimestampSec = Math.floor(todayTimestampMs / 1000); // 秒级时间戳
+
         // 转换数据格式
         const formattedUsers: User[] = usersData?.map((user: any) => {
           const userWorks = worksData?.filter(w => w.creator_id === user.id) || [];
           const userLikes = likesData?.filter(l => l.user_id === user.id) || [];
           const userFollowers = followsData?.filter(f => f.following_id === user.id) || [];
           const userFollowing = followsData?.filter(f => f.follower_id === user.id) || [];
-          
+
+          // 标准化时间戳（统一转换为毫秒级）
+          const createdAt = normalizeTimestamp(user.created_at);
+          const lastLoginAt = user.last_login_at ? normalizeTimestamp(user.last_login_at) : undefined;
+
+          // 判断是否为秒级时间戳（用于比较）
+          const isSecondsTimestamp = user.created_at < 1e10;
+          const todayTimestamp = isSecondsTimestamp ? todayTimestampSec : todayTimestampMs;
+
           return {
             id: user.id,
             username: user.username || user.name || '未命名用户',
             email: user.email || '',
             avatar_url: user.avatar_url,
-            is_new_user: user.created_at > Date.now() - 86400000 * 7, // 7天内注册为新用户
+            is_new_user: createdAt > Date.now() - 86400000 * 7, // 7天内注册为新用户
             membership_level: user.membership_level || 'free',
             membership_status: user.membership_status || 'active',
-            created_at: user.created_at,
+            created_at: createdAt,
             posts_count: userWorks.length,
             likes_count: userLikes.length,
             followers_count: userFollowers.length,
             following_count: userFollowing.length,
             tags: user.tags || [],
             status: user.status || 'active',
-            last_login_at: user.last_login_at,
+            last_login_at: lastLoginAt,
             login_count: user.login_count || 0,
             ip_address: user.last_ip_address,
             location: user.location,
             device_info: user.last_device_info
           };
         }) || [];
-        
+
         setUsers(formattedUsers);
-        
-        // 计算统计数据
+
+        // 计算统计数据（使用标准化后的时间戳进行比较）
         setStats({
           totalUsers: formattedUsers.length,
           activeUsers: formattedUsers.filter(u => u.status === 'active').length,
-          newUsersToday: formattedUsers.filter(u => u.created_at >= todayTimestamp).length,
+          newUsersToday: formattedUsers.filter(u => {
+            const userCreatedAtSec = Math.floor(u.created_at / 1000);
+            const todaySec = Math.floor(todayTimestampMs / 1000);
+            return userCreatedAtSec >= todaySec;
+          }).length,
           bannedUsers: formattedUsers.filter(u => u.status === 'banned').length,
           anomaliesToday: 0 // 后续计算
         });
@@ -333,14 +372,32 @@ export default function UserAudit() {
     setAnomalies(userAnomalies);
   };
   
-  // 处理用户状态变更
-  const handleUserStatusChange = async (userId: string, status: 'active' | 'banned' | 'pending') => {
+  // 处理用户状态变更（带禁用选项）
+  const handleUserStatusChange = async (
+    userId: string, 
+    status: 'active' | 'banned' | 'pending',
+    banOpts?: BanOptions
+  ) => {
     try {
       // 获取当前用户的 token
       const token = localStorage.getItem('token');
       if (!token) {
         toast.error('请先登录');
         return;
+      }
+
+      // 构建请求体
+      const requestBody: any = { status };
+      if (status === 'banned' && banOpts) {
+        requestBody.banOptions = {
+          disable_login: banOpts.login,
+          disable_post: banOpts.post,
+          disable_comment: banOpts.comment,
+          disable_like: banOpts.like,
+          disable_follow: banOpts.follow,
+          ban_reason: banOpts.reason,
+          ban_duration: banOpts.duration
+        };
       }
 
       // 调用后端 API 更新用户状态
@@ -350,7 +407,7 @@ export default function UserAudit() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ status })
+        body: JSON.stringify(requestBody)
       });
 
       const result = await response.json();
@@ -367,6 +424,11 @@ export default function UserAudit() {
       if (selectedUser && selectedUser.id === userId) {
         setSelectedUser({ ...selectedUser, status });
       }
+      
+      // 关闭弹窗
+      setShowBanModal(false);
+      setBanningUser(null);
+      setBanOptions(defaultBanOptions);
       
       toast.success(`用户状态已更新为${status === 'active' ? '活跃' : status === 'banned' ? '禁用' : '待审核'}`);
     } catch (error: any) {
@@ -420,9 +482,21 @@ export default function UserAudit() {
       return 0;
     });
   
+  // 标准化时间戳（处理秒级和毫秒级时间戳）
+  const normalizeTimestamp = (timestamp: number): number => {
+    if (!timestamp || timestamp <= 0) return 0;
+    // 如果时间戳小于 1e10，说明是秒级时间戳，需要转换为毫秒级
+    if (timestamp < 1e10) {
+      return timestamp * 1000;
+    }
+    return timestamp;
+  };
+
   // 格式化时间
   const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString('zh-CN', {
+    const normalizedTimestamp = normalizeTimestamp(timestamp);
+    if (!normalizedTimestamp) return '未知';
+    return new Date(normalizedTimestamp).toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -430,14 +504,17 @@ export default function UserAudit() {
       minute: '2-digit'
     });
   };
-  
+
   // 格式化相对时间
   const formatRelativeTime = (timestamp: number) => {
-    const diff = Date.now() - timestamp;
+    const normalizedTimestamp = normalizeTimestamp(timestamp);
+    if (!normalizedTimestamp) return '未知';
+    const diff = Date.now() - normalizedTimestamp;
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
-    
+
+    if (diff < 0) return formatTime(timestamp); // 未来时间，显示完整日期
     if (minutes < 1) return '刚刚';
     if (minutes < 60) return `${minutes}分钟前`;
     if (hours < 24) return `${hours}小时前`;
@@ -611,10 +688,13 @@ export default function UserAudit() {
                   <td className="px-4 py-3 text-sm">{formatRelativeTime(user.created_at)}</td>
                   <td className="px-4 py-3 text-sm">{user.last_login_at ? formatRelativeTime(user.last_login_at) : '从未'}</td>
                   <td className="px-4 py-3">
-                    <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex space-x-2">
                       {user.status !== 'active' && (
                         <button
-                          onClick={() => handleUserStatusChange(user.id, 'active')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUserStatusChange(user.id, 'active');
+                          }}
                           className="p-1.5 rounded bg-green-100 text-green-600 hover:bg-green-200"
                           title="启用"
                         >
@@ -623,7 +703,12 @@ export default function UserAudit() {
                       )}
                       {user.status !== 'banned' && (
                         <button
-                          onClick={() => handleUserStatusChange(user.id, 'banned')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBanningUser(user);
+                            setBanOptions(defaultBanOptions);
+                            setShowBanModal(true);
+                          }}
                           className="p-1.5 rounded bg-red-100 text-red-600 hover:bg-red-200"
                           title="禁用"
                         >
@@ -798,6 +883,144 @@ export default function UserAudit() {
                     )}
                   </>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* 禁用用户弹窗 */}
+      <AnimatePresence>
+        {showBanModal && banningUser && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`w-full max-w-md rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`}
+            >
+              {/* 弹窗头部 */}
+              <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h3 className="text-xl font-bold text-red-600">
+                  <i className="fas fa-ban mr-2"></i>
+                  禁用用户: {banningUser.username}
+                </h3>
+                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  请选择要禁用的操作
+                </p>
+              </div>
+              
+              {/* 禁用选项 */}
+              <div className="p-6 space-y-4">
+                {/* 操作选项 */}
+                <div className="space-y-3">
+                  <label className={`flex items-center p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} cursor-pointer`}>
+                    <input
+                      type="checkbox"
+                      checked={banOptions.login}
+                      onChange={(e) => setBanOptions({ ...banOptions, login: e.target.checked })}
+                      className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                    />
+                    <span className="ml-3 flex-1">禁止登录</span>
+                    <i className="fas fa-sign-in-alt text-gray-400"></i>
+                  </label>
+                  
+                  <label className={`flex items-center p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} cursor-pointer`}>
+                    <input
+                      type="checkbox"
+                      checked={banOptions.post}
+                      onChange={(e) => setBanOptions({ ...banOptions, post: e.target.checked })}
+                      className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                    />
+                    <span className="ml-3 flex-1">禁止发布作品</span>
+                    <i className="fas fa-upload text-gray-400"></i>
+                  </label>
+                  
+                  <label className={`flex items-center p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} cursor-pointer`}>
+                    <input
+                      type="checkbox"
+                      checked={banOptions.comment}
+                      onChange={(e) => setBanOptions({ ...banOptions, comment: e.target.checked })}
+                      className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                    />
+                    <span className="ml-3 flex-1">禁止评论</span>
+                    <i className="fas fa-comment text-gray-400"></i>
+                  </label>
+                  
+                  <label className={`flex items-center p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} cursor-pointer`}>
+                    <input
+                      type="checkbox"
+                      checked={banOptions.like}
+                      onChange={(e) => setBanOptions({ ...banOptions, like: e.target.checked })}
+                      className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                    />
+                    <span className="ml-3 flex-1">禁止点赞</span>
+                    <i className="fas fa-heart text-gray-400"></i>
+                  </label>
+                  
+                  <label className={`flex items-center p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'} cursor-pointer`}>
+                    <input
+                      type="checkbox"
+                      checked={banOptions.follow}
+                      onChange={(e) => setBanOptions({ ...banOptions, follow: e.target.checked })}
+                      className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                    />
+                    <span className="ml-3 flex-1">禁止关注</span>
+                    <i className="fas fa-user-plus text-gray-400"></i>
+                  </label>
+                </div>
+                
+                {/* 禁用时长 */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    禁用时长
+                  </label>
+                  <select
+                    value={banOptions.duration}
+                    onChange={(e) => setBanOptions({ ...banOptions, duration: e.target.value as BanOptions['duration'] })}
+                    className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
+                  >
+                    <option value="permanent">永久</option>
+                    <option value="1day">1天</option>
+                    <option value="7days">7天</option>
+                    <option value="30days">30天</option>
+                  </select>
+                </div>
+                
+                {/* 禁用原因 */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    禁用原因
+                  </label>
+                  <textarea
+                    value={banOptions.reason}
+                    onChange={(e) => setBanOptions({ ...banOptions, reason: e.target.value })}
+                    placeholder="请输入禁用原因..."
+                    rows={3}
+                    className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
+                  />
+                </div>
+              </div>
+              
+              {/* 按钮 */}
+              <div className={`px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-end space-x-3`}>
+                <button
+                  onClick={() => {
+                    setShowBanModal(false);
+                    setBanningUser(null);
+                    setBanOptions(defaultBanOptions);
+                  }}
+                  className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => handleUserStatusChange(banningUser.id, 'banned', banOptions)}
+                  disabled={!banOptions.login && !banOptions.post && !banOptions.comment && !banOptions.like && !banOptions.follow}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  确认禁用
+                </button>
               </div>
             </motion.div>
           </div>

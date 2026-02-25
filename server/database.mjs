@@ -489,6 +489,10 @@ async function createPostgreSQLTables(pool) {
         await ensureColumn('notifications', 'post_id', 'TEXT')
         await ensureColumn('notifications', 'work_id', 'TEXT')
         await ensureColumn('notifications', 'sender_id', 'TEXT')
+        await ensureColumn('notifications', 'sender_name', 'TEXT')
+        await ensureColumn('notifications', 'community_id', 'TEXT')
+        await ensureColumn('notifications', 'priority', 'TEXT')
+        await ensureColumn('notifications', 'link', 'TEXT')
         await ensureColumn('notifications', 'is_read', 'BOOLEAN DEFAULT false')
 
         // 确保 messages 表有必要的列
@@ -526,23 +530,22 @@ async function createPostgreSQLTables(pool) {
         await client.query('CREATE INDEX IF NOT EXISTS idx_work_favorites_work_id ON work_favorites(work_id);')
         console.log('[DB] work_favorites table ensured')
 
-        // 创建作品点赞表 (work_likes) - 确保新表被创建
+        // 创建作品点赞表 (works_likes) - 确保新表被创建
         // 先删除旧表（如果存在）以更新结构
         try {
           await client.query(`DROP TABLE IF EXISTS work_likes`)
         } catch (e) { /* ignore */ }
         await client.query(`
-          CREATE TABLE IF NOT EXISTS work_likes (
-            id SERIAL PRIMARY KEY,
+          CREATE TABLE IF NOT EXISTS works_likes (
             user_id TEXT NOT NULL,
-            work_id TEXT NOT NULL,
+            work_id INTEGER NOT NULL,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            UNIQUE(user_id, work_id)
+            PRIMARY KEY (user_id, work_id)
           );
         `)
-        await client.query('CREATE INDEX IF NOT EXISTS idx_work_likes_user_id ON work_likes(user_id);')
-        await client.query('CREATE INDEX IF NOT EXISTS idx_work_likes_work_id ON work_likes(work_id);')
-        console.log('[DB] work_likes table ensured')
+        await client.query('CREATE INDEX IF NOT EXISTS idx_works_likes_user_id ON works_likes(user_id);')
+        await client.query('CREATE INDEX IF NOT EXISTS idx_works_likes_work_id ON works_likes(work_id);')
+        console.log('[DB] works_likes table ensured')
 
         // 创建活动表 (events)
         await client.query(`
@@ -770,22 +773,21 @@ async function createPostgreSQLTables(pool) {
       await client.query('CREATE INDEX IF NOT EXISTS idx_work_favorites_user_id ON work_favorites(user_id);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_work_favorites_work_id ON work_favorites(work_id);')
 
-      // 创建作品点赞表 (work_likes)
+      // 创建作品点赞表 (works_likes)
       // 先删除旧表（如果存在）以更新结构
       try {
         await client.query(`DROP TABLE IF EXISTS work_likes`)
       } catch (e) { /* ignore */ }
       await client.query(`
-        CREATE TABLE IF NOT EXISTS work_likes (
-          id SERIAL PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS works_likes (
           user_id TEXT NOT NULL,
-          work_id TEXT NOT NULL,
+          work_id INTEGER NOT NULL,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          UNIQUE(user_id, work_id)
+          PRIMARY KEY (user_id, work_id)
         );
       `)
-      await client.query('CREATE INDEX IF NOT EXISTS idx_work_likes_user_id ON work_likes(user_id);')
-      await client.query('CREATE INDEX IF NOT EXISTS idx_work_likes_work_id ON work_likes(work_id);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_works_likes_user_id ON works_likes(user_id);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_works_likes_work_id ON works_likes(work_id);')
 
       // 创建活动参与者表 (event_participants)
       await client.query(`
@@ -889,7 +891,17 @@ async function createPostgreSQLTables(pool) {
       } catch (e) {
         // 忽略错误（可能已经是 nullable）
       }
-      
+
+      // 修改 created_at 和 updated_at 字段类型为 BIGINT（如果不是的话）
+      try {
+        await client.query(`ALTER TABLE comments ALTER COLUMN created_at TYPE BIGINT USING EXTRACT(EPOCH FROM created_at)::BIGINT`)
+        await client.query(`ALTER TABLE comments ALTER COLUMN updated_at TYPE BIGINT USING EXTRACT(EPOCH FROM updated_at)::BIGINT`)
+        console.log('[DB] Changed comments.created_at and comments.updated_at to BIGINT')
+      } catch (e) {
+        // 忽略错误（可能已经是 BIGINT）
+        console.log('[DB] comments.created_at and comments.updated_at are already BIGINT or error:', e.message)
+      }
+
       // 创建点赞表
       await client.query(`
         CREATE TABLE IF NOT EXISTS likes (
@@ -3284,7 +3296,17 @@ export const workDB = {
         // We can use memoryStore.posts as a fallback if works are not separate
         return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at).slice(offset, offset + limit)
       case DB_TYPE.POSTGRESQL:
-        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC LIMIT $1 OFFSET $2', [limit, offset])).rows
+        return (await db.query(`
+          SELECT 
+            w.*, 
+            u.username, 
+            u.avatar_url,
+            COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+          FROM works w 
+          LEFT JOIN users u ON w.creator_id = u.id 
+          ORDER BY w.created_at DESC 
+          LIMIT $1 OFFSET $2
+        `, [limit, offset])).rows
       default: return []
     }
   },
@@ -3297,10 +3319,19 @@ export const workDB = {
         return (memoryStore.works || []).find(w => w.id === workId) || null
       case DB_TYPE.POSTGRESQL:
         try {
-          // 首先尝试从 works 表查询
-          const { rows: worksRows } = await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id WHERE w.id = $1', [workId])
+          // 首先尝试从 works 表查询，使用子查询计算真实点赞数
+          const { rows: worksRows } = await db.query(`
+            SELECT 
+              w.*, 
+              u.username, 
+              u.avatar_url,
+              COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+            FROM works w
+            LEFT JOIN users u ON w.creator_id = u.id
+            WHERE w.id = $1
+          `, [workId])
           if (worksRows && worksRows.length > 0) {
-            console.log('[workDB.getWorkById] Found in works table:', worksRows[0].id)
+            console.log('[workDB.getWorkById] Found in works table:', worksRows[0].id, 'likes:', worksRows[0].likes)
             return worksRows[0]
           }
           
@@ -3351,7 +3382,18 @@ export const workDB = {
         // We can use memoryStore.posts as a fallback if works are not separate
         return (memoryStore.works || []).filter(w => w.creator_id === userId).sort((a, b) => b.created_at - a.created_at).slice(offset, offset + limit)
       case DB_TYPE.POSTGRESQL:
-        return (await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id WHERE w.creator_id = $1 ORDER BY w.created_at DESC LIMIT $2 OFFSET $3', [userId, limit, offset])).rows
+        return (await db.query(`
+          SELECT
+            w.*,
+            u.username,
+            u.avatar_url,
+            COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+          FROM works w
+          LEFT JOIN users u ON w.creator_id = u.id
+          WHERE w.creator_id = $1
+          ORDER BY w.created_at DESC
+          LIMIT $2 OFFSET $3
+        `, [userId, limit, offset])).rows
       default: return []
     }
   },
@@ -3381,13 +3423,22 @@ export const workDB = {
       case DB_TYPE.MEMORY:
         return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at)
       case DB_TYPE.POSTGRESQL: {
-        // 首先尝试从 works 表查询
-        const { rows: worksRows } = await db.query('SELECT w.*, u.username, u.avatar_url FROM works w LEFT JOIN users u ON w.creator_id = u.id ORDER BY w.created_at DESC')
+        // 首先尝试从 works 表查询，使用子查询计算真实点赞数
+        const { rows: worksRows } = await db.query(`
+          SELECT
+            w.*,
+            u.username,
+            u.avatar_url,
+            COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+          FROM works w
+          LEFT JOIN users u ON w.creator_id = u.id
+          ORDER BY w.created_at DESC
+        `)
         console.log('[workDB.getAllWorks] Works count:', worksRows.length)
-        
+
         // 如果 works 表有数据，直接返回
         if (worksRows.length > 0) {
-          console.log('[workDB.getAllWorks] First work ID:', worksRows[0].id, 'type:', typeof worksRows[0].id)
+          console.log('[workDB.getAllWorks] First work ID:', worksRows[0].id, 'type:', typeof worksRows[0].id, 'likes:', worksRows[0].likes)
           return worksRows
         }
         
@@ -3430,7 +3481,7 @@ export const workDB = {
     console.log('[workDB.addComment] Called with:', { workId, userId, content: content?.substring(0, 50), parentId, imagesCount: images?.length })
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
-    const now = Date.now()
+    const nowTimestamp = Math.floor(Date.now() / 1000) // 使用秒级时间戳
     const nowISO = new Date().toISOString()
 
     // 将图片数组转换为 JSON 字符串
@@ -3440,25 +3491,35 @@ export const workDB = {
       case DB_TYPE.POSTGRESQL: {
         console.log('[workDB.addComment] Using PostgreSQL mode')
         // 确保 comments 表存在
+        // 注意：使用 TIMESTAMPTZ 类型存储时间戳，与现有数据保持一致
         await db.query(`
           CREATE TABLE IF NOT EXISTS comments (
-            id SERIAL PRIMARY KEY,
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
             content TEXT NOT NULL,
             user_id TEXT NOT NULL,
             post_id INTEGER,
             work_id TEXT,
             parent_id INTEGER,
             images TEXT,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            likes INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
           )
         `)
         console.log('[workDB.addComment] Table ensured')
 
+        // 移除 post_id 的 NOT NULL 约束（如果存在）
+        try {
+          await db.query(`ALTER TABLE comments ALTER COLUMN post_id DROP NOT NULL`)
+          console.log('[workDB.addComment] Removed NOT NULL constraint from post_id')
+        } catch (e) {
+          // 忽略错误（可能已经是 nullable 或者列不存在）
+        }
+
         // workId 现在是 TEXT 类型（UUID），不需要转换
         console.log('[workDB.addComment] workId:', workId)
 
-        // 插入评论
+        // 插入评论 - 使用 ISO 字符串格式与现有数据保持一致
         console.log('[workDB.addComment] Inserting comment...')
         const { rows } = await db.query(`
           INSERT INTO comments (content, user_id, work_id, parent_id, images, created_at, updated_at)
@@ -3467,15 +3528,73 @@ export const workDB = {
         `, [content, userId, workId, parentId || null, imagesJson, nowISO])
         console.log('[workDB.addComment] Comment inserted:', rows[0]?.id)
 
-        // 更新作品的评论数
+        // 更新作品的评论数 - works 表使用 BIGINT 时间戳
         console.log('[workDB.addComment] Updating work comments count...')
         await db.query(`
           UPDATE works
           SET comments = COALESCE(comments, 0) + 1,
               updated_at = $1
           WHERE id = $2
-        `, [nowISO, workId])
+        `, [nowTimestamp, workId])
         console.log('[workDB.addComment] Work comments count updated')
+
+        // 如果是回复其他评论，创建通知
+        if (parentId) {
+          console.log('[workDB.addComment] Creating notification for reply...')
+          try {
+            // 获取被回复的评论信息
+            const { rows: parentCommentRows } = await db.query(`
+              SELECT c.user_id, c.content, u.username as author_name
+              FROM comments c
+              JOIN users u ON c.user_id = u.id
+              WHERE c.id = $1
+            `, [parentId])
+
+            if (parentCommentRows.length > 0) {
+              const parentComment = parentCommentRows[0]
+              const recipientId = parentComment.user_id
+
+              // 如果被回复的不是自己，创建通知
+              if (recipientId !== userId) {
+                // 获取当前用户信息
+                const { rows: currentUserRows } = await db.query(`
+                  SELECT username FROM users WHERE id = $1
+                `, [userId])
+                const currentUserName = currentUserRows[0]?.username || '未知用户'
+
+                // 获取作品信息
+                const { rows: workRows } = await db.query(`
+                  SELECT title FROM works WHERE id = $1
+                `, [workId])
+                const workTitle = workRows[0]?.title || '作品'
+
+                // 创建通知
+                await db.query(`
+                  INSERT INTO notifications (
+                    user_id, type, title, content, data, is_read, created_at
+                  ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                `, [
+                  recipientId,
+                  'comment_reply',
+                  `${currentUserName} 回复了你的评论`,
+                  `在作品《${workTitle}》中回复：${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+                  JSON.stringify({ 
+                    work_id: workId, 
+                    comment_id: rows[0].id,
+                    parent_comment_id: parentId,
+                    sender_id: userId
+                  }),
+                  false,
+                  nowISO
+                ])
+                console.log('[workDB.addComment] Notification created for reply')
+              }
+            }
+          } catch (notifyError) {
+            // 通知创建失败不影响评论创建
+            console.error('[workDB.addComment] Failed to create notification:', notifyError)
+          }
+        }
 
         return rows[0]
       }
@@ -3486,8 +3605,8 @@ export const workDB = {
           user_id: userId,
           work_id: workId,
           parent_id: parentId,
-          created_at: now,
-          updated_at: now
+          created_at: nowTimestamp,
+          updated_at: nowTimestamp
         }
         if (!memoryStore.comments) memoryStore.comments = []
         memoryStore.comments.push(newComment)
@@ -3570,13 +3689,21 @@ export const workDB = {
         const workIds = favRows.map(r => r.work_id)
         
         // 然后获取作品详情（将 text 类型的 work_id 转换为 uuid 类型）
-        // 使用子查询和显式类型转换
+        // 使用子查询和显式类型转换，同时计算真实点赞数
         let rows = []
         try {
           // 方法1: 使用 IN 子句，将 work_id 转换为 uuid
           const placeholders = workIds.map((_, i) => `$${i + 1}`).join(',')
           const { rows: worksData } = await db.query(
-            `SELECT * FROM works WHERE id::text IN (${placeholders}) ORDER BY created_at DESC`,
+            `SELECT
+              w.*,
+              u.username,
+              u.avatar_url,
+              COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+            FROM works w
+            LEFT JOIN users u ON w.creator_id = u.id
+            WHERE w.id::text IN (${placeholders})
+            ORDER BY w.created_at DESC`,
             workIds
           )
           rows = worksData
@@ -3585,11 +3712,17 @@ export const workDB = {
           console.warn('[DB] Query with IN failed, trying JOIN:', e.message)
           try {
             const { rows: worksData } = await db.query(
-              `SELECT w.* FROM works w 
-               INNER JOIN work_favorites wf ON w.id::text = wf.work_id 
-               WHERE wf.user_id = $1 
-               ORDER BY wf.created_at DESC 
-               LIMIT $2 OFFSET $3`,
+              `SELECT
+                w.*,
+                u.username,
+                u.avatar_url,
+                COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+              FROM works w
+              INNER JOIN work_favorites wf ON w.id::text = wf.work_id
+              LEFT JOIN users u ON w.creator_id = u.id
+              WHERE wf.user_id = $1
+              ORDER BY wf.created_at DESC
+              LIMIT $2 OFFSET $3`,
               [userId, limit, offset]
             )
             rows = worksData
@@ -3599,27 +3732,7 @@ export const workDB = {
           }
         }
 
-        // 单独获取作者信息
-        const creatorIds = [...new Set(rows.map(w => w.creator_id).filter(Boolean))]
-        let userMap = new Map()
-        if (creatorIds.length > 0) {
-          try {
-            const { rows: userRows } = await db.query(
-              `SELECT id, username, avatar_url FROM users WHERE id = ANY($1)`,
-              [creatorIds]
-            )
-            userMap = new Map(userRows.map(u => [u.id, u]))
-          } catch (e) {
-            // 忽略用户查询错误
-          }
-        }
-
-        // 合并数据
-        return rows.map(work => ({
-          ...work,
-          username: userMap.get(work.creator_id)?.username || '未知用户',
-          avatar_url: userMap.get(work.creator_id)?.avatar_url || ''
-        }))
+        return rows
       }
       case DB_TYPE.MEMORY: {
         // 从内存中获取收藏记录
@@ -3656,7 +3769,7 @@ export const workDB = {
       case DB_TYPE.POSTGRESQL: {
         // 首先获取点赞的作品ID
         const { rows: likeRows } = await db.query(
-          'SELECT work_id FROM work_likes WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+          'SELECT work_id FROM works_likes WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
           [userId, limit, offset]
         )
         if (likeRows.length === 0) return []
@@ -3664,12 +3777,21 @@ export const workDB = {
         const workIds = likeRows.map(r => r.work_id)
         
         // 然后获取作品详情（将 text 类型的 work_id 转换为 uuid 类型）
+        // 使用子查询计算真实点赞数
         let rows = []
         try {
           // 方法1: 使用 IN 子句，将 work_id 转换为 uuid
           const placeholders = workIds.map((_, i) => `$${i + 1}`).join(',')
           const { rows: worksData } = await db.query(
-            `SELECT * FROM works WHERE id::text IN (${placeholders}) ORDER BY created_at DESC`,
+            `SELECT
+              w.*,
+              u.username,
+              u.avatar_url,
+              COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+            FROM works w
+            LEFT JOIN users u ON w.creator_id = u.id
+            WHERE w.id::text IN (${placeholders})
+            ORDER BY w.created_at DESC`,
             workIds
           )
           rows = worksData
@@ -3678,11 +3800,17 @@ export const workDB = {
           console.warn('[DB] Query with IN failed, trying JOIN:', e.message)
           try {
             const { rows: worksData } = await db.query(
-              `SELECT w.* FROM works w 
-               INNER JOIN work_likes wl ON w.id::text = wl.work_id 
-               WHERE wl.user_id = $1 
-               ORDER BY wl.created_at DESC 
-               LIMIT $2 OFFSET $3`,
+              `SELECT
+                w.*,
+                u.username,
+                u.avatar_url,
+                COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+              FROM works w
+              INNER JOIN works_likes wl ON w.id::text = wl.work_id
+              LEFT JOIN users u ON w.creator_id = u.id
+              WHERE wl.user_id = $1
+              ORDER BY wl.created_at DESC
+              LIMIT $2 OFFSET $3`,
               [userId, limit, offset]
             )
             rows = worksData
@@ -3692,27 +3820,7 @@ export const workDB = {
           }
         }
 
-        // 单独获取作者信息
-        const creatorIds = [...new Set(rows.map(w => w.creator_id).filter(Boolean))]
-        let userMap = new Map()
-        if (creatorIds.length > 0) {
-          try {
-            const { rows: userRows } = await db.query(
-              `SELECT id, username, avatar_url FROM users WHERE id = ANY($1)`,
-              [creatorIds]
-            )
-            userMap = new Map(userRows.map(u => [u.id, u]))
-          } catch (e) {
-            // 忽略用户查询错误
-          }
-        }
-
-        // 合并数据
-        return rows.map(work => ({
-          ...work,
-          username: userMap.get(work.creator_id)?.username || '未知用户',
-          avatar_url: userMap.get(work.creator_id)?.avatar_url || ''
-        }))
+        return rows
       }
       case DB_TYPE.MEMORY: {
         // 从内存中获取点赞记录
@@ -3748,147 +3856,143 @@ export const workDB = {
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
         try {
-          // 判断作品ID类型：UUID 格式（posts 表）或数字格式（works 表）
-          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workId);
-          console.log('[workDB.likeWork] WorkId type:', isUUID ? 'UUID (posts)' : 'numeric (works)', workId);
-          
-          // 如果是 UUID 格式，使用 posts 表逻辑
-          if (isUUID) {
-            // 检查是否已点赞（使用 likes 表）
+          console.log('[workDB.likeWork] Processing like for work:', workId, 'user:', userId);
+
+          // 首先尝试从 works 表获取作品
+          const { rows: workRows } = await db.query(
+            'SELECT id, title, creator_id FROM works WHERE id = $1',
+            [workId]
+          );
+
+          // 如果从 works 表找到作品，使用 works_likes 表
+          if (workRows.length > 0) {
+            console.log('[workDB.likeWork] Found in works table, using works_likes');
+
+            // 检查是否已点赞
             const { rows: existing } = await db.query(
-              'SELECT id FROM likes WHERE user_id = $1 AND post_id = $2',
+              'SELECT user_id FROM works_likes WHERE user_id = $1 AND work_id = $2',
               [userId, workId]
-            )
-            
+            );
+
             if (existing.length > 0) {
-              return { success: true, message: '已经点赞过了' }
+              return { success: true, message: '已经点赞过了' };
             }
-            
-            // 获取作品信息和作者
-            const { rows: postRows } = await db.query(
-              'SELECT id, title, author_id FROM posts WHERE id = $1',
-              [workId]
-            )
-            
-            if (postRows.length === 0) {
-              return { success: false, error: '作品不存在' }
-            }
-            
-            const post = postRows[0]
-            const authorId = post.author_id
-            
-            // 添加点赞记录到 likes 表
+
+            const work = workRows[0];
+            const authorId = work.creator_id;
+
+            // 添加点赞记录到 works_likes 表
             await db.query(
-              'INSERT INTO likes (user_id, post_id, created_at) VALUES ($1, $2, NOW())',
+              'INSERT INTO works_likes (user_id, work_id, created_at) VALUES ($1, $2, NOW())',
               [userId, workId]
-            )
-            
-            // 更新 posts 表的点赞数
+            );
+
+            // 更新作品点赞数
             await db.query(
-              'UPDATE posts SET likes_count = COALESCE(likes_count, 0) + 1 WHERE id = $1',
+              'UPDATE works SET likes = COALESCE(likes, 0) + 1 WHERE id = $1',
               [workId]
-            )
-            
+            );
+
             // 给作品作者发送通知（如果不是自己点赞自己的作品）
             if (authorId && authorId !== userId) {
               try {
-                // 获取点赞者信息
                 const { rows: userRows } = await db.query(
                   'SELECT username FROM users WHERE id = $1',
                   [userId]
-                )
-                const likerName = userRows.length > 0 ? userRows[0].username : '有人'
-                
+                );
+                const likerName = userRows.length > 0 ? userRows[0].username : '有人';
+
                 await db.query(
-                  `INSERT INTO notifications (user_id, type, title, content, data, is_read, created_at) 
+                  `INSERT INTO notifications (user_id, type, title, content, data, is_read, created_at)
                    VALUES ($1, $2, $3, $4, $5, false, NOW())`,
                   [
                     authorId,
                     'like',
                     '作品收到新点赞',
-                    `你的作品"${post.title || '未命名作品'}"收到了${likerName}的点赞`,
+                    `你的作品"${work.title || '未命名作品'}"收到了${likerName}的点赞`,
                     JSON.stringify({ work_id: workId, liker_id: userId }),
                     false
                   ]
-                )
-                console.log('[workDB.likeWork] Notification sent to author:', authorId)
+                );
+                console.log('[workDB.likeWork] Notification sent to author:', authorId);
               } catch (notifyError) {
-                console.error('[workDB.likeWork] Failed to send notification:', notifyError)
+                console.error('[workDB.likeWork] Failed to send notification:', notifyError);
               }
             }
-            
-            return { success: true, message: '点赞成功' }
+
+            return { success: true, message: '点赞成功' };
           }
-          
-          // 处理后端 works 表的点赞（原有逻辑）
+
+          // 如果从 works 表没找到，尝试从 posts 表获取
+          console.log('[workDB.likeWork] Not found in works table, trying posts table');
+          const { rows: postRows } = await db.query(
+            'SELECT id, title, author_id FROM posts WHERE id = $1',
+            [workId]
+          );
+
+          if (postRows.length === 0) {
+            return { success: false, error: '作品不存在' };
+          }
+
+          // 使用 posts 表逻辑（likes 表）
+          console.log('[workDB.likeWork] Found in posts table, using likes');
+
           // 检查是否已点赞
           const { rows: existing } = await db.query(
-            'SELECT id FROM work_likes WHERE user_id = $1 AND work_id = $2',
+            'SELECT id FROM likes WHERE user_id = $1 AND post_id = $2',
             [userId, workId]
-          )
-          
+          );
+
           if (existing.length > 0) {
-            return { success: true, message: '已经点赞过了' }
+            return { success: true, message: '已经点赞过了' };
           }
-          
-          // 获取作品信息和作者
-          const { rows: workRows } = await db.query(
-            'SELECT id, title, creator_id FROM works WHERE id = $1',
-            [workId]
-          )
-          
-          if (workRows.length === 0) {
-            return { success: false, error: '作品不存在' }
-          }
-          
-          const work = workRows[0]
-          const authorId = work.creator_id
-          
-          // 添加点赞记录
+
+          const post = postRows[0];
+          const authorId = post.author_id;
+
+          // 添加点赞记录到 likes 表
           await db.query(
-            'INSERT INTO work_likes (user_id, work_id, created_at) VALUES ($1, $2, NOW())',
+            'INSERT INTO likes (user_id, post_id, created_at) VALUES ($1, $2, NOW())',
             [userId, workId]
-          )
-          
-          // 更新作品点赞数
+          );
+
+          // 更新 posts 表的点赞数
           await db.query(
-            'UPDATE works SET likes = COALESCE(likes, 0) + 1 WHERE id = $1',
+            'UPDATE posts SET likes_count = COALESCE(likes_count, 0) + 1 WHERE id = $1',
             [workId]
-          )
-          
-          // 给作品作者发送通知（如果不是自己点赞自己的作品）
+          );
+
+          // 给作品作者发送通知
           if (authorId && authorId !== userId) {
             try {
-              // 获取点赞者信息
               const { rows: userRows } = await db.query(
                 'SELECT username FROM users WHERE id = $1',
                 [userId]
-              )
-              const likerName = userRows.length > 0 ? userRows[0].username : '有人'
-              
+              );
+              const likerName = userRows.length > 0 ? userRows[0].username : '有人';
+
               await db.query(
-                `INSERT INTO notifications (user_id, type, title, content, data, is_read, created_at) 
+                `INSERT INTO notifications (user_id, type, title, content, data, is_read, created_at)
                  VALUES ($1, $2, $3, $4, $5, false, NOW())`,
                 [
                   authorId,
                   'like',
                   '作品收到新点赞',
-                  `你的作品"${work.title || '未命名作品'}"收到了${likerName}的点赞`,
-                  JSON.stringify({ work_id: workId, liker_id: userId }),
+                  `你的作品"${post.title || '未命名作品'}"收到了${likerName}的点赞`,
+                  JSON.stringify({ post_id: workId, liker_id: userId }),
                   false
                 ]
-              )
-              console.log('[workDB.likeWork] Notification sent to author:', authorId)
+              );
+              console.log('[workDB.likeWork] Notification sent to author:', authorId);
             } catch (notifyError) {
-              console.error('[workDB.likeWork] Failed to send notification:', notifyError)
-              // 通知发送失败不影响点赞成功
+              console.error('[workDB.likeWork] Failed to send notification:', notifyError);
             }
           }
-          
-          return { success: true, message: '点赞成功' }
+
+          return { success: true, message: '点赞成功' };
         } catch (error) {
-          console.error('[workDB.likeWork] Error:', error)
-          return { success: false, error: error.message }
+          console.error('[workDB.likeWork] Error:', error);
+          return { success: false, error: error.message };
         }
       }
       case DB_TYPE.MEMORY: {
@@ -3932,7 +4036,7 @@ export const workDB = {
         try {
           // 删除点赞记录
           const { rowCount } = await db.query(
-            'DELETE FROM work_likes WHERE user_id = $1 AND work_id = $2',
+            'DELETE FROM works_likes WHERE user_id = $1 AND work_id = $2',
             [userId, workId]
           )
           
@@ -4077,7 +4181,7 @@ export const workDB = {
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
         const { rows } = await db.query(
-          'SELECT id FROM work_likes WHERE user_id = $1 AND work_id = $2',
+          'SELECT user_id FROM works_likes WHERE user_id = $1 AND work_id = $2',
           [userId, workId]
         )
         return rows.length > 0
@@ -4093,11 +4197,33 @@ export const workDB = {
     }
   },
 
+  // 获取作品点赞数
+  async getWorkLikesCount(workId) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+
+    switch (typeKey) {
+      case DB_TYPE.POSTGRESQL: {
+        const { rows } = await db.query(
+          'SELECT COUNT(*)::INTEGER as count FROM works_likes WHERE work_id = $1',
+          [workId]
+        )
+        return rows[0]?.count || 0
+      }
+      case DB_TYPE.MEMORY: {
+        if (!memoryStore.work_likes) return 0
+        return memoryStore.work_likes.filter(l => l.work_id === workId).length
+      }
+      default:
+        return 0
+    }
+  },
+
   // 检查是否已收藏
   async isWorkBookmarked(workId, userId) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
-    
+
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
         const { rows } = await db.query(
@@ -4125,7 +4251,7 @@ export const workDB = {
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
         const { rows } = await db.query(
-          'SELECT COUNT(*) as count FROM work_likes WHERE user_id = $1',
+          'SELECT COUNT(*) as count FROM works_likes WHERE user_id = $1',
           [userId]
         )
         return parseInt(rows[0]?.count || 0)
@@ -4166,12 +4292,12 @@ export const commentDB = {
   async addComment(commentData) {
     const db = await getDB()
     const { content, user_id, post_id, parent_id } = commentData
-    const now = Date.now()
+    const nowTimestamp = Math.floor(Date.now() / 1000) // 使用秒级时间戳
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
-    
+
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL:
-        const { rows } = await db.query('INSERT INTO comments (content, user_id, post_id, parent_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [content, user_id, post_id, parent_id || null, now, now])
+        const { rows } = await db.query('INSERT INTO comments (content, user_id, post_id, parent_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [content, user_id, post_id, parent_id || null, nowTimestamp, nowTimestamp])
         return rows[0]
       case DB_TYPE.MEMORY:
         const newComment = {
@@ -4180,8 +4306,8 @@ export const commentDB = {
           user_id,
           post_id,
           parent_id: parent_id || null,
-          created_at: now,
-          updated_at: now
+          created_at: nowTimestamp,
+          updated_at: nowTimestamp
         }
         if (!memoryStore.comments) memoryStore.comments = []
         memoryStore.comments.push(newComment)
@@ -4295,16 +4421,24 @@ export const notificationDB = {
 }
 
 export const communityDB = {
-  async getAllCommunities() {
+  async getAllCommunities(includeInactive = false) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     let communities
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL:
-        communities = (await db.query('SELECT * FROM communities ORDER BY member_count DESC')).rows
+        if (includeInactive) {
+          communities = (await db.query('SELECT * FROM communities ORDER BY member_count DESC')).rows
+        } else {
+          communities = (await db.query('SELECT * FROM communities WHERE is_active = true ORDER BY member_count DESC')).rows
+        }
         break
       case DB_TYPE.MEMORY:
-        communities = [...(memoryStore.communities || [])].sort((a, b) => (b.member_count || 0) - (a.member_count || 0))
+        communities = [...(memoryStore.communities || [])]
+        if (!includeInactive) {
+          communities = communities.filter(c => c.is_active !== false)
+        }
+        communities.sort((a, b) => (b.member_count || 0) - (a.member_count || 0))
         break
       default:
         return []
@@ -4799,7 +4933,7 @@ export const communityDB = {
           SELECT c.*
           FROM communities c
           INNER JOIN community_members m ON c.id = m.community_id
-          WHERE m.user_id = $1
+          WHERE m.user_id = $1 AND c.is_active = true
           ORDER BY m.joined_at DESC
         `, [userId])).rows
         console.log('[DB] getUserCommunities PostgreSQL: found', result.length, 'communities');
@@ -4809,7 +4943,7 @@ export const communityDB = {
         const memberships = (memoryStore.community_members || []).filter(m => m.user_id === userId)
         console.log('[DB] getUserCommunities MEMORY: found', memberships.length, 'memberships');
         const byJoinDesc = [...memberships].sort((a, b) => (b.joined_at || 0) - (a.joined_at || 0))
-        const communities = memoryStore.communities || []
+        const communities = (memoryStore.communities || []).filter(c => c.is_active !== false)
         const result = byJoinDesc
           .map(m => communities.find(c => c.id === m.community_id))
           .filter(Boolean)
@@ -4895,7 +5029,8 @@ export const communityDB = {
   async addComment(postId, userId, content, parentId = null) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
-    const nowISO = new Date().toISOString()
+    const nowTimestamp = Math.floor(Date.now() / 1000) // 使用秒级时间戳
+    const nowISO = new Date().toISOString() // ISO 格式用于 comments 表
 
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
@@ -4914,6 +5049,64 @@ export const communityDB = {
           WHERE id = $1
         `, [postId])
 
+        // 如果是回复其他评论，创建通知
+        if (parentId) {
+          console.log('[communityDB.addComment] Creating notification for reply...')
+          try {
+            // 获取被回复的评论信息
+            const { rows: parentCommentRows } = await db.query(`
+              SELECT c.user_id, c.content, u.username as author_name
+              FROM comments c
+              JOIN users u ON c.user_id = u.id
+              WHERE c.id = $1
+            `, [parentId])
+
+            if (parentCommentRows.length > 0) {
+              const parentComment = parentCommentRows[0]
+              const recipientId = parentComment.user_id
+
+              // 如果被回复的不是自己，创建通知
+              if (recipientId !== userId) {
+                // 获取当前用户信息
+                const { rows: currentUserRows } = await db.query(`
+                  SELECT username FROM users WHERE id = $1
+                `, [userId])
+                const currentUserName = currentUserRows[0]?.username || '未知用户'
+
+                // 获取帖子信息
+                const { rows: postRows } = await db.query(`
+                  SELECT title FROM posts WHERE id = $1
+                `, [postId])
+                const postTitle = postRows[0]?.title || '帖子'
+
+                // 创建通知
+                await db.query(`
+                  INSERT INTO notifications (
+                    user_id, type, title, content, data, is_read, created_at
+                  ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                `, [
+                  recipientId,
+                  'comment_reply',
+                  `${currentUserName} 回复了你的评论`,
+                  `在帖子《${postTitle}》中回复：${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+                  JSON.stringify({ 
+                    post_id: postId, 
+                    comment_id: comment.id,
+                    parent_comment_id: parentId,
+                    sender_id: userId
+                  }),
+                  false,
+                  nowISO
+                ])
+                console.log('[communityDB.addComment] Notification created for reply')
+              }
+            }
+          } catch (notifyError) {
+            // 通知创建失败不影响评论创建
+            console.error('[communityDB.addComment] Failed to create notification:', notifyError)
+          }
+        }
+
         return {
           id: comment.id,
           content: comment.content,
@@ -4931,8 +5124,8 @@ export const communityDB = {
           user_id: userId,
           post_id: postId,
           parent_id: parentId,
-          created_at: nowISO,
-          updated_at: nowISO
+          created_at: nowTimestamp,
+          updated_at: nowTimestamp
         }
 
         if (!memoryStore.comments) {

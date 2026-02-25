@@ -7,6 +7,8 @@ import { LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { toast } from 'sonner';
 import { adminService, type DashboardStats, type ActivityData, type AuditStats, type PendingWork } from '@/services/adminService';
 import { brandPartnershipService } from '@/services/brandPartnershipService';
+import achievementService from '@/services/achievementService';
+import { supabaseAdmin } from '@/lib/supabaseClient';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useNavNotifications, type NavItemType } from '@/hooks/useNavNotifications';
 
@@ -14,7 +16,7 @@ import { useNavNotifications, type NavItemType } from '@/hooks/useNavNotificatio
 const DataAnalytics = lazy(() => import('./DataAnalytics'));
 const StrategicAdoption = lazy(() => import('./StrategicAdoption'));
 const Settings = lazy(() => import('./Settings'));
-const OrderManagement = lazy(() => import('./OrderManagement'));
+
 const PermissionManagement = lazy(() => import('./PermissionManagement'));
 const FeedbackManagement = lazy(() => import('./FeedbackManagement'));
 
@@ -24,6 +26,7 @@ const AuditLog = lazy(() => import('./AuditLog'));
 const UserAudit = lazy(() => import('./UserAudit'));
 const EventManagement = lazy(() => import('./EventManagement'));
 const ProductManagement = lazy(() => import('./ProductManagement'));
+const PaymentAudit = lazy(() => import('./PaymentAudit'));
 const NotificationManagement = lazy(() => import('./NotificationManagement'));
 const SystemMonitor = lazy(() => import('./SystemMonitor'));
 
@@ -36,7 +39,7 @@ const AIFeedbackManagement = lazy(() => import('./AIFeedbackManagement'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'orders' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -114,6 +117,20 @@ export default function Admin() {
   const [pendingWorks, setPendingWorks] = useState<PendingWork[]>([]);
   const [commercialApplications, setCommercialApplications] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+
+  // 用户管理页面统计数据
+  const [userStats, setUserStats] = useState({
+    totalUsers: 0,
+    activeUsers: 0,
+    newUsers: 0,
+    admins: 3,
+  });
+  const [userStatsLoading, setUserStatsLoading] = useState(false);
+
+  // 用户管理弹窗状态
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [userModalMode, setUserModalMode] = useState<'view' | 'edit'>('view');
 
   // 活动管理状态
   const [events, setEvents] = useState<any[]>([]);
@@ -221,21 +238,28 @@ export default function Admin() {
   
   const fetchUsers = async () => {
     setUsersLoading(true);
+    setUserStatsLoading(true);
     try {
-      const result = await adminService.getUsers({
-        page: userPage,
-        limit: 10,
-        status: userStatusFilter,
-        search: userSearch,
-      });
+      // 并行获取用户列表和统计数据
+      const [result, statsResult] = await Promise.all([
+        adminService.getUsers({
+          page: userPage,
+          limit: 10,
+          status: userStatusFilter,
+          search: userSearch,
+        }),
+        adminService.getUserStats(),
+      ]);
       
       setUsers(result.users);
       setUserTotal(result.total);
+      setUserStats(statsResult);
     } catch (error) {
       console.error('获取用户数据失败:', error);
       toast.error('获取用户数据失败');
     } finally {
       setUsersLoading(false);
+      setUserStatsLoading(false);
     }
   };
   
@@ -1085,10 +1109,10 @@ export default function Admin() {
             {/* 用户数据概览 */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               {[
-                { title: '总用户数', value: stats.totalUsers.toLocaleString(), icon: 'users', color: 'blue' },
-                { title: '活跃用户', value: Math.round(stats.totalUsers * 0.6).toLocaleString(), icon: 'user-check', color: 'green' },
-                { title: '新增用户', value: Math.round(stats.totalUsers * 0.05).toLocaleString(), icon: 'user-plus', color: 'yellow' },
-                { title: '管理员', value: '3', icon: 'shield-alt', color: 'purple' },
+                { title: '总用户数', value: userStats.totalUsers.toLocaleString(), icon: 'users', color: 'blue' },
+                { title: '活跃用户', value: userStats.activeUsers.toLocaleString(), icon: 'user-check', color: 'green' },
+                { title: '新增用户', value: userStats.newUsers.toLocaleString(), icon: 'user-plus', color: 'yellow' },
+                { title: '管理员', value: userStats.admins.toLocaleString(), icon: 'shield-alt', color: 'purple' },
               ].map((stat, index) => (
                 <div
                   key={index}
@@ -1098,7 +1122,7 @@ export default function Admin() {
                     <div>
                       <p className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{stat.title}</p>
                       <h3 className="text-xl font-bold">
-                        {dataLoading ? (
+                        {userStatsLoading ? (
                           <span className={`inline-block w-12 h-6 rounded ${isDark ? 'bg-gray-600' : 'bg-gray-200'} animate-pulse`}></span>
                         ) : (
                           stat.value
@@ -1199,13 +1223,43 @@ export default function Admin() {
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <div className="flex space-x-2">
-                            <button className={`p-1.5 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                            <button 
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setUserModalMode('view');
+                                setShowUserModal(true);
+                              }}
+                              className={`p-1.5 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'}`}
+                              title="查看详情"
+                            >
                               <i className="fas fa-eye text-blue-500"></i>
                             </button>
-                            <button className={`p-1.5 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                            <button 
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setUserModalMode('edit');
+                                setShowUserModal(true);
+                              }}
+                              className={`p-1.5 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'}`}
+                              title="编辑用户"
+                            >
                               <i className="fas fa-edit text-green-500"></i>
                             </button>
-                            <button className={`p-1.5 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                            <button 
+                              onClick={async () => {
+                                if (confirm(`确定要删除用户 "${user.username}" 吗？此操作不可恢复！`)) {
+                                  const success = await adminService.deleteUser(user.id);
+                                  if (success) {
+                                    toast.success('用户已删除');
+                                    fetchUsers();
+                                  } else {
+                                    toast.error('删除失败，请重试');
+                                  }
+                                }
+                              }}
+                              className={`p-1.5 rounded ${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'}`}
+                              title="删除用户"
+                            >
                               <i className="fas fa-trash text-red-500"></i>
                             </button>
                           </div>
@@ -1273,6 +1327,261 @@ export default function Admin() {
             </div>
           </motion.div>
         )}
+
+        {/* 用户详情/编辑弹窗 */}
+        {showUserModal && selectedUser && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`}
+            >
+              {/* 弹窗头部 */}
+              <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+                <h3 className="text-xl font-bold">
+                  {userModalMode === 'view' ? '用户详情' : '编辑用户'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowUserModal(false);
+                    setSelectedUser(null);
+                  }}
+                  className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+
+              {/* 弹窗内容 */}
+              <div className="p-6 space-y-6">
+                {/* 基本信息 */}
+                <div className="flex items-center gap-4">
+                  <img
+                    src={selectedUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedUser.username}`}
+                    alt={selectedUser.username}
+                    className="w-20 h-20 rounded-full object-cover border-2 border-red-500"
+                  />
+                  <div>
+                    <h4 className="text-lg font-semibold">{selectedUser.username}</h4>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      ID: {selectedUser.id}
+                    </p>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      注册时间: {new Date(selectedUser.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 统计数据 */}
+                <div className="grid grid-cols-4 gap-4">
+                  {[
+                    { label: '作品数', value: selectedUser.works_count || 0, icon: 'image' },
+                    { label: '获赞数', value: selectedUser.total_likes || 0, icon: 'heart' },
+                    { label: '会员等级', value: selectedUser.membership_level === 'free' ? '免费' : selectedUser.membership_level === 'premium' ? '高级' : 'VIP', icon: 'star' },
+                    { label: '会员状态', value: selectedUser.membership_status === 'active' ? '有效' : '已过期', icon: 'check-circle' },
+                  ].map((stat, index) => (
+                    <div key={index} className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} text-center`}>
+                      <i className={`fas fa-${stat.icon} text-2xl mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}></i>
+                      <p className="text-2xl font-bold">{stat.value}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 编辑表单（仅在编辑模式下显示） */}
+                {userModalMode === 'edit' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        用户名
+                      </label>
+                      <input
+                        type="text"
+                        value={selectedUser.username}
+                        onChange={(e) => setSelectedUser({ ...selectedUser, username: e.target.value })}
+                        className={`w-full px-4 py-2 rounded-lg border ${
+                          isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        邮箱
+                      </label>
+                      <input
+                        type="email"
+                        value={selectedUser.email || ''}
+                        onChange={(e) => setSelectedUser({ ...selectedUser, email: e.target.value })}
+                        className={`w-full px-4 py-2 rounded-lg border ${
+                          isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        会员等级
+                      </label>
+                      <select
+                        value={selectedUser.membership_level || 'free'}
+                        onChange={(e) => setSelectedUser({ ...selectedUser, membership_level: e.target.value })}
+                        className={`w-full px-4 py-2 rounded-lg border ${
+                          isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                        }`}
+                      >
+                        <option value="free">免费会员</option>
+                        <option value="premium">高级会员</option>
+                        <option value="vip">VIP会员</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        会员状态
+                      </label>
+                      <select
+                        value={selectedUser.membership_status || 'active'}
+                        onChange={(e) => setSelectedUser({ ...selectedUser, membership_status: e.target.value })}
+                        className={`w-full px-4 py-2 rounded-lg border ${
+                          isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                        }`}
+                      >
+                        <option value="active">有效</option>
+                        <option value="expired">已过期</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        用户状态
+                      </label>
+                      <select
+                        value={selectedUser.status || 'active'}
+                        onChange={(e) => setSelectedUser({ ...selectedUser, status: e.target.value })}
+                        className={`w-full px-4 py-2 rounded-lg border ${
+                          isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
+                        }`}
+                      >
+                        <option value="active">正常</option>
+                        <option value="inactive">不活跃</option>
+                        <option value="banned">禁用</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* 查看模式详细信息 */}
+                {userModalMode === 'view' && (
+                  <div className="space-y-3">
+                    <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>邮箱</p>
+                      <p className="font-medium">{selectedUser.email || '未设置'}</p>
+                    </div>
+                    <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>年龄</p>
+                      <p className="font-medium">{selectedUser.age || '未设置'}</p>
+                    </div>
+                    <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>兴趣标签</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {selectedUser.metadata?.tags && selectedUser.metadata.tags.length > 0 ? (
+                          selectedUser.metadata.tags.map((tag: string, index: number) => (
+                            <span key={index} className={`px-2 py-1 rounded-full text-xs ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                              {tag}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-400">暂无标签</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>会员到期时间</p>
+                      <p className="font-medium">{selectedUser.membership_end ? new Date(selectedUser.membership_end).toLocaleDateString() : '永久有效'}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 弹窗底部按钮 */}
+              <div className={`px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-end gap-3`}>
+                <button
+                  onClick={() => {
+                    setShowUserModal(false);
+                    setSelectedUser(null);
+                  }}
+                  className={`px-4 py-2 rounded-lg ${
+                    isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                >
+                  关闭
+                </button>
+                {userModalMode === 'edit' && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        // 1. 更新用户基本信息
+                        const { error: userError } = await supabaseAdmin
+                          .from('users')
+                          .update({
+                            username: selectedUser.username,
+                            email: selectedUser.email,
+                            status: selectedUser.status,
+                            updated_at: new Date().toISOString(),
+                          })
+                          .eq('id', selectedUser.id);
+
+                        if (userError) throw userError;
+
+                        // 2. 如果会员等级或状态发生变化，在 membership_orders 表中创建记录
+                        if (selectedUser.membership_level !== 'free') {
+                          // 计算过期时间（默认从现在起1年）
+                          const expiresAt = new Date();
+                          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+
+                          const planNames: Record<string, string> = {
+                            'premium': '高级会员',
+                            'vip': 'VIP会员',
+                          };
+
+                          const { error: orderError } = await supabaseAdmin
+                            .from('membership_orders')
+                            .insert({
+                              id: `admin_${Date.now()}_${selectedUser.id}`,
+                              user_id: selectedUser.id,
+                              plan: selectedUser.membership_level,
+                              plan_name: planNames[selectedUser.membership_level] || selectedUser.membership_level,
+                              period: 'yearly',
+                              amount: selectedUser.membership_level === 'premium' ? 899 : 1799,
+                              status: 'completed',
+                              paid_at: new Date().toISOString(),
+                              expires_at: expiresAt.toISOString(),
+                            });
+
+                          if (orderError) {
+                            console.warn('创建会员订单失败:', orderError);
+                          }
+                        }
+
+                        toast.success('用户信息已更新');
+                        setShowUserModal(false);
+                        setSelectedUser(null);
+                        fetchUsers();
+                      } catch (error) {
+                        console.error('更新用户失败:', error);
+                        toast.error('更新失败，请重试');
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+                  >
+                    保存修改
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
         
         {/* 数据分析页面 */}
         {activeTab === 'analytics' && (
@@ -1316,21 +1625,6 @@ export default function Admin() {
             </div>
           }>
             <Settings />
-          </Suspense>
-        )}
-
-        {/* 订单管理页面 */}
-        {activeTab === 'orders' && (
-          <Suspense fallback={
-            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
-              />
-            </div>
-          }>
-            <OrderManagement />
           </Suspense>
         )}
 
@@ -1423,6 +1717,21 @@ export default function Admin() {
             </div>
           }>
             <ProductManagement />
+          </Suspense>
+        )}
+
+        {/* 支付审核页面 */}
+        {activeTab === 'paymentAudit' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <PaymentAudit />
           </Suspense>
         )}
 
@@ -1567,7 +1876,7 @@ export default function Admin() {
                   />
                   <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
                 </div>
-                <select 
+                <select
                   value={creatorLevelFilter}
                   onChange={(e) => setCreatorLevelFilter(e.target.value)}
                   className={`px-3 py-1.5 rounded-lg text-sm ${
@@ -1575,35 +1884,44 @@ export default function Admin() {
                   } border`}
                 >
                   <option value="all">全部等级</option>
-                  <option value="beginner">新锐创作者</option>
-                  <option value="advanced">资深创作者</option>
-                  <option value="master">大师级创作者</option>
+                  <option value="1">创作新手</option>
+                  <option value="2">创作爱好者</option>
+                  <option value="3">创作达人</option>
+                  <option value="4">创作精英</option>
+                  <option value="5">创作大师</option>
+                  <option value="6">创作宗师</option>
+                  <option value="7">创作传奇</option>
                 </select>
               </div>
             </div>
             
             {/* 创作者等级分布 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              {[
-                { title: '新锐创作者', value: creators.filter((c: any) => c.level === 'beginner').length.toString(), icon: 'star', color: 'blue' },
-                { title: '资深创作者', value: creators.filter((c: any) => c.level === 'advanced').length.toString(), icon: 'award', color: 'purple' },
-                { title: '大师级创作者', value: creators.filter((c: any) => c.level === 'master').length.toString(), icon: 'trophy', color: 'yellow' },
-              ].map((stat, index) => (
-                <div
-                  key={index}
-                  className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{stat.title}</p>
-                      <h3 className="text-xl font-bold">{stat.value}</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+              {(() => {
+                const levels = achievementService.getAllCreatorLevels();
+                const levelColors = [
+                  'gray', 'green', 'blue', 'purple', 'orange', 'red', 'yellow'
+                ];
+                return levels.map((level, index) => {
+                  const count = creators.filter((c: any) => c.level === level.level || c.level === level.level.toString()).length;
+                  return (
+                    <div
+                      key={level.level}
+                      className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`text-sm mb-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{level.icon} {level.name}</p>
+                          <h3 className="text-xl font-bold">{count}</h3>
+                        </div>
+                        <div className={`p-2 rounded-full bg-${levelColors[index]}-100 text-${levelColors[index]}-600`}>
+                          <span className="text-lg">{level.level}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className={`p-2 rounded-full bg-${stat.color}-100 text-${stat.color}-600`}>
-                      <i className={`fas fa-${stat.icon} text-lg`}></i>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                });
+              })()}
             </div>
             
             {/* 创作者列表 */}
@@ -1657,16 +1975,24 @@ export default function Admin() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              creator.level === 'master' 
-                                ? 'bg-yellow-100 text-yellow-600' 
-                                : creator.level === 'advanced'
-                                  ? 'bg-purple-100 text-purple-600'
-                                  : 'bg-blue-100 text-blue-600'
-                            }`}>
-                              {creator.level === 'master' ? '大师级创作者' : 
-                               creator.level === 'advanced' ? '资深创作者' : '新锐创作者'}
-                            </span>
+                            {(() => {
+                              const levelNum = typeof creator.level === 'string' ? parseInt(creator.level) : creator.level;
+                              const levelInfo = achievementService.getCreatorLevelByLevel(levelNum || 1);
+                              const levelColors: Record<number, string> = {
+                                1: 'bg-gray-100 text-gray-600',
+                                2: 'bg-green-100 text-green-600',
+                                3: 'bg-blue-100 text-blue-600',
+                                4: 'bg-purple-100 text-purple-600',
+                                5: 'bg-orange-100 text-orange-600',
+                                6: 'bg-red-100 text-red-600',
+                                7: 'bg-yellow-100 text-yellow-600',
+                              };
+                              return (
+                                <span className={`px-2 py-1 rounded-full text-xs ${levelColors[levelNum || 1]}`}>
+                                  {levelInfo?.icon} {levelInfo?.name || '创作新手'}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-sm">{creator.works}</td>
                           <td className="px-4 py-3 text-sm">{creator.likes}</td>
@@ -1731,23 +2057,34 @@ export default function Admin() {
             {/* 创作者激励管理 */}
             <div>
               <h3 className="font-medium mb-4">激励体系管理</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <h4 className="font-medium mb-3">等级设置</h4>
-                  <div className="space-y-4">
-                    {[
-                      { name: '新锐创作者', threshold: '0积分', benefits: ['基础素材库', '社区互动权限'] },
-                      { name: '资深创作者', threshold: '1500积分', benefits: ['高级素材库', '优先审核权', '专属客服'] },{ name: '大师级创作者', threshold: '5000积分', benefits: ['独家AI模型', '线下活动邀请', '品牌对接优先'] },
-                    ].map((level, index) => (
-                      <div key={index} className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <h4 className="font-medium mb-3">等级设置（7级成就体系）</h4>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {achievementService.getAllCreatorLevels().map((level) => (
+                      <div key={level.level} className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                         <div className="flex justify-between items-center mb-2">
-                          <span className="font-medium">{level.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{level.icon}</span>
+                            <span className="font-medium">{level.name}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              level.level <= 2 ? 'bg-gray-200 text-gray-600' :
+                              level.level <= 4 ? 'bg-blue-100 text-blue-600' :
+                              level.level <= 6 ? 'bg-purple-100 text-purple-600' :
+                              'bg-yellow-100 text-yellow-600'
+                            }`}>
+                              LV.{level.level}
+                            </span>
+                          </div>
                           <span className={`text-xs px-2 py-1 rounded-full ${
                             isDark ? 'bg-gray-600' : 'bg-gray-200'
                           }`}>
-                            {level.threshold}
+                            {level.requiredPoints}积分
                           </span>
                         </div>
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {level.description}
+                        </p>
                         <div className="flex flex-wrap gap-2">
                           {level.benefits.map((benefit, i) => (
                             <span key={i} className={`text-xs px-2 py-1 rounded-full ${
@@ -1761,28 +2098,61 @@ export default function Admin() {
                     ))}
                   </div>
                 </div>
-                
+
                 <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <h4 className="font-medium mb-3">任务与奖励</h4>
-                  <div className="space-y-3">
+                  <h4 className="font-medium mb-3">成就任务与奖励</h4>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
                     {[
-                      { name: '完成首篇创作', reward: '100积分 + 素材包' },
-                      { name: '连续登录7天', reward: '50积分' },
-                      { name: '作品获赞100次', reward: '200积分' },
-                      { name: '作品被采纳', reward: '500积分 + 分成资格' },
-                    ].map((task, index) => (
-                      <div key={index} className="flex justify-between items-center">
-                        <span>{task.name}</span>
-                        <span className={`text-sm px-3 py-1 rounded-full ${
-                          isDark ? 'bg-gray-700' : 'bg-gray-100'
-                        }`}>
-                          {task.reward}
-                        </span>
-                      </div>
-                    ))}
+                      { name: '初次创作', desc: '完成第一篇作品', reward: '10积分', icon: 'star', rarity: 'common' },
+                      { name: '活跃创作者', desc: '连续7天登录', reward: '20积分', icon: 'fire', rarity: 'common' },
+                      { name: '人气王', desc: '获得100个点赞', reward: '50积分', icon: 'thumbs-up', rarity: 'rare' },
+                      { name: '作品达人', desc: '发布10篇作品', reward: '80积分', icon: 'image', rarity: 'rare' },
+                      { name: '文化传播者', desc: '使用5种不同文化元素', reward: '40积分', icon: 'book', rarity: 'rare' },
+                      { name: '商业成功', desc: '作品被品牌采纳', reward: '200积分', icon: 'handshake', rarity: 'epic' },
+                      { name: '传统文化大师', desc: '完成10个文化知识问答', reward: '300积分', icon: 'graduation-cap', rarity: 'legendary' },
+                    ].map((task, index) => {
+                      const rarityColors: Record<string, string> = {
+                        common: isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600',
+                        rare: isDark ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-600',
+                        epic: isDark ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-600',
+                        legendary: isDark ? 'bg-yellow-900/50 text-yellow-300' : 'bg-yellow-100 text-yellow-600',
+                      };
+                      return (
+                        <div key={index} className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2">
+                              <i className={`fas fa-${task.icon} ${
+                                task.rarity === 'legendary' ? 'text-yellow-500' :
+                                task.rarity === 'epic' ? 'text-purple-500' :
+                                task.rarity === 'rare' ? 'text-blue-500' : 'text-gray-400'
+                              }`}></i>
+                              <div>
+                                <span className="font-medium text-sm">{task.name}</span>
+                                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{task.desc}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-2 py-1 rounded-full ${rarityColors[task.rarity]}`}>
+                                {task.rarity === 'common' ? '普通' :
+                                 task.rarity === 'rare' ? '稀有' :
+                                 task.rarity === 'epic' ? '史诗' : '传说'}
+                              </span>
+                              <span className={`text-sm px-3 py-1 rounded-full ${
+                                isDark ? 'bg-gray-600' : 'bg-gray-200'
+                              }`}>
+                                {task.reward}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <button className="mt-4 w-full py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm transition-colors">
-                    添加新任务
+                  <button
+                    onClick={() => setActiveTab('achievements')}
+                    className="mt-4 w-full py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm transition-colors"
+                  >
+                    管理成就任务
                   </button>
                 </div>
               </div>
@@ -1828,16 +2198,24 @@ export default function Admin() {
                     <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       ID: {selectedCreator.id}
                     </p>
-                    <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs ${
-                      selectedCreator.level === 'master'
-                        ? 'bg-yellow-100 text-yellow-600'
-                        : selectedCreator.level === 'advanced'
-                          ? 'bg-purple-100 text-purple-600'
-                          : 'bg-blue-100 text-blue-600'
-                    }`}>
-                      {selectedCreator.level === 'master' ? '大师级创作者' :
-                       selectedCreator.level === 'advanced' ? '资深创作者' : '新锐创作者'}
-                    </span>
+                    {(() => {
+                      const levelNum = typeof selectedCreator.level === 'string' ? parseInt(selectedCreator.level) : selectedCreator.level;
+                      const levelInfo = achievementService.getCreatorLevelByLevel(levelNum || 1);
+                      const levelColors: Record<number, string> = {
+                        1: 'bg-gray-100 text-gray-600',
+                        2: 'bg-green-100 text-green-600',
+                        3: 'bg-blue-100 text-blue-600',
+                        4: 'bg-purple-100 text-purple-600',
+                        5: 'bg-orange-100 text-orange-600',
+                        6: 'bg-red-100 text-red-600',
+                        7: 'bg-yellow-100 text-yellow-600',
+                      };
+                      return (
+                        <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs ${levelColors[levelNum || 1]}`}>
+                          {levelInfo?.icon} {levelInfo?.name || '创作新手'}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
 

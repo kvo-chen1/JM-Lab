@@ -11,10 +11,12 @@ import {
   Share2,
   Bookmark
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { toggleBookmark, toggleLike } from '@/services/collectionService';
 import { CollectionType } from '@/types/collection';
 import { toast } from 'sonner';
+import { ShareSelector } from '@/components/ShareSelector';
+import { AuthContext } from '@/contexts/authContext';
 
 interface EventCardProps {
   event: Event;
@@ -26,9 +28,9 @@ interface EventCardProps {
   onLikeChange?: (isLiked: boolean) => void;
 }
 
-export default function EventCard({ 
-  event, 
-  onClick, 
+export default function EventCard({
+  event,
+  onClick,
   viewMode = 'grid',
   isBookmarked: initialBookmarked = false,
   isLiked: initialLiked = false,
@@ -36,10 +38,12 @@ export default function EventCard({
   onLikeChange
 }: EventCardProps) {
   const { isDark } = useTheme();
+  const { user } = useContext(AuthContext);
   const [isHovered, setIsHovered] = useState(false);
   const [isLiked, setIsLiked] = useState(initialLiked);
   const [isBookmarked, setIsBookmarked] = useState(initialBookmarked);
   const [isLoading, setIsLoading] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const now = new Date();
 
@@ -138,15 +142,7 @@ export default function EventCard({
 
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (navigator.share) {
-      navigator.share({
-        title: event.title,
-        text: event.description,
-        url: `${window.location.origin}/events/${event.id}`,
-      });
-    } else {
-      navigator.clipboard.writeText(`${window.location.origin}/events/${event.id}`);
-    }
+    setIsShareModalOpen(true);
   };
 
   const handleLike = async (e: React.MouseEvent) => {
@@ -169,7 +165,7 @@ export default function EventCard({
   const handleBookmark = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isLoading) return;
-    
+
     setIsLoading(true);
     try {
       const result = await toggleBookmark(event.id.toString(), CollectionType.ACTIVITY);
@@ -181,6 +177,16 @@ export default function EventCard({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 分享数据
+  const shareData = {
+    type: 'activity' as const,
+    id: event.id.toString(),
+    title: event.title,
+    description: event.description || '',
+    thumbnail: event.media?.[0]?.url || '',
+    url: `${window.location.origin}/events/${event.id}`,
   };
 
   if (viewMode === 'list') {
@@ -296,6 +302,16 @@ export default function EventCard({
         >
           <ArrowRight className={`w-5 h-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
         </motion.div>
+
+        {/* 分享弹窗 */}
+        <ShareSelector
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          shareData={shareData}
+          userId={user?.id || ''}
+          userName={user?.username || user?.name || ''}
+          userAvatar={user?.avatar}
+        />
       </motion.div>
     );
   }
@@ -399,7 +415,7 @@ export default function EventCard({
         }`}>
           {event.title}
         </h3>
-        
+
         <p className={`text-sm line-clamp-2 mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
           {event.description}
         </p>
@@ -409,7 +425,7 @@ export default function EventCard({
             <Calendar className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">{formatDate(eventStart)} - {formatDate(eventEnd)}</span>
           </div>
-          
+
           {event.location && (
             <div className={`flex items-center gap-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               <MapPin className="w-4 h-4 flex-shrink-0" />
@@ -421,7 +437,7 @@ export default function EventCard({
           {event.tags && event.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-2">
               {event.tags.slice(0, 3).map((tag, i) => (
-                <span 
+                <span
                   key={i}
                   className={`px-2 py-0.5 rounded-full text-xs ${
                     isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
@@ -441,6 +457,16 @@ export default function EventCard({
           )}
         </div>
       </div>
+
+      {/* 分享弹窗 */}
+      <ShareSelector
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        shareData={shareData}
+        userId={user?.id || ''}
+        userName={user?.username || user?.name || ''}
+        userAvatar={user?.avatar}
+      />
     </motion.div>
   );
 }

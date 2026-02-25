@@ -32,6 +32,10 @@ interface FeedDetailModalProps {
   onLike: (feedId: string) => void;
   onCollect: (feedId: string) => void;
   onShare: (feedId: string) => void;
+  onCommentAdded?: (feedId: string) => void;
+  currentUserId?: string;
+  currentUserName?: string;
+  currentUserAvatar?: string;
 }
 
 // 格式化数字
@@ -83,6 +87,10 @@ export function FeedDetailModal({
   onLike,
   onCollect,
   onShare,
+  onCommentAdded,
+  currentUserId,
+  currentUserName,
+  currentUserAvatar,
 }: FeedDetailModalProps) {
   const { isDark } = useTheme();
   const [comments, setComments] = useState<FeedComment[]>([]);
@@ -127,13 +135,21 @@ export function FeedDetailModal({
   // 提交评论
   const handleSubmitComment = async () => {
     if (!feed || !newComment.trim()) return;
-    
+
+    console.log('[FeedDetailModal] Submitting comment with:', { currentUserId, currentUserName, currentUserAvatar });
+
     setIsSubmittingComment(true);
     try {
-      const comment = await feedService.createComment(feed.id, newComment.trim());
-      setComments(prev => [comment, ...prev]);
-      setNewComment('');
-      toast.success('评论发布成功');
+      const comment = await feedService.createComment(feed.id, newComment.trim(), undefined, currentUserId, currentUserName, currentUserAvatar);
+      if (comment) {
+        setComments(prev => [comment, ...prev]);
+        setNewComment('');
+        toast.success('评论发布成功');
+        // 通知父组件评论已添加
+        onCommentAdded?.(feed.id);
+      } else {
+        toast.error('评论发布失败，请检查是否已登录');
+      }
     } catch (error) {
       toast.error('评论发布失败');
     } finally {
@@ -381,7 +397,7 @@ export function FeedDetailModal({
                 {/* 评论列表 */}
                 <div className="flex-1 overflow-y-auto p-4">
                   <h3 className={`font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    评论 ({formatNumber(feed.comments)})
+                    评论 ({formatNumber(comments.length)})
                   </h3>
 
                   <div className="space-y-4">

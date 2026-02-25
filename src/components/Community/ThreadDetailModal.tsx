@@ -605,6 +605,7 @@ const ThreadDetailModal: React.FC<ThreadDetailModalProps> = ({
                                       type="button"
                                       onClick={() => insertEmoji(emoji)}
                                       className={`p-1 text-lg rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}
+                                      style={{ fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif', lineHeight: 1.5 }}
                                     >
                                       {emoji}
                                     </button>

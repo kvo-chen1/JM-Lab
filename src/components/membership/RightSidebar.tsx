@@ -41,6 +41,9 @@ interface UsageStats {
 interface RightSidebarProps {
   isDark: boolean;
   user: User | null;
+  membershipLevel?: string;
+  membershipStatus?: string;
+  membershipEnd?: string | Date | null;
   onRenew: () => void;
   onUpgrade: () => void;
   usageStats?: UsageStats | null;
@@ -49,13 +52,21 @@ interface RightSidebarProps {
 const RightSidebar: React.FC<RightSidebarProps> = ({
   isDark,
   user,
+  membershipLevel,
+  membershipStatus,
+  membershipEnd,
   onRenew,
   onUpgrade,
   usageStats
 }) => {
-  const isActive = user?.membershipStatus === 'active';
-  const daysUntilExpiry = user?.membershipEnd
-    ? Math.ceil((new Date(user.membershipEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  // 优先使用传入的会员信息，否则使用 user 对象中的信息
+  const currentLevel = membershipLevel || user?.membershipLevel || 'free';
+  const currentStatus = membershipStatus || user?.membershipStatus || 'active';
+  const currentEndDate = membershipEnd || user?.membershipEnd;
+
+  const isActive = currentStatus === 'active';
+  const daysUntilExpiry = currentEndDate
+    ? Math.ceil((new Date(currentEndDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
 
   // 使用传入的统计数据或默认值
@@ -204,7 +215,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             <ArrowRight size={16} className="opacity-50" />
           </motion.button>
 
-          {user?.membershipLevel !== 'vip' && (
+          {currentLevel !== 'vip' && (
             <motion.button
               whileHover={{ scale: 1.02, x: 2 }}
               whileTap={{ scale: 0.98 }}
@@ -308,7 +319,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
       </div>
 
       {/* 推荐升级 */}
-      {user?.membershipLevel !== 'vip' && (
+      {currentLevel !== 'vip' && (
         <div className={`p-5 ${isDark ? 'border-b border-slate-700/50' : 'border-b border-gray-200'}`}>
           <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
             <Gift size={16} className={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
@@ -335,7 +346,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               </div>
               <div>
                 <p className={`font-medium text-sm ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>
-                  {user?.membershipLevel === 'free' ? '高级会员' : 'VIP会员'}
+                  {currentLevel === 'free' ? '高级会员' : 'VIP会员'}
                 </p>
                 <p className={`text-xs ${isDark ? 'text-purple-400/70' : 'text-purple-600/70'}`}>
                   解锁更多权益
@@ -344,7 +355,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             </div>
 
             <div className="space-y-2">
-              {(user?.membershipLevel === 'free' ? [
+              {(currentLevel === 'free' ? [
                 '无限AI生成次数',
                 '高级AI模型访问',
                 '去除水印'

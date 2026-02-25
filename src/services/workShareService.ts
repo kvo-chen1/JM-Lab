@@ -8,6 +8,7 @@ export interface WorkShareData {
   workId: string;
   workTitle: string;
   workThumbnail?: string;
+  workUrl?: string;  // 视频/音频的实际播放URL
   workType?: string;
   message?: string;
 }
@@ -28,6 +29,7 @@ function generateWorkShareMessage(data: WorkShareData): string {
     workId: data.workId,
     workTitle: data.workTitle,
     workThumbnail: data.workThumbnail,
+    workUrl: data.workUrl,  // 视频/音频播放URL
     workType: data.workType || 'image',
     message: data.message,
   };
@@ -249,11 +251,11 @@ export function parseWorkShareMessage(content: string): { isWorkShare: boolean; 
   const match = content.match(/\[WORK_SHARE\](.*?)\[\/WORK_SHARE\]/s);
   if (match) {
     try {
-      const data = JSON.parse(match[1]);
-      return { isWorkShare: true, data };
-    } catch (e) {
-      console.error('解析作品分享消息失败:', e);
-    }
+        const data = JSON.parse(match[1]);
+        return { isWorkShare: true, data };
+      } catch (e) {
+        console.error('解析作品分享消息失败:', e);
+      }
   }
   return { isWorkShare: false };
 }

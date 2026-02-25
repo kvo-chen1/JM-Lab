@@ -22,7 +22,7 @@ interface FeedFilterProps {
 
 const filterItems: { id: FeedFilterType; label: string }[] = [
   { id: 'all', label: '全部' },
-  { id: 'following', label: '关注' },
+  { id: 'community', label: '社群' },
   { id: 'video', label: '视频' },
   { id: 'image', label: '图文' },
   { id: 'article', label: '专栏' },
@@ -60,7 +60,10 @@ export function FeedFilter({
           {filterItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => onFilterChange(item.id)}
+              onClick={() => {
+                console.log('[FeedFilter] Filter clicked:', item.id);
+                onFilterChange(item.id);
+              }}
               className={`relative px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
                 activeFilter === item.id
                   ? isDark

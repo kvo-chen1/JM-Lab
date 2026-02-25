@@ -233,11 +233,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // 确定当前是否为深色模式
   // 确保服务器端和客户端初始状态一致，避免hydration不匹配
   const isDark = useMemo(() => {
-    // 初始化时（主题为defaultTheme），始终返回false，与初始theme状态匹配
-    if (theme === defaultTheme && !previewingTheme) {
-      return false;
-    }
-
     const currentTheme = previewingTheme || theme;
     const appliedTheme = getAppliedTheme(currentTheme);
     const darkThemes = ['dark', 'pixel', 'cyber', 'neon', 'cosmic'];

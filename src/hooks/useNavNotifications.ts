@@ -6,7 +6,6 @@ export type NavItemType =
   | 'eventAudit'
   | 'contentAudit'
   | 'userAudit'
-  | 'orders'
   | 'permissions'
   | 'productManagement'
   | 'notificationManagement'
@@ -66,7 +65,6 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
       eventAudit: { ...initialState },
       contentAudit: { ...initialState },
       userAudit: { ...initialState },
-      orders: { ...initialState },
       permissions: { ...initialState },
       productManagement: { ...initialState },
       notificationManagement: { ...initialState },
@@ -113,37 +111,37 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
           .from('user_feedback')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pending'),
-        
+
         // 活动审核 - 待审核活动
         supabase
           .from('events')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pending'),
-        
+
         // 内容审核 - 待审核内容
         supabase
           .from('content_moderation')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pending'),
-        
+
         // 用户审计 - 异常行为记录
         supabase
           .from('user_audit_logs')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pending_review'),
-        
-        // 订单管理 - 待处理订单
+
+        // 商品管理/订单 - 待处理订单
         supabase
-          .from('orders')
+          .from('exchange_records')
           .select('id', { count: 'exact', head: true })
           .in('status', ['pending', 'processing']),
-        
+
         // 社群管理 - 待审核加入请求
         supabase
           .from('community_join_requests')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'pending'),
-        
+
         // 用户管理 - 待审核用户
         supabase
           .from('profiles')
@@ -195,14 +193,14 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
         };
       }
 
-      // 处理订单管理结果
+      // 处理商品管理/订单结果
       if (ordersResult.status === 'fulfilled' && ordersResult.value.count !== null) {
         const count = ordersResult.value.count;
-        newNotifications.orders = {
-          ...newNotifications.orders,
+        newNotifications.productManagement = {
+          ...newNotifications.productManagement,
           count,
-          hasNew: count > 0 && (!newNotifications.orders.lastViewedAt || 
-            Date.now() - newNotifications.orders.lastViewedAt.getTime() < 300000),
+          hasNew: count > 0 && (!newNotifications.productManagement.lastViewedAt ||
+            Date.now() - newNotifications.productManagement.lastViewedAt.getTime() < 300000),
         };
       }
 
@@ -310,12 +308,12 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
       .subscribe();
     subscriptions.push(() => contentSubscription.unsubscribe());
 
-    // 订阅订单表变化
+    // 订阅订单表变化（商品管理中的订单）
     const ordersSubscription = supabase
-      .channel('orders_changes')
+      .channel('exchange_records_changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
+        { event: '*', schema: 'public', table: 'exchange_records' },
         () => fetchNotificationCounts()
       )
       .subscribe();

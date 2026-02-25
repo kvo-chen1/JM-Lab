@@ -76,22 +76,25 @@ export interface FeedItem extends BaseEntity {
   shareTarget?: FeedShareTarget;
   tags?: string[];
   location?: string;
-  
+
+  // 数据来源类型，用于跳转路由判断
+  sourceType?: 'post' | 'work' | 'community' | 'announcement';
+
   // 互动数据
   likes: number;
   comments: number;
   shares: number;
   views: number;
-  
+
   // 用户互动状态
   isLiked?: boolean;
   isCollected?: boolean;
   isShared?: boolean;
-  
+
   // 置顶和推荐
   isPinned?: boolean;
   isRecommended?: boolean;
-  
+
   // 评论列表（可选，用于详情页）
   commentList?: FeedComment[];
 }
@@ -99,7 +102,7 @@ export interface FeedItem extends BaseEntity {
 // 动态筛选类型
 export type FeedFilterType = 
   | 'all'        // 全部
-  | 'following'  // 关注
+  | 'community'  // 社群
   | 'video'      // 视频
   | 'image'      // 图文
   | 'article'    // 专栏
@@ -117,11 +120,13 @@ export interface FeedQueryParams {
   pageSize?: number;
   userId?: string;
   brandId?: string;
+  currentUserId?: string; // 当前用户ID，用于活动筛选（获取自己及关注用户的活动）
 }
 
 // 发布动态请求
 export interface CreateFeedRequest {
   contentType: FeedContentType;
+  title?: string;
   content: string;
   media?: Omit<FeedMedia, 'id'>[];
   tags?: string[];

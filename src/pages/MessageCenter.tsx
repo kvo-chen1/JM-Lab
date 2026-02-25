@@ -29,10 +29,20 @@ import {
 } from 'lucide-react';
 import {
   messageService,
+  getConversations,
+  getUnreadMessageCounts,
+  getMessages,
+  getDirectMessages,
+  sendDirectMessage,
+  markMessagesAsRead,
   type Message,
   type MessageType,
-  type MessageStats
+  type MessageStats,
+  type Conversation
 } from '@/services/messageService';
+import { parseWorkShareMessage } from '@/services/workShareService';
+import { SharedWorkMessage } from '@/components/share';
+import { supabase } from '@/lib/supabase';
 
 // 左侧导航菜单项
 interface NavItem {
@@ -56,6 +66,32 @@ function formatRelativeTime(date: Date): string {
   if (hours < 24) return `${hours}小时前`;
   if (days < 7) return `${days}天前`;
   return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+}
+
+// 格式化最后一条消息摘要
+function formatLastMessage(content: string): string {
+  // 检查是否是作品分享消息
+  const workShareMatch = content.match(/\[WORK_SHARE\](.*?)\[\/WORK_SHARE\]/s);
+  if (workShareMatch) {
+    try {
+      const data = JSON.parse(workShareMatch[1]);
+      return `[分享了作品] ${data.workTitle || '一个作品'}`;
+    } catch (e) {
+      return '[分享了作品]';
+    }
+  }
+  
+  // 检查是否是社群邀请消息
+  const communityMatch = content.match(/\[COMMUNITY_INVITE\](.*?)\[\/COMMUNITY_INVITE\]/s);
+  if (communityMatch) {
+    return '[社群邀请]';
+  }
+  
+  // 普通文本消息，截断显示
+  if (content.length > 50) {
+    return content.substring(0, 50) + '...';
+  }
+  return content;
 }
 
 // 消息类型配置
@@ -125,6 +161,16 @@ export default function MessageCenter() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // 私信会话列表状态
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [unreadMessageCounts, setUnreadMessageCounts] = useState<Record<string, number>>({});
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  
+  // 私信聊天状态
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isLoadingChat, setIsLoadingChat] = useState(false);
 
   // 检查登录状态
   useEffect(() => {
@@ -143,7 +189,12 @@ export default function MessageCenter() {
 
   // 加载消息数据
   const loadMessages = useCallback(async (showRefreshing = false) => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.log('[MessageCenter] No user ID, skipping loadMessages');
+      return;
+    }
+
+    console.log('[MessageCenter] Loading messages for category:', activeCategory);
 
     if (showRefreshing) {
       setIsRefreshing(true);
@@ -156,8 +207,17 @@ export default function MessageCenter() {
       // 获取消息列表
       const filter: { type?: MessageType; unreadOnly?: boolean; searchQuery?: string } = {};
       
-      if (activeCategory !== 'all' && activeCategory !== 'unread') {
+      console.log('[MessageCenter] Active category:', activeCategory);
+      console.log('[MessageCenter] Condition check:', {
+        isAll: activeCategory === 'all',
+        isUnread: activeCategory === 'unread',
+        isPrivate: activeCategory === 'private',
+        shouldFilter: activeCategory !== 'all' && activeCategory !== 'unread' && activeCategory !== 'private'
+      });
+      
+      if (activeCategory !== 'all' && activeCategory !== 'unread' && activeCategory !== 'private') {
         filter.type = activeCategory as MessageType;
+        console.log('[MessageCenter] Filtering by type:', activeCategory);
       } else if (activeCategory === 'unread') {
         filter.unreadOnly = true;
       }
@@ -166,15 +226,18 @@ export default function MessageCenter() {
         filter.searchQuery = searchQuery;
       }
 
+      console.log('[MessageCenter] Fetching messages with filter:', filter);
       const [messagesData, statsData] = await Promise.all([
         messageService.getMessages(user.id, filter, { limit: 50 }),
         messageService.getMessageStats(user.id)
       ]);
 
+      console.log('[MessageCenter] Messages loaded:', messagesData.length, messagesData);
+      console.log('[MessageCenter] Stats loaded:', statsData);
       setMessages(messagesData);
       setMessageStats(statsData);
     } catch (err) {
-      console.error('Failed to load messages:', err);
+      console.error('[MessageCenter] Failed to load messages:', err);
       setError('加载消息失败，请稍后重试');
     } finally {
       setIsLoading(false);
@@ -182,12 +245,41 @@ export default function MessageCenter() {
     }
   }, [user?.id, activeCategory, searchQuery]);
 
+  // 加载私信会话列表
+  const loadConversations = useCallback(async () => {
+    if (!user?.id) {
+      console.log('[MessageCenter] No user ID, skipping loadConversations');
+      return;
+    }
+
+    console.log('[MessageCenter] Loading conversations for user:', user.id);
+
+    try {
+      // 获取未读消息数
+      const counts = await getUnreadMessageCounts(user.id);
+      console.log('[MessageCenter] Unread counts:', counts);
+      setUnreadMessageCounts(counts);
+
+      // 获取会话列表
+      const convs = await getConversations(user.id);
+      console.log('[MessageCenter] Conversations loaded:', convs.length, convs);
+      setConversations(convs);
+    } catch (err) {
+      console.error('[MessageCenter] Failed to load conversations:', err);
+    }
+  }, [user?.id]);
+
   // 初始加载和分类/搜索变化时重新加载
   useEffect(() => {
     if (user?.id) {
+      console.log('[MessageCenter] Effect triggered - loading messages for category:', activeCategory);
       loadMessages();
+      // 同时加载私信会话（用于显示在全部消息中）
+      if (activeCategory === 'all' || activeCategory === 'private') {
+        loadConversations();
+      }
     }
-  }, [loadMessages, user?.id]);
+  }, [loadMessages, loadConversations, activeCategory, user?.id]);
 
   // 订阅实时消息
   useEffect(() => {
@@ -210,13 +302,78 @@ export default function MessageCenter() {
     };
   }, [user?.id]);
 
+  // 当切换到私信分类时加载会话列表
+  useEffect(() => {
+    console.log('[MessageCenter] Category changed:', activeCategory, 'User:', user?.id);
+    if (activeCategory === 'private' && user?.id) {
+      console.log('[MessageCenter] Loading conversations for private category');
+      loadConversations();
+    }
+  }, [activeCategory, user?.id, loadConversations]);
+
+  // 定期刷新私信会话列表
+  useEffect(() => {
+    if (activeCategory !== 'private' || !user?.id) return;
+    
+    // 立即加载一次
+    loadConversations();
+    
+    // 每5秒刷新一次
+    const interval = setInterval(() => {
+      loadConversations();
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [activeCategory, user?.id, loadConversations]);
+
+  // 订阅实时私信更新
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`direct_messages:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `sender_id=eq.${user.id}`,
+        },
+        () => {
+          // 新消息发送时刷新会话列表
+          loadConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        () => {
+          // 收到新消息时刷新会话列表
+          loadConversations();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user?.id, loadConversations]);
+
   // 计算各分类消息数量
   const categoryCounts = useMemo(() => {
+    const privateCount = conversations.length;
+    
     if (!messageStats) {
       return {
-        all: 0,
+        all: privateCount,
         unread: 0,
-        private: 0,
+        private: privateCount,
         reply: 0,
         mention: 0,
         like: 0,
@@ -225,21 +382,27 @@ export default function MessageCenter() {
       };
     }
     return {
-      all: messageStats.total,
+      all: messageStats.total + privateCount,
       unread: messageStats.unread,
-      private: messageStats.private,
+      private: privateCount,
       reply: messageStats.reply,
       mention: messageStats.mention,
       like: messageStats.like,
       follow: messageStats.follow,
       system: messageStats.system,
     };
-  }, [messageStats]);
+  }, [messageStats, conversations]);
+
+  // 计算私信未读总数
+  const privateUnreadCount = useMemo(() => {
+    return Object.values(unreadMessageCounts).reduce((a, b) => a + b, 0);
+  }, [unreadMessageCounts]);
 
   // 导航菜单项
   const navItems: NavItem[] = [
     { id: 'all', label: '全部消息', icon: Inbox, count: categoryCounts.all, badge: categoryCounts.unread },
     { id: 'unread', label: '未读消息', icon: Sparkles, badge: categoryCounts.unread },
+    { id: 'private', label: '私信', icon: MessageSquare, count: conversations.length, badge: privateUnreadCount },
     { id: 'reply', label: '回复我的', icon: MessageCircle, count: categoryCounts.reply },
     { id: 'mention', label: '@我的', icon: AtSign, count: categoryCounts.mention },
     { id: 'like', label: '收到的赞', icon: ThumbsUp, count: categoryCounts.like },
@@ -394,6 +557,140 @@ export default function MessageCenter() {
     </div>
   );
 
+  // 格式化时间
+  const formatConversationTime = (time: string) => {
+    const date = new Date(time);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    
+    // 今天
+    if (date.toDateString() === now.toDateString()) {
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    // 昨天
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+      return '昨天';
+    }
+    
+    // 一周内
+    if (diff < 7 * 24 * 60 * 60 * 1000) {
+      const days = ['日', '一', '二', '三', '四', '五', '六'];
+      return `周${days[date.getDay()]}`;
+    }
+    
+    // 更早
+    return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+  };
+
+  // 渲染私信会话列表
+  const renderConversationList = () => (
+    <div className="flex-1 overflow-y-auto">
+      {conversations.length > 0 ? (
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          <AnimatePresence>
+            {conversations.map((conv, index) => {
+              const isSelected = selectedConversation?.userId === conv.userId;
+              const hasUnread = conv.unreadCount > 0;
+
+              return (
+                <motion.div
+                  key={conv.userId}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -100 }}
+                  transition={{ delay: index * 0.03 }}
+                  onClick={async () => {
+                    console.log('[MessageCenter] Clicked conversation:', conv);
+                    setSelectedConversation(conv);
+                    // 加载该会话的消息
+                    if (user?.id) {
+                      setIsLoadingChat(true);
+                      try {
+                        console.log('[MessageCenter] Loading messages for:', user.id, conv.userId);
+                        const messages = await getDirectMessages(user.id, conv.userId);
+                        console.log('[MessageCenter] Messages loaded:', messages.length, messages);
+                        setChatMessages(messages);
+                        // 标记消息为已读
+                        if (conv.unreadCount > 0) {
+                          await markMessagesAsRead(user.id, conv.userId);
+                          // 刷新会话列表
+                          loadConversations();
+                        }
+                      } catch (err) {
+                        console.error('Failed to load chat messages:', err);
+                      } finally {
+                        setIsLoadingChat(false);
+                      }
+                    }
+                  }}
+                  className={`group relative p-4 cursor-pointer transition-all duration-200 ${
+                    isSelected
+                      ? `${isDark ? 'bg-primary/10' : 'bg-primary/5'} border-l-4 border-primary`
+                      : hasUnread
+                      ? `${isDark ? 'bg-gray-700/30' : 'bg-blue-50/50'} border-l-4 border-primary`
+                      : `${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'}`
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* 头像 */}
+                    <div className="relative flex-shrink-0">
+                      <Avatar
+                        src={conv.avatar}
+                        alt={conv.username}
+                        size="small"
+                        shape="circle"
+                      />
+                      {hasUnread && (
+                        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800">
+                          {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 内容 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className={`font-medium truncate ${hasUnread ? 'text-primary' : ''}`}>
+                          {conv.username}
+                        </h4>
+                        <span className={`text-xs flex-shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {formatConversationTime(conv.lastMessageTime)}
+                        </span>
+                      </div>
+
+                      <p className={`text-sm mt-0.5 line-clamp-1 ${hasUnread ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                        {formatLastMessage(conv.lastMessage)}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+            <MessageSquare className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="font-medium mb-1">暂无私信</h3>
+          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            关注用户后，可以在这里与他们聊天
+          </p>
+          <button
+            onClick={() => navigate('/friends')}
+            className="mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            去添加好友
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   // 渲染消息列表
   const renderMessageList = () => (
     <div className={`flex-1 flex flex-col min-w-0 border-r ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -467,9 +764,93 @@ export default function MessageCenter() {
               重试
             </button>
           </div>
+        ) : activeCategory === 'private' ? (
+          // 私信会话列表
+          renderConversationList()
         ) : messages.length > 0 ? (
+          // 其他分类（system, reply, mention 等）或者全部消息 - 显示消息列表
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            {console.log('[MessageCenter] Rendering messages:', messages.length, messages)}
             <AnimatePresence>
+              {activeCategory === 'all' && conversations.length > 0 ? (
+                /* 全部消息 - 先显示私信会话 */
+                <>
+                  {conversations.map((conv, index) => {
+                const isSelected = selectedConversation?.userId === conv.userId;
+                const hasUnread = conv.unreadCount > 0;
+
+                return (
+                  <motion.div
+                    key={`conv-${conv.userId}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -100 }}
+                    transition={{ delay: index * 0.03 }}
+                    onClick={async () => {
+                      setActiveCategory('private');
+                      setSelectedConversation(conv);
+                      if (user?.id) {
+                        setIsLoadingChat(true);
+                        try {
+                          const msgs = await getDirectMessages(user.id, conv.userId);
+                          setChatMessages(msgs);
+                          if (conv.unreadCount > 0) {
+                            await markMessagesAsRead(user.id, conv.userId);
+                            loadConversations();
+                          }
+                        } catch (err) {
+                          console.error('Failed to load chat:', err);
+                        } finally {
+                          setIsLoadingChat(false);
+                        }
+                      }
+                    }}
+                    className={`group relative p-4 cursor-pointer transition-all duration-200 ${
+                      isSelected
+                        ? `${isDark ? 'bg-primary/10' : 'bg-primary/5'} border-l-4 border-primary`
+                        : hasUnread
+                        ? `${isDark ? 'bg-gray-700/30' : 'bg-blue-50/50'} border-l-4 border-primary`
+                        : `${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'}`
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="relative flex-shrink-0">
+                        <Avatar
+                          src={conv.avatar}
+                          alt={conv.username}
+                          size="small"
+                          shape="circle"
+                        />
+                        {hasUnread && (
+                          <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800">
+                            {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="w-4 h-4 text-blue-500" />
+                            <h4 className={`font-medium truncate ${hasUnread ? 'text-primary' : ''}`}>
+                              {conv.username}
+                            </h4>
+                          </div>
+                          <span className={`text-xs flex-shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            {formatConversationTime(conv.lastMessageTime)}
+                          </span>
+                        </div>
+                        <p className={`text-sm mt-0.5 line-clamp-1 ${hasUnread ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                          {formatLastMessage(conv.lastMessage)}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </>
+          ) : null}
+          
+          {/* 显示通知消息 */}
               {messages.map((message, index) => {
                 const config = messageTypeConfig[message.type];
                 const isSelected = selectedMessage?.id === message.id;
@@ -480,7 +861,7 @@ export default function MessageCenter() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -100 }}
-                    transition={{ delay: index * 0.03 }}
+                    transition={{ delay: (conversations.length + index) * 0.03 }}
                     onClick={() => handleMessageClick(message)}
                     className={`group relative p-4 cursor-pointer transition-all duration-200 ${
                       isSelected
@@ -590,10 +971,133 @@ export default function MessageCenter() {
     </div>
   );
 
+  // 发送私信消息
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !selectedConversation || !user?.id) return;
+    
+    try {
+      await sendDirectMessage(user.id, selectedConversation.userId, chatInput.trim());
+      setChatInput('');
+      // 刷新消息列表
+      const messages = await getDirectMessages(user.id, selectedConversation.userId);
+      setChatMessages(messages);
+      // 刷新会话列表
+      loadConversations();
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    }
+  };
+
   // 渲染详情区域
   const renderDetailPanel = () => (
     <div className={`hidden lg:flex flex-1 flex-col ${isDark ? 'bg-gray-800/30' : 'bg-gray-50'}`}>
-      {selectedMessage ? (
+      {activeCategory === 'private' && selectedConversation ? (
+        // 私信聊天界面
+        <>
+          {/* 聊天头部 */}
+          <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+            <div className="flex items-center gap-3">
+              <Avatar
+                src={selectedConversation.avatar}
+                alt={selectedConversation.username}
+                size="medium"
+                shape="circle"
+              />
+              <div>
+                <h3 className="font-medium">{selectedConversation.username}</h3>
+                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  在线
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate(`/chat/${selectedConversation.userId}`)}
+                className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+                title="全屏聊天"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* 聊天消息区域 */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {isLoadingChat ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            ) : chatMessages.length > 0 ? (
+              chatMessages.map((msg, index) => {
+                const isMe = msg.sender_id === user?.id;
+
+                // 检查是否是作品分享消息
+                const workShare = parseWorkShareMessage(msg.content);
+
+                return (
+                  <motion.div
+                    key={msg.id || index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {workShare.isWorkShare ? (
+                      // 渲染作品分享卡片
+                      <div className={`max-w-[80%] ${isMe ? 'mr-2' : 'ml-2'}`}>
+                        <SharedWorkMessage
+                          workId={workShare.data.workId}
+                          workTitle={workShare.data.workTitle}
+                          workThumbnail={workShare.data.workThumbnail}
+                          workUrl={workShare.data.workUrl}
+                          workType={workShare.data.workType}
+                          message={workShare.data.message}
+                          senderName={isMe ? '我' : selectedConversation?.username}
+                        />
+                        <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {new Date(msg.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    ) : (
+                      // 渲染普通文本消息
+                      <div className={`max-w-[70%] ${isMe ? 'bg-primary text-white' : isDark ? 'bg-gray-700' : 'bg-white'} rounded-2xl px-4 py-2 shadow-sm`}>
+                        <p className="text-sm">{msg.content}</p>
+                        <p className={`text-xs mt-1 ${isMe ? 'text-white/70' : isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {new Date(msg.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                <p>还没有消息，开始聊天吧！</p>
+              </div>
+            )}
+          </div>
+
+          {/* 聊天输入区域 */}
+          <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="输入消息..."
+                className={`flex-1 px-4 py-2 rounded-full ${isDark ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-white text-gray-900 placeholder-gray-400'} border ${isDark ? 'border-gray-600' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-primary/50`}
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={!chatInput.trim()}
+                className="p-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </>
+      ) : selectedMessage ? (
         <>
           {/* 详情头部 */}
           <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>

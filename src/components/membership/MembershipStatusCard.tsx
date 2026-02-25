@@ -17,6 +17,9 @@ import { User as UserType } from '@/contexts/authContext';
 interface MembershipStatusCardProps {
   isDark: boolean;
   user: UserType | null;
+  membershipLevel?: string;
+  membershipStatus?: string;
+  membershipEnd?: string | Date | null;
   onRenew: () => void;
   onUpgrade: () => void;
 }
@@ -24,12 +27,20 @@ interface MembershipStatusCardProps {
 const MembershipStatusCard: React.FC<MembershipStatusCardProps> = ({
   isDark,
   user,
+  membershipLevel,
+  membershipStatus,
+  membershipEnd,
   onRenew,
   onUpgrade
 }) => {
-  const isActive = user?.membershipStatus === 'active';
-  const daysUntilExpiry = user?.membershipEnd
-    ? Math.ceil((new Date(user.membershipEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  // 优先使用传入的会员信息，否则使用 user 对象中的信息
+  const currentLevel = membershipLevel || user?.membershipLevel || 'free';
+  const currentStatus = membershipStatus || user?.membershipStatus || 'active';
+  const currentEndDate = membershipEnd || user?.membershipEnd;
+
+  const isActive = currentStatus === 'active';
+  const daysUntilExpiry = currentEndDate
+    ? Math.ceil((new Date(currentEndDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
 
   const getMembershipConfig = (level?: string) => {
@@ -79,7 +90,7 @@ const MembershipStatusCard: React.FC<MembershipStatusCardProps> = ({
     }
   };
 
-  const config = getMembershipConfig(user?.membershipLevel);
+  const config = getMembershipConfig(currentLevel);
   const Icon = config.icon;
 
   return (
@@ -177,7 +188,7 @@ const MembershipStatusCard: React.FC<MembershipStatusCardProps> = ({
         </div>
 
         {/* 到期时间 */}
-        {user?.membershipEnd && (
+        {currentEndDate && (
           <div className={`
             inline-flex items-center gap-2 px-4 py-2 rounded-xl mb-6
             ${isDark ? 'bg-slate-800/50' : 'bg-white/60'} backdrop-blur-sm
@@ -186,7 +197,7 @@ const MembershipStatusCard: React.FC<MembershipStatusCardProps> = ({
             <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
               到期时间：
               <span className="font-medium">
-                {new Date(user.membershipEnd).toLocaleDateString('zh-CN', {
+                {new Date(currentEndDate).toLocaleDateString('zh-CN', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'
@@ -228,7 +239,7 @@ const MembershipStatusCard: React.FC<MembershipStatusCardProps> = ({
 
         {/* 操作按钮 */}
         <div className="flex flex-wrap gap-3">
-          {user?.membershipLevel !== 'free' && (
+          {currentLevel !== 'free' && (
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -247,7 +258,7 @@ const MembershipStatusCard: React.FC<MembershipStatusCardProps> = ({
             </motion.button>
           )}
 
-          {user?.membershipLevel !== 'vip' && (
+          {currentLevel !== 'vip' && (
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

@@ -2,11 +2,11 @@ import { useEffect, useState, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { Event } from '@/types';
-import { 
-  X, 
-  Calendar, 
-  MapPin, 
-  Users, 
+import {
+  X,
+  Calendar,
+  MapPin,
+  Users,
   Clock,
   Share2,
   Heart,
@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
 import { eventParticipationService } from '@/services/eventParticipationService';
 import { ImageCarousel } from '@/components/ImageCarousel';
+import { ShareSelector } from '@/components/ShareSelector';
 
 interface EventDetailModalProps {
   event: Event | null;
@@ -42,6 +43,7 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
   const [hasRegistered, setHasRegistered] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [isCheckingRegistration, setIsCheckingRegistration] = useState(true);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -178,14 +180,18 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
     return { date: `${startStr} - ${endStr}`, time: timeStr };
   };
 
-  const handleShare = async () => {
-    try {
-      const shareUrl = `${window.location.origin}/events/${event.id}`;
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success('活动链接已复制到剪贴板');
-    } catch {
-      toast.error('复制链接失败');
-    }
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
+
+  // 分享数据
+  const shareData = {
+    type: 'activity' as const,
+    id: event.id.toString(),
+    title: event.title,
+    description: event.description || '',
+    thumbnail: event.media?.[0]?.url || '',
+    url: `${window.location.origin}/events/${event.id}`,
   };
 
   const handleRegister = async () => {
@@ -616,6 +622,16 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
           </motion.div>
         </div>
       )}
+
+      {/* 分享弹窗 */}
+      <ShareSelector
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        shareData={shareData}
+        userId={user?.id || ''}
+        userName={user?.username || user?.name || ''}
+        userAvatar={user?.avatar}
+      />
     </AnimatePresence>
   );
 }

@@ -111,17 +111,10 @@ export async function getMessages(
   const offset = options?.offset || 0;
 
   // 构建基础查询
+  // 先查询 notifications 数据，并关联 users 表获取发送者信息
   let query = supabase
     .from('notifications')
-    .select(`
-      *,
-      sender:sender_id(
-        id,
-        username,
-        avatar_url,
-        is_verified
-      )
-    `)
+    .select('*, sender:users!sender_id(id, username, avatar_url, is_verified)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -132,6 +125,8 @@ export async function getMessages(
     const dbTypes = Object.entries(typeMapping)
       .filter(([_, v]) => v === filter.type)
       .map(([k]) => k);
+    
+    console.log('[getMessages] Filter type:', filter.type, 'DB types:', dbTypes);
     
     if (dbTypes.length > 0) {
       query = query.in('type', dbTypes);
@@ -146,12 +141,18 @@ export async function getMessages(
   const { data, error } = await query;
 
   if (error) {
-    console.error('Error fetching messages:', error);
+    console.error('[getMessages] Error fetching messages:', error);
     return [];
   }
+  
+  console.log('[getMessages] Raw data from DB:', data?.length, data);
 
   // 转换数据格式
-  let messages = (data || []).map(mapNotificationToMessage);
+  let messages = (data || [])
+    .map(mapNotificationToMessage)
+    .filter((msg): msg is Message => msg !== null);
+  
+  console.log('[getMessages] Mapped messages:', messages.length, messages);
 
   // 应用搜索过滤（客户端过滤）
   if (filter?.searchQuery) {
@@ -239,9 +240,9 @@ export async function getMessageStats(userId: string): Promise<MessageStats> {
 export async function markAsRead(messageId: string, userId: string): Promise<boolean> {
   const { error } = await supabase
     .from('notifications')
-    .update({ 
-      is_read: true, 
-      read_at: new Date().toISOString() 
+    .update({
+      is_read: true,
+      read_at: new Date().toISOString()
     })
     .eq('id', messageId)
     .eq('user_id', userId);
@@ -260,9 +261,9 @@ export async function markAsRead(messageId: string, userId: string): Promise<boo
 export async function markAllAsRead(userId: string): Promise<boolean> {
   const { error } = await supabase
     .from('notifications')
-    .update({ 
-      is_read: true, 
-      read_at: new Date().toISOString() 
+    .update({
+      is_read: true,
+      read_at: new Date().toISOString()
     })
     .eq('user_id', userId)
     .eq('is_read', false);
@@ -334,7 +335,9 @@ export function subscribeToMessages(
       },
       (payload) => {
         const message = mapNotificationToMessage(payload.new);
-        callback(message);
+        if (message) {
+          callback(message);
+        }
       }
     )
     .subscribe();
@@ -352,29 +355,85 @@ export function subscribeToMessages(
 /**
  * 将数据库通知映射为前端消息格式
  */
-function mapNotificationToMessage(data: any): Message {
-  const mappedType = typeMapping[data.type] || 'system';
-  
-  // 解析data字段中的额外信息
-  const extraData = data.data || {};
-  
-  return {
-    id: data.id,
-    type: mappedType,
-    title: data.title || getDefaultTitle(mappedType),
-    content: data.content || '',
-    timestamp: new Date(data.created_at),
-    read: data.is_read,
-    sender: data.sender ? {
-      id: data.sender.id,
-      username: data.sender.username || '未知用户',
-      avatar: data.sender.avatar_url,
-      verified: data.sender.is_verified,
-    } : undefined,
-    targetContent: extraData.targetContent,
-    count: extraData.count,
-    link: data.link,
-  };
+function mapNotificationToMessage(data: any): Message | null {
+  try {
+    console.log('[mapNotificationToMessage] Mapping data:', data);
+    
+    if (!data || !data.id) {
+      console.warn('[mapNotificationToMessage] Invalid data - missing id:', data);
+      return null;
+    }
+    
+    const mappedType = typeMapping[data.type] || 'system';
+    console.log('[mapNotificationToMessage] Type mapping:', data.type, '->', mappedType);
+    
+    // 解析data字段中的额外信息
+    const extraData = data.data || {};
+
+    // 处理 sender 信息 - 优先使用关联查询返回的 sender 数据
+    let sender = undefined;
+    if (data.sender_id || data.sender) {
+      // 如果 data.sender 存在（关联查询结果），使用它
+      if (data.sender && typeof data.sender === 'object') {
+        sender = {
+          id: data.sender.id,
+          username: data.sender.username || '未知用户',
+          avatar: data.sender.avatar_url || '',
+          verified: data.sender.is_verified || false,
+        };
+      } else {
+        // 否则使用 sender_id、sender_name 和 sender_avatar（从 data JSONB 字段或顶层读取）
+        sender = {
+          id: data.sender_id,
+          username: extraData.sender_name || data.sender_name || '未知用户',
+          avatar: extraData.sender_avatar || data.sender_avatar || '',
+          verified: false,
+        };
+      }
+    }
+    
+    // 处理时间戳 - 支持多种格式
+    let timestamp: Date;
+    if (data.created_at) {
+      // 如果是数字（Unix时间戳），需要转换
+      if (typeof data.created_at === 'number') {
+        // 判断是秒还是毫秒
+        timestamp = data.created_at > 10000000000 
+          ? new Date(data.created_at)  // 毫秒
+          : new Date(data.created_at * 1000);  // 秒
+      } else {
+        // 字符串格式
+        timestamp = new Date(data.created_at);
+      }
+    } else {
+      timestamp = new Date();
+    }
+    
+    // 验证时间戳是否有效
+    if (isNaN(timestamp.getTime())) {
+      console.warn('[mapNotificationToMessage] Invalid timestamp:', data.created_at);
+      timestamp = new Date();
+    }
+    
+    const result = {
+      id: data.id,
+      type: mappedType,
+      title: data.title || getDefaultTitle(mappedType),
+      content: data.content || '',
+      timestamp: timestamp,
+      read: data.is_read,
+      sender: sender,
+      targetContent: extraData.targetContent,
+      count: extraData.count,
+      link: data.link,
+    };
+    
+    console.log('[mapNotificationToMessage] Successfully mapped:', result);
+    return result;
+  } catch (error) {
+    console.error('[mapNotificationToMessage] Error mapping notification:', error, data);
+    return null;
+  }
 }
 
 /**

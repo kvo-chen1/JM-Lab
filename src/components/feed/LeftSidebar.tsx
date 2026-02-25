@@ -15,7 +15,7 @@ import {
   FileText,
   Calendar,
   Building2,
-  UserPlus,
+  Users,
   Settings,
   HelpCircle,
 } from 'lucide-react';
@@ -35,7 +35,7 @@ interface LeftSidebarProps {
 
 const menuItems = [
   { id: 'all' as FeedFilterType, label: '全部动态', icon: Home },
-  { id: 'following' as FeedFilterType, label: '关注', icon: UserPlus },
+  { id: 'community' as FeedFilterType, label: '社群', icon: Users },
   { id: 'video' as FeedFilterType, label: '视频', icon: Video },
   { id: 'image' as FeedFilterType, label: '图文', icon: Image },
   { id: 'article' as FeedFilterType, label: '专栏', icon: FileText },
@@ -119,7 +119,10 @@ export function LeftSidebar({ activeFilter, onFilterChange, user, userStats }: L
             return (
               <button
                 key={item.id}
-                onClick={() => onFilterChange(item.id)}
+                onClick={() => {
+                  console.log('[LeftSidebar] Filter clicked:', item.id);
+                  onFilterChange(item.id);
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                   isActive
                     ? isDark
@@ -134,7 +137,7 @@ export function LeftSidebar({ activeFilter, onFilterChange, user, userStats }: L
                 <span className="font-medium">{item.label}</span>
                 {isActive && (
                   <motion.div
-                    layoutId="activeIndicator"
+                    layoutId="sidebarActiveIndicator"
                     className="ml-auto w-1.5 h-1.5 rounded-full bg-current"
                   />
                 )}

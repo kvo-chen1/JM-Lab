@@ -1,9 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import productService, { Product, ProductCategory } from '@/services/productService';
+import productService, { Product, ProductCategory, ExchangeRecord } from '@/services/productService';
 import { supabaseAdmin } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
+import {
+  Search,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Clock,
+  RotateCcw,
+  Calendar,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  CreditCard,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileText,
+  ShoppingBag,
+  Package
+} from 'lucide-react';
+
+// 订单状态类型
+type OrderStatus = 'pending' | 'processing' | 'completed' | 'cancelled' | 'refunded';
 
 // 订单接口
 interface Order {
@@ -14,9 +37,16 @@ interface Order {
   username: string;
   points: number;
   quantity: number;
-  status: 'pending' | 'completed' | 'cancelled' | 'processing';
+  status: OrderStatus;
   created_at: number;
   completed_at?: number;
+  product_image?: string;
+  user_email?: string;
+  contact_phone?: string;
+  shipping_address?: string;
+  admin_notes?: string;
+  processed_at?: string;
+  processed_by?: string;
 }
 
 // 销售统计接口
@@ -80,19 +110,213 @@ const ProductManagement: React.FC = () => {
   
   // 订单数据
   const [orders, setOrders] = useState<Order[]>([]);
-  const [orderFilter, setOrderFilter] = useState('all');
-  
+  const [orderFilter, setOrderFilter] = useState<OrderStatus | 'all'>('all');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
+  const [orderSearchTerm, setOrderSearchTerm] = useState('');
+  const [orderPage, setOrderPage] = useState(1);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [orderPageSize] = useState(10);
+  const [adminNotes, setAdminNotes] = useState('');
+
+  // 订单统计数据
+  const [orderStats, setOrderStats] = useState({
+    total: 0,
+    pending: 0,
+    processing: 0,
+    completed: 0,
+    cancelled: 0,
+    refunded: 0,
+    totalPoints: 0,
+    todayOrders: 0
+  });
+
   // 分类数据
   const [categories, setCategories] = useState<ProductCategoryUI[]>([]);
-  
+
+  // 销售趋势数据
+  const [salesTrend, setSalesTrend] = useState<{ date: string; count: number; points: number }[]>([]);
+
+  // 热销商品数据
+  const [topSellingProducts, setTopSellingProducts] = useState<{ productId: string; productName: string; productImage: string; points: number; totalSold: number }[]>([]);
+
   // 库存预警阈值
   const LOW_STOCK_THRESHOLD = 10;
+
+  // 订单状态配置
+  const orderStatusConfig: Record<OrderStatus, { label: string; color: string; bgColor: string; icon: any }> = {
+    pending: {
+      label: '待处理',
+      color: '#f59e0b',
+      bgColor: 'bg-yellow-100',
+      icon: Clock
+    },
+    processing: {
+      label: '处理中',
+      color: '#3b82f6',
+      bgColor: 'bg-blue-100',
+      icon: Package
+    },
+    completed: {
+      label: '已完成',
+      color: '#10b981',
+      bgColor: 'bg-green-100',
+      icon: CheckCircle
+    },
+    cancelled: {
+      label: '已取消',
+      color: '#6b7280',
+      bgColor: 'bg-gray-100',
+      icon: XCircle
+    },
+    refunded: {
+      label: '已退款',
+      color: '#ef4444',
+      bgColor: 'bg-red-100',
+      icon: RotateCcw
+    }
+  };
+
+  // 统计卡片组件
+  const StatCard = ({
+    title,
+    value,
+    icon: Icon,
+    color,
+    trend,
+    trendValue
+  }: {
+    title: string;
+    value: string | number;
+    icon: any;
+    color: string;
+    trend?: 'up' | 'down' | 'neutral';
+    trendValue?: string;
+  }) => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+      className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 shadow-md`}
+    >
+      <div className="flex items-start justify-between">
+        <div>
+          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{title}</p>
+          <h3 className="text-2xl font-bold mt-1">{value}</h3>
+          {trend && trendValue && (
+            <div className={`flex items-center gap-1 mt-2 text-sm ${
+              trend === 'up' ? 'text-green-500' : trend === 'down' ? 'text-red-500' : 'text-gray-400'
+            }`}>
+              <span>{trendValue}</span>
+            </div>
+          )}
+        </div>
+        <div
+          className="p-3 rounded-xl"
+          style={{ backgroundColor: `${color}20` }}
+        >
+          <Icon className="w-6 h-6" style={{ color }} />
+        </div>
+      </div>
+    </motion.div>
+  );
+
+  // 加载订单统计数据
+  const loadOrderStats = useCallback(async () => {
+    try {
+      const data = await productService.getOrderStats();
+      setOrderStats(data);
+    } catch (error) {
+      console.error('加载订单统计失败:', error);
+    }
+  }, []);
+
+  // 获取订单数据
+  const fetchOrders = useCallback(async () => {
+    setIsLoadingOrders(true);
+    try {
+      const offset = (orderPage - 1) * orderPageSize;
+      const response = await productService.getAllExchangeRecords({
+        status: orderFilter === 'all' ? undefined : orderFilter,
+        limit: orderPageSize,
+        offset
+      });
+
+      // 转换数据格式
+      const formattedOrders: Order[] = response.records.map(record => ({
+        id: record.id,
+        product_id: record.productId,
+        product_name: record.productName,
+        user_id: record.userId,
+        username: record.userName || '未知用户',
+        points: record.points,
+        quantity: record.quantity,
+        status: record.status as OrderStatus,
+        created_at: new Date(record.date).getTime(),
+        completed_at: record.status === 'completed' ? new Date(record.date).getTime() : undefined,
+        product_image: record.productImage,
+        user_email: record.userEmail,
+        contact_phone: record.contactPhone,
+        shipping_address: record.shippingAddress,
+        admin_notes: record.adminNotes,
+        processed_at: record.processedAt,
+        processed_by: record.processedBy
+      }));
+
+      setOrders(formattedOrders);
+      setTotalOrders(response.total);
+    } catch (error) {
+      console.error('获取订单数据失败:', error);
+      toast.error('获取订单数据失败');
+      setOrders([]);
+    } finally {
+      setIsLoadingOrders(false);
+    }
+  }, [orderPage, orderPageSize, orderFilter]);
+
+  // 计算统计数据
+  const calculateStats = async (productList: Product[]) => {
+    const lowStock = productList.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
+
+    try {
+      // 并行获取所有统计数据
+      const [orderStatsData, trendData, topProducts] = await Promise.all([
+        productService.getOrderStats(),
+        productService.getSalesTrend(7),
+        productService.getTopSellingProducts(5)
+      ]);
+
+      // 计算今日积分
+      const today = new Date().toISOString().split('T')[0];
+      const todayStats = trendData.find(d => d.date === today);
+      const todayPoints = todayStats?.points || 0;
+
+      setStats({
+        lowStockProducts: lowStock,
+        totalSales: orderStatsData.completed,
+        totalPoints: orderStatsData.totalPoints,
+        todaySales: orderStatsData.todayOrders,
+        todayPoints: todayPoints,
+        pendingOrders: orderStatsData.pending
+      });
+
+      setSalesTrend(trendData);
+      setTopSellingProducts(topProducts);
+    } catch (error) {
+      console.error('获取订单统计失败:', error);
+      setStats(prev => ({
+        ...prev,
+        lowStockProducts: lowStock
+      }));
+    }
+  };
 
   // 加载商品数据
   const fetchProducts = async () => {
     const allProducts = await productService.getAllProducts();
     setProducts(allProducts);
-    calculateStats(allProducts);
+    await calculateStats(allProducts);
   };
 
   useEffect(() => {
@@ -104,52 +328,16 @@ const ProductManagement: React.FC = () => {
   useEffect(() => {
     if (currentView === 'orders') {
       fetchOrders();
+      loadOrderStats();
     }
-  }, [currentView]);
-  
-  // 计算统计数据
-  const calculateStats = (productList: Product[]) => {
-    const lowStock = productList.filter(p => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD).length;
-    setStats(prev => ({
-      ...prev,
-      lowStockProducts: lowStock,
-      totalSales: 156,
-      totalPoints: 45600,
-      todaySales: 8,
-      todayPoints: 2300,
-      pendingOrders: 5
-    }));
-  };
-  
-  // 获取订单数据
-  const fetchOrders = async () => {
-    try {
-      const response = await productService.getAllExchangeRecords({
-        limit: 50,
-        offset: 0
-      });
-      
-      // 转换数据格式
-      const formattedOrders: Order[] = response.records.map(record => ({
-        id: record.id,
-        product_id: record.productId,
-        product_name: record.productName,
-        user_id: record.userId,
-        username: record.userName || '未知用户',
-        points: record.points,
-        quantity: record.quantity,
-        status: (record.status === 'refunded' ? 'cancelled' : record.status) as Order['status'],
-        created_at: new Date(record.date).getTime(),
-        completed_at: record.status === 'completed' ? new Date(record.date).getTime() : undefined
-      }));
-      
-      setOrders(formattedOrders);
-    } catch (error) {
-      console.error('获取订单数据失败:', error);
-      toast.error('获取订单数据失败');
-      setOrders([]);
+  }, [currentView, fetchOrders, loadOrderStats]);
+
+  // 当订单筛选或页码变化时重新加载订单
+  useEffect(() => {
+    if (currentView === 'orders') {
+      fetchOrders();
     }
-  };
+  }, [orderFilter, orderPage, currentView, fetchOrders]);
   
   // 获取分类数据
   const fetchCategories = () => {
@@ -221,10 +409,12 @@ const ProductManagement: React.FC = () => {
   // 保存商品
   const handleSaveProduct = async () => {
     try {
+      let updatedProducts = [...products];
       if (isEditing && selectedProduct) {
         const updatedProduct = await productService.updateProduct(selectedProduct.id, formData);
         if (updatedProduct) {
-          setProducts(products.map(p => p.id === selectedProduct.id ? updatedProduct : p));
+          updatedProducts = products.map(p => p.id === selectedProduct.id ? updatedProduct : p);
+          setProducts(updatedProducts);
           toast.success('商品更新成功');
         } else {
           toast.error('商品更新失败');
@@ -232,14 +422,15 @@ const ProductManagement: React.FC = () => {
       } else {
         const newProduct = await productService.addProduct(formData);
         if (newProduct) {
-          setProducts([...products, newProduct]);
+          updatedProducts = [...products, newProduct];
+          setProducts(updatedProducts);
           toast.success('商品添加成功');
         } else {
           toast.error('商品添加失败');
         }
       }
       setShowModal(false);
-      calculateStats(products);
+      await calculateStats(updatedProducts);
     } catch (error) {
       toast.error((error as Error).message);
     }
@@ -253,7 +444,7 @@ const ProductManagement: React.FC = () => {
         const updatedProducts = products.filter(p => p.id !== productId);
         setProducts(updatedProducts);
         toast.success('商品删除成功');
-        calculateStats(updatedProducts);
+        await calculateStats(updatedProducts);
       } else {
         toast.error('商品删除失败');
       }
@@ -309,21 +500,21 @@ const ProductManagement: React.FC = () => {
   };
   
   // 批量删除
-  const handleBatchDelete = () => {
+  const handleBatchDelete = async () => {
     if (selectedProducts.size === 0) {
       toast.error('请先选择商品');
       return;
     }
-    
+
     if (!window.confirm(`确定要删除选中的 ${selectedProducts.size} 个商品吗？`)) {
       return;
     }
-    
+
     const updatedProducts = products.filter(p => !selectedProducts.has(p.id));
     setProducts(updatedProducts);
     setSelectedProducts(new Set());
     setIsBatchMode(false);
-    calculateStats(updatedProducts);
+    await calculateStats(updatedProducts);
     toast.success(`已批量删除 ${selectedProducts.size} 个商品`);
   };
 
@@ -368,12 +559,87 @@ const ProductManagement: React.FC = () => {
   };
   
   // 处理订单状态更新
-  const handleUpdateOrderStatus = (orderId: string, status: Order['status']) => {
-    setOrders(prev => prev.map(o => 
-      o.id === orderId ? { ...o, status, completed_at: status === 'completed' ? Date.now() : o.completed_at } : o
-    ));
-    toast.success('订单状态已更新');
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    setIsUpdatingOrder(true);
+    try {
+      const success = await productService.updateOrderStatus(
+        orderId,
+        newStatus,
+        adminNotes,
+        'admin'
+      );
+
+      if (success) {
+        toast.success(`订单状态已更新为${orderStatusConfig[newStatus].label}`);
+        setAdminNotes('');
+        await fetchOrders();
+        await loadOrderStats();
+
+        // 更新选中的订单
+        if (selectedOrder?.id === orderId) {
+          setSelectedOrder({ ...selectedOrder, status: newStatus });
+        }
+      } else {
+        toast.error('更新订单状态失败');
+      }
+    } catch (error) {
+      console.error('更新订单状态失败:', error);
+      toast.error('更新订单状态失败');
+    } finally {
+      setIsUpdatingOrder(false);
+    }
   };
+
+  // 导出订单数据
+  const handleExportOrders = () => {
+    const headers = ['订单ID', '商品名称', '用户', '积分', '数量', '状态', '日期'];
+    const rows = filteredOrders.map(order => [
+      order.id,
+      order.product_name,
+      order.username || order.user_id,
+      order.points,
+      order.quantity,
+      orderStatusConfig[order.status]?.label || order.status,
+      new Date(order.created_at).toLocaleString('zh-CN')
+    ]);
+
+    const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `订单数据_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast.success('订单数据已导出');
+  };
+
+  // 格式化日期
+  const formatOrderDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // 订单搜索过滤
+  const filteredOrders = orders.filter(order => {
+    if (!orderSearchTerm) return true;
+    const search = orderSearchTerm.toLowerCase();
+    return (
+      order.product_name?.toLowerCase().includes(search) ||
+      order.username?.toLowerCase().includes(search) ||
+      order.user_email?.toLowerCase().includes(search) ||
+      order.id?.toLowerCase().includes(search)
+    );
+  });
+
+  // 总页数
+  const totalOrderPages = Math.ceil(totalOrders / orderPageSize);
   
   // 筛选商品
   const filteredProducts = products.filter(product => {
@@ -381,12 +647,6 @@ const ProductManagement: React.FC = () => {
     if (categoryFilter !== 'all' && product.category !== categoryFilter) return false;
     if (statusFilter !== 'all' && product.status !== statusFilter) return false;
     return true;
-  });
-  
-  // 筛选订单
-  const filteredOrders = orders.filter(order => {
-    if (orderFilter === 'all') return true;
-    return order.status === orderFilter;
   });
   
   // 格式化时间
@@ -467,40 +727,56 @@ const ProductManagement: React.FC = () => {
       <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
         <h3 className="font-medium mb-4">销售趋势（近7天）</h3>
         <div className="h-48 flex items-end justify-between gap-2">
-          {[45, 62, 38, 75, 56, 89, 67].map((value, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div 
-                className="w-full bg-red-600 rounded-t transition-all duration-500"
-                style={{ height: `${value}%` }}
-              ></div>
-              <span className="text-xs text-gray-500">
-                {new Date(Date.now() - (6 - i) * 86400000).toLocaleDateString('zh-CN', { weekday: 'short' })}
-              </span>
+          {salesTrend.length > 0 ? (
+            (() => {
+              const maxCount = Math.max(...salesTrend.map(d => d.count), 1);
+              return salesTrend.map((data, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  <div
+                    className="w-full bg-red-600 rounded-t transition-all duration-500"
+                    style={{ height: `${maxCount > 0 ? (data.count / maxCount) * 100 : 0}%`, minHeight: data.count > 0 ? '4px' : '0' }}
+                    title={`${data.date}: ${data.count}单, ${data.points}积分`}
+                  ></div>
+                  <span className="text-xs text-gray-500">
+                    {new Date(data.date).toLocaleDateString('zh-CN', { weekday: 'short' })}
+                  </span>
+                </div>
+              ));
+            })()
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-500">
+              暂无数据
             </div>
-          ))}
+          )}
         </div>
       </div>
-      
+
       {/* 热销商品排行 */}
       <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
         <h3 className="font-medium mb-4">热销商品TOP5</h3>
         <div className="space-y-3">
-          {products.slice(0, 5).map((product, index) => (
-            <div key={product.id} className="flex items-center gap-4">
-              <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center font-bold">
-                {index + 1}
+          {topSellingProducts.length > 0 ? (
+            topSellingProducts.map((product, index) => (
+              <div key={product.productId} className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center font-bold">
+                  {index + 1}
+                </div>
+                <img src={product.productImage || 'https://via.placeholder.com/100'} alt={product.productName} className="w-12 h-12 rounded-lg object-cover" />
+                <div className="flex-1">
+                  <div className="font-medium">{product.productName}</div>
+                  <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{product.points} 积分</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-bold">{product.totalSold} 件</div>
+                  <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已售出</div>
+                </div>
               </div>
-              <img src={product.imageUrl} alt={product.name} className="w-12 h-12 rounded-lg object-cover" />
-              <div className="flex-1">
-                <div className="font-medium">{product.name}</div>
-                <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{product.points} 积分</div>
-              </div>
-              <div className="text-right">
-                <div className="font-bold">{Math.floor(Math.random() * 50) + 10} 件</div>
-                <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已售出</div>
-              </div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              暂无销售数据
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
@@ -508,101 +784,532 @@ const ProductManagement: React.FC = () => {
   
   // 渲染订单视图
   const renderOrdersView = () => (
-    <div className="space-y-4">
-      {/* 订单筛选 */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setOrderFilter('all')}
-          className={`px-4 py-2 rounded-lg transition-colors ${orderFilter === 'all' ? 'bg-red-600 text-white' : isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
-        >
-          全部订单
-        </button>
-        <button
-          onClick={() => setOrderFilter('pending')}
-          className={`px-4 py-2 rounded-lg transition-colors ${orderFilter === 'pending' ? 'bg-red-600 text-white' : isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
-        >
-          待处理 ({orders.filter(o => o.status === 'pending').length})
-        </button>
-        <button
-          onClick={() => setOrderFilter('completed')}
-          className={`px-4 py-2 rounded-lg transition-colors ${orderFilter === 'completed' ? 'bg-red-600 text-white' : isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
-        >
-          已完成
-        </button>
-        <button
-          onClick={() => setOrderFilter('cancelled')}
-          className={`px-4 py-2 rounded-lg transition-colors ${orderFilter === 'cancelled' ? 'bg-red-600 text-white' : isDark ? 'bg-gray-700' : 'bg-gray-100'}`}
-        >
-          已取消
-        </button>
+    <div className="space-y-6">
+      {/* 页面标题和操作按钮 */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">订单管理</h2>
+          <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            管理积分商城的兑换订单和处理售后
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleExportOrders}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+              isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'
+            } shadow-sm`}
+          >
+            <Download className="w-4 h-4" />
+            导出数据
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => { fetchOrders(); loadOrderStats(); }}
+            disabled={isLoadingOrders}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+              isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'
+            } shadow-sm disabled:opacity-50`}
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin' : ''}`} />
+            刷新
+          </motion.button>
+        </div>
       </div>
-      
-      {/* 订单列表 */}
-      <div className={`rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'} overflow-hidden`}>
-        <table className="min-w-full">
-          <thead className={isDark ? 'bg-gray-700' : 'bg-gray-50'}>
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium">订单信息</th>
-              <th className="px-4 py-3 text-left text-sm font-medium">用户信息</th>
-              <th className="px-4 py-3 text-left text-sm font-medium">积分</th>
-              <th className="px-4 py-3 text-left text-sm font-medium">状态</th>
-              <th className="px-4 py-3 text-left text-sm font-medium">时间</th>
-              <th className="px-4 py-3 text-left text-sm font-medium">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-700">
-            {filteredOrders.map((order) => (
-              <tr key={order.id} className={isDark ? 'bg-gray-800' : 'bg-white'}>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{order.product_name}</div>
-                  <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>数量: {order.quantity}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{order.username}</div>
-                  <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>ID: {order.user_id}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="font-bold text-red-600">{order.points * order.quantity}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeClass(order.status)}`}>
-                    {getStatusName(order.status)}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {formatTime(order.created_at)}
+
+      {/* 统计卡片 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="总订单数"
+          value={orderStats.total.toLocaleString()}
+          icon={ShoppingBag}
+          color="#8b5cf6"
+          trend="up"
+          trendValue={`+${orderStats.todayOrders} 今日`}
+        />
+        <StatCard
+          title="待处理"
+          value={orderStats.pending.toLocaleString()}
+          icon={Clock}
+          color="#f59e0b"
+        />
+        <StatCard
+          title="已完成"
+          value={orderStats.completed.toLocaleString()}
+          icon={CheckCircle}
+          color="#10b981"
+        />
+        <StatCard
+          title="总积分消耗"
+          value={orderStats.totalPoints.toLocaleString()}
+          icon={CreditCard}
+          color="#ef4444"
+        />
+      </div>
+
+      {/* 筛选和搜索栏 */}
+      <div className={`flex flex-col md:flex-row gap-4 ${isDark ? 'bg-gray-800' : 'bg-white'} p-4 rounded-2xl shadow-md`}>
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="搜索订单号、商品名称、用户..."
+            value={orderSearchTerm}
+            onChange={(e) => setOrderSearchTerm(e.target.value)}
+            className={`w-full pl-10 pr-4 py-2 rounded-xl text-sm outline-none transition-colors ${
+              isDark
+                ? 'bg-gray-700 text-white placeholder-gray-400 focus:bg-gray-600'
+                : 'bg-gray-100 text-gray-900 placeholder-gray-500 focus:bg-gray-200'
+            }`}
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <select
+            value={orderFilter}
+            onChange={(e) => {
+              setOrderFilter(e.target.value as OrderStatus | 'all');
+              setOrderPage(1);
+            }}
+            className={`px-4 py-2 rounded-xl text-sm outline-none transition-colors ${
+              isDark
+                ? 'bg-gray-700 text-white'
+                : 'bg-gray-100 text-gray-900'
+            }`}
+          >
+            <option value="all">全部状态</option>
+            <option value="pending">待处理</option>
+            <option value="processing">处理中</option>
+            <option value="completed">已完成</option>
+            <option value="cancelled">已取消</option>
+            <option value="refunded">已退款</option>
+          </select>
+        </div>
+      </div>
+
+      {/* 订单列表和详情 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 左侧订单列表 */}
+        <div className="lg:col-span-2 space-y-4">
+          {isLoadingOrders ? (
+            <div className={`flex items-center justify-center py-16 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+            </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className={`flex flex-col items-center justify-center py-16 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <FileText className="w-16 h-16 text-gray-400 mb-4" />
+              <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                暂无订单数据
+              </p>
+            </div>
+          ) : (
+            <>
+              <AnimatePresence>
+                {filteredOrders.map((order, index) => {
+                  const statusConfig = orderStatusConfig[order.status];
+                  const StatusIcon = statusConfig?.icon || Clock;
+
+                  return (
+                    <motion.div
+                      key={order.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setAdminNotes(order.admin_notes || '');
+                      }}
+                      className={`p-4 rounded-2xl cursor-pointer transition-all ${
+                        selectedOrder?.id === order.id
+                          ? isDark ? 'bg-gray-700 ring-2 ring-blue-500' : 'bg-white ring-2 ring-blue-500'
+                          : isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'
+                      } shadow-md`}
+                    >
+                      <div className="flex gap-4">
+                        {/* 商品图片 */}
+                        <img
+                          src={order.product_image || 'https://via.placeholder.com/100'}
+                          alt={order.product_name}
+                          className="w-20 h-20 rounded-xl object-cover flex-shrink-0 border border-gray-200 dark:border-gray-600"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/100';
+                          }}
+                        />
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-lg truncate">{order.product_name}</h3>
+                                <span className="text-xs text-gray-400">#{order.id.slice(0, 8)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <User className="w-4 h-4 text-gray-400" />
+                                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  {order.username || order.user_id}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div
+                              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${statusConfig?.bgColor || 'bg-gray-100'}`}
+                              style={{ color: statusConfig?.color }}
+                            >
+                              <StatusIcon className="w-3 h-3" />
+                              {statusConfig?.label || order.status}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between mt-3">
+                            <div className="flex items-center gap-4">
+                              <span className="text-sm font-medium text-red-500">
+                                {order.points} 积分
+                              </span>
+                              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                x{order.quantity}
+                              </span>
+                              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                <Calendar className="w-3 h-3 inline mr-1" />
+                                {formatOrderDate(order.created_at)}
+                              </span>
+                            </div>
+
+                            {/* 快捷操作按钮 */}
+                            {order.status === 'pending' && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUpdateOrderStatus(order.id, 'processing');
+                                  }}
+                                  disabled={isUpdatingOrder}
+                                  className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs transition-colors"
+                                >
+                                  开始处理
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUpdateOrderStatus(order.id, 'cancelled');
+                                  }}
+                                  disabled={isUpdatingOrder}
+                                  className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-xs transition-colors"
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+
+              {/* 分页 */}
+              {totalOrderPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-6">
+                  <button
+                    onClick={() => setOrderPage(p => Math.max(1, p - 1))}
+                    disabled={orderPage === 1}
+                    className={`p-2 rounded-lg transition-colors ${
+                      orderPage === 1
+                        ? 'opacity-50 cursor-not-allowed'
+                        : isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+
+                  {Array.from({ length: Math.min(5, totalOrderPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalOrderPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (orderPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (orderPage >= totalOrderPages - 2) {
+                      pageNum = totalOrderPages - 4 + i;
+                    } else {
+                      pageNum = orderPage - 2 + i;
+                    }
+
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setOrderPage(pageNum)}
+                        className={`w-10 h-10 rounded-lg font-medium transition-colors ${
+                          orderPage === pageNum
+                            ? 'bg-red-600 text-white'
+                            : isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    onClick={() => setOrderPage(p => Math.min(totalOrderPages, p + 1))}
+                    disabled={orderPage === totalOrderPages}
+                    className={`p-2 rounded-lg transition-colors ${
+                      orderPage === totalOrderPages
+                        ? 'opacity-50 cursor-not-allowed'
+                        : isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* 右侧订单详情 */}
+        <div className="lg:col-span-1">
+          <AnimatePresence mode="wait">
+            {selectedOrder ? (
+              <motion.div
+                key={selectedOrder.id}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md overflow-hidden sticky top-6`}
+              >
+                {/* 详情头部 */}
+                <div className="relative p-6 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={selectedOrder.product_image || 'https://via.placeholder.com/100'}
+                      alt={selectedOrder.product_name}
+                      className="w-16 h-16 rounded-xl object-cover border border-gray-200 dark:border-gray-600"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/100';
+                      }}
+                    />
+                    <div>
+                      <h3 className="font-bold text-lg">{selectedOrder.product_name}</h3>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        订单 #{selectedOrder.id.slice(0, 8)}
+                      </p>
+                    </div>
                   </div>
-                </td>
-                <td className="px-4 py-3">
-                  {order.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
-                        className="px-3 py-1 rounded text-xs bg-green-600 text-white hover:bg-green-700"
-                      >
-                        完成
-                      </button>
-                      <button
-                        onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}
-                        className="px-3 py-1 rounded text-xs bg-red-600 text-white hover:bg-red-700"
-                      >
-                        取消
-                      </button>
+
+                  {/* 状态标签 */}
+                  <div className="mt-4">
+                    {(() => {
+                      const config = orderStatusConfig[selectedOrder.status];
+                      const StatusIcon = config?.icon || Clock;
+                      return (
+                        <div
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${config?.bgColor || 'bg-gray-100'}`}
+                          style={{ color: config?.color }}
+                        >
+                          <StatusIcon className="w-3 h-3" />
+                          {config?.label || selectedOrder.status}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  {/* 订单信息 */}
+                  <div className="space-y-3">
+                    <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      订单信息
+                    </p>
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                      <div className="flex justify-between mb-2">
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>订单金额</span>
+                        <span className="font-medium text-red-500">{selectedOrder.points} 积分</span>
+                      </div>
+                      <div className="flex justify-between mb-2">
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>数量</span>
+                        <span className="font-medium">{selectedOrder.quantity}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>下单时间</span>
+                        <span className="font-medium">{formatOrderDate(selectedOrder.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 用户信息 */}
+                  <div className="space-y-3">
+                    <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      用户信息
+                    </p>
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <User className="w-4 h-4 text-blue-500" />
+                        <span className="text-sm">{selectedOrder.username || selectedOrder.user_id}</span>
+                      </div>
+                      {selectedOrder.user_email && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <Mail className="w-4 h-4 text-green-500" />
+                          <span className="text-sm">{selectedOrder.user_email}</span>
+                        </div>
+                      )}
+                      {selectedOrder.contact_phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-purple-500" />
+                          <span className="text-sm">{selectedOrder.contact_phone}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 配送地址 */}
+                  {selectedOrder.shipping_address && (
+                    <div className="space-y-3">
+                      <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        配送地址
+                      </p>
+                      <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-red-500 mt-0.5" />
+                          <span className="text-sm">{selectedOrder.shipping_address}</span>
+                        </div>
+                      </div>
                     </div>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        
-        {filteredOrders.length === 0 && (
-          <div className="p-8 text-center">
-            <i className="fas fa-inbox text-4xl text-gray-400 mb-2"></i>
-            <p>暂无订单</p>
-          </div>
-        )}
+
+                  {/* 管理员备注 */}
+                  <div className="space-y-3">
+                    <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      管理员备注
+                    </p>
+                    <textarea
+                      value={adminNotes}
+                      onChange={(e) => setAdminNotes(e.target.value)}
+                      placeholder="添加订单处理备注..."
+                      rows={3}
+                      className={`w-full px-3 py-2 rounded-xl text-sm outline-none resize-none ${
+                        isDark
+                          ? 'bg-gray-700 text-white placeholder-gray-400'
+                          : 'bg-gray-100 text-gray-900 placeholder-gray-500'
+                      }`}
+                    />
+                  </div>
+
+                  {/* 操作按钮 */}
+                  <div className="space-y-2">
+                    {selectedOrder.status === 'pending' && (
+                      <>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'processing')}
+                          disabled={isUpdatingOrder}
+                          className="w-full py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-colors"
+                        >
+                          开始处理
+                        </motion.button>
+                        <div className="flex gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'completed')}
+                            disabled={isUpdatingOrder}
+                            className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-medium transition-colors"
+                          >
+                            直接完成
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'cancelled')}
+                            disabled={isUpdatingOrder}
+                            className="flex-1 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-xl text-sm font-medium transition-colors"
+                          >
+                            取消订单
+                          </motion.button>
+                        </div>
+                      </>
+                    )}
+
+                    {selectedOrder.status === 'processing' && (
+                      <>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'completed')}
+                          disabled={isUpdatingOrder}
+                          className="w-full py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-medium transition-colors"
+                        >
+                          标记完成
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'refunded')}
+                          disabled={isUpdatingOrder}
+                          className="w-full py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-colors"
+                        >
+                          退款处理
+                        </motion.button>
+                      </>
+                    )}
+
+                    {(selectedOrder.status === 'completed' || selectedOrder.status === 'cancelled') && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'refunded')}
+                        disabled={isUpdatingOrder}
+                        className="w-full py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-colors"
+                      >
+                        退款处理
+                      </motion.button>
+                    )}
+                  </div>
+
+                  {/* 处理记录 */}
+                  {(selectedOrder.processed_at || selectedOrder.processed_by) && (
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+                      <p className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        处理记录
+                      </p>
+                      {selectedOrder.processed_by && (
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          处理人: {selectedOrder.processed_by}
+                        </p>
+                      )}
+                      {selectedOrder.processed_at && (
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          处理时间: {new Date(selectedOrder.processed_at).toLocaleString('zh-CN')}
+                        </p>
+                      )}
+                      {selectedOrder.admin_notes && (
+                        <p className={`text-sm mt-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          备注: {selectedOrder.admin_notes}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md p-8 text-center`}
+              >
+                <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  选择一个订单查看详情
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );

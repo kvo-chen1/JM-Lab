@@ -1,13 +1,13 @@
 /**
  * 动态发布框组件
- * 支持文本、图片、视频发布
+ * 支持文本、图片、视频、专栏文章发布
  */
 
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import type { CreateFeedRequest, FeedMedia } from '@/types/feed';
+import type { CreateFeedRequest, FeedMedia, FeedContentType } from '@/types/feed';
 import type { User } from '@/types/index';
 import feedService from '@/services/feedService';
 import {
@@ -19,6 +19,10 @@ import {
   X,
   Send,
   Loader2,
+  FileText,
+  Type,
+  ImageIcon,
+  VideoIcon,
 } from 'lucide-react';
 
 interface FeedPublisherProps {
@@ -26,9 +30,13 @@ interface FeedPublisherProps {
   user?: User | null;
 }
 
+type PublishMode = 'dynamic' | 'article';
+
 export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
   const { isDark } = useTheme();
+  const [publishMode, setPublishMode] = useState<PublishMode>('dynamic');
   const [content, setContent] = useState('');
+  const [title, setTitle] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mediaFiles, setMediaFiles] = useState<FeedMedia[]>([]);
@@ -36,6 +44,7 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   // 自动调整文本框高度
   const adjustTextareaHeight = useCallback(() => {
@@ -49,6 +58,19 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
     adjustTextareaHeight();
+  };
+
+  // 处理标题变化
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+  };
+
+  // 切换发布模式
+  const handleModeChange = (mode: PublishMode) => {
+    setPublishMode(mode);
+    if (mode === 'article') {
+      setIsExpanded(true);
+    }
   };
 
   // 处理文件上传
@@ -90,18 +112,33 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
 
   // 发布动态
   const handleSubmit = async () => {
+    // 专栏模式需要标题
+    if (publishMode === 'article' && !title.trim()) {
+      toast.error('请输入专栏标题');
+      return;
+    }
+
     if (!content.trim() && mediaFiles.length === 0) {
-      toast.error('请输入内容或上传图片/视频');
+      toast.error(publishMode === 'article' ? '请输入专栏内容' : '请输入内容或上传图片/视频');
       return;
     }
 
     setIsSubmitting(true);
     
     try {
-      const request: CreateFeedRequest = {
-        contentType: mediaFiles.length > 0 
+      let contentType: FeedContentType;
+      
+      if (publishMode === 'article') {
+        contentType = 'article';
+      } else {
+        contentType = mediaFiles.length > 0 
           ? mediaFiles[0].type === 'video' ? 'video' : 'image'
-          : 'text',
+          : 'text';
+      }
+
+      const request: CreateFeedRequest = {
+        contentType,
+        title: publishMode === 'article' ? title.trim() : undefined,
         content: content.trim(),
         media: mediaFiles,
       };
@@ -110,14 +147,28 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
       
       if (success) {
         setContent('');
+        setTitle('');
         setMediaFiles([]);
         setIsExpanded(false);
+        setPublishMode('dynamic');
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
         }
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // 取消发布
+  const handleCancel = () => {
+    setContent('');
+    setTitle('');
+    setMediaFiles([]);
+    setIsExpanded(false);
+    setPublishMode('dynamic');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
     }
   };
 
@@ -132,6 +183,53 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
       }`}
     >
       <div className="p-4">
+        {/* 发布模式切换 - 仅在展开时显示 */}
+        <AnimatePresence>
+          {(isExpanded || publishMode === 'article') && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-4"
+            >
+              <div className={`flex items-center gap-2 p-1 rounded-xl ${
+                isDark ? 'bg-gray-800' : 'bg-gray-100'
+              }`}>
+                <button
+                  onClick={() => handleModeChange('dynamic')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    publishMode === 'dynamic'
+                      ? isDark
+                        ? 'bg-gray-700 text-white shadow-sm'
+                        : 'bg-white text-gray-900 shadow-sm'
+                      : isDark
+                        ? 'text-gray-400 hover:text-gray-200'
+                        : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Type className="w-4 h-4" />
+                  动态
+                </button>
+                <button
+                  onClick={() => handleModeChange('article')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    publishMode === 'article'
+                      ? isDark
+                        ? 'bg-gray-700 text-white shadow-sm'
+                        : 'bg-white text-gray-900 shadow-sm'
+                      : isDark
+                        ? 'text-gray-400 hover:text-gray-200'
+                        : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  专栏
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* 用户头像和输入框 */}
         <div className="flex gap-4">
           <img
@@ -139,20 +237,45 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
             alt={user?.username || '用户'}
             className="w-10 h-10 rounded-full object-cover flex-shrink-0"
           />
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 space-y-3">
+            {/* 专栏标题输入 */}
+            <AnimatePresence>
+              {publishMode === 'article' && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                >
+                  <input
+                    ref={titleInputRef}
+                    type="text"
+                    value={title}
+                    onChange={handleTitleChange}
+                    placeholder="请输入专栏标题"
+                    className={`w-full text-lg font-semibold bg-transparent outline-none placeholder:text-gray-400 ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            {/* 内容输入 */}
             <textarea
               ref={textareaRef}
               value={content}
               onChange={handleContentChange}
               onFocus={() => setIsExpanded(true)}
-              placeholder="有什么想和大家分享的？"
-              rows={isExpanded ? 3 : 1}
+              placeholder={publishMode === 'article' 
+                ? '请输入专栏内容...' 
+                : '有什么想和大家分享的？'}
+              rows={isExpanded ? (publishMode === 'article' ? 8 : 3) : 1}
               className={`w-full resize-none outline-none text-base ${
                 isDark 
                   ? 'bg-transparent text-white placeholder-gray-500' 
                   : 'bg-transparent text-gray-900 placeholder-gray-400'
               }`}
-              style={{ minHeight: isExpanded ? '80px' : '24px' }}
+              style={{ minHeight: isExpanded ? (publishMode === 'article' ? '200px' : '80px') : '24px' }}
             />
           </div>
         </div>
@@ -206,7 +329,7 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
 
         {/* 工具栏 */}
         <AnimatePresence>
-          {(isExpanded || mediaFiles.length > 0 || content.length > 0) && (
+          {(isExpanded || mediaFiles.length > 0 || content.length > 0 || title.length > 0) && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
@@ -238,26 +361,30 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
                     className="hidden"
                   />
 
-                  {/* 视频上传 */}
-                  <button
-                    onClick={() => videoInputRef.current?.click()}
-                    disabled={isUploading || mediaFiles.length >= 9}
-                    className={`p-2 rounded-lg transition-colors ${
-                      isDark 
-                        ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200' 
-                        : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    title="上传视频"
-                  >
-                    <Video className="w-5 h-5" />
-                  </button>
-                  <input
-                    ref={videoInputRef}
-                    type="file"
-                    accept="video/*"
-                    onChange={(e) => handleFileUpload(e, 'video')}
-                    className="hidden"
-                  />
+                  {/* 视频上传 - 仅在动态模式下显示 */}
+                  {publishMode === 'dynamic' && (
+                    <>
+                      <button
+                        onClick={() => videoInputRef.current?.click()}
+                        disabled={isUploading || mediaFiles.length >= 9}
+                        className={`p-2 rounded-lg transition-colors ${
+                          isDark 
+                            ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200' 
+                            : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title="上传视频"
+                      >
+                        <Video className="w-5 h-5" />
+                      </button>
+                      <input
+                        ref={videoInputRef}
+                        type="file"
+                        accept="video/*"
+                        onChange={(e) => handleFileUpload(e, 'video')}
+                        className="hidden"
+                      />
+                    </>
+                  )}
 
                   {/* 表情 */}
                   <button
@@ -299,18 +426,34 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
 
                 {/* 右侧发布按钮 */}
                 <div className="flex items-center gap-3">
+                  {/* 取消按钮 */}
+                  <button
+                    onClick={handleCancel}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      isDark
+                        ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    取消
+                  </button>
+                  
+                  {/* 字数统计 */}
                   <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    {content.length}/500
+                    {content.length}/{publishMode === 'article' ? '5000' : '500'}
                   </span>
+                  
                   <button
                     onClick={handleSubmit}
-                    disabled={isSubmitting || (!content.trim() && mediaFiles.length === 0) || isUploading}
+                    disabled={isSubmitting || (!content.trim() && mediaFiles.length === 0) || isUploading || (publishMode === 'article' && !title.trim())}
                     className={`flex items-center gap-2 px-6 py-2 rounded-full font-medium transition-all ${
-                      isSubmitting || (!content.trim() && mediaFiles.length === 0) || isUploading
+                      isSubmitting || (!content.trim() && mediaFiles.length === 0) || isUploading || (publishMode === 'article' && !title.trim())
                         ? isDark 
                           ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                        : publishMode === 'article'
+                          ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/25'
+                          : 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25'
                     }`}
                   >
                     {isSubmitting ? (
@@ -321,7 +464,7 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
                     ) : (
                       <>
                         <Send className="w-4 h-4" />
-                        发布
+                        {publishMode === 'article' ? '发布专栏' : '发布'}
                       </>
                     )}
                   </button>

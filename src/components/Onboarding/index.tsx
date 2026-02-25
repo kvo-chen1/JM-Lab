@@ -180,11 +180,8 @@ const Onboarding: React.FC = () => {
         step={currentStepData}
         currentStep={currentStep}
         totalSteps={steps.length}
-        onNext={handleNext}
-        onPrev={handlePrev}
+        onStart={handleNext}
         onSkip={handleSkip}
-        isFirstStep={isFirstStep}
-        isLastStep={isLastStep}
       />
     );
   }

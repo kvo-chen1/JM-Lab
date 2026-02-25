@@ -5,6 +5,7 @@ import type { Thread } from '@/pages/Community';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
 import { HoverCard, FadeIn } from '@/components/Community/DesignSystem';
 import { useAuth } from '@/hooks/useAuth';
+import { FeedShareModal } from '@/components/feed/FeedShareModal';
 
 interface PostCardProps {
   isDark: boolean;
@@ -493,6 +494,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // 调试日志
   console.log('[PostCard] thread:', {
@@ -513,28 +515,6 @@ export const PostCard: React.FC<PostCardProps> = ({
       setShowCommentInput(false);
     }
   }, [commentContent, thread.id, onAddComment]);
-
-  const handleShare = useCallback((type: string) => {
-    const url = `${window.location.origin}/community/post/${thread.id}`;
-    switch (type) {
-      case 'copy':
-        navigator.clipboard.writeText(url);
-        break;
-      case 'weixin':
-        // 微信分享逻辑
-        break;
-      case 'weibo':
-        window.open(`https://service.weibo.com/share/share.php?url=${encodeURIComponent(url)}&title=${encodeURIComponent(thread.title)}`);
-        break;
-    }
-    setShowShareMenu(false);
-  }, [thread.id, thread.title]);
-
-  const shareMenuItems = [
-    { icon: 'fas fa-link', label: '复制链接', onClick: () => handleShare('copy') },
-    { icon: 'fab fa-weixin', label: '微信分享', onClick: () => handleShare('weixin') },
-    { icon: 'fab fa-weibo', label: '微博分享', onClick: () => handleShare('weibo') },
-  ];
 
   const isAuthor = currentUser?.id === thread.authorId;
 
@@ -700,21 +680,15 @@ export const PostCard: React.FC<PostCardProps> = ({
 
             {/* Center: Share */}
             <div className="relative">
-              <ActionButton 
+              <ActionButton
                 icon="far fa-share-square"
                 label="分享"
                 isDark={isDark}
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  setShowShareMenu(!showShareMenu);
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowShareModal(true);
                   setShowMoreMenu(false);
                 }}
-              />
-              <DropdownMenu 
-                isOpen={showShareMenu}
-                onClose={() => setShowShareMenu(false)}
-                items={shareMenuItems}
-                isDark={isDark}
               />
             </div>
 
@@ -902,6 +876,35 @@ export const PostCard: React.FC<PostCardProps> = ({
           </AnimatePresence>
         </div>
       </motion.div>
+
+      {/* 分享弹窗 */}
+      <FeedShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        feed={{
+          id: thread.id,
+          title: thread.title,
+          content: thread.content,
+          media: [
+            ...(thread.images?.map(img => ({ url: img, type: 'image' as const })) || []),
+            ...(thread.videos?.map(video => ({ url: video, type: 'video' as const, thumbnailUrl: video.replace(/\.[^/.]+$/, '_thumb.jpg') })) || [])
+          ],
+          author: {
+            id: thread.authorId || '',
+            name: thread.author || '未知用户',
+            avatar: thread.authorAvatar || ''
+          },
+          createdAt: thread.createdAt,
+          likes: thread.upvotes || 0,
+          comments: thread.comments?.length || 0,
+          shares: 0,
+          isLiked: isLiked,
+          isCollected: isFavorited
+        }}
+        onShareSuccess={() => {
+          setShowShareModal(false);
+        }}
+      />
     </>
   );
 };

@@ -358,6 +358,7 @@ const ChatPage: React.FC = () => {
                             workId={workShare.data.workId}
                             workTitle={workShare.data.workTitle}
                             workThumbnail={workShare.data.workThumbnail}
+                            workUrl={workShare.data.workUrl}
                             workType={workShare.data.workType}
                             message={workShare.data.message}
                             senderName={isMe ? '我' : otherUser?.username}

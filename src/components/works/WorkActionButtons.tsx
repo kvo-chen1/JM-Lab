@@ -193,19 +193,19 @@ export function WorkActionButtons({
           <span>分享</span>
         </motion.button>
       )}
-    </div>
 
-    {/* 分享弹窗 */}
-    {shareData && (
-      <ShareSelector
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-        shareData={shareData}
-        userId={user?.id || ''}
-        userName={user?.username || user?.name || ''}
-        userAvatar={user?.avatar}
-      />
-    )}
+      {/* 分享弹窗 */}
+      {shareData && (
+        <ShareSelector
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          shareData={shareData}
+          userId={user?.id || ''}
+          userName={user?.username || user?.name || ''}
+          userAvatar={user?.avatar}
+        />
+      )}
+    </div>
   );
 }
 

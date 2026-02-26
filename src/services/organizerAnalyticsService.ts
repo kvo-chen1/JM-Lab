@@ -177,12 +177,13 @@ class OrganizerAnalyticsService {
       console.log('[Analytics] Event IDs:', eventIds);
 
       // 获取活动相关的作品提交 - 通过 event_submissions 表
+      // 直接从 event_submissions 获取统计数据（vote_count, like_count, score）
       let submissions: any[] = [];
 
       if (eventIds.length > 0) {
         const { data: submissionsData, error: submissionsError } = await supabase
           .from('event_submissions')
-          .select('id, status, created_at, title, event_id, user_id, score')
+          .select('id, status, created_at, title, event_id, user_id, score, vote_count, like_count, avg_rating')
           .in('event_id', eventIds);
 
         if (submissionsError) {
@@ -194,51 +195,34 @@ class OrganizerAnalyticsService {
 
       console.log('[Analytics] Submissions count:', submissions.length);
 
-      // 获取作品表现统计数据 - 通过 work_performance_stats 表
-      let performanceStats: any[] = [];
-      const submissionIds = submissions?.map(s => s.id) || [];
-
-      if (submissionIds.length > 0) {
-        const { data: statsData, error: statsError } = await supabase
-          .from('work_performance_stats')
-          .select('submission_id, view_count, like_count, avg_score')
-          .in('submission_id', submissionIds);
-
-        if (statsError) {
-          console.error('[Analytics] Performance stats query error:', statsError);
-        } else {
-          performanceStats = statsData || [];
-        }
-      }
-
-      // 创建 submission_id -> stats 的映射
-      const statsMap = new Map(performanceStats.map(s => [s.submission_id, s]));
-
-      // 统计计算
+      // 统计计算 - 直接从 event_submissions 表获取统计数据
       const totalSubmissions = submissions?.length || 0;
-      const totalVotes = performanceStats?.reduce((sum, s) => sum + (s.view_count || 0), 0) || 0;
-      const totalLikes = performanceStats?.reduce((sum, s) => sum + (s.like_count || 0), 0) || 0;
+      // 投票数作为浏览/互动数的替代
+      const totalVotes = submissions?.reduce((sum, s) => sum + (s.vote_count || 0), 0) || 0;
+      // 点赞数
+      const totalLikes = submissions?.reduce((sum, s) => sum + (s.like_count || 0), 0) || 0;
+      // 待审核作品
       const pendingReview = submissions?.filter(s => s.status === 'draft' || s.status === 'under_review').length || 0;
 
-      // 计算平均分
-      const scoredStats = performanceStats?.filter(s => s.avg_score > 0) || [];
-      const avgScore = scoredStats.length > 0
-        ? scoredStats.reduce((sum, s) => sum + (s.avg_score || 0), 0) / scoredStats.length
+      // 计算平均分 - 使用 score 或 avg_rating
+      const scoredSubmissions = submissions?.filter(s => s.score > 0 || s.avg_rating > 0) || [];
+      const avgScore = scoredSubmissions.length > 0
+        ? scoredSubmissions.reduce((sum, s) => sum + (s.score || s.avg_rating || 0), 0) / scoredSubmissions.length
         : 0;
 
       // 生成每日提交数据
       const dailySubmissions = this.generateDailySubmissions(submissions || [], timeRange);
 
-      // 获取热门作品 - 使用 view_count 排序
+      // 获取热门作品 - 使用 vote_count 和 like_count 排序
       const topWorks = (submissions || [])
         .map(s => ({
           id: s.id,
           title: s.title || '未命名作品',
-          views: statsMap.get(s.id)?.view_count || 0,
-          likes: statsMap.get(s.id)?.like_count || 0,
-          score: statsMap.get(s.id)?.avg_score || 0,
+          views: s.vote_count || 0,
+          likes: s.like_count || 0,
+          score: s.score || s.avg_rating || 0,
         }))
-        .sort((a, b) => b.views - a.views)
+        .sort((a, b) => (b.views + b.likes) - (a.views + a.likes))
         .slice(0, 5);
 
       return {
@@ -338,12 +322,12 @@ class OrganizerAnalyticsService {
 
       const eventIds = events?.map(e => e.id) || [];
 
-      // 获取活动相关的作品提交列表
+      // 获取活动相关的作品提交列表 - 直接获取统计数据
       let submissions: any[] = [];
       if (eventIds.length > 0) {
         const { data: submissionsData, error } = await supabase
           .from('event_submissions')
-          .select('id, created_at, event_id')
+          .select('id, created_at, event_id, vote_count, like_count')
           .in('event_id', eventIds)
           .gte('created_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString());
 
@@ -351,21 +335,7 @@ class OrganizerAnalyticsService {
         submissions = submissionsData || [];
       }
 
-      // 获取作品表现统计数据
-      let performanceStats: any[] = [];
-      const submissionIds = submissions?.map(s => s.id) || [];
-      if (submissionIds.length > 0) {
-        const { data: statsData } = await supabase
-          .from('work_performance_stats')
-          .select('submission_id, view_count, like_count, comment_count')
-          .in('submission_id', submissionIds);
-        performanceStats = statsData || [];
-      }
-
-      // 创建 submission_id -> stats 的映射
-      const statsMap = new Map(performanceStats.map(s => [s.submission_id, s]));
-
-      // 按日期分组统计
+      // 按日期分组统计 - 直接使用 event_submissions 的统计数据
       const trendMap = new Map<string, { submissions: number; views: number; likes: number; comments: number }>();
 
       // 初始化所有日期
@@ -376,16 +346,15 @@ class OrganizerAnalyticsService {
         trendMap.set(dateStr, { submissions: 0, views: 0, likes: 0, comments: 0 });
       }
 
-      // 统计作品数据
+      // 统计作品数据 - 直接使用 event_submissions 的 vote_count 和 like_count
       (submissions || []).forEach(s => {
         const dateStr = new Date(s.created_at).toISOString().split('T')[0];
         if (trendMap.has(dateStr)) {
           const stat = trendMap.get(dateStr)!;
           stat.submissions += 1;
-          const stats = statsMap.get(s.id);
-          stat.views += stats?.view_count || 0;
-          stat.likes += stats?.like_count || 0;
-          stat.comments += stats?.comment_count || 0;
+          stat.views += s.vote_count || 0;  // 使用 vote_count 作为 views
+          stat.likes += s.like_count || 0;  // 使用 like_count
+          stat.comments += 0;  // 暂时为0，可以通过 comments 表统计
         }
       });
 
@@ -501,27 +470,13 @@ class OrganizerAnalyticsService {
       if (eventIds.length > 0) {
         const { data: submissionsData, error } = await supabase
           .from('event_submissions')
-          .select('id, title, created_at, user_id, event_id')
+          .select('id, title, created_at, user_id, event_id, vote_count, like_count, score, avg_rating')
           .in('event_id', eventIds)
           .limit(limit * 2); // 多获取一些用于排序
 
         if (error) throw error;
         submissions = submissionsData || [];
       }
-
-      // 获取作品表现统计数据
-      let performanceStats: any[] = [];
-      const submissionIds = submissions?.map(s => s.id) || [];
-      if (submissionIds.length > 0) {
-        const { data: statsData } = await supabase
-          .from('work_performance_stats')
-          .select('submission_id, view_count, like_count, comment_count, avg_score')
-          .in('submission_id', submissionIds);
-        performanceStats = statsData || [];
-      }
-
-      // 创建 submission_id -> stats 的映射
-      const statsMap = new Map(performanceStats.map(s => [s.submission_id, s]));
 
       // 获取用户信息
       const userIds = [...new Set((submissions || []).map(s => s.user_id))];
@@ -532,13 +487,13 @@ class OrganizerAnalyticsService {
 
       const userMap = new Map(users?.map(u => [u.id, u.username]) || []);
 
-      // 合并数据
+      // 直接使用 event_submissions 的统计数据
       const submissionsWithStats = submissions.map(s => ({
         ...s,
-        view_count: statsMap.get(s.id)?.view_count || 0,
-        like_count: statsMap.get(s.id)?.like_count || 0,
-        comment_count: statsMap.get(s.id)?.comment_count || 0,
-        avg_score: statsMap.get(s.id)?.avg_score || 0,
+        view_count: s.vote_count || 0,  // 使用 vote_count 作为 views
+        like_count: s.like_count || 0,
+        comment_count: 0,  // 暂时为0
+        avg_score: s.score || s.avg_rating || 0,
       }));
 
       // 排序
@@ -724,31 +679,17 @@ class OrganizerAnalyticsService {
       // 获取活动ID列表
       const eventIds = (events || []).map(e => e.id);
 
-      // 获取每个活动的作品提交统计
+      // 获取每个活动的作品提交统计 - 直接获取统计数据
       let submissions: any[] = [];
       if (eventIds.length > 0) {
         const { data: submissionsData } = await supabase
           .from('event_submissions')
-          .select('id, event_id, status')
+          .select('id, event_id, status, vote_count, like_count, score, avg_rating')
           .in('event_id', eventIds);
         submissions = submissionsData || [];
       }
 
-      // 获取作品表现统计数据
-      let performanceStats: any[] = [];
-      const submissionIds = submissions?.map(s => s.id) || [];
-      if (submissionIds.length > 0) {
-        const { data: statsData } = await supabase
-          .from('work_performance_stats')
-          .select('submission_id, view_count, like_count, avg_score')
-          .in('submission_id', submissionIds);
-        performanceStats = statsData || [];
-      }
-
-      // 创建 submission_id -> stats 的映射
-      const statsMap = new Map(performanceStats.map(s => [s.submission_id, s]));
-
-      // 按活动ID分组统计
+      // 按活动ID分组统计 - 直接使用 event_submissions 的统计数据
       const eventStatsMap = new Map<string, { submissions: number; published: number; views: number; likes: number; totalScore: number; scoredCount: number }>();
       submissions.forEach(s => {
         if (!eventStatsMap.has(s.event_id)) {
@@ -757,11 +698,11 @@ class OrganizerAnalyticsService {
         const stat = eventStatsMap.get(s.event_id)!;
         stat.submissions += 1;
         if (s.status === 'submitted' || s.status === 'reviewed') stat.published += 1;
-        const stats = statsMap.get(s.id);
-        stat.views += stats?.view_count || 0;
-        stat.likes += stats?.like_count || 0;
-        if (stats?.avg_score > 0) {
-          stat.totalScore += stats.avg_score;
+        stat.views += s.vote_count || 0;  // 使用 vote_count 作为 views
+        stat.likes += s.like_count || 0;  // 使用 like_count
+        const workScore = s.score || s.avg_rating || 0;
+        if (workScore > 0) {
+          stat.totalScore += workScore;
           stat.scoredCount += 1;
         }
       });

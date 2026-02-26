@@ -280,6 +280,8 @@ export default defineConfig({
     compress: true,
     // 设置端口为3005，避开常用端口缓存
     port: 3005,
+    // 增加请求头大小限制，避免431错误
+    maxHeaderSize: 32768, // 32KB
     // 自动打开浏览器，直接打开landing.html
     open: '/landing.html',
     // 优化热更新
@@ -318,6 +320,7 @@ export default defineConfig({
     },
     // 开发服务器代理配置 - 统一的API代理设置
     proxy: {
+
       // 外部API代理配置 - 必须放在 /api 之前，否则会被 /api 拦截
       '/api/proxy/trae-api': {
         target: 'https://trae-api-sg.mchost.guru',

@@ -13,7 +13,18 @@ if (!supabaseUrl || !supabaseKey) {
 // 普通客户端（受 RLS 限制）
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseKey || 'placeholder-key'
+  supabaseKey || 'placeholder-key',
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'supabase-js/2.x',
+      },
+    },
+  }
 )
 
 // 服务角色客户端（绕过 RLS，仅用于服务器端操作）

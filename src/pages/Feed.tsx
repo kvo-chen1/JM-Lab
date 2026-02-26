@@ -134,7 +134,7 @@ export default function Feed() {
       const [hotSearchData, usersData, communitiesData, announcementsData, followingData] = await Promise.all([
         feedService.getHotSearch(),
         feedService.getRecommendedUsers(),
-        feedService.getRecommendedCommunities(),
+        feedService.getRecommendedCommunities(user?.id),
         feedService.getAnnouncements(),
         feedService.getFollowingUsers(user?.id),
       ]);
@@ -512,6 +512,7 @@ export default function Feed() {
                   >
                     <FeedCard
                       feed={feed}
+                      currentUserId={user?.id}
                       onLike={() => handleLike(feed.id)}
                       onCollect={() => handleCollect(feed.id)}
                       onShare={() => handleShare(feed.id)}

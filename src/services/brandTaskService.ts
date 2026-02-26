@@ -1128,52 +1128,95 @@ class BrandTaskService {
       const user = await getCurrentUser();
       if (!user) return false;
 
-      // 获取账户
-      let { data: account } = await supabase
-        .from('brand_accounts')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      // 检查 Supabase session 是否有效
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        // 使用 Supabase 直接操作
+        console.log('[deposit] 使用 Supabase session 进行充值');
+        
+        // 获取账户
+        let { data: account } = await supabase
+          .from('brand_accounts')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
 
-      // 如果没有账户，创建一个
-      if (!account) {
-        account = await this.createBrandAccount();
-      }
+        // 如果没有账户，创建一个
+        if (!account) {
+          account = await this.createBrandAccount();
+        }
 
-      if (!account) return false;
+        if (!account) return false;
 
-      const newBalance = account.total_balance + amount;
+        const newBalance = account.total_balance + amount;
 
-      // 创建交易记录
-      const { error: transactionError } = await supabase
-        .from('brand_transactions')
-        .insert({
-          account_id: account.id,
-          user_id: user.id,
-          type: 'deposit',
-          amount,
-          balance_after: newBalance,
-          payment_method: paymentMethod,
-          payment_reference: reference,
-          description: `充值 ${amount} 元`,
+        // 创建交易记录
+        const { error: transactionError } = await supabase
+          .from('brand_transactions')
+          .insert({
+            account_id: account.id,
+            user_id: user.id,
+            type: 'deposit',
+            amount,
+            balance_after: newBalance,
+            payment_method: paymentMethod,
+            payment_reference: reference,
+            description: `充值 ${amount} 元`,
+          });
+
+        if (transactionError) throw transactionError;
+
+        // 更新账户余额
+        const { error: accountError } = await supabase
+          .from('brand_accounts')
+          .update({
+            total_balance: newBalance,
+            available_balance: account.available_balance + amount,
+            total_deposited: account.total_deposited + amount,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', account.id);
+
+        if (accountError) throw accountError;
+
+        return true;
+      } else {
+        // 使用后端 API 进行充值（绕过 RLS）
+        console.log('[deposit] Supabase session 不存在，使用后端 API 进行充值');
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.error('[deposit] 未找到 token，无法调用后端 API');
+          return false;
+        }
+        
+        const response = await fetch('/api/brand/deposit', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            amount,
+            payment_method: paymentMethod,
+            reference
+          })
         });
-
-      if (transactionError) throw transactionError;
-
-      // 更新账户余额
-      const { error: accountError } = await supabase
-        .from('brand_accounts')
-        .update({
-          total_balance: newBalance,
-          available_balance: account.available_balance + amount,
-          total_deposited: account.total_deposited + amount,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', account.id);
-
-      if (accountError) throw accountError;
-
-      return true;
+        
+        if (!response.ok) {
+          console.error('[deposit] 后端 API 调用失败:', response.status);
+          return false;
+        }
+        
+        const result = await response.json();
+        if (result.code !== 0) {
+          console.error('[deposit] 后端 API 返回错误:', result.message);
+          return false;
+        }
+        
+        console.log('[deposit] 后端 API 充值成功');
+        return true;
+      }
     } catch (error) {
       console.error('充值失败:', error);
       return false;

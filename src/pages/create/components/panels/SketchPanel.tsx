@@ -488,6 +488,22 @@ export default function SketchPanel() {
       setCurrentStep(2);
       stopImageProgressSimulation(true);
       toast.success(`${currentModel.name}已生成${urls.length}张图片方案并保存到云存储`);
+
+      // 保存生成记录到数据库
+      try {
+        const { aiGenerationSaveService } = await import('@/services/aiGenerationSaveService');
+        for (const result of newResults) {
+          await aiGenerationSaveService.saveImageGeneration(
+            result.prompt || prompt || 'AI生成作品',
+            result.thumbnail,
+            { source: 'sketch-panel', uploadToStorage: false }
+          );
+        }
+        console.log('[TextToImage] Saved generation records to database');
+      } catch (saveError) {
+        console.error('[TextToImage] Failed to save generation records:', saveError);
+        // 不影响用户体验，静默处理
+      }
     } else {
       stopImageProgressSimulation(false);
       useFallbackData('image');
@@ -580,6 +596,21 @@ export default function SketchPanel() {
         setSelectedResult(newResults[newResults.length - 1]?.id ?? null);
         setCurrentStep(2);
         toast.success(`${currentModel.name}风格转换完成，生成${urls.length}张图片并保存到云存储`);
+
+        // 保存生成记录到数据库
+        try {
+          const { aiGenerationSaveService } = await import('@/services/aiGenerationSaveService');
+          for (const result of newResults) {
+            await aiGenerationSaveService.saveImageGeneration(
+              result.prompt || prompt || '图生图作品',
+              result.thumbnail,
+              { source: 'sketch-panel-image-to-image', uploadToStorage: false }
+            );
+          }
+          console.log('[ImageToImage] Saved generation records to database');
+        } catch (saveError) {
+          console.error('[ImageToImage] Failed to save generation records:', saveError);
+        }
       } else {
         throw new Error('未获取到生成结果');
       }
@@ -688,6 +719,20 @@ export default function SketchPanel() {
         setSelectedResult(results[0].id);
         setCurrentStep(2);
         toast.success('视频生成成功！');
+
+        // 保存生成记录到数据库
+        try {
+          const { aiGenerationSaveService } = await import('@/services/aiGenerationSaveService');
+          await aiGenerationSaveService.saveVideoGeneration(
+            prompt || '文生视频作品',
+            permanentVideoUrl,
+            videoThumbnail,
+            { source: 'sketch-panel-text-to-video', uploadToStorage: false }
+          );
+          console.log('[TextToVideo] Saved generation record to database');
+        } catch (saveError) {
+          console.error('[TextToVideo] Failed to save generation record:', saveError);
+        }
         
         // 延迟重置进度
         setTimeout(() => {
@@ -821,6 +866,20 @@ export default function SketchPanel() {
         setSelectedResult(results[0].id);
         setCurrentStep(2);
         toast.success('视频生成成功！');
+
+        // 保存生成记录到数据库
+        try {
+          const { aiGenerationSaveService } = await import('@/services/aiGenerationSaveService');
+          await aiGenerationSaveService.saveVideoGeneration(
+            prompt || '图生视频作品',
+            permanentVideoUrl,
+            videoThumbnail,
+            { source: 'sketch-panel-image-to-video', uploadToStorage: false }
+          );
+          console.log('[ImageToVideo] Saved generation record to database');
+        } catch (saveError) {
+          console.error('[ImageToVideo] Failed to save generation record:', saveError);
+        }
         
         // 延迟重置进度
         setTimeout(() => {

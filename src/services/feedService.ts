@@ -1230,27 +1230,85 @@ class FeedService {
   /**
    * 获取推荐社群
    */
-  async getRecommendedCommunities(): Promise<RecommendedCommunity[]> {
+  async getRecommendedCommunities(userId?: string): Promise<RecommendedCommunity[]> {
     try {
-      // 从 communities 表获取推荐社群
+      // 优先从后端API获取社群列表（与communityService保持一致）
+      const response = await fetch('/api/communities');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data) && result.data.length > 0) {
+          console.log('[getRecommendedCommunities] Fetched from backend API:', result.data.length);
+          
+          // 获取当前用户已加入的社群ID列表
+          let joinedCommunityIds: Set<string> = new Set();
+          if (userId) {
+            const { data: memberships, error: membershipError } = await supabase
+              .from('community_members')
+              .select('community_id')
+              .eq('user_id', userId);
+
+            if (!membershipError && memberships) {
+              joinedCommunityIds = new Set(memberships.map(m => m.community_id));
+            }
+          }
+          
+          return result.data.slice(0, 5).map((community: any) => ({
+            id: community.id,
+            name: community.name,
+            avatar: community.avatar || community.avatar_url || community.cover || `https://api.dicebear.com/7.x/initials/svg?seed=${community.name}`,
+            description: community.description || '暂无描述',
+            membersCount: community.member_count || community.members_count || 0,
+            postsCount: community.post_count || 0,
+            isJoined: joinedCommunityIds.has(community.id),
+          }));
+        }
+      }
+      console.log('[getRecommendedCommunities] Backend API failed or empty, falling back to Supabase');
+    } catch (apiError) {
+      console.warn('[getRecommendedCommunities] Backend API error:', apiError);
+    }
+
+    // 如果后端API失败，尝试从Supabase获取
+    try {
       const { data: communities, error } = await supabase
         .from('communities')
         .select('id, name, avatar, description, cover, member_count, post_count, created_at')
         .limit(5);
 
+      console.log('[getRecommendedCommunities] Supabase response:', { communities, error });
+
       if (error) {
-        console.warn('[getRecommendedCommunities] Failed to fetch:', error);
+        console.warn('[getRecommendedCommunities] Failed to fetch from Supabase:', error);
         return this.mockRecommendedCommunities;
       }
 
-      return (communities || []).map(community => ({
+      // 如果数据库中没有数据，返回模拟数据
+      if (!communities || communities.length === 0) {
+        console.log('[getRecommendedCommunities] No communities in database, using mock data');
+        return this.mockRecommendedCommunities;
+      }
+
+      // 获取当前用户已加入的社群ID列表
+      let joinedCommunityIds: Set<string> = new Set();
+      if (userId) {
+        const { data: memberships, error: membershipError } = await supabase
+          .from('community_members')
+          .select('community_id')
+          .eq('user_id', userId);
+
+        if (!membershipError && memberships) {
+          joinedCommunityIds = new Set(memberships.map(m => m.community_id));
+        }
+      }
+
+      return communities.map(community => ({
         id: community.id,
         name: community.name,
         avatar: community.avatar || community.cover || `https://api.dicebear.com/7.x/initials/svg?seed=${community.name}`,
         description: community.description || '暂无描述',
         membersCount: community.member_count || 0,
         postsCount: community.post_count || 0,
-        isJoined: false,
+        isJoined: joinedCommunityIds.has(community.id),
       }));
     } catch (error) {
       console.error('[getRecommendedCommunities] Error:', error);
@@ -1319,26 +1377,80 @@ class FeedService {
    * 加入社群
    */
   async joinCommunity(communityId: string): Promise<{ success: boolean }> {
-    await delay(300);
-    const community = this.mockRecommendedCommunities.find(c => c.id === communityId);
-    if (community) {
-      community.isJoined = true;
-      community.membersCount++;
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (!token) {
+        console.warn('[joinCommunity] No token found');
+        return { success: false };
+      }
+
+      const response = await fetch(`/api/communities/${communityId}/join`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          // 更新本地缓存
+          const community = this.mockRecommendedCommunities.find(c => c.id === communityId);
+          if (community) {
+            community.isJoined = true;
+            community.membersCount++;
+          }
+          return { success: true };
+        }
+      }
+
+      console.warn('[joinCommunity] API call failed:', response.status);
+      return { success: false };
+    } catch (error) {
+      console.error('[joinCommunity] Error:', error);
+      return { success: false };
     }
-    return { success: true };
   }
 
   /**
    * 退出社群
    */
   async leaveCommunity(communityId: string): Promise<{ success: boolean }> {
-    await delay(300);
-    const community = this.mockRecommendedCommunities.find(c => c.id === communityId);
-    if (community) {
-      community.isJoined = false;
-      community.membersCount--;
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (!token) {
+        console.warn('[leaveCommunity] No token found');
+        return { success: false };
+      }
+
+      const response = await fetch(`/api/communities/${communityId}/leave`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          // 更新本地缓存
+          const community = this.mockRecommendedCommunities.find(c => c.id === communityId);
+          if (community) {
+            community.isJoined = false;
+            community.membersCount = Math.max(0, community.membersCount - 1);
+          }
+          return { success: true };
+        }
+      }
+
+      console.warn('[leaveCommunity] API call failed:', response.status);
+      return { success: false };
+    } catch (error) {
+      console.error('[leaveCommunity] Error:', error);
+      return { success: false };
     }
-    return { success: true };
   }
 
   /**

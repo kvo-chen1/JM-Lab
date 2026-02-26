@@ -107,7 +107,7 @@ class EventSubmissionService {
     data: SubmissionData
   ): Promise<{ success: boolean; submissionId?: string; error?: string }> {
     try {
-      // 使用 bigint 时间戳（毫秒），与数据库类型兼容
+      // 使用 bigint 时间戳（毫秒），与数据库 bigint 类型兼容
       const now = Date.now();
       const { data: result, error } = await supabase
         .from('event_submissions')

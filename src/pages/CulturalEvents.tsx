@@ -135,11 +135,15 @@ export default function CulturalEvents() {
 
   // 辅助函数：将 snake_case 转换为 camelCase，并将时间戳转换为 Date
   const toCamelCase = (obj: any): any => {
+    // 如果是 Date 对象，直接返回，不要递归处理
+    if (obj instanceof Date) {
+      return obj;
+    }
     if (Array.isArray(obj)) {
       return obj.map(toCamelCase);
     }
     if (obj !== null && typeof obj === 'object') {
-      return Object.keys(obj).reduce((acc, key) => {
+      const result = Object.keys(obj).reduce((acc, key) => {
         let camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
         let value = obj[key];
 
@@ -158,6 +162,7 @@ export default function CulturalEvents() {
         // 注意：数据库返回的是秒级时间戳，需要乘以 1000 转换为毫秒
         const timeFields = ['startTime', 'endTime', 'createdAt', 'updatedAt', 'publishedAt', 'registrationDeadline', 'reviewStartDate', 'resultDate'];
         if (timeFields.includes(camelKey) && value !== null && value !== undefined) {
+          const originalValue = value;
           if (typeof value === 'number') {
             // 判断时间戳是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
             const msValue = value < 1e12 ? value * 1000 : value;
@@ -176,11 +181,22 @@ export default function CulturalEvents() {
               }
             }
           }
+          // 调试日志：检查时间字段转换
+          if (camelKey === 'startTime' || camelKey === 'endTime') {
+            console.log(`[toCamelCase] ${camelKey}: ${originalValue} -> ${value instanceof Date ? value.toISOString() : value}`);
+          }
         }
 
         acc[camelKey] = toCamelCase(value);
         return acc;
       }, {} as any);
+      
+      // 调试日志：检查转换后的对象
+      if (result.title) {
+        console.log(`[toCamelCase] Event: ${result.title}, startTime: ${result.startTime}, endTime: ${result.endTime}`);
+      }
+      
+      return result;
     }
     return obj;
   };

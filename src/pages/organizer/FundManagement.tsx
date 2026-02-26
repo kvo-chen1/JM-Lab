@@ -26,7 +26,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  LayoutDashboard,
+  Receipt,
+  PiggyBank,
+  BarChart3,
+  Sparkles,
+  Target,
+  ChevronLeft as ArrowLeftIcon,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 // 交易类型配置
 const transactionTypeConfig = {
@@ -38,6 +46,87 @@ const transactionTypeConfig = {
   fee: { label: '手续费', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-800', icon: DollarSign },
   adjustment: { label: '调整', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-100 dark:bg-orange-900/30', icon: AlertCircle },
 };
+
+// 左侧导航组件
+function Sidebar({
+  activeTab,
+  setActiveTab,
+  isDark,
+  account,
+}: {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  isDark: boolean;
+  account: BrandAccount | null;
+}) {
+  const menuItems = [
+    { id: 'overview', label: '总览', icon: LayoutDashboard },
+    { id: 'transactions', label: '交易记录', icon: Receipt },
+    { id: 'deposit', label: '充值', icon: Plus },
+  ];
+
+  return (
+    <div className={`w-64 flex-shrink-0 ${isDark ? 'bg-gray-900/50' : 'bg-white'} rounded-2xl border ${isDark ? 'border-gray-800' : 'border-gray-200'} overflow-hidden`}>
+      <div className={`p-5 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+        <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>资金管理</h3>
+        <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>管理账户资金和交易</p>
+      </div>
+      <nav className="p-3 space-y-1">
+        {menuItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                isActive
+                  ? isDark
+                    ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                    : 'bg-blue-50 text-blue-600 border border-blue-200'
+                  : isDark
+                  ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${isActive ? 'text-current' : ''}`} />
+              <span className="text-sm font-medium">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* 快速统计 */}
+      <div className={`p-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+        <div className={`p-4 rounded-xl ${isDark ? 'bg-gradient-to-br from-emerald-600/20 to-teal-600/20 border border-emerald-500/20' : 'bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100'}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <Wallet className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+            <span className={`text-xs font-medium ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>账户余额</span>
+          </div>
+          <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            ¥{(account?.available_balance || 0).toLocaleString()}
+          </p>
+          <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>可用资金</p>
+        </div>
+      </div>
+
+      {/* 返回品牌任务 */}
+      <div className={`p-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+        <Link
+          to="/organizer-center?tab=brand-tasks"
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+            isDark
+              ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+          }`}
+        >
+          <ArrowLeftIcon className="w-4 h-4" />
+          <span className="text-sm font-medium">返回品牌任务</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 // 交易状态配置
 const transactionStatusConfig = {
@@ -247,55 +336,23 @@ export default function FundManagement() {
 
   console.log('[FundManagement] 显示主内容');
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
-    >
-      {/* 页面标题 */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">资金管理</h2>
-          <p className="text-sm mt-1 text-gray-500 dark:text-gray-400">
-            管理您的品牌账户资金和交易记录
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setActiveTab('deposit')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            充值
-          </motion.button>
-        </div>
-      </div>
+    <div className="h-full flex gap-6">
+      {/* 左侧栏 - 导航 */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isDark={isDark}
+        account={account}
+      />
 
-      {/* 标签页切换 */}
-      <div className={`flex gap-1 p-1 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
-        {[
-          { id: 'overview', label: '总览', icon: Wallet },
-          { id: 'transactions', label: '交易记录', icon: History },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? isDark ? 'bg-gray-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
-                : isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-700'
-            }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
+      {/* 中间栏 - 主内容 */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-6"
+        >
       {/* 总览标签 */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
@@ -494,13 +551,27 @@ export default function FundManagement() {
 
       {/* 充值标签 */}
       {activeTab === 'deposit' && (
-        <DepositForm 
-          isDark={isDark} 
+        <DepositForm
+          isDark={isDark}
           onDeposit={handleDeposit}
           onCancel={() => setActiveTab('overview')}
         />
       )}
-    </motion.div>
+        </motion.div>
+      </div>
+
+      {/* 右侧栏 - 占位 */}
+      <div className="w-80 flex-shrink-0 hidden xl:block">
+        <div className={`h-full rounded-2xl border ${isDark ? 'border-gray-800 bg-gray-900/30' : 'border-gray-200 bg-gray-50/50'} flex items-center justify-center`}>
+          <div className="text-center p-8">
+            <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+              <BarChart3 className={`w-8 h-8 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+            </div>
+            <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>资金统计详情</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

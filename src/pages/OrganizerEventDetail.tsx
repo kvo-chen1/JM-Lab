@@ -3,8 +3,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { useNavigate, useParams } from 'react-router-dom';
-import { eventService } from '@/services/eventService';
-import { Event } from '@/types';
+import { eventService, Event } from '@/services/eventService';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -241,14 +240,14 @@ export default function OrganizerEventDetail() {
                   <Clock className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">开始时间</p>
-                    <p className="font-medium">{formatDate(event.startDate)}</p>
+                    <p className="font-medium">{formatDate(event.startTime)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <Clock className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">结束时间</p>
-                    <p className="font-medium">{formatDate(event.endDate)}</p>
+                    <p className="font-medium">{formatDate(event.endTime)}</p>
                   </div>
                 </div>
               </div>

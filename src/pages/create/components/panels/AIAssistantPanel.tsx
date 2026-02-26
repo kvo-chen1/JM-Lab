@@ -15,6 +15,7 @@ import {
 } from '@/services/aiGenerationService';
 import { llmService, Message, ConversationSession } from '@/services/llmService';
 import { downloadAndUploadImage, downloadAndUploadVideo } from '@/services/imageService';
+import { aiConversationService } from '@/services/aiConversationService';
 
 // 生成类型
 type GenerateMode = 'image' | 'video';
@@ -479,6 +480,22 @@ export default function AIAssistantPanel() {
       llmService.importHistory(newMessages);
       const updatedSessions = llmService.getSessions();
       setSessions(updatedSessions);
+      
+      // 异步保存到数据库
+      (async () => {
+        try {
+          // 获取或创建云端对话
+          let cloudConversation = await aiConversationService.getActiveConversation();
+          if (!cloudConversation) {
+            cloudConversation = await aiConversationService.createConversation(currentSession.name, currentSession.modelId);
+          }
+          if (cloudConversation) {
+            await aiConversationService.saveMessage(cloudConversation.id, userMessage);
+          }
+        } catch (error) {
+          console.error('[AIAssistantPanel] Failed to save user message to cloud:', error);
+        }
+      })();
     }
 
     // 检查是否是生成指令
@@ -535,6 +552,18 @@ export default function AIAssistantPanel() {
         llmService.importHistory(finalMessages);
         const updatedSessions = llmService.getSessions();
         setSessions(updatedSessions);
+        
+        // 异步保存到数据库
+        (async () => {
+          try {
+            const cloudConversation = await aiConversationService.getActiveConversation();
+            if (cloudConversation) {
+              await aiConversationService.saveMessage(cloudConversation.id, assistantMessage);
+            }
+          } catch (error) {
+            console.error('[AIAssistantPanel] Failed to save assistant message to cloud:', error);
+          }
+        })();
       }
     } catch (error) {
       toast.error('发送消息失败');

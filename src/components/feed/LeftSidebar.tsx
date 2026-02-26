@@ -40,7 +40,6 @@ const menuItems = [
   { id: 'image' as FeedFilterType, label: '图文', icon: Image },
   { id: 'article' as FeedFilterType, label: '专栏', icon: FileText },
   { id: 'activity' as FeedFilterType, label: '活动', icon: Calendar },
-  { id: 'brand' as FeedFilterType, label: '品牌', icon: Building2 },
 ];
 
 export function LeftSidebar({ activeFilter, onFilterChange, user, userStats }: LeftSidebarProps) {

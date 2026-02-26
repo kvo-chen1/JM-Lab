@@ -22,7 +22,7 @@ const quickActions = [
   { label: '发布作品', desc: '分享你的创意', icon: Sparkles, color: 'from-blue-500 to-blue-600', path: '/create' },
   { label: '查看数据', desc: '分析作品表现', icon: TrendingUp, color: 'from-green-500 to-green-600', path: '/creator-center/analytics' },
   { label: '参与活动', desc: '赢取奖励', icon: Award, color: 'from-orange-500 to-orange-600', path: '/cultural-events' },
-  { label: '提升等级', desc: '解锁更多权益', icon: Zap, color: 'from-purple-500 to-purple-600', path: '/achievements' },
+  { label: '提升等级', desc: '解锁更多权益', icon: Zap, color: 'from-purple-500 to-purple-600', path: '/membership/upgrade' },
 ];
 
 const tasks = [

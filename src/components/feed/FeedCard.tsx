@@ -3,11 +3,13 @@
  * 展示单条动态内容
  */
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import type { FeedItem } from '@/types/feed';
 import { VideoPlayer } from './VideoPlayer';
+import { ReportModal } from './ReportModal';
+import { toast } from 'sonner';
 import {
   Heart,
   MessageCircle,
@@ -21,16 +23,20 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  UserX,
+  Flag,
 } from 'lucide-react';
 
 interface FeedCardProps {
   feed: FeedItem;
+  currentUserId?: string;
   onLike: () => void;
   onCollect: () => void;
   onShare: () => void;
   onClick: () => void;
   onFollow: (isFollowing: boolean) => void;
   onComment?: () => void;
+  onUnfollow?: () => void;
 }
 
 // 格式化数字
@@ -49,11 +55,11 @@ function formatTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
-  
+
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  
+
   if (minutes < 1) return '刚刚';
   if (minutes < 60) return `${minutes}分钟前`;
   if (hours < 24) return `${hours}小时前`;
@@ -77,16 +83,39 @@ function getVerifiedIcon(type?: string) {
 
 export function FeedCard({
   feed,
+  currentUserId,
   onLike,
   onCollect,
   onShare,
   onClick,
   onFollow,
-  onComment
+  onComment,
+  onUnfollow
 }: FeedCardProps) {
   const { isDark } = useTheme();
   const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        moreMenuRef.current &&
+        !moreMenuRef.current.contains(event.target as Node) &&
+        moreButtonRef.current &&
+        !moreButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowMoreMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleImageLoad = (index: number) => {
     setImageLoaded(prev => ({ ...prev, [index]: true }));
@@ -95,6 +124,21 @@ export function FeedCard({
   // 判断是否需要展开/收缩（超过150字符）
   const shouldCollapse = feed.content.length > 150;
   const displayContent = isExpanded ? feed.content : feed.content.slice(0, 150);
+
+  // 处理取消关注
+  const handleUnfollow = () => {
+    if (onUnfollow) {
+      onUnfollow();
+      toast.success(`已取消关注 ${feed.author.name}`);
+    }
+    setShowMoreMenu(false);
+  };
+
+  // 处理举报
+  const handleReport = () => {
+    setShowMoreMenu(false);
+    setShowReportModal(true);
+  };
 
   // 渲染媒体网格
   const renderMediaGrid = () => {
@@ -151,10 +195,10 @@ export function FeedCard({
     if (!feed.shareTarget) return null;
 
     return (
-      <div 
+      <div
         className={`mt-3 p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-colors ${
-          isDark 
-            ? 'bg-gray-800 hover:bg-gray-750' 
+          isDark
+            ? 'bg-gray-800 hover:bg-gray-750'
             : 'bg-gray-50 hover:bg-gray-100'
         }`}
       >
@@ -181,226 +225,274 @@ export function FeedCard({
   };
 
   return (
-    <motion.article
-      layout
-      className={`rounded-xl overflow-hidden cursor-pointer transition-all duration-200 ${
-        isDark
-          ? 'bg-gray-900 border border-gray-800 hover:border-gray-700'
-          : 'bg-white border border-gray-100 hover:shadow-sm'
-      }`}
-      onClick={onClick}
-      whileHover={{ scale: 1.002 }}
-      whileTap={{ scale: 0.998 }}
-    >
-      <div className="p-2.5">
-        {/* 头部：作者信息 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <img
-                src={feed.author.avatar}
-                alt={feed.author.name}
-                className="w-8 h-8 rounded-full object-cover"
-              />
-              {feed.author.verified && (
-                <div className="absolute -bottom-0.5 -right-0.5">
-                  {getVerifiedIcon(feed.author.verifiedType)}
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-1">
-                <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {feed.author.name}
-                </h3>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px]">
-                <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>
-                  {formatTime(feed.createdAt)}
-                </span>
-                {feed.location && (
-                  <>
-                    <span className={isDark ? 'text-gray-600' : 'text-gray-300'}>·</span>
-                    <span className={`flex items-center gap-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      <MapPin className="w-2.5 h-2.5" />
-                      {feed.location}
-                    </span>
-                  </>
+    <>
+      <motion.article
+        layout
+        className={`rounded-xl overflow-hidden cursor-pointer transition-all duration-200 ${
+          isDark
+            ? 'bg-gray-900 border border-gray-800 hover:border-gray-700'
+            : 'bg-white border border-gray-100 hover:shadow-sm'
+        }`}
+        onClick={onClick}
+        whileHover={{ scale: 1.002 }}
+        whileTap={{ scale: 0.998 }}
+      >
+        <div className="p-2.5">
+          {/* 头部：作者信息 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <img
+                  src={feed.author.avatar}
+                  alt={feed.author.name}
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+                {feed.author.verified && (
+                  <div className="absolute -bottom-0.5 -right-0.5">
+                    {getVerifiedIcon(feed.author.verifiedType)}
+                  </div>
                 )}
               </div>
+              <div>
+                <div className="flex items-center gap-1">
+                  <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {feed.author.name}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>
+                    {formatTime(feed.createdAt)}
+                  </span>
+                  {feed.location && (
+                    <>
+                      <span className={isDark ? 'text-gray-600' : 'text-gray-300'}>·</span>
+                      <span className={`flex items-center gap-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <MapPin className="w-2.5 h-2.5" />
+                        {feed.location}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 relative">
+              <button
+                ref={moreButtonRef}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMoreMenu(!showMoreMenu);
+                }}
+                className={`p-1.5 rounded-full transition-colors ${
+                  isDark
+                    ? 'hover:bg-gray-800 text-gray-500'
+                    : 'hover:bg-gray-100 text-gray-400'
+                } ${showMoreMenu ? (isDark ? 'bg-gray-800' : 'bg-gray-100') : ''}`}
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+
+              {/* 更多菜单下拉 */}
+              <AnimatePresence>
+                {showMoreMenu && (
+                  <motion.div
+                    ref={moreMenuRef}
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    transition={{ duration: 0.15 }}
+                    className={`absolute right-0 top-full mt-2 w-36 rounded-xl shadow-xl z-20 overflow-hidden ${
+                      isDark ? 'bg-[#2a2a3e] border border-gray-700' : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    {/* 取消关注 - 只显示已关注的用户，且不是自己的动态 */}
+                    {currentUserId !== feed.author.id && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnfollow();
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                          isDark
+                            ? 'hover:bg-gray-700 text-gray-300'
+                            : 'hover:bg-gray-50 text-gray-700'
+                        }`}
+                      >
+                        <UserX className="w-4 h-4" />
+                        取消关注
+                      </button>
+                    )}
+
+                    {/* 举报 */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReport();
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                        isDark
+                          ? 'hover:bg-gray-700 text-gray-300'
+                          : 'hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      <Flag className="w-4 h-4" />
+                      举报
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            {/* 关注按钮 */}
-            {feed.author.type !== 'official' && (
+          {/* 内容 */}
+          <div className="mt-2">
+            {/* 标题 */}
+            {feed.title && (
+              <h4 className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {feed.title}
+              </h4>
+            )}
+            <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
+              isDark ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              {displayContent}
+              {shouldCollapse && !isExpanded && '...'}
+            </p>
+
+            {/* 展开/收缩按钮 */}
+            {shouldCollapse && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onFollow(!!feed.author.isFollowing);
+                  setIsExpanded(!isExpanded);
                 }}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  feed.author.isFollowing
-                    ? isDark
-                      ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    : 'bg-[#00aeec] hover:bg-[#0095cc] text-white'
+                className={`mt-1.5 flex items-center gap-1 text-xs font-medium transition-colors ${
+                  isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'
                 }`}
               >
-                {feed.author.isFollowing ? '已关注' : '关注'}
+                {isExpanded ? (
+                  <>
+                    收起
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </>
+                ) : (
+                  <>
+                    展开
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </>
+                )}
               </button>
             )}
-            <button
-              onClick={(e) => e.stopPropagation()}
-              className={`p-1.5 rounded-full transition-colors ${
-                isDark
-                  ? 'hover:bg-gray-800 text-gray-500'
-                  : 'hover:bg-gray-100 text-gray-400'
-              }`}
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
+
+            {/* 话题标签 */}
+            {feed.tags && feed.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {feed.tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className={`text-[11px] ${isDark ? 'text-blue-400' : 'text-blue-600'} hover:underline`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* 内容 */}
-        <div className="mt-2">
-          {/* 标题 */}
-          {feed.title && (
-            <h4 className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {feed.title}
-            </h4>
-          )}
-          <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
-            isDark ? 'text-gray-300' : 'text-gray-700'
-          }`}>
-            {displayContent}
-            {shouldCollapse && !isExpanded && '...'}
-          </p>
+          {/* 媒体内容 */}
+          {renderMediaGrid()}
 
-          {/* 展开/收缩按钮 */}
-          {shouldCollapse && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsExpanded(!isExpanded);
-              }}
-              className={`mt-1.5 flex items-center gap-1 text-xs font-medium transition-colors ${
-                isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'
-              }`}
-            >
-              {isExpanded ? (
-                <>
-                  收起
-                  <ChevronUp className="w-3.5 h-3.5" />
-                </>
-              ) : (
-                <>
-                  展开
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </>
-              )}
-            </button>
-          )}
+          {/* 分享目标 */}
+          {renderShareTarget()}
 
-          {/* 话题标签 */}
-          {feed.tags && feed.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {feed.tags.map((tag, index) => (
-                <span
-                  key={index}
-                  className={`text-[11px] ${isDark ? 'text-blue-400' : 'text-blue-600'} hover:underline`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  #{tag}
-                </span>
-              ))}
+          {/* 底部：互动按钮 */}
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+            <div className="flex items-center gap-4">
+              {/* 点赞 */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onLike();
+                }}
+                className={`flex items-center gap-1 transition-colors ${
+                  feed.isLiked
+                    ? 'text-pink-500'
+                    : isDark
+                    ? 'text-gray-500 hover:text-pink-400'
+                    : 'text-gray-500 hover:text-pink-500'
+                }`}
+              >
+                <Heart className={`w-4 h-4 ${feed.isLiked ? 'fill-current' : ''}`} />
+                <span className="text-xs">{formatNumber(feed.likes)}</span>
+              </button>
+
+              {/* 评论 */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onComment) {
+                    onComment();
+                  } else {
+                    onClick();
+                  }
+                }}
+                className={`flex items-center gap-1 transition-colors ${
+                  isDark
+                    ? 'text-gray-500 hover:text-blue-400'
+                    : 'text-gray-500 hover:text-blue-500'
+                }`}
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span className="text-xs">{formatNumber(feed.comments)}</span>
+              </button>
+
+              {/* 分享 */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShare();
+                }}
+                className={`flex items-center gap-1 transition-colors ${
+                  isDark
+                    ? 'text-gray-500 hover:text-green-400'
+                    : 'text-gray-500 hover:text-green-500'
+                }`}
+              >
+                <Share2 className="w-4 h-4" />
+                <span className="text-xs">{formatNumber(feed.shares)}</span>
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* 媒体内容 */}
-        {renderMediaGrid()}
-
-        {/* 分享目标 */}
-        {renderShareTarget()}
-
-        {/* 底部：互动按钮 */}
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-4">
-            {/* 点赞 */}
+            {/* 收藏 */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onLike();
+                onCollect();
               }}
-              className={`flex items-center gap-1 transition-colors ${
-                feed.isLiked
-                  ? 'text-pink-500'
+              className={`transition-colors ${
+                feed.isCollected
+                  ? 'text-yellow-500'
                   : isDark
-                  ? 'text-gray-500 hover:text-pink-400'
-                  : 'text-gray-500 hover:text-pink-500'
+                  ? 'text-gray-500 hover:text-yellow-400'
+                  : 'text-gray-500 hover:text-yellow-500'
               }`}
             >
-              <Heart className={`w-4 h-4 ${feed.isLiked ? 'fill-current' : ''}`} />
-              <span className="text-xs">{formatNumber(feed.likes)}</span>
-            </button>
-
-            {/* 评论 */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onComment) {
-                  onComment();
-                } else {
-                  onClick();
-                }
-              }}
-              className={`flex items-center gap-1 transition-colors ${
-                isDark
-                  ? 'text-gray-500 hover:text-blue-400'
-                  : 'text-gray-500 hover:text-blue-500'
-              }`}
-            >
-              <MessageCircle className="w-4 h-4" />
-              <span className="text-xs">{formatNumber(feed.comments)}</span>
-            </button>
-
-            {/* 分享 */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onShare();
-              }}
-              className={`flex items-center gap-1 transition-colors ${
-                isDark
-                  ? 'text-gray-500 hover:text-green-400'
-                  : 'text-gray-500 hover:text-green-500'
-              }`}
-            >
-              <Share2 className="w-4 h-4" />
-              <span className="text-xs">{formatNumber(feed.shares)}</span>
+              <Bookmark className={`w-4 h-4 ${feed.isCollected ? 'fill-current' : ''}`} />
             </button>
           </div>
-
-          {/* 收藏 */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onCollect();
-            }}
-            className={`transition-colors ${
-              feed.isCollected
-                ? 'text-yellow-500'
-                : isDark
-                ? 'text-gray-500 hover:text-yellow-400'
-                : 'text-gray-500 hover:text-yellow-500'
-            }`}
-          >
-            <Bookmark className={`w-4 h-4 ${feed.isCollected ? 'fill-current' : ''}`} />
-          </button>
         </div>
-      </div>
-    </motion.article>
+      </motion.article>
+
+      {/* 举报弹窗 */}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        targetType="feed"
+        targetId={feed.id}
+        targetAuthorId={feed.author.id}
+        targetTitle={feed.title || feed.content.slice(0, 50) + (feed.content.length > 50 ? '...' : '')}
+      />
+    </>
   );
 }

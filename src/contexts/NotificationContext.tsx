@@ -87,6 +87,23 @@ interface NotificationContextType {
   getArchivedNotifications: () => Notification[];
 }
 
+// 从 localStorage 读取设置
+const loadSettingsFromStorage = (): Partial<NotificationSettings> => {
+  try {
+    const notificationsEnabled = localStorage.getItem('notificationsEnabled');
+    const notificationSound = localStorage.getItem('notificationSound');
+    const notificationFrequency = localStorage.getItem('notificationFrequency');
+
+    return {
+      enabled: notificationsEnabled ? JSON.parse(notificationsEnabled) : true,
+      soundEnabled: notificationSound ? JSON.parse(notificationSound) : true,
+      desktopNotifications: notificationsEnabled ? JSON.parse(notificationsEnabled) : true,
+    };
+  } catch {
+    return {};
+  }
+};
+
 // 默认设置
 const defaultSettings: NotificationSettings = {
   enabled: true,
@@ -143,8 +160,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
   // 状态管理
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+
+  // 从 localStorage 加载保存的设置
+  const savedSettings = loadSettingsFromStorage();
   const [settings, setSettings] = useState<NotificationSettings>({
     ...defaultSettings,
+    ...savedSettings,
     ...initialSettings,
     types: {
       ...defaultSettings.types,
@@ -156,6 +177,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     }
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  // 监听 localStorage 变化，同步设置
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const newSettings = loadSettingsFromStorage();
+      setSettings(prev => ({
+        ...prev,
+        ...newSettings
+      }));
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // 从 Supabase 加载通知
   const loadNotifications = useCallback(async () => {
@@ -281,8 +316,36 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       console.error('Error saving notification:', error);
     }
 
+    // 播放通知声音
+    if (settings.soundEnabled && settings.enabled) {
+      try {
+        // 使用 Web Audio API 生成提示音
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        // 设置声音频率和类型
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+
+        // 设置音量包络
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+        // 播放声音
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+      } catch {
+        // 忽略音频播放错误
+      }
+    }
+
     // 显示 toast 通知
-    if (settings.desktopNotifications) {
+    if (settings.desktopNotifications && settings.enabled) {
       const toastFn =
         newNotification.priority === 'urgent' || newNotification.priority === 'high'
           ? toast.warning
@@ -318,7 +381,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         }
       });
     }
-  }, [settings.desktopNotifications]);
+  }, [settings.desktopNotifications, settings.soundEnabled, settings.enabled]);
 
   // 标记为已读（同时更新 Supabase）
   const markAsRead = useCallback(async (id: string) => {

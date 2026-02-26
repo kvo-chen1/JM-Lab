@@ -4,28 +4,51 @@ export interface Event {
   id: string;
   title: string;
   description: string;
-  startDate: number;
-  endDate: number;
+  startTime: number | string | Date;
+  endTime: number | string | Date;
   location?: string;
   organizerId?: string;
   requirements?: string;
   rewards?: string;
   visibility: string;
   status: string;
-  registrationDeadline?: number;
-  reviewStartDate?: number; // 评审开始时间
-  resultDate?: number; // 结果公布时间
+  registrationDeadline?: number | string | Date;
+  reviewStartDate?: number | string | Date; // 评审开始时间
+  resultDate?: number | string | Date; // 结果公布时间
   phaseStatus?: string; // 活动阶段状态: registration, review, completed
   maxParticipants?: number;
-  createdAt: number;
-  updatedAt: number;
-  publishedAt?: number;
+  createdAt: number | string | Date;
+  updatedAt: number | string | Date;
+  publishedAt?: number | string | Date;
   imageUrl?: string;
   category?: string;
   tags: string[];
   platformEventId?: string;
   eventType?: string; // 活动类型: document, image_description, other
 }
+
+// 辅助函数：转换时间戳为 ISO 字符串
+const convertTimestamp = (ts: any): string | undefined => {
+  if (!ts) return undefined;
+  // 如果是 Date 对象，直接转换为 ISO 字符串
+  if (ts instanceof Date) {
+    return ts.toISOString();
+  }
+  // 如果是数字（秒级时间戳），转换为毫秒
+  if (typeof ts === 'number') {
+    return new Date(ts * 1000).toISOString();
+  }
+  // 如果已经是字符串
+  if (typeof ts === 'string') {
+    // 检查是否是纯数字字符串（秒级时间戳）
+    if (/^\d+$/.test(ts)) {
+      return new Date(parseInt(ts, 10) * 1000).toISOString();
+    }
+    // 已经是 ISO 字符串或其他格式，直接返回
+    return ts;
+  }
+  return undefined;
+};
 
 export const eventService = {
   // Get all published events
@@ -42,32 +65,40 @@ export const eventService = {
       return [];
     }
 
-    return (data || []).map(item => ({
-      id: item.id,
-      title: item.title,
-      description: item.description,
-      startDate: item.start_date,
-      endDate: item.end_date,
-      location: item.location,
-      organizerId: item.organizer_id,
-      requirements: item.requirements,
-      rewards: item.rewards,
-      visibility: item.visibility,
-      status: item.status,
-      registrationDeadline: item.registration_deadline,
-      reviewStartDate: item.review_start_date,
-      resultDate: item.result_date,
-      phaseStatus: item.phase_status,
-      maxParticipants: item.max_participants,
-      createdAt: item.created_at,
-      updatedAt: item.updated_at,
-      publishedAt: item.published_at,
-      imageUrl: item.image_url,
-      category: item.category,
-      tags: item.tags || [],
-      platformEventId: item.platform_event_id,
-      eventType: item.event_type
-    }));
+    return (data || []).map(item => {
+      // 判断使用哪个字段：优先使用 start_time (TIMESTAMPTZ)，如果不存在则使用 start_date (BIGINT)
+      // 如果 start_date 是 1970 年的值（小于 1000000000），也使用 start_time
+      const startDateValue = item.start_time || (item.start_date && item.start_date > 1000000000 ? item.start_date : null);
+      const endDateValue = item.end_time || (item.end_date && item.end_date > 1000000000 ? item.end_date : null);
+
+      return {
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        // 兼容 start_date (BIGINT) 和 start_time (TIMESTAMPTZ) 两种字段名
+        startTime: convertTimestamp(startDateValue) ?? startDateValue,
+        endTime: convertTimestamp(endDateValue) ?? endDateValue,
+        location: item.location,
+        organizerId: item.organizer_id,
+        requirements: item.requirements,
+        rewards: item.rewards,
+        visibility: item.visibility,
+        status: item.status,
+        registrationDeadline: convertTimestamp(item.registration_deadline) ?? item.registration_deadline,
+        reviewStartDate: convertTimestamp(item.review_start_date) ?? item.review_start_date,
+        resultDate: convertTimestamp(item.result_date) ?? item.result_date,
+        phaseStatus: item.phase_status,
+        maxParticipants: item.max_participants,
+        createdAt: convertTimestamp(item.created_at) ?? item.created_at,
+        updatedAt: item.updated_at,
+        publishedAt: convertTimestamp(item.published_at) ?? item.published_at,
+        imageUrl: item.image_url,
+        category: item.category,
+        tags: item.tags || [],
+        platformEventId: item.platform_event_id,
+        eventType: item.event_type
+      };
+    });
   },
 
   // Get all public events (including completed) for search
@@ -84,32 +115,40 @@ export const eventService = {
       return [];
     }
 
-    return (data || []).map(item => ({
-      id: item.id,
-      title: item.title,
-      description: item.description,
-      startDate: item.start_date,
-      endDate: item.end_date,
-      location: item.location,
-      organizerId: item.organizer_id,
-      requirements: item.requirements,
-      rewards: item.rewards,
-      visibility: item.visibility,
-      status: item.status,
-      registrationDeadline: item.registration_deadline,
-      reviewStartDate: item.review_start_date,
-      resultDate: item.result_date,
-      phaseStatus: item.phase_status,
-      maxParticipants: item.max_participants,
-      createdAt: item.created_at,
-      updatedAt: item.updated_at,
-      publishedAt: item.published_at,
-      imageUrl: item.image_url,
-      category: item.category,
-      tags: item.tags || [],
-      platformEventId: item.platform_event_id,
-      eventType: item.event_type
-    }));
+    return (data || []).map(item => {
+      // 判断使用哪个字段：优先使用 start_time (TIMESTAMPTZ)，如果不存在则使用 start_date (BIGINT)
+      // 如果 start_date 是 1970 年的值（小于 1000000000），也使用 start_time
+      const startDateValue = item.start_time || (item.start_date && item.start_date > 1000000000 ? item.start_date : null);
+      const endDateValue = item.end_time || (item.end_date && item.end_date > 1000000000 ? item.end_date : null);
+
+      return {
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        // 兼容 start_date (BIGINT) 和 start_time (TIMESTAMPTZ) 两种字段名
+        startTime: convertTimestamp(startDateValue) ?? startDateValue,
+        endTime: convertTimestamp(endDateValue) ?? endDateValue,
+        location: item.location,
+        organizerId: item.organizer_id,
+        requirements: item.requirements,
+        rewards: item.rewards,
+        visibility: item.visibility,
+        status: item.status,
+        registrationDeadline: convertTimestamp(item.registration_deadline) ?? item.registration_deadline,
+        reviewStartDate: convertTimestamp(item.review_start_date) ?? item.review_start_date,
+        resultDate: convertTimestamp(item.result_date) ?? item.result_date,
+        phaseStatus: item.phase_status,
+        maxParticipants: item.max_participants,
+        createdAt: convertTimestamp(item.created_at) ?? item.created_at,
+        updatedAt: item.updated_at,
+        publishedAt: convertTimestamp(item.published_at) ?? item.published_at,
+        imageUrl: item.image_url,
+        category: item.category,
+        tags: item.tags || [],
+        platformEventId: item.platform_event_id,
+        eventType: item.event_type
+      };
+    });
   },
 
   // Get a single event by ID
@@ -125,45 +164,42 @@ export const eventService = {
       return null;
     }
 
-    // 辅助函数：转换时间戳为 ISO 字符串
-    const convertTimestamp = (ts: any): string | undefined => {
-      if (!ts) return undefined;
-      // 如果是数字（秒级时间戳），转换为毫秒
-      if (typeof ts === 'number') {
-        return new Date(ts * 1000).toISOString();
-      }
-      // 如果已经是字符串
-      if (typeof ts === 'string') {
-        // 检查是否是纯数字字符串（秒级时间戳）
-        if (/^\d+$/.test(ts)) {
-          return new Date(parseInt(ts, 10) * 1000).toISOString();
-        }
-        // 已经是 ISO 字符串或其他格式，直接返回
-        return ts;
-      }
-      return undefined;
-    };
+    // 调试日志：检查原始数据
+    console.log('[getEventById] Raw data from DB:', {
+      start_date: data.start_date,
+      start_time: data.start_time,
+      end_date: data.end_date,
+      end_time: data.end_time,
+      typeof_start_date: typeof data.start_date,
+      typeof_start_time: typeof data.start_time,
+    });
+
+    // 判断使用哪个字段：优先使用 start_time (TIMESTAMPTZ)，如果不存在则使用 start_date (BIGINT)
+    // 如果 start_date 是 1970 年的值（小于 1000000000），也使用 start_time
+    const startDateValue = data.start_time || (data.start_date && data.start_date > 1000000000 ? data.start_date : null);
+    const endDateValue = data.end_time || (data.end_date && data.end_date > 1000000000 ? data.end_date : null);
 
     return {
       id: data.id,
       title: data.title,
       description: data.description,
-      startDate: convertTimestamp(data.start_date),
-      endDate: convertTimestamp(data.end_date),
+      // 兼容 start_date (BIGINT) 和 start_time (TIMESTAMPTZ) 两种字段名
+      startTime: convertTimestamp(startDateValue) ?? startDateValue,
+      endTime: convertTimestamp(endDateValue) ?? endDateValue,
       location: data.location,
       organizerId: data.organizer_id,
       requirements: data.requirements,
       rewards: data.rewards,
       visibility: data.visibility,
       status: data.status,
-      registrationDeadline: convertTimestamp(data.registration_deadline),
-      reviewStartDate: convertTimestamp(data.review_start_date),
-      resultDate: convertTimestamp(data.result_date),
+      registrationDeadline: convertTimestamp(data.registration_deadline) ?? data.registration_deadline,
+      reviewStartDate: convertTimestamp(data.review_start_date) ?? data.review_start_date,
+      resultDate: convertTimestamp(data.result_date) ?? data.result_date,
       phaseStatus: data.phase_status,
       maxParticipants: data.max_participants,
-      createdAt: convertTimestamp(data.created_at),
+      createdAt: convertTimestamp(data.created_at) ?? data.created_at,
       updatedAt: data.updated_at,
-      publishedAt: convertTimestamp(data.published_at),
+      publishedAt: convertTimestamp(data.published_at) ?? data.published_at,
       imageUrl: data.image_url,
       category: data.category,
       tags: data.tags || [],

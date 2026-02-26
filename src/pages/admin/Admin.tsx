@@ -36,10 +36,12 @@ const KnowledgeBaseManagement = lazy(() => import('./KnowledgeBaseManagement'));
 const TemplateManagement = lazy(() => import('./TemplateManagement'));
 const AchievementManagement = lazy(() => import('./AchievementManagement'));
 const AIFeedbackManagement = lazy(() => import('./AIFeedbackManagement'));
+const ReportManagement = lazy(() => import('./ReportManagement'));
+const BrandTaskAudit = lazy(() => import('./BrandTaskAudit'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -1837,6 +1839,36 @@ export default function Admin() {
             </div>
           }>
             <AIFeedbackManagement />
+          </Suspense>
+        )}
+
+        {/* 举报管理页面 */}
+        {activeTab === 'reportManagement' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <ReportManagement />
+          </Suspense>
+        )}
+
+        {/* 品牌任务审核页面 */}
+        {activeTab === 'brandTaskAudit' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <BrandTaskAudit />
           </Suspense>
         )}
 

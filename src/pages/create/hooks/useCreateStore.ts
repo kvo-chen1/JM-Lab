@@ -7,6 +7,7 @@ import postsApi from '@/services/postService';
 import { eventSubmissionService } from '@/services/eventSubmissionService';
 import { inspirationMindMapService } from '@/services/inspirationMindMapService';
 import { generateLayoutRecommendation } from '../utils/layoutEngine';
+import { createDraftService } from '@/services/createDraftService';
 
 // 辅助函数：获取当前用户（先尝试 localStorage，再尝试 session/getUser）
 const getCurrentUser = async () => {
@@ -478,6 +479,37 @@ export const useCreateStore = create<CreateState & CreateActions>()(
       console.error('[GeneratedResults] Failed to save to localStorage:', e);
     }
 
+    // 异步批量保存到数据库（不阻塞UI）
+    if (typeof window !== 'undefined' && results && results.length > 0) {
+      setTimeout(async () => {
+        try {
+          const { aiGenerationSaveService } = await import('@/services/aiGenerationSaveService');
+          for (const result of results) {
+            // 检查是否已经有 thumbnail 且不是默认数据
+            if (result.thumbnail && !result.thumbnail.includes('placeholder')) {
+              if (result.type === 'video' || result.video) {
+                await aiGenerationSaveService.saveVideoGeneration(
+                  result.prompt || 'AI生成视频',
+                  result.video || result.thumbnail,
+                  result.thumbnail,
+                  { source: 'create-store-batch', uploadToStorage: false }
+                );
+              } else {
+                await aiGenerationSaveService.saveImageGeneration(
+                  result.prompt || 'AI生成图片',
+                  result.thumbnail,
+                  { source: 'create-store-batch', uploadToStorage: false }
+                );
+              }
+            }
+          }
+          console.log('[setGeneratedResults] Saved batch to database:', results.length, 'items');
+        } catch (error) {
+          console.error('[setGeneratedResults] Failed to save batch to database:', error);
+        }
+      }, 0);
+    }
+
     return { generatedResults: results };
   }),
   addGeneratedResult: (result) => set((state) => {
@@ -490,6 +522,33 @@ export const useCreateStore = create<CreateState & CreateActions>()(
         console.error('Failed to save to localStorage:', error);
       }
     }
+    
+    // 异步保存到数据库（不阻塞UI）
+    if (typeof window !== 'undefined') {
+      setTimeout(async () => {
+        try {
+          const { aiGenerationSaveService } = await import('@/services/aiGenerationSaveService');
+          if (result.type === 'video' || result.video) {
+            await aiGenerationSaveService.saveVideoGeneration(
+              result.prompt || 'AI生成视频',
+              result.video || result.thumbnail,
+              result.thumbnail,
+              { source: 'create-store', uploadToStorage: false }
+            );
+          } else {
+            await aiGenerationSaveService.saveImageGeneration(
+              result.prompt || 'AI生成图片',
+              result.thumbnail,
+              { source: 'create-store', uploadToStorage: false }
+            );
+          }
+          console.log('[addGeneratedResult] Saved to database:', result.id);
+        } catch (error) {
+          console.error('[addGeneratedResult] Failed to save to database:', error);
+        }
+      }, 0);
+    }
+    
     return { 
       generatedResults: newResults,
       selectedResult: result.id
@@ -748,6 +807,16 @@ export const useCreateStore = create<CreateState & CreateActions>()(
       const updatedDrafts = [newDraft, ...drafts].slice(0, 10);
       localStorage.setItem('CREATE_DRAFTS', JSON.stringify(updatedDrafts));
       console.log('Design saved to drafts');
+
+      // 异步保存到数据库
+      (async () => {
+        try {
+          await createDraftService.saveDraft(newDraft);
+          console.log('[CreateDraft] Saved to database');
+        } catch (error) {
+          console.error('[CreateDraft] Failed to save to database:', error);
+        }
+      })();
 
       // 同步到津脉脉络
       (async () => {

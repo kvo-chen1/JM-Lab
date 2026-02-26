@@ -29,6 +29,7 @@ import { eventParticipationService } from '@/services/eventParticipationService'
 import { eventSubmissionService } from '@/services/eventSubmissionService';
 import { supabase } from '@/lib/supabase';
 import { uploadBase64Image, generateFilePath } from '@/services/supabaseStorageService';
+import { userStateService } from '@/services/userStateService';
 
 // Load persisted step from localStorage
 const loadPersistedStep = (): number => {
@@ -145,7 +146,24 @@ export default function Wizard() {
         console.error('Failed to persist step:', e);
       }
     }
-  }, [step]);
+    
+    // 保存工作流进度到数据库
+    userStateService.saveWorkflowProgress(
+      'brand-creation',
+      step,
+      4,
+      {
+        brandName: state.brandName,
+        inputText: state.inputText,
+        selectedTemplate: state.selectedTemplate,
+        selectedCompetition: state.selectedCompetition,
+        variants: state.variants?.length || 0
+      },
+      step === 4
+    ).catch(err => {
+      console.error('[Wizard] Failed to save workflow progress:', err);
+    });
+  }, [step, state]);
 
   // Load draft from URL parameter or restore from localStorage
   useEffect(() => {

@@ -58,10 +58,33 @@ import {
   MoreVertical,
   Copy,
   ExternalLink,
+  TrendingDown,
+  MousePointer,
+  ThumbsUp,
+  MessageCircle,
+  Send,
+  Inbox,
+  CheckSquare,
+  XSquare,
+  RotateCcw,
+  Settings,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
-// 任务状态配置
+// ============================================================================
+// 类型定义
+// ============================================================================
+
+interface TaskWithStats extends BrandTask {
+  stats?: TaskStats;
+}
+
+// ============================================================================
+// 状态配置
+// ============================================================================
+
 const statusConfig = {
   draft: { 
     label: '草稿', 
@@ -69,7 +92,8 @@ const statusConfig = {
     bgColor: 'bg-slate-50 dark:bg-slate-900/50',
     borderColor: 'border-slate-200 dark:border-slate-700',
     icon: FileText,
-    gradient: 'from-slate-400 to-slate-500'
+    gradient: 'from-slate-400 to-slate-500',
+    description: '任务尚未发布'
   },
   pending: { 
     label: '审核中', 
@@ -77,7 +101,8 @@ const statusConfig = {
     bgColor: 'bg-amber-50 dark:bg-amber-900/20',
     borderColor: 'border-amber-200 dark:border-amber-800',
     icon: Clock,
-    gradient: 'from-amber-400 to-orange-500'
+    gradient: 'from-amber-400 to-orange-500',
+    description: '等待平台审核'
   },
   published: { 
     label: '进行中', 
@@ -85,7 +110,8 @@ const statusConfig = {
     bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
     borderColor: 'border-emerald-200 dark:border-emerald-800',
     icon: Play,
-    gradient: 'from-emerald-400 to-teal-500'
+    gradient: 'from-emerald-400 to-teal-500',
+    description: '任务正在招募创作者'
   },
   paused: { 
     label: '已暂停', 
@@ -93,7 +119,8 @@ const statusConfig = {
     bgColor: 'bg-orange-50 dark:bg-orange-900/20',
     borderColor: 'border-orange-200 dark:border-orange-800',
     icon: Pause,
-    gradient: 'from-orange-400 to-red-500'
+    gradient: 'from-orange-400 to-red-500',
+    description: '任务已暂停招募'
   },
   completed: { 
     label: '已完成', 
@@ -101,7 +128,8 @@ const statusConfig = {
     bgColor: 'bg-blue-50 dark:bg-blue-900/20',
     borderColor: 'border-blue-200 dark:border-blue-800',
     icon: CheckCircle2,
-    gradient: 'from-blue-400 to-indigo-500'
+    gradient: 'from-blue-400 to-indigo-500',
+    description: '任务已结束'
   },
   cancelled: { 
     label: '已取消', 
@@ -109,11 +137,47 @@ const statusConfig = {
     bgColor: 'bg-red-50 dark:bg-red-900/20',
     borderColor: 'border-red-200 dark:border-red-800',
     icon: XCircle,
-    gradient: 'from-red-400 to-rose-500'
+    gradient: 'from-red-400 to-rose-500',
+    description: '任务已取消'
   },
 };
 
+const submissionStatusConfig = {
+  pending: { 
+    label: '待审核', 
+    color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    icon: Clock 
+  },
+  approved: { 
+    label: '已通过', 
+    color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    icon: CheckCircle2 
+  },
+  rejected: { 
+    label: '已拒绝', 
+    color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    icon: XCircle 
+  },
+  needs_revision: { 
+    label: '需修改', 
+    color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    icon: RotateCcw 
+  },
+};
+
+const participantStatusConfig = {
+  applied: { label: '已申请', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+  approved: { label: '已通过', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
+  rejected: { label: '已拒绝', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+  active: { label: '进行中', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' },
+  completed: { label: '已完成', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
+  cancelled: { label: '已取消', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
+};
+
+// ============================================================================
 // 激励模型预设
+// ============================================================================
+
 const incentivePresets = [
   {
     name: '标准模式',
@@ -162,17 +226,24 @@ const incentivePresets = [
   },
 ];
 
+// ============================================================================
 // 左侧导航组件
+// ============================================================================
+
 function Sidebar({ 
   activeFilter, 
   setActiveFilter, 
   taskCounts,
-  isDark 
+  isDark,
+  totalBudget,
+  totalSpent,
 }: { 
   activeFilter: string; 
   setActiveFilter: (filter: string) => void;
   taskCounts: Record<string, number>;
   isDark: boolean;
+  totalBudget: number;
+  totalSpent: number;
 }) {
   const menuItems = [
     { id: 'all', label: '全部任务', icon: Layers, count: taskCounts.all },
@@ -182,6 +253,8 @@ function Sidebar({
     { id: 'paused', label: '已暂停', icon: Pause, count: taskCounts.paused },
     { id: 'completed', label: '已完成', icon: CheckCircle2, count: taskCounts.completed },
   ];
+
+  const usageRate = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   return (
     <div className={`w-64 flex-shrink-0 ${isDark ? 'bg-gray-900/50' : 'bg-white'} rounded-2xl border ${isDark ? 'border-gray-800' : 'border-gray-200'} overflow-hidden`}>
@@ -225,6 +298,33 @@ function Sidebar({
         })}
       </nav>
 
+      {/* 预算概览 */}
+      <div className={`p-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+        <div className={`p-4 rounded-xl ${isDark ? 'bg-gradient-to-br from-emerald-600/20 to-teal-600/20 border border-emerald-500/20' : 'bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100'}`}>
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+            <span className={`text-xs font-medium ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>预算概览</span>
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>总预算</span>
+              <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>¥{totalBudget.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>已使用</span>
+              <span className={`font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{totalSpent.toLocaleString()}</span>
+            </div>
+            <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+              <div 
+                className={`h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-500`}
+                style={{ width: `${Math.min(usageRate, 100)}%` }}
+              />
+            </div>
+            <p className={`text-xs text-right ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>使用率 {usageRate}%</p>
+          </div>
+        </div>
+      </div>
+
       {/* 快速统计 */}
       <div className={`p-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
         <div className={`p-4 rounded-xl ${isDark ? 'bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/20' : 'bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-100'}`}>
@@ -242,7 +342,10 @@ function Sidebar({
   );
 }
 
-// 任务卡片组件 - 新设计
+// ============================================================================
+// 任务卡片组件
+// ============================================================================
+
 interface TaskCardProps {
   task: BrandTask;
   isSelected: boolean;
@@ -259,6 +362,8 @@ const TaskCard = React.forwardRef<HTMLDivElement, TaskCardProps>(function TaskCa
     : 0;
 
   const daysLeft = Math.ceil((new Date(task.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  const isExpired = daysLeft < 0;
+  const isEndingSoon = daysLeft >= 0 && daysLeft <= 3;
 
   return (
     <motion.div
@@ -299,7 +404,7 @@ const TaskCard = React.forwardRef<HTMLDivElement, TaskCardProps>(function TaskCa
                 {task.brand_name.charAt(0)}
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               <h4 className={`font-semibold text-sm line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {task.title}
               </h4>
@@ -363,10 +468,12 @@ const TaskCard = React.forwardRef<HTMLDivElement, TaskCardProps>(function TaskCa
         <div className="flex items-center justify-between text-xs">
           <div className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
             <Calendar className="w-3 h-3" />
-            {daysLeft > 0 ? (
-              <span>还剩 {daysLeft} 天</span>
-            ) : (
+            {isExpired ? (
               <span className="text-red-500">已过期</span>
+            ) : isEndingSoon ? (
+              <span className="text-amber-500">还剩 {daysLeft} 天</span>
+            ) : (
+              <span>还剩 {daysLeft} 天</span>
             )}
           </div>
           <div className={`flex items-center gap-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
@@ -379,7 +486,65 @@ const TaskCard = React.forwardRef<HTMLDivElement, TaskCardProps>(function TaskCa
   );
 });
 
-// 任务详情面板 - 右侧
+// ============================================================================
+// 统计卡片组件
+// ============================================================================
+
+function StatCard({ 
+  title, 
+  value, 
+  subtitle, 
+  icon: Icon, 
+  trend,
+  trendUp,
+  isDark,
+  color = 'blue'
+}: { 
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ElementType;
+  trend?: string;
+  trendUp?: boolean;
+  isDark: boolean;
+  color?: 'blue' | 'emerald' | 'amber' | 'purple' | 'pink';
+}) {
+  const colorClasses = {
+    blue: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', icon: 'text-blue-500' },
+    emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-600 dark:text-emerald-400', icon: 'text-emerald-500' },
+    amber: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-600 dark:text-amber-400', icon: 'text-amber-500' },
+    purple: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400', icon: 'text-purple-500' },
+    pink: { bg: 'bg-pink-100 dark:bg-pink-900/30', text: 'text-pink-600 dark:text-pink-400', icon: 'text-pink-500' },
+  };
+
+  const colors = colorClasses[color];
+
+  return (
+    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{title}</p>
+          <p className={`text-xl font-bold mt-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{value}</p>
+          {subtitle && <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{subtitle}</p>}
+          {trend && (
+            <div className={`flex items-center gap-1 mt-2 text-xs ${trendUp ? 'text-emerald-500' : 'text-red-500'}`}>
+              {trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              {trend}
+            </div>
+          )}
+        </div>
+        <div className={`w-10 h-10 rounded-xl ${colors.bg} flex items-center justify-center`}>
+          <Icon className={`w-5 h-5 ${colors.icon}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// 任务详情面板
+// ============================================================================
+
 interface TaskDetailPanelProps {
   task: BrandTask | null;
   isDark: boolean;
@@ -388,6 +553,7 @@ interface TaskDetailPanelProps {
   onPause: (taskId: string) => void;
   onResume: (taskId: string) => void;
   onComplete: (taskId: string) => void;
+  onRefresh: () => void;
 }
 
 function TaskDetailPanel({ 
@@ -397,20 +563,37 @@ function TaskDetailPanel({
   onDelete, 
   onPause, 
   onResume, 
-  onComplete 
+  onComplete,
+  onRefresh,
 }: TaskDetailPanelProps) {
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [participants, setParticipants] = useState<BrandTaskParticipant[]>([]);
   const [submissions, setSubmissions] = useState<BrandTaskSubmission[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'participants' | 'submissions' | 'analytics' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'participants' | 'submissions' | 'analytics'>('overview');
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (task) {
-      brandTaskService.getTaskStats(task.id).then(setStats);
-      brandTaskService.getTaskParticipants(task.id).then(setParticipants);
-      brandTaskService.getTaskSubmissions(task.id).then(setSubmissions);
+  const loadTaskData = useCallback(async () => {
+    if (!task) return;
+    setIsLoading(true);
+    try {
+      const [statsData, participantsData, submissionsData] = await Promise.all([
+        brandTaskService.getTaskStats(task.id),
+        brandTaskService.getTaskParticipants(task.id),
+        brandTaskService.getTaskSubmissions(task.id),
+      ]);
+      setStats(statsData);
+      setParticipants(participantsData);
+      setSubmissions(submissionsData);
+    } catch (error) {
+      console.error('加载任务数据失败:', error);
+    } finally {
+      setIsLoading(false);
     }
   }, [task]);
+
+  useEffect(() => {
+    loadTaskData();
+  }, [loadTaskData]);
 
   if (!task) {
     return (
@@ -431,6 +614,9 @@ function TaskDetailPanel({
     ? Math.round(((task.total_budget - (task.remaining_budget || 0)) / task.total_budget) * 100)
     : 0;
 
+  const pendingSubmissions = submissions.filter(s => s.status === 'pending').length;
+  const approvedSubmissions = submissions.filter(s => s.status === 'approved').length;
+
   return (
     <div className={`w-96 flex-shrink-0 rounded-2xl border ${isDark ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'} overflow-hidden flex flex-col`}>
       {/* 头部 */}
@@ -443,547 +629,710 @@ function TaskDetailPanel({
               {task.brand_name.charAt(0)}
             </div>
           )}
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${status.color}`}>
-            <StatusIcon className="w-3.5 h-3.5" />
-            {status.label}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadTaskData}
+              className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+              title="刷新数据"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${status.color}`}>
+              <StatusIcon className="w-3.5 h-3.5" />
+              {status.label}
+            </div>
           </div>
         </div>
         <h3 className={`font-bold text-lg mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{task.title}</h3>
         <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{task.brand_name}</p>
+        <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{status.description}</p>
       </div>
 
       {/* 标签页 */}
       <div className={`flex gap-1 p-2 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
         {[
           { id: 'overview', label: '概览', icon: BarChart3 },
-          { id: 'participants', label: '参与者', icon: Users },
-          { id: 'submissions', label: '作品', icon: FileText },
+          { id: 'participants', label: `参与者 ${participants.length > 0 ? `(${participants.length})` : ''}`, icon: Users },
+          { id: 'submissions', label: `作品 ${pendingSubmissions > 0 ? `(${pendingSubmissions}待审)` : ''}`, icon: FileText },
           { id: 'analytics', label: '数据', icon: TrendingUp },
-          { id: 'settings', label: '设置', icon: MoreHorizontal },
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium transition-all ${
               activeTab === tab.id
                 ? isDark ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
                 : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             <tab.icon className="w-3.5 h-3.5" />
-            {tab.label}
+            <span className="truncate">{tab.label}</span>
           </button>
         ))}
       </div>
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto p-5">
-        {activeTab === 'overview' && (
-          <div className="space-y-5">
-            {/* 关键指标 */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-                  <Users className="w-3.5 h-3.5" />
-                  参与人数
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <>
+            {activeTab === 'overview' && (
+              <div className="space-y-5">
+                {/* 快捷操作 */}
+                <div className="grid grid-cols-2 gap-2">
+                  {task.status === 'draft' && (
+                    <button
+                      onClick={() => onEdit(task)}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        isDark ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                      }`}
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      编辑任务
+                    </button>
+                  )}
+                  {task.status === 'published' && (
+                    <button
+                      onClick={() => onPause(task.id)}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        isDark ? 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                      }`}
+                    >
+                      <Pause className="w-4 h-4" />
+                      暂停任务
+                    </button>
+                  )}
+                  {task.status === 'paused' && (
+                    <button
+                      onClick={() => onResume(task.id)}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        isDark ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                      }`}
+                    >
+                      <Play className="w-4 h-4" />
+                      恢复任务
+                    </button>
+                  )}
+                  {(task.status === 'published' || task.status === 'paused') && (
+                    <button
+                      onClick={() => onComplete(task.id)}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        isDark ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      完成任务
+                    </button>
+                  )}
+                  {task.status === 'draft' && (
+                    <button
+                      onClick={() => onDelete(task.id)}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        isDark ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30' : 'bg-red-50 text-red-700 hover:bg-red-100'
+                      }`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      删除任务
+                    </button>
+                  )}
                 </div>
-                <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {task.current_participants}/{task.max_participants}
-                </p>
-                <div className="mt-2 h-1 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                  <div 
-                    className="h-full rounded-full bg-blue-500"
-                    style={{ width: `${(task.current_participants / task.max_participants) * 100}%` }}
+
+                {/* 关键指标 */}
+                <div className="grid grid-cols-2 gap-3">
+                  <StatCard
+                    title="参与人数"
+                    value={`${task.current_participants}/${task.max_participants}`}
+                    subtitle={`${Math.round((task.current_participants / task.max_participants) * 100)}% 名额已满`}
+                    icon={Users}
+                    isDark={isDark}
+                    color="blue"
+                  />
+                  <StatCard
+                    title="作品数量"
+                    value={task.total_works}
+                    subtitle={`人均 ${(task.total_works / Math.max(task.current_participants, 1)).toFixed(1)} 个`}
+                    icon={FileText}
+                    isDark={isDark}
+                    color="purple"
                   />
                 </div>
-              </div>
-              <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-                  <FileText className="w-3.5 h-3.5" />
-                  作品数量
-                </div>
-                <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {task.total_works}
-                </p>
-                <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                  人均 {(task.total_works / Math.max(task.current_participants, 1)).toFixed(1)} 个
-                </p>
-              </div>
-            </div>
 
-            {/* 预算信息 */}
-            <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-800 bg-gray-800/30' : 'border-gray-200 bg-gray-50'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <DollarSign className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                  <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>预算使用</span>
-                </div>
-                <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {progress}%
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mb-3">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  className={`h-full rounded-full bg-gradient-to-r ${status.gradient}`}
-                />
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className={isDark ? 'text-gray-500' : 'text-gray-500'}>
-                  已用 ¥{(task.total_budget - (task.remaining_budget || 0)).toLocaleString()}
-                </span>
-                <span className={isDark ? 'text-gray-500' : 'text-gray-500'}>
-                  总计 ¥{task.total_budget.toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            {/* 时间信息 */}
-            <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-              <h4 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>时间安排</h4>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>开始时间</span>
+                {/* 预算信息 */}
+                <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-800 bg-gray-800/30' : 'border-gray-200 bg-gray-50'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <DollarSign className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                      <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>预算使用</span>
+                    </div>
+                    <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {progress}%
+                    </span>
                   </div>
-                  <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
-                    {new Date(task.start_date).toLocaleDateString('zh-CN')}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-red-500" />
-                    <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>结束时间</span>
+                  <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mb-3">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      className={`h-full rounded-full bg-gradient-to-r ${status.gradient}`}
+                    />
                   </div>
-                  <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
-                    {new Date(task.end_date).toLocaleDateString('zh-CN')}
-                  </span>
+                  <div className="flex justify-between text-xs">
+                    <span className={isDark ? 'text-gray-500' : 'text-gray-500'}>
+                      已用 ¥{(task.total_budget - (task.remaining_budget || 0)).toLocaleString()}
+                    </span>
+                    <span className={isDark ? 'text-gray-500' : 'text-gray-500'}>
+                      总计 ¥{task.total_budget.toLocaleString()}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* 任务要求 */}
-            <div>
-              <h4 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>任务要求</h4>
-              <div className="flex flex-wrap gap-2">
-                {task.required_tags.map((tag, i) => (
-                  <span key={i} className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    isDark ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-blue-50 text-blue-700 border border-blue-200'
-                  }`}>
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-              {task.required_location && (
-                <div className={`flex items-center gap-2 mt-3 text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  <MapPin className="w-3.5 h-3.5" />
-                  {task.required_location}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'participants' && (
-          <div className="space-y-4">
-            <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  申请者列表 ({participants.length})
-                </h4>
-              </div>
-              {participants.length === 0 ? (
-                <div className="text-center py-8">
-                  <Users className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
-                  <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>暂无申请者</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {participants.map((participant) => (
-                    <div
-                      key={participant.id}
-                      className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-white'}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        {participant.creator?.avatar_url ? (
-                          <img
-                            src={participant.creator.avatar_url}
-                            alt={participant.creator.username}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                            <User className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {participant.creator?.username || '未知用户'}
-                          </p>
-                          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                            {new Date(participant.applied_at).toLocaleDateString('zh-CN')}
-                          </p>
-                        </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          participant.status === 'approved'
-                            ? isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
-                            : participant.status === 'rejected'
-                            ? isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'
-                            : isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {participant.status === 'approved' ? '已通过'
-                            : participant.status === 'rejected' ? '已拒绝'
-                            : '待审核'}
-                        </span>
+                {/* 时间信息 */}
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                  <h4 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>时间安排</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>开始时间</span>
                       </div>
+                      <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                        {new Date(task.start_date).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500" />
+                        <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>结束时间</span>
+                      </div>
+                      <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                        {new Date(task.end_date).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-                      {/* 审核按钮 */}
-                      {participant.status === 'applied' && (
-                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                          <button
-                            onClick={async () => {
-                              const success = await brandTaskService.approveParticipant(participant.id);
-                              if (success) {
-                                toast.success('已通过申请');
-                                // 刷新参与者列表
-                                if (task) {
-                                  const updatedParticipants = await brandTaskService.getTaskParticipants(task.id);
-                                  setParticipants(updatedParticipants);
-                                }
-                              } else {
-                                toast.error('审核失败');
-                              }
-                            }}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            通过
-                          </button>
-                          <button
-                            onClick={async () => {
-                              const success = await brandTaskService.rejectParticipant(participant.id);
-                              if (success) {
-                                toast.success('已拒绝申请');
-                                // 刷新参与者列表
-                                if (task) {
-                                  const updatedParticipants = await brandTaskService.getTaskParticipants(task.id);
-                                  setParticipants(updatedParticipants);
-                                }
-                              } else {
-                                toast.error('操作失败');
-                              }
-                            }}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            拒绝
-                          </button>
+                {/* 任务要求 */}
+                <div>
+                  <h4 className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>任务要求</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {task.required_tags.map((tag, i) => (
+                      <span key={i} className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        isDark ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}>
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                  {task.required_location && (
+                    <div className={`flex items-center gap-2 mt-3 text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <MapPin className="w-3.5 h-3.5" />
+                      {task.required_location}
+                    </div>
+                  )}
+                </div>
+
+                {/* 激励说明 */}
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-gradient-to-br from-amber-600/10 to-orange-600/10 border border-amber-500/20' : 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                    <span className={`text-sm font-medium ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>激励说明</span>
+                  </div>
+                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    单个作品奖励范围: ¥{task.min_reward} - ¥{task.max_reward}
+                  </p>
+                  {task.incentive_model?.metrics && (
+                    <div className="mt-2 space-y-1 text-xs">
+                      {task.incentive_model.metrics.views && (
+                        <div className="flex justify-between">
+                          <span className={isDark ? 'text-gray-500' : 'text-gray-500'}>浏览量</span>
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>每1000次 ¥{task.incentive_model.metrics.views.rate_per_1000}</span>
+                        </div>
+                      )}
+                      {task.incentive_model.metrics.likes && (
+                        <div className="flex justify-between">
+                          <span className={isDark ? 'text-gray-500' : 'text-gray-500'}>点赞</span>
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>每个 ¥{task.incentive_model.metrics.likes.rate_per}</span>
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'submissions' && (
-          <div className="space-y-4">
-            <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  作品列表 ({submissions.length})
-                </h4>
-              </div>
-              {submissions.length === 0 ? (
-                <div className="text-center py-8">
-                  <FileText className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
-                  <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>暂无作品提交</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {submissions.map((submission) => (
-                    <div
-                      key={submission.id}
-                      className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-white'}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        {submission.work?.thumbnail ? (
-                          <img
-                            src={submission.work.thumbnail}
-                            alt={submission.work.title}
-                            className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div className={`w-16 h-16 rounded-lg flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                            <FileText className={`w-6 h-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {submission.work?.title || '未命名作品'}
-                          </p>
-                          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                            创作者: {submission.creator?.username || '未知用户'}
-                          </p>
-                          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                            提交时间: {new Date(submission.submitted_at).toLocaleDateString('zh-CN')}
-                          </p>
-                          {submission.final_reward !== null && (
-                            <p className={`text-xs font-medium mt-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                              奖励: ¥{submission.final_reward}
-                            </p>
-                          )}
-                        </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          submission.status === 'approved'
-                            ? isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
-                            : submission.status === 'rejected'
-                            ? isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700'
-                            : isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {submission.status === 'approved' ? '已通过'
-                            : submission.status === 'rejected' ? '已拒绝'
-                            : '待审核'}
-                        </span>
-                      </div>
-
-                      {/* 审核按钮 */}
-                      {submission.status === 'pending' && (
-                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                          <button
-                            onClick={async () => {
-                              const success = await brandTaskService.approveSubmission(submission.id);
-                              if (success) {
-                                toast.success('已通过作品');
-                                if (task) {
-                                  const updatedSubmissions = await brandTaskService.getTaskSubmissions(task.id);
-                                  setSubmissions(updatedSubmissions);
-                                }
-                              } else {
-                                toast.error('审核失败');
-                              }
-                            }}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            通过
-                          </button>
-                          <button
-                            onClick={async () => {
-                              const success = await brandTaskService.rejectSubmission(submission.id, '作品不符合要求');
-                              if (success) {
-                                toast.success('已拒绝作品');
-                                if (task) {
-                                  const updatedSubmissions = await brandTaskService.getTaskSubmissions(task.id);
-                                  setSubmissions(updatedSubmissions);
-                                }
-                              } else {
-                                toast.error('操作失败');
-                              }
-                            }}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            拒绝
-                          </button>
-                        </div>
-                      )}
-
-                      {/* 奖励发放按钮 */}
-                      {submission.status === 'approved' && submission.final_reward === null && (
-                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                          <button
-                            onClick={async () => {
-                              // 计算奖励
-                              const reward = await brandTaskService.calculateReward(
-                                submission.id,
-                                submission.work?.view_count || 0,
-                                0, // likes
-                                0, // favorites
-                                0  // shares
-                              );
-                              if (reward !== null) {
-                                const success = await brandTaskService.updateSubmissionReward(submission.id, reward);
-                                if (success) {
-                                  toast.success(`已发放奖励 ¥${reward}`);
-                                  if (task) {
-                                    const updatedSubmissions = await brandTaskService.getTaskSubmissions(task.id);
-                                    setSubmissions(updatedSubmissions);
-                                  }
-                                } else {
-                                  toast.error('奖励发放失败');
-                                }
-                              } else {
-                                toast.error('计算奖励失败');
-                              }
-                            }}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white transition-colors"
-                          >
-                            <DollarSign className="w-3.5 h-3.5" />
-                            计算并发放奖励
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'analytics' && (
-          <div className="space-y-5">
-            <div className={`p-4 rounded-xl ${isDark ? 'bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/20' : 'bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-100'}`}>
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
-                <span className={`text-sm font-medium ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>数据概览</span>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {stats?.total_views?.toLocaleString() || 0}
-                  </p>
-                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>总浏览量</p>
-                </div>
-                <div>
-                  <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {stats?.total_rewards?.toLocaleString() || 0}
-                  </p>
-                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>已发放奖励</p>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* 互动数据 */}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: '点赞', value: stats?.total_likes || 0, icon: Heart, color: 'text-pink-500' },
-                { label: '收藏', value: stats?.total_favorites || 0, icon: Bookmark, color: 'text-yellow-500' },
-                { label: '分享', value: stats?.total_shares || 0, icon: Share2, color: 'text-blue-500' },
-              ].map((item, i) => (
-                <div key={i} className={`p-3 rounded-xl text-center ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-                  <item.icon className={`w-4 h-4 mx-auto mb-2 ${item.color}`} />
-                  <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.value}</p>
-                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{item.label}</p>
-                </div>
-              ))}
-            </div>
+            {activeTab === 'participants' && (
+              <TaskParticipantsPanel 
+                participants={participants} 
+                isDark={isDark} 
+                task={task}
+                onRefresh={loadTaskData}
+              />
+            )}
 
-            {/* 详细统计 */}
-            <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-              <h4 className={`text-sm font-medium mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>详细统计</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>参与人数</span>
-                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {task.current_participants}/{task.max_participants}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>作品数量</span>
-                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {submissions.length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已审核作品</span>
-                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {submissions.filter(s => s.status === 'approved').length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>待审核作品</span>
-                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {submissions.filter(s => s.status === 'pending').length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已发放奖励</span>
-                  <span className={`text-sm font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                    ¥{submissions.reduce((sum, s) => sum + (s.final_reward || 0), 0).toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>剩余预算</span>
-                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    ¥{(task.remaining_budget || 0).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+            {activeTab === 'submissions' && (
+              <TaskSubmissionsPanel 
+                submissions={submissions} 
+                isDark={isDark}
+                task={task}
+                onRefresh={loadTaskData}
+              />
+            )}
 
-        {activeTab === 'settings' && (
-          <div className="space-y-3">
-            {task.status === 'draft' && (
-              <button
-                onClick={() => onEdit(task)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors ${
-                  isDark ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-                }`}
-              >
-                <Edit3 className="w-4 h-4" />
-                <span className="text-sm font-medium">编辑任务</span>
-              </button>
+            {activeTab === 'analytics' && (
+              <TaskAnalyticsPanel 
+                task={task}
+                stats={stats}
+                submissions={submissions}
+                isDark={isDark}
+              />
             )}
-            {task.status === 'published' && (
-              <button
-                onClick={() => onPause(task.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors ${
-                  isDark ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400' : 'bg-amber-50 hover:bg-amber-100 text-amber-700'
-                }`}
-              >
-                <Pause className="w-4 h-4" />
-                <span className="text-sm font-medium">暂停任务</span>
-              </button>
-            )}
-            {task.status === 'paused' && (
-              <button
-                onClick={() => onResume(task.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors ${
-                  isDark ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
-                }`}
-              >
-                <Play className="w-4 h-4" />
-                <span className="text-sm font-medium">恢复任务</span>
-              </button>
-            )}
-            {(task.status === 'published' || task.status === 'paused') && (
-              <button
-                onClick={() => onComplete(task.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors ${
-                  isDark ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400' : 'bg-blue-50 hover:bg-blue-100 text-blue-700'
-                }`}
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span className="text-sm font-medium">完成任务</span>
-              </button>
-            )}
-            {task.status === 'draft' && (
-              <button
-                onClick={() => onDelete(task.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors ${
-                  isDark ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400' : 'bg-red-50 hover:bg-red-100 text-red-700'
-                }`}
-              >
-                <Trash2 className="w-4 h-4" />
-                <span className="text-sm font-medium">删除任务</span>
-              </button>
-            )}
-          </div>
+          </>
         )}
       </div>
     </div>
   );
 }
 
-// 创建任务模态框组件
+// ============================================================================
+// 参与者面板
+// ============================================================================
+
+function TaskParticipantsPanel({ 
+  participants, 
+  isDark, 
+  task,
+  onRefresh 
+}: { 
+  participants: BrandTaskParticipant[];
+  isDark: boolean;
+  task: BrandTask;
+  onRefresh: () => void;
+}) {
+  const [filter, setFilter] = useState<'all' | 'applied' | 'approved' | 'rejected'>('all');
+
+  const filteredParticipants = participants.filter(p => 
+    filter === 'all' || p.status === filter
+  );
+
+  const handleApprove = async (participantId: string) => {
+    const success = await brandTaskService.approveParticipant(participantId);
+    if (success) {
+      toast.success('已通过申请');
+      onRefresh();
+    } else {
+      toast.error('审核失败');
+    }
+  };
+
+  const handleReject = async (participantId: string) => {
+    const success = await brandTaskService.rejectParticipant(participantId);
+    if (success) {
+      toast.success('已拒绝申请');
+      onRefresh();
+    } else {
+      toast.error('操作失败');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 过滤器 */}
+      <div className="flex gap-2">
+        {[
+          { id: 'all', label: '全部' },
+          { id: 'applied', label: '待审核' },
+          { id: 'approved', label: '已通过' },
+          { id: 'rejected', label: '已拒绝' },
+        ].map(f => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id as any)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              filter === f.id
+                ? isDark ? 'bg-blue-600/20 text-blue-400' : 'bg-blue-100 text-blue-700'
+                : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {filteredParticipants.length === 0 ? (
+        <div className="text-center py-8">
+          <Users className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+          <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>暂无申请者</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredParticipants.map((participant) => (
+            <motion.div
+              key={participant.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`p-3 rounded-lg ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}
+            >
+              <div className="flex items-center gap-3">
+                {participant.creator?.avatar_url ? (
+                  <img
+                    src={participant.creator.avatar_url}
+                    alt={participant.creator.username}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <User className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {participant.creator?.username || '未知用户'}
+                  </p>
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                    申请于 {new Date(participant.applied_at).toLocaleDateString('zh-CN')}
+                  </p>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${participantStatusConfig[participant.status]?.color || 'bg-gray-100'}`}>
+                  {participantStatusConfig[participant.status]?.label || participant.status}
+                </span>
+              </div>
+
+              {/* 审核按钮 */}
+              {participant.status === 'applied' && (
+                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => handleApprove(participant.id)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    通过
+                  </button>
+                  <button
+                    onClick={() => handleReject(participant.id)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    拒绝
+                  </button>
+                </div>
+              )}
+
+              {/* 统计信息 */}
+              <div className="flex gap-4 mt-2 text-xs">
+                <span className={isDark ? 'text-gray-500' : 'text-gray-500'}>
+                  提交作品: {participant.submitted_works}
+                </span>
+                <span className={isDark ? 'text-gray-500' : 'text-gray-500'}>
+                  已通过: {participant.approved_works}
+                </span>
+                {participant.total_earnings > 0 && (
+                  <span className="text-emerald-500">
+                    收益: ¥{participant.total_earnings}
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// 作品提交面板
+// ============================================================================
+
+function TaskSubmissionsPanel({ 
+  submissions, 
+  isDark,
+  task,
+  onRefresh
+}: { 
+  submissions: BrandTaskSubmission[];
+  isDark: boolean;
+  task: BrandTask;
+  onRefresh: () => void;
+}) {
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+
+  const filteredSubmissions = submissions.filter(s => 
+    filter === 'all' || s.status === filter
+  );
+
+  const handleApprove = async (submissionId: string) => {
+    const success = await brandTaskService.approveSubmission(submissionId);
+    if (success) {
+      toast.success('已通过作品');
+      onRefresh();
+    } else {
+      toast.error('审核失败');
+    }
+  };
+
+  const handleReject = async (submissionId: string) => {
+    const success = await brandTaskService.rejectSubmission(submissionId, '作品不符合要求');
+    if (success) {
+      toast.success('已拒绝作品');
+      onRefresh();
+    } else {
+      toast.error('操作失败');
+    }
+  };
+
+  const handleCalculateReward = async (submission: BrandTaskSubmission) => {
+    const reward = await brandTaskService.calculateReward(
+      submission.id,
+      submission.work?.view_count || 0,
+      0,
+      0,
+      0
+    );
+    if (reward !== null) {
+      const success = await brandTaskService.updateSubmissionReward(submission.id, reward);
+      if (success) {
+        toast.success(`已发放奖励 ¥${reward}`);
+        onRefresh();
+      } else {
+        toast.error('奖励发放失败');
+      }
+    } else {
+      toast.error('计算奖励失败');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 过滤器 */}
+      <div className="flex gap-2 flex-wrap">
+        {[
+          { id: 'all', label: `全部 (${submissions.length})` },
+          { id: 'pending', label: `待审核 (${submissions.filter(s => s.status === 'pending').length})` },
+          { id: 'approved', label: `已通过 (${submissions.filter(s => s.status === 'approved').length})` },
+          { id: 'rejected', label: `已拒绝 (${submissions.filter(s => s.status === 'rejected').length})` },
+        ].map(f => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id as any)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              filter === f.id
+                ? isDark ? 'bg-blue-600/20 text-blue-400' : 'bg-blue-100 text-blue-700'
+                : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {filteredSubmissions.length === 0 ? (
+        <div className="text-center py-8">
+          <FileText className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+          <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>暂无作品提交</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredSubmissions.map((submission) => (
+            <motion.div
+              key={submission.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`p-3 rounded-lg ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}
+            >
+              <div className="flex items-start gap-3">
+                {submission.work?.thumbnail ? (
+                  <img
+                    src={submission.work.thumbnail}
+                    alt={submission.work.title}
+                    className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className={`w-16 h-16 rounded-lg flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <FileText className={`w-6 h-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {submission.work_title || '未命名作品'}
+                  </p>
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                    创作者: {submission.creator?.username || '未知用户'}
+                  </p>
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                    提交于 {new Date(submission.submitted_at).toLocaleDateString('zh-CN')}
+                  </p>
+                  {submission.final_reward !== null && (
+                    <p className={`text-xs font-medium mt-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                      奖励: ¥{submission.final_reward}
+                    </p>
+                  )}
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${submissionStatusConfig[submission.status]?.color || 'bg-gray-100'}`}>
+                  {submissionStatusConfig[submission.status]?.label || submission.status}
+                </span>
+              </div>
+
+              {/* 审核按钮 */}
+              {submission.status === 'pending' && (
+                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => handleApprove(submission.id)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    通过
+                  </button>
+                  <button
+                    onClick={() => handleReject(submission.id)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    拒绝
+                  </button>
+                </div>
+              )}
+
+              {/* 奖励发放按钮 */}
+              {submission.status === 'approved' && submission.final_reward === null && (
+                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => handleCalculateReward(submission)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    计算并发放奖励
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// 数据分析面板
+// ============================================================================
+
+function TaskAnalyticsPanel({ 
+  task, 
+  stats, 
+  submissions,
+  isDark 
+}: { 
+  task: BrandTask;
+  stats: TaskStats | null;
+  submissions: BrandTaskSubmission[];
+  isDark: boolean;
+}) {
+  const totalRewards = submissions.reduce((sum, s) => sum + (s.final_reward || 0), 0);
+  const avgReward = submissions.filter(s => s.final_reward).length > 0
+    ? totalRewards / submissions.filter(s => s.final_reward).length
+    : 0;
+
+  return (
+    <div className="space-y-5">
+      {/* 数据概览卡片 */}
+      <div className={`p-4 rounded-xl ${isDark ? 'bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/20' : 'bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-100'}`}>
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+          <span className={`text-sm font-medium ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>数据概览</span>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {stats?.total_views?.toLocaleString() || 0}
+            </p>
+            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>总浏览量</p>
+          </div>
+          <div>
+            <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              ¥{totalRewards.toLocaleString()}
+            </p>
+            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>已发放奖励</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 互动数据 */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: '点赞', value: stats?.total_likes || 0, icon: Heart, color: 'text-pink-500' },
+          { label: '收藏', value: stats?.total_favorites || 0, icon: Bookmark, color: 'text-yellow-500' },
+          { label: '分享', value: stats?.total_shares || 0, icon: Share2, color: 'text-blue-500' },
+        ].map((item, i) => (
+          <div key={i} className={`p-3 rounded-xl text-center ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+            <item.icon className={`w-4 h-4 mx-auto mb-2 ${item.color}`} />
+            <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.value}</p>
+            <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{item.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 详细统计 */}
+      <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+        <h4 className={`text-sm font-medium mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>详细统计</h4>
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>参与人数</span>
+            <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {task.current_participants}/{task.max_participants}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>作品数量</span>
+            <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {submissions.length}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>已审核作品</span>
+            <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {submissions.filter(s => s.status === 'approved').length}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>待审核作品</span>
+            <span className={`text-sm font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+              {submissions.filter(s => s.status === 'pending').length}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>平均奖励</span>
+            <span className={`text-sm font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+              ¥{avgReward.toFixed(2)}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>剩余预算</span>
+            <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              ¥{(task.remaining_budget || 0).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 导出按钮 */}
+      <button
+        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+          isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+      >
+        <Download className="w-4 h-4" />
+        导出数据报表
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+// 创建任务模态框
+// ============================================================================
+
 interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -1022,12 +1371,10 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
 
   useEffect(() => {
     if (editTask) {
-      // 将 ISO 时间格式转换为 datetime-local 输入框需要的格式 (YYYY-MM-DDTHH:mm)
       const formatDateTimeLocal = (dateString: string) => {
         if (!dateString) return '';
         const date = new Date(dateString);
         if (isNaN(date.getTime())) return '';
-        // 转换为本地时间的 YYYY-MM-DDTHH:mm 格式
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
@@ -1140,14 +1487,6 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
     setFormData(prev => ({ ...prev, required_tags: newTags }));
   };
 
-  const addRequirement = () => setFormData(prev => ({ ...prev, content_requirements: [...prev.content_requirements, ''] }));
-  const removeRequirement = (index: number) => setFormData(prev => ({ ...prev, content_requirements: prev.content_requirements.filter((_, i) => i !== index) }));
-  const updateRequirement = (index: number, value: string) => {
-    const newReqs = [...formData.content_requirements];
-    newReqs[index] = value;
-    setFormData(prev => ({ ...prev, content_requirements: newReqs }));
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -1250,18 +1589,11 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
                           brand_name: brand?.brand_name || '',
                         }));
                       }}
-                      className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-600 bg-gray-700 text-gray-100' : 'border-gray-300 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer`}
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
-                        backgroundPosition: 'right 0.75rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.25rem',
-                        paddingRight: '2.5rem'
-                      }}
+                      className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-600 bg-gray-700 text-gray-100' : 'border-gray-300 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                     >
                       <option value="" disabled>请选择品牌</option>
                       {userBrands.map(brand => (
-                        <option key={brand.id} value={brand.id} className={isDark ? 'bg-gray-700 text-gray-100' : 'bg-white text-gray-900'}>
+                        <option key={brand.id} value={brand.id}>
                           {brand.brand_name}
                         </option>
                       ))}
@@ -1291,10 +1623,7 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
                     type="datetime-local"
                     value={formData.start_date}
                     onChange={e => setFormData(prev => ({ ...prev, start_date: e.target.value }))}
-                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none`}
-                    style={{
-                      colorScheme: isDark ? 'dark' : 'light',
-                    }}
+                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   />
                 </div>
 
@@ -1306,10 +1635,7 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
                     type="datetime-local"
                     value={formData.end_date}
                     onChange={e => setFormData(prev => ({ ...prev, end_date: e.target.value }))}
-                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none`}
-                    style={{
-                      colorScheme: isDark ? 'dark' : 'light',
-                    }}
+                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                   />
                 </div>
               </div>
@@ -1398,6 +1724,31 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    最低奖励
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.min_reward}
+                    onChange={e => setFormData(prev => ({ ...prev, min_reward: e.target.value }))}
+                    className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    最高奖励
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.max_reward}
+                    onChange={e => setFormData(prev => ({ ...prev, max_reward: e.target.value }))}
+                    className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className={`block text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   激励计算模型
@@ -1444,6 +1795,18 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
                   <div className="flex justify-between">
                     <span className={isDark ? 'text-gray-500' : 'text-gray-600'}>总预算</span>
                     <span className="font-medium text-blue-600 dark:text-blue-400">¥{parseFloat(formData.total_budget || '0').toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-500' : 'text-gray-600'}>奖励范围</span>
+                    <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>¥{formData.min_reward} - ¥{formData.max_reward}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-500' : 'text-gray-600'}>参与名额</span>
+                    <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{formData.max_participants} 人</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={isDark ? 'text-gray-500' : 'text-gray-600'}>激励模式</span>
+                    <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{incentivePresets[selectedPreset].name}</span>
                   </div>
                 </div>
               </div>
@@ -1494,7 +1857,10 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
   );
 }
 
+// ============================================================================
 // 主组件
+// ============================================================================
+
 export default function BrandTaskManager() {
   const { isDark } = useTheme();
   const { user } = useAuth();
@@ -1527,23 +1893,13 @@ export default function BrandTaskManager() {
   // 加载用户的品牌
   const loadUserBrands = useCallback(async () => {
     try {
-      console.log('[BrandTaskManager] 开始加载品牌列表...');
-      console.log('[BrandTaskManager] 当前用户:', user);
-      
-      // 传入当前用户信息，避免 session 检测问题
       const userInfo = user ? { id: user.id, email: user.email } : undefined;
       const brands = await brandPartnershipService.getMyPartnerships(userInfo);
-      
-      console.log('[BrandTaskManager] 获取到的品牌:', brands);
-      console.log('[BrandTaskManager] 品牌状态详情:', brands.map(b => ({ id: b.id, name: b.brand_name, status: b.status })));
-      
-      // 放宽过滤条件，允许 approved 和 negotiating 状态的品牌创建任务
       const allowedStatuses = ['approved', 'negotiating'];
       const approvedBrands = brands.filter(b => allowedStatuses.includes(b.status));
-      console.log('[BrandTaskManager] 允许创建任务的品牌:', approvedBrands);
       setUserBrands(approvedBrands);
     } catch (error) {
-      console.error('[BrandTaskManager] 加载品牌列表失败:', error);
+      console.error('加载品牌列表失败:', error);
     }
   }, [user]);
 
@@ -1551,14 +1907,6 @@ export default function BrandTaskManager() {
     loadTasks();
     loadUserBrands();
   }, [loadTasks, loadUserBrands]);
-
-  // 当模态框打开时，重新加载品牌列表
-  useEffect(() => {
-    if (isCreateModalOpen) {
-      console.log('[BrandTaskManager] 模态框打开，重新加载品牌列表');
-      loadUserBrands();
-    }
-  }, [isCreateModalOpen, loadUserBrands]);
 
   // 计算各状态任务数量
   const taskCounts = {
@@ -1570,6 +1918,10 @@ export default function BrandTaskManager() {
     completed: tasks.filter(t => t.status === 'completed').length,
     cancelled: tasks.filter(t => t.status === 'cancelled').length,
   };
+
+  // 计算预算统计
+  const totalBudget = tasks.reduce((sum, t) => sum + t.total_budget, 0);
+  const totalSpent = tasks.reduce((sum, t) => sum + (t.total_budget - (t.remaining_budget || 0)), 0);
 
   // 过滤任务
   const filteredTasks = tasks.filter(task => {
@@ -1686,6 +2038,8 @@ export default function BrandTaskManager() {
           setActiveFilter={setActiveFilter}
           taskCounts={taskCounts}
           isDark={isDark}
+          totalBudget={totalBudget}
+          totalSpent={totalSpent}
         />
 
         {/* 中间栏 - 任务列表 */}
@@ -1771,6 +2125,7 @@ export default function BrandTaskManager() {
           onPause={handlePause}
           onResume={handleResume}
           onComplete={handleComplete}
+          onRefresh={loadTasks}
         />
       </div>
 

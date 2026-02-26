@@ -1208,7 +1208,6 @@ export default function OrganizerCenter() {
     { id: 'brand-tasks' as TabType, label: '品牌任务', icon: Target },
     { id: 'analytics' as TabType, label: '数据分析', icon: BarChart3 },
     { id: 'settings' as TabType, label: '主办方设置', icon: Settings },
-    { id: 'funds' as TabType, label: '资金管理', icon: Wallet },
   ];
 
   // 如果正在检查品牌状态，显示加载中
@@ -2270,8 +2269,12 @@ export default function OrganizerCenter() {
                                   <img src={media.url} alt="" className="w-full h-full object-cover" />
                                 )}
                                 <button
-                                  onClick={() => handleChange('media', formData.media.filter((_: any, i: number) => i !== index))}
-                                  className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 z-10"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleChange('media', formData.media.filter((_: any, i: number) => i !== index));
+                                  }}
+                                  className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-600 hover:scale-110 transition-all shadow-lg z-50"
+                                  title="删除"
                                 >
                                   ×
                                 </button>
@@ -2660,6 +2663,7 @@ export default function OrganizerCenter() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.2 }}
+              className="h-[calc(100vh-200px)]"
             >
               <FundManagement />
             </motion.div>

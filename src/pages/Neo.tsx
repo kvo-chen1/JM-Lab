@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { tianjinActivityService, Activity } from '@/services/tianjinActivityService'
 import userStatsService from '@/services/userStatsService'
 import { workService } from '@/services/apiService'
+import { userStateService } from '@/services/userStateService'
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -640,7 +641,7 @@ export default function Neo() {
     } catch {}
   }, [])
   
-  // 保存创作状态到本地存储
+  // 保存创作状态到本地存储和数据库
   const saveCreationState = () => {
     try {
       const state = {
@@ -654,6 +655,11 @@ export default function Neo() {
         engine
       }
       localStorage.setItem('NEO_CREATION_STATE', JSON.stringify(state))
+      
+      // 异步保存到数据库
+      userStateService.saveNeoCreationState(state).catch(err => {
+        console.error('[Neo] Failed to save creation state to database:', err)
+      })
     } catch {}
   }
 
@@ -685,7 +691,7 @@ export default function Neo() {
     } catch {}
   }
 
-  // 保存历史记录
+  // 保存历史记录到本地和数据库
   const saveHistory = (entry: Omit<HistoryItem, 'isFavorite' | 'type'>) => {
     const newEntry: HistoryItem = {
       ...entry,
@@ -695,6 +701,26 @@ export default function Neo() {
     setVideoHistory(prev => {
       const next = [newEntry, ...prev].slice(0, 30) // 增加到30条历史记录
       try { localStorage.setItem('NEO_VIDEO_HISTORY', JSON.stringify(next)) } catch {}
+      
+      // 异步保存到数据库
+      userStateService.saveHistoryItem({
+        type: 'video',
+        url: entry.url,
+        thumbnail: entry.thumb || entry.image,
+        title: entry.prompt?.substring(0, 50),
+        prompt: entry.prompt,
+        metadata: {
+          duration: entry.duration,
+          width: entry.width,
+          height: entry.height,
+          createdAt: entry.createdAt
+        },
+        isFavorite: false,
+        createdAt: entry.createdAt
+      }).catch(err => {
+        console.error('[Neo] Failed to save history to database:', err)
+      })
+      
       return next
     })
   }

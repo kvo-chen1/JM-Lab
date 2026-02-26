@@ -344,9 +344,9 @@ export default function EventManagement() {
           mediaArray = [event.thumbnail];
         }
 
-        // 解析时间
-        const startTime = new Date(event.start_date || event.start_time || event.startTime);
-        const endTime = new Date(event.end_date || event.end_time || event.endTime);
+        // 解析时间（优先使用 start_time，如果不存在则使用 start_date）
+        const startTime = parseTimestamp(event.start_time || event.start_date || event.startTime);
+        const endTime = parseTimestamp(event.end_time || event.end_date || event.endTime);
 
         // 自动判断活动状态（基于时间）
         let eventStatus = event.status || 'pending';
@@ -642,6 +642,35 @@ export default function EventManagement() {
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  // 辅助函数：正确解析时间戳（处理秒级/毫秒级时间戳）
+  const parseTimestamp = (value: any): Date => {
+    if (!value) return new Date();
+    if (value instanceof Date) return value;
+
+    // 如果是数字
+    if (typeof value === 'number') {
+      // 判断是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
+      const msValue = value < 1e12 ? value * 1000 : value;
+      return new Date(msValue);
+    }
+
+    // 如果是字符串
+    if (typeof value === 'string') {
+      // 检查是否是纯数字字符串
+      if (/^\d+$/.test(value)) {
+        const numValue = parseInt(value, 10);
+        // 判断是秒级还是毫秒级
+        const msValue = numValue < 1e12 ? numValue * 1000 : numValue;
+        return new Date(msValue);
+      }
+      // ISO 字符串或其他格式
+      const parsed = new Date(value);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    }
+
+    return new Date();
+  };
 
   // 格式化日期
   const formatDate = (date: Date) => {

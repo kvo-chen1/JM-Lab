@@ -3115,6 +3115,113 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 充值 (/api/brand/deposit)
+  if (req.method === 'POST' && path === '/api/brand/deposit') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      const { amount, payment_method, reference } = body || {}
+      
+      if (!amount || amount <= 0) {
+        sendJson(res, 400, { code: 1, message: '充值金额必须大于0' })
+        return
+      }
+      
+      console.log(`[API] 充值，用户ID: ${decoded.userId}, 金额: ${amount}`)
+      
+      // 获取或创建账户
+      let { data: account, error: accountError } = await supabaseServer
+        .from('brand_accounts')
+        .select('*')
+        .eq('user_id', decoded.userId)
+        .single()
+      
+      if (accountError && accountError.code !== 'PGRST116') {
+        console.error('[API] 获取账户失败:', accountError)
+        sendJson(res, 500, { code: 1, message: '获取账户失败' })
+        return
+      }
+      
+      // 如果没有账户，创建一个
+      if (!account) {
+        console.log('[API] 账户不存在，创建新账户')
+        const { data: newAccount, error: createError } = await supabaseServer
+          .from('brand_accounts')
+          .insert({
+            user_id: decoded.userId,
+            total_balance: 0,
+            available_balance: 0,
+            frozen_balance: 0,
+            total_deposited: 0,
+            total_spent: 0,
+            total_withdrawn: 0,
+            status: 'active'
+          })
+          .select()
+          .single()
+        
+        if (createError) {
+          console.error('[API] 创建账户失败:', createError)
+          sendJson(res, 500, { code: 1, message: '创建账户失败' })
+          return
+        }
+        account = newAccount
+      }
+      
+      const newBalance = account.total_balance + amount
+      
+      // 创建交易记录
+      const { error: transactionError } = await supabaseServer
+        .from('brand_transactions')
+        .insert({
+          account_id: account.id,
+          user_id: decoded.userId,
+          type: 'deposit',
+          amount: amount,
+          balance_after: newBalance,
+          payment_method: payment_method || 'bank_transfer',
+          payment_reference: reference || `DEP${Date.now()}`,
+          description: `充值 ${amount} 元`,
+          status: 'completed'
+        })
+      
+      if (transactionError) {
+        console.error('[API] 创建交易记录失败:', transactionError)
+        sendJson(res, 500, { code: 1, message: '创建交易记录失败' })
+        return
+      }
+      
+      // 更新账户余额
+      const { error: updateError } = await supabaseServer
+        .from('brand_accounts')
+        .update({
+          total_balance: newBalance,
+          available_balance: account.available_balance + amount,
+          total_deposited: account.total_deposited + amount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', account.id)
+      
+      if (updateError) {
+        console.error('[API] 更新账户余额失败:', updateError)
+        sendJson(res, 500, { code: 1, message: '更新账户余额失败' })
+        return
+      }
+      
+      console.log('[API] 充值成功')
+      sendJson(res, 200, { code: 0, message: '充值成功' })
+    } catch (error) {
+      console.error('[API] 充值异常:', error)
+      sendJson(res, 500, { code: 1, message: '充值失败' })
+    }
+    return
+  }
+
   // 根据ID或用户名获取用户信息 (/api/users/:idOrUsername)
   if (req.method === 'GET' && path.startsWith('/api/users/') && path.split('/').length === 4) {
     const userIdOrUsername = path.split('/')[3]

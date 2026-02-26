@@ -389,6 +389,12 @@ const BlindBoxShop = createLazyComponent(() => import(/* webpackChunkName: "comp
   priority: ROUTE_PRIORITIES.LOW
 });
 
+// 推广用户申请页面 - 懒加载
+const PromotionApplication = createLazyComponent(() => import(/* webpackChunkName: "pages-promotion" */ "@/pages/PromotionApplication"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'promotion-application'
+});
+
 // 导入新的骨架屏组件
 import { DashboardSkeleton, ProfileSkeleton, SimpleLoadingSkeleton } from '@/components/skeletons/PageSkeletons';
 
@@ -910,6 +916,9 @@ export default function App() {
         <Route path="/admin" element={<LazyComponent><AdminRoute component={Admin} /></LazyComponent>} />
         <Route path="/errors" element={<LazyComponent><AdminRoute component={ErrorMonitoringDashboard} /></LazyComponent>} />
         <Route path="/admin-analytics" element={<LazyComponent><AdminRoute component={AdminAnalytics} /></LazyComponent>} />
+        
+        {/* 推广用户申请页面 */}
+        <Route path="/promotion/apply" element={<LazyComponent><PromotionApplication /></LazyComponent>} />
       </Routes>
       
       {/* PWA 安装按钮 - 懒加载，隐藏固定按钮，只在个人菜单中显示 */}

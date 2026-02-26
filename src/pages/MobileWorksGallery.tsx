@@ -83,6 +83,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, poster, isHovered, 
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isInViewport, setIsInViewport] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   // 使用 Intersection Observer 检测视频是否在视口内
   useEffect(() => {
@@ -95,7 +96,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, poster, isHovered, 
           setIsInViewport(entry.isIntersecting);
         });
       },
-      { threshold: 0.5 } // 50% 可见时触发
+      { threshold: 0.3 } // 30% 可见时触发，降低阈值以更早开始加载
     );
 
     observer.observe(video);
@@ -108,23 +109,46 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, poster, isHovered, 
   // 控制视频播放/暂停
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !isLoaded) return;
+    if (!video || hasError) return;
 
     if (isInViewport) {
-      // 在视口内且加载完成，自动播放
-      video.play().catch(() => {
-        // 自动播放被阻止，静默处理
-      });
+      // 在视口内，尝试播放
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          // 自动播放被阻止，静默处理
+          console.log('Video autoplay prevented:', err);
+        });
+      }
     } else {
       // 不在视口内，暂停播放
       video.pause();
     }
-  }, [isInViewport, isLoaded]);
+  }, [isInViewport, hasError]);
 
   const handleLoadedData = () => {
     setIsLoaded(true);
     onLoaded();
   };
+
+  const handleError = () => {
+    setHasError(true);
+    onLoaded(); // 即使出错也通知父组件加载完成，显示封面图
+  };
+
+  // 如果视频加载出错，显示封面图
+  if (hasError) {
+    return (
+      <img
+        src={poster}
+        alt="视频封面"
+        className={`w-full h-full object-cover transition-all duration-700 ${
+          isHovered ? 'scale-110' : 'scale-100'
+        }`}
+        onLoad={onLoaded}
+      />
+    );
+  }
 
   return (
     <video
@@ -137,8 +161,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl, poster, isHovered, 
       muted
       loop
       playsInline
-      preload="metadata"
+      autoPlay
+      preload="auto"
       onLoadedData={handleLoadedData}
+      onError={handleError}
     />
   );
 };

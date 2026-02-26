@@ -9,6 +9,7 @@ import {
   initializeTheme,
   saveThemeToLocalStorage
 } from '@/config/themeConfig';
+import { userStateService } from '@/services/userStateService';
 
 // 自定义主题接口
 interface CustomTheme {
@@ -198,6 +199,14 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setCustomThemes(prev => {
       const updated = [...prev, customTheme];
       localStorage.setItem('customThemes', JSON.stringify(updated));
+      
+      // 异步保存到数据库
+      userStateService.savePreferences({
+        customSettings: { customThemes: updated }
+      }).catch(err => {
+        console.error('[useTheme] Failed to save custom themes to database:', err);
+      });
+      
       return updated;
     });
   }, []);

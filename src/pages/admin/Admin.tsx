@@ -38,10 +38,12 @@ const AchievementManagement = lazy(() => import('./AchievementManagement'));
 const AIFeedbackManagement = lazy(() => import('./AIFeedbackManagement'));
 const ReportManagement = lazy(() => import('./ReportManagement'));
 const BrandTaskAudit = lazy(() => import('./BrandTaskAudit'));
+const WorkSubmissionAudit = lazy(() => import('./WorkSubmissionAudit'));
+const PromotionUserManagement = lazy(() => import('./PromotionUserManagement'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -1869,6 +1871,36 @@ export default function Admin() {
             </div>
           }>
             <BrandTaskAudit />
+          </Suspense>
+        )}
+
+        {/* IP孵化作品审核页面 */}
+        {activeTab === 'workSubmissionAudit' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-500 rounded-full"
+              />
+            </div>
+          }>
+            <WorkSubmissionAudit />
+          </Suspense>
+        )}
+
+        {/* 推广用户管理页面 */}
+        {activeTab === 'promotionUserManagement' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full"
+              />
+            </div>
+          }>
+            <PromotionUserManagement />
           </Suspense>
         )}
 

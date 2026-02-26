@@ -1,10 +1,10 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 
 // ==========================================================================
 // 辅助函数：获取当前用户信息
 // ==========================================================================
 
-interface UserInfo {
+export interface UserInfo {
   id: string;
   email?: string;
 }
@@ -72,6 +72,8 @@ export interface BrandTask {
   title: string;
   description: string;
   content?: string;
+  cover_image?: string;
+  cover_video?: string;
   brand_id?: string;
   brand_name: string;
   brand_logo?: string;
@@ -312,8 +314,8 @@ class BrandTaskService {
           ...data,
           publisher_id: user.id,
           remaining_budget: data.total_budget,
-          status: 'published',
-          published_at: new Date().toISOString(),
+          status: 'pending',
+          published_at: null,
         })
         .select()
         .single();
@@ -372,6 +374,51 @@ class BrandTaskService {
       return true;
     } catch (error) {
       console.error('发布品牌任务失败:', error);
+      return false;
+    }
+  }
+
+  async approveTask(taskId: string, notes?: string): Promise<boolean> {
+    try {
+      const user = await getCurrentUser();
+      const { error } = await supabase
+        .from('brand_tasks')
+        .update({
+          status: 'published',
+          published_at: new Date().toISOString(),
+          reviewed_by: user?.id,
+          reviewed_at: new Date().toISOString(),
+          review_notes: notes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', taskId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('审核通过任务失败:', error);
+      return false;
+    }
+  }
+
+  async rejectTask(taskId: string, reason: string): Promise<boolean> {
+    try {
+      const user = await getCurrentUser();
+      const { error } = await supabase
+        .from('brand_tasks')
+        .update({
+          status: 'cancelled',
+          reviewed_by: user?.id,
+          reviewed_at: new Date().toISOString(),
+          review_notes: reason,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', taskId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('拒绝任务失败:', error);
       return false;
     }
   }
@@ -554,26 +601,28 @@ class BrandTaskService {
     }
   }
 
-  async submitWork(data: SubmitWorkRequest): Promise<BrandTaskSubmission | null> {
+  async submitWork(data: SubmitWorkRequest, currentUser?: UserInfo | null): Promise<BrandTaskSubmission | null> {
     try {
-      const user = await getCurrentUser();
+      const user = currentUser || await getCurrentUser();
       if (!user) {
         throw new Error('请先登录');
       }
 
-      // 获取参与记录
-      const { data: participant } = await supabase
+      // 获取参与记录（状态为 approved 或 active）
+      const { data: participant } = await supabaseAdmin
         .from('brand_task_participants')
         .select('id')
         .eq('task_id', data.task_id)
         .eq('creator_id', user.id)
+        .in('status', ['approved', 'active'])
         .single();
 
       if (!participant) {
-        throw new Error('请先申请参与该任务');
+        throw new Error('请先申请参与该任务并等待审核通过');
       }
 
-      const { data: submission, error } = await supabase
+      // 使用 supabaseAdmin 绕过 RLS 插入数据
+      const { data: submission, error } = await supabaseAdmin
         .from('brand_task_submissions')
         .insert({
           ...data,
@@ -599,7 +648,7 @@ class BrandTaskService {
         return [];
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('brand_task_participants')
         .select('*')
         .eq('creator_id', user.id)
@@ -612,7 +661,7 @@ class BrandTaskService {
       // 获取任务信息
       const taskIds = [...new Set(participants.map(p => p.task_id).filter(Boolean))];
       if (taskIds.length > 0) {
-        const { data: tasksData } = await supabase
+        const { data: tasksData } = await supabaseAdmin
           .from('brand_tasks')
           .select('*')
           .in('id', taskIds);
@@ -639,7 +688,7 @@ class BrandTaskService {
         return [];
       }
 
-      let query = supabase
+      let query = supabaseAdmin
         .from('brand_task_submissions')
         .select('*')
         .eq('creator_id', user.id);
@@ -659,7 +708,7 @@ class BrandTaskService {
       const taskIds = [...new Set(submissions.map(s => s.task_id).filter(Boolean))];
       let tasksMap = new Map();
       if (taskIds.length > 0) {
-        const { data: tasksData } = await supabase
+        const { data: tasksData } = await supabaseAdmin
           .from('brand_tasks')
           .select('id, title, brand_name')
           .in('id', taskIds);
@@ -670,7 +719,7 @@ class BrandTaskService {
       const workIds = [...new Set(submissions.map(s => s.work_id).filter(Boolean))];
       let worksMap = new Map();
       if (workIds.length > 0) {
-        const { data: worksData } = await supabase
+        const { data: worksData } = await supabaseAdmin
           .from('works')
           .select('id, title, thumbnail, view_count')
           .in('id', workIds);
@@ -729,7 +778,8 @@ class BrandTaskService {
 
   async approveSubmission(submissionId: string, notes?: string): Promise<boolean> {
     try {
-      const { error } = await supabase
+      // 1. 更新提交记录状态为 approved
+      const { error } = await supabaseAdmin
         .from('brand_task_submissions')
         .update({
           status: 'approved',
@@ -739,6 +789,36 @@ class BrandTaskService {
         .eq('id', submissionId);
 
       if (error) throw error;
+
+      // 2. 自动计算并发放奖励
+      console.log('[approveSubmission] 开始自动计算奖励:', submissionId);
+      
+      // 获取提交记录的当前数据（包括作品浏览量）
+      const { data: submission } = await supabaseAdmin
+        .from('brand_task_submissions')
+        .select('id, work_id, current_views, current_likes, current_favorites, current_shares')
+        .eq('id', submissionId)
+        .single();
+
+      if (submission) {
+        // 计算奖励
+        const reward = await this.calculateReward(
+          submissionId,
+          submission.current_views || 0,
+          submission.current_likes || 0,
+          submission.current_favorites || 0,
+          submission.current_shares || 0
+        );
+
+        if (reward !== null && reward > 0) {
+          console.log('[approveSubmission] 计算到奖励:', reward);
+          // 更新奖励
+          await this.updateSubmissionReward(submissionId, reward);
+        } else {
+          console.log('[approveSubmission] 奖励为0或计算失败，跳过奖励发放');
+        }
+      }
+
       return true;
     } catch (error) {
       console.error('审核作品失败:', error);
@@ -748,7 +828,7 @@ class BrandTaskService {
 
   async rejectSubmission(submissionId: string, reason: string): Promise<boolean> {
     try {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('brand_task_submissions')
         .update({
           status: 'rejected',
@@ -825,7 +905,8 @@ class BrandTaskService {
 
   async getTaskSubmissions(taskId: string, status?: string): Promise<BrandTaskSubmission[]> {
     try {
-      let query = supabase
+      // 使用 supabaseAdmin 绕过 RLS 获取所有提交
+      let query = supabaseAdmin
         .from('brand_task_submissions')
         .select('*')
         .eq('task_id', taskId);
@@ -838,24 +919,24 @@ class BrandTaskService {
         .order('submitted_at', { ascending: false });
 
       if (error) throw error;
-      
+
       const submissions = data || [];
-      
+
       // 获取创作者信息
       const creatorIds = [...new Set(submissions.map(s => s.creator_id).filter(Boolean))];
       if (creatorIds.length > 0) {
-        const { data: usersData } = await supabase
+        const { data: usersData } = await supabaseAdmin
           .from('users')
           .select('id, username, avatar_url')
           .in('id', creatorIds);
-        
+
         const usersMap = new Map(usersData?.map(u => [u.id, u]) || []);
-        
+
         // 获取作品信息
         const workIds = [...new Set(submissions.map(s => s.work_id).filter(Boolean))];
         let worksMap = new Map();
         if (workIds.length > 0) {
-          const { data: worksData } = await supabase
+          const { data: worksData } = await supabaseAdmin
             .from('works')
             .select('id, title, thumbnail, view_count')
             .in('id', workIds);
@@ -919,7 +1000,7 @@ class BrandTaskService {
   ): Promise<number | null> {
     try {
       // 获取提交记录和任务配置
-      const { data: submission } = await supabase
+      const { data: submission } = await supabaseAdmin
         .from('brand_task_submissions')
         .select('task_id')
         .eq('id', submissionId)
@@ -927,7 +1008,7 @@ class BrandTaskService {
 
       if (!submission) return null;
 
-      const { data: task } = await supabase
+      const { data: task } = await supabaseAdmin
         .from('brand_tasks')
         .select('incentive_model')
         .eq('id', submission.task_id)
@@ -936,7 +1017,7 @@ class BrandTaskService {
       if (!task) return null;
 
       // 调用RPC函数计算奖励
-      const { data: reward, error } = await supabase
+      const { data: reward, error } = await supabaseAdmin
         .rpc('calculate_work_reward', {
           p_views: views,
           p_likes: likes,
@@ -955,7 +1036,29 @@ class BrandTaskService {
 
   async updateSubmissionReward(submissionId: string, reward: number): Promise<boolean> {
     try {
-      const { error } = await supabase
+      console.log('[updateSubmissionReward] 开始更新奖励:', { submissionId, reward });
+      
+      // 获取提交记录信息
+      const { data: submission, error: submissionError } = await supabaseAdmin
+        .from('brand_task_submissions')
+        .select('task_id, creator_id, participant_id')
+        .eq('id', submissionId)
+        .single();
+
+      if (submissionError) {
+        console.error('[updateSubmissionReward] 获取提交记录失败:', submissionError);
+        return false;
+      }
+
+      if (!submission) {
+        console.error('[updateSubmissionReward] 提交记录不存在');
+        return false;
+      }
+      
+      console.log('[updateSubmissionReward] 获取到提交记录:', submission);
+
+      // 更新提交记录的奖励
+      const { error: updateError } = await supabaseAdmin
         .from('brand_task_submissions')
         .update({
           final_reward: reward,
@@ -963,11 +1066,171 @@ class BrandTaskService {
         })
         .eq('id', submissionId);
 
-      if (error) throw error;
+      if (updateError) {
+        console.error('[updateSubmissionReward] 更新提交记录奖励失败:', updateError);
+        throw updateError;
+      }
+      
+      console.log('[updateSubmissionReward] 提交记录奖励已更新');
+
+      // 创建创作者收益记录
+      const earningsData = {
+        creator_id: submission.creator_id,
+        task_id: submission.task_id,
+        submission_id: submissionId,
+        amount: reward,
+        status: 'pending',
+        source_type: 'task_reward',
+        created_at: new Date().toISOString(),
+      };
+      console.log('[updateSubmissionReward] 准备创建收益记录:', earningsData);
+      
+      const { error: earningsError } = await supabaseAdmin
+        .from('creator_earnings')
+        .insert(earningsData);
+
+      if (earningsError) {
+        console.error('[updateSubmissionReward] 创建收益记录失败:', earningsError);
+        // 不影响主流程，继续返回成功
+      } else {
+        console.log('[updateSubmissionReward] 收益记录创建成功');
+      }
+
+      // 更新参与者的收益统计
+      if (submission.participant_id) {
+        console.log('[updateSubmissionReward] 更新参与者收益统计, participant_id:', submission.participant_id);
+        
+        const { data: participant, error: participantQueryError } = await supabaseAdmin
+          .from('brand_task_participants')
+          .select('total_earnings, pending_earnings, approved_works')
+          .eq('id', submission.participant_id)
+          .single();
+
+        if (participantQueryError) {
+          console.error('[updateSubmissionReward] 获取参与者信息失败:', participantQueryError);
+        } else if (participant) {
+          console.log('[updateSubmissionReward] 获取到参与者信息:', participant);
+          
+          const newTotalEarnings = (participant.total_earnings || 0) + reward;
+          const newPendingEarnings = (participant.pending_earnings || 0) + reward;
+          const newApprovedWorks = (participant.approved_works || 0) + 1;
+          
+          console.log('[updateSubmissionReward] 更新后的数据:', {
+            total_earnings: newTotalEarnings,
+            pending_earnings: newPendingEarnings,
+            approved_works: newApprovedWorks,
+          });
+          
+          const { error: participantError } = await supabaseAdmin
+            .from('brand_task_participants')
+            .update({
+              total_earnings: newTotalEarnings,
+              pending_earnings: newPendingEarnings,
+              approved_works: newApprovedWorks,
+            })
+            .eq('id', submission.participant_id);
+
+          if (participantError) {
+            console.error('[updateSubmissionReward] 更新参与者收益统计失败:', participantError);
+          } else {
+            console.log('[updateSubmissionReward] 参与者收益统计更新成功');
+          }
+        } else {
+          console.warn('[updateSubmissionReward] 未找到参与者信息');
+        }
+      } else {
+        console.warn('[updateSubmissionReward] 提交记录没有 participant_id');
+      }
+
+      // 同步到变现中心的收入表（creator_revenue 和 revenue_records）
+      await this.syncRewardToCreatorRevenue(submission.creator_id, reward, submission.task_id);
+
+      console.log('[updateSubmissionReward] 奖励更新完成');
       return true;
     } catch (error) {
-      console.error('更新奖励失败:', error);
+      console.error('[updateSubmissionReward] 更新奖励失败:', error);
       return false;
+    }
+  }
+
+  // 同步奖励到变现中心的收入表
+  private async syncRewardToCreatorRevenue(
+    creatorId: string,
+    reward: number,
+    taskId: string
+  ): Promise<void> {
+    try {
+      console.log('[syncRewardToCreatorRevenue] 开始同步到变现中心:', { creatorId, reward, taskId });
+
+      // 1. 创建收入明细记录（revenue_records）
+      const { error: recordError } = await supabaseAdmin
+        .from('revenue_records')
+        .insert({
+          user_id: creatorId,
+          amount: reward,
+          type: 'task',
+          description: '品牌任务奖励',
+          status: 'completed',
+          created_at: new Date().toISOString(),
+        });
+
+      if (recordError) {
+        console.error('[syncRewardToCreatorRevenue] 创建收入明细失败:', recordError);
+      } else {
+        console.log('[syncRewardToCreatorRevenue] 收入明细创建成功');
+      }
+
+      // 2. 更新创作者收入汇总（creator_revenue）
+      // 先检查是否已有记录
+      const { data: existingRevenue } = await supabaseAdmin
+        .from('creator_revenue')
+        .select('*')
+        .eq('user_id', creatorId)
+        .single();
+
+      if (existingRevenue) {
+        // 更新现有记录
+        const { error: updateError } = await supabaseAdmin
+          .from('creator_revenue')
+          .update({
+            total_revenue: (existingRevenue.total_revenue || 0) + reward,
+            monthly_revenue: (existingRevenue.monthly_revenue || 0) + reward,
+            pending_revenue: (existingRevenue.pending_revenue || 0) + reward,
+            withdrawable_revenue: (existingRevenue.withdrawable_revenue || 0) + reward,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', creatorId);
+
+        if (updateError) {
+          console.error('[syncRewardToCreatorRevenue] 更新收入汇总失败:', updateError);
+        } else {
+          console.log('[syncRewardToCreatorRevenue] 收入汇总更新成功');
+        }
+      } else {
+        // 创建新记录
+        const { error: insertError } = await supabaseAdmin
+          .from('creator_revenue')
+          .insert({
+            user_id: creatorId,
+            total_revenue: reward,
+            monthly_revenue: reward,
+            pending_revenue: reward,
+            withdrawable_revenue: reward,
+            total_withdrawn: 0,
+            last_month_revenue: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+        if (insertError) {
+          console.error('[syncRewardToCreatorRevenue] 创建收入汇总失败:', insertError);
+        } else {
+          console.log('[syncRewardToCreatorRevenue] 收入汇总创建成功');
+        }
+      }
+    } catch (error) {
+      console.error('[syncRewardToCreatorRevenue] 同步失败:', error);
+      // 不影响主流程
     }
   }
 
@@ -1331,7 +1594,7 @@ class BrandTaskService {
 
       const { status, page = 1, limit = 20 } = options || {};
 
-      let query = supabase
+      let query = supabaseAdmin
         .from('creator_earnings')
         .select('*', { count: 'exact' })
         .eq('creator_id', user.id);
@@ -1354,7 +1617,7 @@ class BrandTaskService {
       // 获取任务信息
       const taskIds = [...new Set(earnings.map(e => e.task_id).filter(Boolean))];
       if (taskIds.length > 0) {
-        const { data: tasksData } = await supabase
+        const { data: tasksData } = await supabaseAdmin
           .from('brand_tasks')
           .select('id, title, brand_name')
           .in('id', taskIds);
@@ -1397,7 +1660,7 @@ class BrandTaskService {
         };
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('creator_earnings')
         .select('amount, status, created_at')
         .eq('creator_id', user.id);

@@ -12,7 +12,9 @@ export type NavItemType =
   | 'jinmaiCommunity'
   | 'campaigns'
   | 'users'
-  | 'creators';
+  | 'creators'
+  | 'workSubmissionAudit'
+  | 'promotionUserManagement';
 
 export interface NavNotificationState {
   count: number;
@@ -72,6 +74,8 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
       campaigns: { ...initialState },
       users: { ...initialState },
       creators: { ...initialState },
+      workSubmissionAudit: { ...initialState },
+      promotionUserManagement: { ...initialState },
     };
   });
 
@@ -147,6 +151,12 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
           .from('profiles')
           .select('id', { count: 'exact', head: true })
           .eq('verification_status', 'pending'),
+
+        // 推广用户管理 - 待审核申请
+        supabase
+          .from('promotion_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
       ]);
 
       // 处理反馈管理结果
@@ -223,6 +233,18 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
           count,
           hasNew: count > 0 && (!newNotifications.users.lastViewedAt || 
             Date.now() - newNotifications.users.lastViewedAt.getTime() < 300000),
+        };
+      }
+
+      // 处理推广用户管理结果
+      const promotionUserResult = results[7];
+      if (promotionUserResult.status === 'fulfilled' && promotionUserResult.value.count !== null) {
+        const count = promotionUserResult.value.count;
+        newNotifications.promotionUserManagement = {
+          ...newNotifications.promotionUserManagement,
+          count,
+          hasNew: count > 0 && (!newNotifications.promotionUserManagement.lastViewedAt || 
+            Date.now() - newNotifications.promotionUserManagement.lastViewedAt.getTime() < 300000),
         };
       }
 
@@ -318,6 +340,17 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
       )
       .subscribe();
     subscriptions.push(() => ordersSubscription.unsubscribe());
+
+    // 订阅推广用户申请表变化
+    const promotionUserSubscription = supabase
+      .channel('promotion_applications_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'promotion_applications' },
+        () => fetchNotificationCounts()
+      )
+      .subscribe();
+    subscriptions.push(() => promotionUserSubscription.unsubscribe());
 
     // 清理函数
     return () => {

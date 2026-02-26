@@ -120,7 +120,7 @@ class PromotionService {
         packageName: order.package_name,
         targetType: order.target_type,
         boostMetric: order.boost_metric,
-        price: order.price,
+        price: order.original_price,
         discountAmount: order.discount_amount,
         finalPrice: order.final_price,
         expectedViews: order.expected_views,
@@ -412,26 +412,47 @@ class PromotionService {
   /**
    * 创建推广订单
    */
-  async createOrder(orderData: Omit<PromotionOrder, 'id' | 'createdAt' | 'status'>): Promise<PromotionOrder | null> {
+  async createOrder(orderData: {
+    userId: string;
+    workId: string;
+    workTitle?: string;
+    workThumbnail?: string;
+    packageType: string;
+    target: string;
+    metric: string;
+    couponId?: string;
+    originalPrice: number;
+    discountAmount: number;
+    finalPrice: number;
+  }): Promise<{ id: string; orderNo: string } | null> {
     try {
+      // 生成订单号
+      const orderNo = 'PRO' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + 
+        Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+
+      // 直接使用 INSERT 绕过 RPC 函数
       const { data, error } = await supabase
         .from('promotion_orders')
         .insert({
           user_id: orderData.userId,
+          order_no: orderNo,
           work_id: orderData.workId,
-          work_title: orderData.workTitle,
-          work_thumbnail: orderData.workThumbnail,
+          work_title: orderData.workTitle || '',
+          work_thumbnail: orderData.workThumbnail || '',
           package_type: orderData.packageType,
-          package_name: orderData.packageName,
-          target_type: orderData.targetType,
-          boost_metric: orderData.boostMetric,
-          price: orderData.price,
+          target_type: orderData.target,
+          metric_type: orderData.metric,
+          original_price: orderData.originalPrice,
           discount_amount: orderData.discountAmount,
           final_price: orderData.finalPrice,
-          expected_views: orderData.expectedViews,
+          coupon_id: orderData.couponId || null,
+          metadata: {
+            target: orderData.target,
+            metric: orderData.metric,
+          },
           status: 'pending',
         })
-        .select()
+        .select('id, order_no')
         .single();
 
       if (error) {
@@ -439,24 +460,14 @@ class PromotionService {
         return null;
       }
 
-      return {
-        id: data.id,
-        userId: data.user_id,
-        workId: data.work_id,
-        workTitle: data.work_title,
-        workThumbnail: data.work_thumbnail,
-        packageType: data.package_type,
-        packageName: data.package_name,
-        targetType: data.target_type,
-        boostMetric: data.boost_metric,
-        price: data.price,
-        discountAmount: data.discount_amount,
-        finalPrice: data.final_price,
-        expectedViews: data.expected_views,
-        actualViews: data.actual_views || 0,
-        status: data.status,
-        createdAt: data.created_at,
-      };
+      if (data) {
+        return {
+          id: data.id,
+          orderNo: data.order_no,
+        };
+      }
+
+      return null;
     } catch (err) {
       console.error('创建推广订单失败:', err);
       return null;
@@ -468,13 +479,12 @@ class PromotionService {
    */
   async payOrder(orderId: string, couponId?: string): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from('promotion_orders')
-        .update({
-          status: 'paid',
-          paid_at: new Date().toISOString(),
-        })
-        .eq('id', orderId);
+      const { data, error } = await supabase
+        .rpc('pay_promotion_order', {
+          p_order_id: orderId,
+          p_payment_method: 'wechat', // 默认微信支付
+          p_transaction_id: null,
+        });
 
       if (error) {
         console.error('支付订单失败:', error);

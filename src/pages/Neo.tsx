@@ -98,10 +98,15 @@ const getCustomTags = (): string[] => {
   }
 }
 
-// 保存自定义标签
+// 保存自定义标签到本地和数据库
 const saveCustomTags = (tags: string[]) => {
   try {
     localStorage.setItem('NEO_CUSTOM_TAGS', JSON.stringify(tags))
+    
+    // 异步保存到数据库
+    userStateService.saveCustomTags(tags).catch(err => {
+      console.error('[Neo] Failed to save custom tags to database:', err)
+    })
   } catch {}
 }
 
@@ -135,10 +140,15 @@ const getStylePresets = (): StylePreset[] => {
   }
 }
 
-// 保存风格预设
+// 保存风格预设到本地和数据库
 const saveStylePresets = (presets: StylePreset[]) => {
   try {
     localStorage.setItem('NEO_STYLE_PRESETS', JSON.stringify(presets))
+    
+    // 异步保存到数据库
+    userStateService.saveStylePresets(presets).catch(err => {
+      console.error('[Neo] Failed to save style presets to database:', err)
+    })
   } catch {}
 }
 

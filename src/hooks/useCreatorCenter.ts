@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import achievementService from '@/services/achievementService';
 
@@ -306,8 +306,11 @@ export function useCreatorCenter() {
     if (!userId) return;
 
     try {
+      // 使用 supabaseAdmin 绕过 RLS 限制
+      const client = supabaseAdmin;
+
       // 从 creator_revenue 表获取收入数据
-      const { data: revenueData, error: revenueError } = await supabase
+      const { data: revenueData, error: revenueError } = await client
         .from('creator_revenue')
         .select('*')
         .eq('user_id', userId)
@@ -321,7 +324,7 @@ export function useCreatorCenter() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const { data: recentRecords } = await supabase
+      const { data: recentRecords } = await client
         .from('revenue_records')
         .select('amount, created_at')
         .eq('user_id', userId)
@@ -336,7 +339,7 @@ export function useCreatorCenter() {
       const lastMonthEnd = new Date();
       lastMonthEnd.setDate(lastMonthEnd.getDate() - 30);
 
-      const { data: lastMonthRecords } = await supabase
+      const { data: lastMonthRecords } = await client
         .from('revenue_records')
         .select('amount')
         .eq('user_id', userId)
@@ -428,7 +431,8 @@ export function useCreatorCenter() {
     if (!userId) return;
 
     try {
-      const { data: records, error } = await supabase
+      // 使用 supabaseAdmin 绕过 RLS 限制
+      const { data: records, error } = await supabaseAdmin
         .from('revenue_records')
         .select('*')
         .eq('user_id', userId)

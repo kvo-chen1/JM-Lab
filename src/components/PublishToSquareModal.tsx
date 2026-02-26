@@ -7,8 +7,9 @@ import { llmService } from '@/services/llmService';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
 import { generatePlaceholderSvg } from '@/utils/imageUrlUtils';
-import { X, Hash, Image as ImageIcon, Video, Type, AlignLeft, Sparkles, Loader2, CheckCircle2, Upload, Trash2, ExternalLink } from 'lucide-react';
+import { X, Hash, Image as ImageIcon, Video, Type, AlignLeft, Sparkles, Loader2, CheckCircle2, Upload, Trash2, ExternalLink, Briefcase, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { brandTaskService, BrandTask, UserInfo } from '@/services/brandTaskService';
 
 interface PublishToSquareModalProps {
   isOpen: boolean;
@@ -101,6 +102,12 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
   const [showPresetTags, setShowPresetTags] = useState(false);
   const [isGeneratingMetadata, setIsGeneratingMetadata] = useState(false);
 
+  // 品牌任务相关状态
+  const [availableTasks, setAvailableTasks] = useState<BrandTask[]>([]);
+  const [selectedTask, setSelectedTask] = useState<BrandTask | null>(null);
+  const [showTaskSelector, setShowTaskSelector] = useState(false);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+
   const selectedResult = useCreateStore((state) => state.selectedResult);
   const generatedResults = useCreateStore((state) => state.generatedResults);
   const prompt = useCreateStore((state) => state.prompt);
@@ -166,6 +173,48 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]); // 只在模态框打开时执行，不依赖 selectedImage
+
+  // 获取可用的品牌任务
+  useEffect(() => {
+    if (isOpen && user) {
+      loadAvailableTasks();
+    }
+  }, [isOpen, user]);
+
+  const loadAvailableTasks = async () => {
+    setIsLoadingTasks(true);
+    try {
+      // 获取用户已参与并通过审核的任务
+      const participations = await brandTaskService.getMyParticipations();
+      // 过滤出状态为 approved 或 active 的参与记录
+      const approvedParticipations = participations.filter(p =>
+        p.status === 'approved' || p.status === 'active'
+      );
+
+      // 获取这些参与记录对应的任务详情
+      const taskPromises = approvedParticipations.map(async (participation) => {
+        const task = await brandTaskService.getTaskById(participation.task_id);
+        return task;
+      });
+
+      const tasks = (await Promise.all(taskPromises)).filter((task): task is BrandTask =>
+        task !== null
+      );
+
+      // 过滤出正在进行中的任务（未过期且已发布）
+      const now = new Date();
+      const activeTasks = tasks.filter(task => {
+        const endDate = new Date(task.end_date);
+        return endDate > now && task.status === 'published';
+      });
+
+      setAvailableTasks(activeTasks);
+    } catch (error) {
+      console.error('获取品牌任务失败:', error);
+    } finally {
+      setIsLoadingTasks(false);
+    }
+  };
 
   // 添加标签
   const addTag = (tag: string) => {
@@ -454,8 +503,28 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
       });
       
       const post = await postsApi.addPost(postData, user as import('@/services/postService').User | undefined);
-      
+
       if (post) {
+        // 如果选择了品牌任务，提交作品到任务
+        if (selectedTask) {
+          try {
+            console.log('[PublishModal] Submitting work to brand task:', selectedTask.id);
+            await brandTaskService.submitWork({
+              task_id: selectedTask.id,
+              work_title: title.trim(),
+              work_thumbnail: finalThumbnail,
+              content: description.trim(),
+              tags: tags,
+              work_id: post.id
+            }, user);
+            toast.success(`作品已成功提交到品牌任务「${selectedTask.title}」`);
+          } catch (taskError: any) {
+            console.error('[PublishModal] Failed to submit to brand task:', taskError);
+            const errorMessage = taskError?.message || '未知错误';
+            toast.error(`作品已发布，但提交到品牌任务失败: ${errorMessage}`);
+          }
+        }
+
         // 如果发布成功且有视频，尝试同步到 Supabase 确保视频在广场能正常显示
         if (contentType === 'video' && submitVideoUrl) {
           try {
@@ -471,7 +540,7 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
             // 同步失败不影响主流程
           }
         }
-        
+
         // 显示成功提示，带查看按钮
         toast.success(
           <div className="flex items-center justify-between gap-4 min-w-[280px]">
@@ -486,7 +555,7 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
               去广场查看
             </button>
           </div>,
-          { 
+          {
             duration: 5000,
             className: 'bg-emerald-50 border-emerald-200 !py-2 !px-3'
           }
@@ -501,6 +570,8 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
         setVideoUrl('');
         setContentType('image');
         setShowPresetTags(false);
+        setSelectedTask(null);
+        setShowTaskSelector(false);
       } else {
         toast.error('发布失败，请重试');
       }
@@ -912,6 +983,160 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
                   </div>
                 </div>
                 
+                {/* 品牌任务选择 */}
+                {availableTasks.length > 0 && (
+                  <div className="mb-6">
+                    <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <Briefcase className="w-4 h-4 text-[#C02C38]" />
+                      关联品牌任务（可选）
+                    </label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowTaskSelector(!showTaskSelector)}
+                        className={`w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 flex items-center justify-between ${
+                          selectedTask
+                            ? isDark
+                              ? 'bg-green-900/20 border-green-700/50 text-green-400'
+                              : 'bg-green-50 border-green-200 text-green-700'
+                            : isDark
+                              ? 'bg-gray-800/50 border-gray-700 text-gray-300 hover:border-gray-600'
+                              : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Briefcase className={`w-5 h-5 ${selectedTask ? 'text-green-500' : 'text-gray-400'}`} />
+                          <div className="text-left">
+                            <p className="font-medium">
+                              {selectedTask ? selectedTask.title : '选择要参与的品牌任务'}
+                            </p>
+                            {selectedTask && (
+                              <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                奖励: ¥{selectedTask.min_reward} - ¥{selectedTask.max_reward} · {selectedTask.brand_name}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronDown className={`w-5 h-5 transition-transform ${showTaskSelector ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      <AnimatePresence>
+                        {showTaskSelector && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className={`absolute top-full left-0 right-0 mt-2 rounded-xl border-2 shadow-lg z-20 max-h-64 overflow-y-auto ${
+                              isDark
+                                ? 'bg-gray-800 border-gray-700'
+                                : 'bg-white border-gray-200'
+                            }`}
+                          >
+                            <div className="p-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTask(null);
+                                  setShowTaskSelector(false);
+                                }}
+                                className={`w-full px-4 py-3 rounded-lg text-left transition-colors ${
+                                  !selectedTask
+                                    ? isDark
+                                      ? 'bg-green-900/20 text-green-400'
+                                      : 'bg-green-50 text-green-700'
+                                    : isDark
+                                      ? 'hover:bg-gray-700 text-gray-300'
+                                      : 'hover:bg-gray-50 text-gray-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                    !selectedTask
+                                      ? 'border-green-500 bg-green-500'
+                                      : isDark
+                                        ? 'border-gray-600'
+                                        : 'border-gray-300'
+                                  }`}>
+                                    {!selectedTask && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                  </div>
+                                  <span>不参与任何任务</span>
+                                </div>
+                              </button>
+
+                              <div className={`my-2 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`} />
+
+                              {availableTasks.map((task) => (
+                                <button
+                                  key={task.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedTask(task);
+                                    setShowTaskSelector(false);
+                                    // 自动添加任务要求的标签
+                                    if (task.required_tags && task.required_tags.length > 0) {
+                                      const newTags = [...tags];
+                                      task.required_tags.forEach(tag => {
+                                        if (!newTags.includes(tag)) {
+                                          newTags.push(tag);
+                                        }
+                                      });
+                                      setTags(newTags);
+                                    }
+                                  }}
+                                  className={`w-full px-4 py-3 rounded-lg text-left transition-colors ${
+                                    selectedTask?.id === task.id
+                                      ? isDark
+                                        ? 'bg-green-900/20 text-green-400'
+                                        : 'bg-green-50 text-green-700'
+                                      : isDark
+                                        ? 'hover:bg-gray-700 text-gray-300'
+                                        : 'hover:bg-gray-50 text-gray-700'
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                                      selectedTask?.id === task.id
+                                        ? 'border-green-500 bg-green-500'
+                                        : isDark
+                                          ? 'border-gray-600'
+                                          : 'border-gray-300'
+                                    }`}>
+                                      {selectedTask?.id === task.id && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium truncate">{task.title}</p>
+                                      <div className={`flex items-center gap-2 mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        <span className="text-green-500 font-medium">
+                                          ¥{task.min_reward} - ¥{task.max_reward}
+                                        </span>
+                                        <span>·</span>
+                                        <span>{task.brand_name}</span>
+                                      </div>
+                                      <div className={`flex items-center gap-2 mt-1 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        <span>截止: {new Date(task.end_date).toLocaleDateString()}</span>
+                                        <span>·</span>
+                                        <span>需包含标签: {task.required_tags.slice(0, 2).join(', ')}{task.required_tags.length > 2 ? '...' : ''}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    {selectedTask && (
+                      <div className={`mt-2 p-3 rounded-lg text-xs ${isDark ? 'bg-blue-900/20 text-blue-300 border border-blue-800/50' : 'bg-blue-50 text-blue-700 border border-blue-100'}`}>
+                        <p className="flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          发布后将自动提交到该品牌任务，请确保作品包含要求的标签: <strong>{selectedTask.required_tags.join(', ')}</strong>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* 标签 */}
                 <div className="mb-8">
                   <div className="flex items-center justify-between mb-3">

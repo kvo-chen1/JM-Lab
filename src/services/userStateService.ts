@@ -455,6 +455,341 @@ class UserStateService {
     }
   }
 
+  // ==================== 自定义标签 ====================
+
+  /**
+   * 保存自定义标签
+   */
+  async saveCustomTags(tags: string[]): Promise<boolean> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, skipping custom tags save');
+        return false;
+      }
+
+      const { error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .upsert({
+          user_id: user.id,
+          custom_settings: { customTags: tags },
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) {
+        console.error('[UserState] Failed to save custom tags:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[UserState] Error saving custom tags:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取自定义标签
+   */
+  async getCustomTags(): Promise<string[]> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, no custom tags');
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .select('custom_settings')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return [];
+        }
+        console.error('[UserState] Failed to get custom tags:', error);
+        return [];
+      }
+
+      return data?.custom_settings?.customTags || [];
+    } catch (error) {
+      console.error('[UserState] Error getting custom tags:', error);
+      return [];
+    }
+  }
+
+  // ==================== 风格预设 ====================
+
+  /**
+   * 保存风格预设
+   */
+  async saveStylePresets(presets: any[]): Promise<boolean> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, skipping style presets save');
+        return false;
+      }
+
+      const { error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .upsert({
+          user_id: user.id,
+          custom_settings: { stylePresets: presets },
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) {
+        console.error('[UserState] Failed to save style presets:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[UserState] Error saving style presets:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取风格预设
+   */
+  async getStylePresets(): Promise<any[]> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, no style presets');
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .select('custom_settings')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return [];
+        }
+        console.error('[UserState] Failed to get style presets:', error);
+        return [];
+      }
+
+      return data?.custom_settings?.stylePresets || [];
+    } catch (error) {
+      console.error('[UserState] Error getting style presets:', error);
+      return [];
+    }
+  }
+
+  // ==================== 收藏/书签 ====================
+
+  /**
+   * 保存收藏/书签
+   */
+  async saveFavorites(favorites: string[]): Promise<boolean> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, skipping favorites save');
+        return false;
+      }
+
+      const { error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .upsert({
+          user_id: user.id,
+          custom_settings: { favorites },
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) {
+        console.error('[UserState] Failed to save favorites:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[UserState] Error saving favorites:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取收藏/书签
+   */
+  async getFavorites(): Promise<string[]> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, no favorites');
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .select('custom_settings')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return [];
+        }
+        console.error('[UserState] Failed to get favorites:', error);
+        return [];
+      }
+
+      return data?.custom_settings?.favorites || [];
+    } catch (error) {
+      console.error('[UserState] Error getting favorites:', error);
+      return [];
+    }
+  }
+
+  // ==================== 浏览历史 ====================
+
+  /**
+   * 保存浏览历史
+   */
+  async saveBrowseHistory(items: any[]): Promise<boolean> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, skipping browse history save');
+        return false;
+      }
+
+      const { error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .upsert({
+          user_id: user.id,
+          custom_settings: { browseHistory: items.slice(0, 200) },
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) {
+        console.error('[UserState] Failed to save browse history:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[UserState] Error saving browse history:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取浏览历史
+   */
+  async getBrowseHistory(): Promise<any[]> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, no browse history');
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .select('custom_settings')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return [];
+        }
+        console.error('[UserState] Failed to get browse history:', error);
+        return [];
+      }
+
+      return data?.custom_settings?.browseHistory || [];
+    } catch (error) {
+      console.error('[UserState] Error getting browse history:', error);
+      return [];
+    }
+  }
+
+  // ==================== 搜索历史 ====================
+
+  /**
+   * 保存搜索历史
+   */
+  async saveSearchHistory(searches: string[]): Promise<boolean> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, skipping search history save');
+        return false;
+      }
+
+      const { error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .upsert({
+          user_id: user.id,
+          custom_settings: { searchHistory: searches.slice(0, 50) },
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) {
+        console.error('[UserState] Failed to save search history:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[UserState] Error saving search history:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取搜索历史
+   */
+  async getSearchHistory(): Promise<string[]> {
+    try {
+      const user = await this.getCurrentUser();
+      if (!user) {
+        console.log('[UserState] User not logged in, no search history');
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from(this.PREFERENCES_TABLE)
+        .select('custom_settings')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return [];
+        }
+        console.error('[UserState] Failed to get search history:', error);
+        return [];
+      }
+
+      return data?.custom_settings?.searchHistory || [];
+    } catch (error) {
+      console.error('[UserState] Error getting search history:', error);
+      return [];
+    }
+  }
+
   /**
    * 获取用户偏好设置
    */

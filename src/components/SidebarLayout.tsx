@@ -34,6 +34,7 @@ import { uploadImage } from '@/services/imageService'
 import { supabase } from '@/lib/supabase'
 import supabasePointsService from '@/services/supabasePointsService'
 import achievementService from '@/services/achievementService'
+import { userStateService } from '@/services/userStateService'
 
 // 响应式动画速度控制
 const useResponsiveAnimation = () => {
@@ -201,11 +202,16 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     setShowSearchDropdown(true)
   }
 
-  // 使用防抖函数保存最近搜索
+  // 使用防抖函数保存最近搜索到本地和数据库
   const saveRecentSearches = useCallback((searches: string[]) => {
     if (typeof localStorage === 'undefined') return
     try {
       localStorage.setItem('recentSearches', JSON.stringify(searches))
+      
+      // 异步保存到数据库
+      userStateService.saveSearchHistory(searches).catch(err => {
+        console.error('[SidebarLayout] Failed to save search history to database:', err)
+      })
     } catch (error) {
       console.error('Failed to save recent searches:', error)
     }

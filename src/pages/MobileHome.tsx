@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, memo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 const BannerCarousel = memo(({ works, isDark }: { works: Work[]; isDark: boolean }) => {
   const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
 
   // Banner 自动轮播 - 只在组件内部更新状态
   useEffect(() => {
@@ -25,6 +26,22 @@ const BannerCarousel = memo(({ works, isDark }: { works: Work[]; isDark: boolean
 
     return () => clearInterval(interval);
   }, [works.length]);
+
+  // 控制当前显示的视频播放，其他视频暂停
+  useEffect(() => {
+    videoRefs.current.forEach((video, workId) => {
+      const workIndex = works.findIndex(w => w.id === workId);
+      if (workIndex === currentIndex) {
+        // 当前显示的视频，尝试播放
+        video.play().catch(() => {
+          // 自动播放被阻止，静默处理
+        });
+      } else {
+        // 非当前显示的视频，暂停
+        video.pause();
+      }
+    });
+  }, [currentIndex, works]);
 
   if (works.length === 0) {
     return (
@@ -65,11 +82,31 @@ const BannerCarousel = memo(({ works, isDark }: { works: Work[]; isDark: boolean
           >
             {work.isVideo ? (
               <video
+                ref={(el) => {
+                  if (el) {
+                    videoRefs.current.set(work.id, el);
+                  }
+                }}
                 src={work.thumbnail}
                 className="w-full h-full object-cover"
                 muted
                 playsInline
-                preload="metadata"
+                autoPlay
+                loop
+                preload="auto"
+                onError={(e) => {
+                  // 视频加载失败时，显示默认背景图
+                  const video = e.target as HTMLVideoElement;
+                  video.style.display = 'none';
+                  const parent = video.parentElement;
+                  if (parent) {
+                    const img = document.createElement('img');
+                    img.src = work.thumbnail || 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80';
+                    img.className = 'w-full h-full object-cover';
+                    img.alt = work.title;
+                    parent.insertBefore(img, video);
+                  }
+                }}
               />
             ) : (
               <img
@@ -995,7 +1032,9 @@ export default function MobileHome() {
                           className="w-full h-full object-cover"
                           muted
                           playsInline
-                          preload="metadata"
+                          autoPlay
+                          loop
+                          preload="auto"
                         />
                       ) : (
                         <img
@@ -1045,7 +1084,9 @@ export default function MobileHome() {
                           className="w-full h-full object-cover"
                           muted
                           playsInline
-                          preload="metadata"
+                          autoPlay
+                          loop
+                          preload="auto"
                         />
                       ) : (
                         <img

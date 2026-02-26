@@ -98,13 +98,17 @@ export function usePromotion(): UsePromotionReturn {
   }, [fetchAllData]);
 
   // 创建订单
-  const createOrder = useCallback(async (orderData: Parameters<typeof promotionService.createOrder>[0]) => {
-    const result = await promotionService.createOrder(orderData);
+  const createOrder = useCallback(async (orderData: Omit<Parameters<typeof promotionService.createOrder>[0], 'userId'>) => {
+    if (!userId) {
+      console.error('用户未登录');
+      return null;
+    }
+    const result = await promotionService.createOrder({ ...orderData, userId });
     if (result) {
       await refresh();
     }
     return result;
-  }, [refresh]);
+  }, [refresh, userId]);
 
   // 支付订单
   const payOrder = useCallback(async (orderId: string, couponId?: string) => {

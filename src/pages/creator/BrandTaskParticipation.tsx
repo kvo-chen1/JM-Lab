@@ -247,12 +247,11 @@ interface TaskDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApply: (task: BrandTask) => void;
-  onSubmitWork: (task: BrandTask) => void;
   participationStatus?: string;
   mySubmissions?: BrandTaskSubmission[];
 }
 
-function TaskDetailModal({ task, isOpen, onClose, onApply, onSubmitWork, participationStatus, mySubmissions = [] }: TaskDetailModalProps) {
+function TaskDetailModal({ task, isOpen, onClose, onApply, participationStatus, mySubmissions = [] }: TaskDetailModalProps) {
   const { isDark } = useTheme();
 
   if (!isOpen || !task) return null;
@@ -270,7 +269,7 @@ function TaskDetailModal({ task, isOpen, onClose, onApply, onSubmitWork, partici
         animate={{ opacity: 1, scale: 1 }}
         className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-2xl`}
       >
-        <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+        <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center gap-4">
             <button
               onClick={onClose}
@@ -459,11 +458,11 @@ function TaskDetailModal({ task, isOpen, onClose, onApply, onSubmitWork, partici
           )}
           {participationStatus === 'approved' && task.status === 'published' && !isExpired && (
             <button
-              onClick={() => onSubmitWork(task)}
+              onClick={() => navigate('/create')}
               className="px-6 py-2.5 rounded-lg font-medium bg-emerald-500 text-white hover:bg-emerald-600 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-500/25"
             >
-              <Upload className="w-4 h-4" />
-              提交作品
+              <Sparkles className="w-4 h-4" />
+              去创作中心发布
             </button>
           )}
         </div>
@@ -558,169 +557,6 @@ function ApplyModal({ task, isOpen, onClose, onSuccess }: ApplyModalProps) {
           >
             {isSubmitting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
             提交申请
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-// ============================================================================
-// 提交作品模态框
-// ============================================================================
-
-interface SubmitWorkModalProps {
-  task: BrandTask | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-function SubmitWorkModal({ task, isOpen, onClose, onSuccess }: SubmitWorkModalProps) {
-  const { isDark } = useTheme();
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleAddTag = () => {
-    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-      setTags([...tags, tagInput.trim()]);
-      setTagInput('');
-    }
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    setTags(tags.filter(t => t !== tag));
-  };
-
-  const handleSubmit = async () => {
-    if (!task || !title.trim()) {
-      toast.error('请填写作品标题');
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      await brandTaskService.submitWork({
-        task_id: task.id,
-        work_title: title,
-        content,
-        tags,
-      });
-      toast.success('作品提交成功，请等待审核');
-      onSuccess();
-      onClose();
-    } catch (error) {
-      toast.error('提交失败：' + (error instanceof Error ? error.message : '未知错误'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (!isOpen || !task) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className={`w-full max-w-lg rounded-2xl ${isDark ? 'bg-gray-900' : 'bg-white'} shadow-2xl p-6`}
-      >
-        <h3 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          提交作品
-        </h3>
-        <div className={`p-3 rounded-lg mb-4 ${isDark ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-emerald-50 border border-emerald-100'}`}>
-          <p className={`text-sm ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-            <span className="font-medium">{task.title}</span>
-          </p>
-        </div>
-        <div className="space-y-4 mb-6">
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              作品标题 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="给您的作品起个标题"
-              className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500' : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-            />
-          </div>
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              作品描述
-            </label>
-            <textarea
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              placeholder="描述您的作品内容..."
-              rows={4}
-              className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500' : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'} focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none`}
-            />
-          </div>
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              作品标签
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={tagInput}
-                onChange={e => setTagInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                placeholder="添加标签，按回车确认"
-                className={`flex-1 px-4 py-2 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500' : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-              />
-              <button
-                onClick={handleAddTag}
-                className="px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {tags.map(tag => (
-                <span key={tag} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm ${
-                  isDark ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-blue-50 text-blue-700 border border-blue-200'
-                }`}>
-                  {tag}
-                  <button onClick={() => handleRemoveTag(tag)} className="hover:text-red-500">×</button>
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className={`p-3 rounded-lg ${isDark ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-              <div className={`text-xs ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                <p className="font-medium mb-1">提交前请确认：</p>
-                <ul className="space-y-1">
-                  <li>• 作品包含以下标签：{task.required_tags.join('、')}</li>
-                  <li>• 作品发布到{task.required_location}</li>
-                  <li>• 作品内容符合任务要求</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            取消
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting || !title.trim()}
-            className="px-4 py-2 rounded-lg font-medium bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {isSubmitting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-            提交作品
           </button>
         </div>
       </motion.div>
@@ -1036,7 +872,6 @@ export default function BrandTaskParticipation() {
   const [selectedTask, setSelectedTask] = useState<BrandTask | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [earningsSummary, setEarningsSummary] = useState({
     total_earnings: 0,
     pending_earnings: 0,
@@ -1122,12 +957,6 @@ export default function BrandTaskParticipation() {
   const handleApply = (task: BrandTask) => {
     setSelectedTask(task);
     setIsApplyModalOpen(true);
-  };
-
-  // 处理提交作品
-  const handleSubmitWork = (task: BrandTask) => {
-    setSelectedTask(task);
-    setIsSubmitModalOpen(true);
   };
 
   // 处理申请成功
@@ -1291,7 +1120,6 @@ export default function BrandTaskParticipation() {
           setSelectedTask(null);
         }}
         onApply={handleApply}
-        onSubmitWork={handleSubmitWork}
         participationStatus={selectedTask ? getParticipationStatus(selectedTask.id) : undefined}
         mySubmissions={mySubmissions}
       />
@@ -1307,16 +1135,6 @@ export default function BrandTaskParticipation() {
         onSuccess={handleApplySuccess}
       />
 
-      {/* 提交作品模态框 */}
-      <SubmitWorkModal
-        task={selectedTask}
-        isOpen={isSubmitModalOpen}
-        onClose={() => {
-          setIsSubmitModalOpen(false);
-          setSelectedTask(null);
-        }}
-        onSuccess={handleSubmitSuccess}
-      />
     </div>
   );
 }

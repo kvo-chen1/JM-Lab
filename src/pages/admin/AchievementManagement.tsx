@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Upload, X, Plus, Search, Edit2, Trash2, Eye, Save, AlertCircle, Trophy, Star, Award, Crown, Shield, Target, Zap, Heart, MessageCircle, Bookmark, Share2, Calendar, Cpu, Video, Film, Users, UserCheck, Landmark, Sparkles } from 'lucide-react';
 import achievementService, { Achievement, CreatorLevel } from '@/services/achievementService';
 import supabasePointsService from '@/services/supabasePointsService';
+import achievementAdminService, { AchievementConfig, CreatorLevelConfig } from '@/services/achievementAdminService';
 
 // 成就稀有度配置
 const RARITY_CONFIG: Record<string, { name: string; color: string; bgColor: string; icon: any }> = {
@@ -56,8 +57,8 @@ const ICON_MAP: Record<string, any> = {
 
 export default function AchievementManagement() {
   const { isDark } = useTheme();
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [levels, setLevels] = useState<CreatorLevel[]>([]);
+  const [achievements, setAchievements] = useState<AchievementConfig[]>([]);
+  const [levels, setLevels] = useState<CreatorLevelConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [rarityFilter, setRarityFilter] = useState<string>('all');
@@ -67,7 +68,7 @@ export default function AchievementManagement() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [creatorLevelFilter, setCreatorLevelFilter] = useState('all');
-  const [selectedItem, setSelectedItem] = useState<Achievement | CreatorLevel | null>(null);
+  const [selectedItem, setSelectedItem] = useState<AchievementConfig | CreatorLevelConfig | null>(null);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [showModal, setShowModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
@@ -75,7 +76,7 @@ export default function AchievementManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 表单状态
-  const [formData, setFormData] = useState<Partial<Achievement>>({
+  const [formData, setFormData] = useState<Partial<AchievementConfig>>({
     name: '',
     description: '',
     icon: 'star',
@@ -90,10 +91,12 @@ export default function AchievementManagement() {
   const fetchAchievements = async () => {
     setLoading(true);
     try {
-      const data = await achievementService.getAllAchievements();
+      // 从数据库获取成就配置
+      const data = await achievementAdminService.getAllAchievements();
       setAchievements(data);
 
-      const levelData = achievementService.getAllCreatorLevels();
+      // 从数据库获取等级配置
+      const levelData = await achievementAdminService.getAllCreatorLevels();
       setLevels(levelData);
     } catch (error) {
       console.error('获取成就列表失败:', error);
@@ -118,8 +121,8 @@ export default function AchievementManagement() {
       if (error) throw error;
 
       // 获取所有成就作为总数参考
-      const allAchievements = await achievementService.getAllAchievements();
-      const allLevels = achievementService.getAllCreatorLevels();
+      const allAchievements = await achievementAdminService.getAllAchievements();
+      const allLevels = await achievementAdminService.getAllCreatorLevels();
 
       // 获取每个用户的积分和成就信息
       const usersWithAchievements = await Promise.all(
@@ -134,7 +137,7 @@ export default function AchievementManagement() {
           let currentLevelIndex = 0;
 
           for (let i = 0; i < allLevels.length; i++) {
-            if (userPoints >= allLevels[i].requiredPoints) {
+            if (userPoints >= allLevels[i].required_points) {
               currentLevel = allLevels[i];
               currentLevelIndex = i;
             } else {
@@ -154,9 +157,9 @@ export default function AchievementManagement() {
           let levelProgress = 0;
 
           if (nextLevel) {
-            pointsToNextLevel = nextLevel.requiredPoints - userPoints;
-            const levelRange = nextLevel.requiredPoints - currentLevel.requiredPoints;
-            levelProgress = Math.min(100, Math.max(0, Math.round(((userPoints - currentLevel.requiredPoints) / levelRange) * 100)));
+            pointsToNextLevel = nextLevel.required_points - userPoints;
+            const levelRange = nextLevel.required_points - currentLevel.required_points;
+            levelProgress = Math.min(100, Math.max(0, Math.round(((userPoints - currentLevel.required_points) / levelRange) * 100)));
           } else {
             pointsToNextLevel = 0;
             levelProgress = 100;
@@ -238,27 +241,21 @@ export default function AchievementManagement() {
     setIsSubmitting(true);
     try {
       if (modalMode === 'create') {
-        // 创建新成就
-        const newAchievement: Achievement = {
-          ...formData as Achievement,
-          id: Date.now(),
-          progress: 0,
-          isUnlocked: false,
+        // 创建新成就 - 保存到数据库
+        const newAchievement: Omit<AchievementConfig, 'id' | 'created_at' | 'updated_at'> = {
+          name: formData.name || '',
+          description: formData.description || '',
+          icon: formData.icon || 'star',
+          rarity: formData.rarity || 'common',
+          category: formData.category || 'creation',
+          criteria: formData.criteria || '',
+          points: formData.points || 0,
+          is_active: true,
         };
-        // 添加到本地存储或服务
-        const currentAchievements = await achievementService.getAllAchievements();
-        currentAchievements.push(newAchievement);
-        localStorage.setItem('ACHIEVEMENTS_DATA', JSON.stringify(currentAchievements));
-        toast.success('成就创建成功');
+        await achievementAdminService.createAchievement(newAchievement);
       } else if (modalMode === 'edit' && selectedItem && 'id' in selectedItem) {
-        // 更新成就
-        const currentAchievements = await achievementService.getAllAchievements();
-        const index = currentAchievements.findIndex(a => a.id === selectedItem.id);
-        if (index !== -1) {
-          currentAchievements[index] = { ...currentAchievements[index], ...formData };
-          localStorage.setItem('ACHIEVEMENTS_DATA', JSON.stringify(currentAchievements));
-        }
-        toast.success('成就更新成功');
+        // 更新成就 - 保存到数据库
+        await achievementAdminService.updateAchievement(selectedItem.id, formData);
       }
 
       setShowModal(false);
@@ -272,16 +269,14 @@ export default function AchievementManagement() {
   };
 
   // 删除成就
-  const handleDelete = async (achievement: Achievement) => {
+  const handleDelete = async (achievement: AchievementConfig) => {
     if (!confirm(`确定要删除"${achievement.name}"吗？此操作不可恢复。`)) {
       return;
     }
 
     try {
-      const currentAchievements = await achievementService.getAllAchievements();
-      const filtered = currentAchievements.filter(a => a.id !== achievement.id);
-      localStorage.setItem('ACHIEVEMENTS_DATA', JSON.stringify(filtered));
-      toast.success('成就已删除');
+      // 从数据库删除成就（软删除）
+      await achievementAdminService.deleteAchievement(achievement.id);
       fetchAchievements();
     } catch (error) {
       console.error('删除成就失败:', error);
@@ -306,7 +301,7 @@ export default function AchievementManagement() {
   };
 
   // 打开编辑弹窗
-  const openEditModal = (achievement: Achievement) => {
+  const openEditModal = (achievement: AchievementConfig) => {
     setSelectedItem(achievement);
     setFormData({ ...achievement });
     setFormErrors({});
@@ -315,7 +310,7 @@ export default function AchievementManagement() {
   };
 
   // 打开查看弹窗
-  const openViewModal = (achievement: Achievement) => {
+  const openViewModal = (achievement: AchievementConfig) => {
     setSelectedItem(achievement);
     setModalMode('view');
     setShowModal(true);
@@ -558,7 +553,7 @@ export default function AchievementManagement() {
                     <div>
                       <h4 className="font-bold">{level.name}</h4>
                       <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {level.minPoints} - {level.maxPoints} 积分
+                        {level.required_points} 积分起
                       </p>
                     </div>
                   </div>
@@ -608,7 +603,7 @@ export default function AchievementManagement() {
           {/* 创作者等级分布 - 7个等级卡片 */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
             {(() => {
-              const allLevels = achievementService.getAllCreatorLevels();
+              const allLevels = levels;
               const levelColors = [
                 'gray', 'green', 'blue', 'purple', 'orange', 'red', 'yellow'
               ];
@@ -769,7 +764,7 @@ export default function AchievementManagement() {
               <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                 <h4 className="font-medium mb-3">等级设置（7级成就体系）</h4>
                 <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                  {achievementService.getAllCreatorLevels().map((level) => (
+                  {levels.map((level) => (
                     <div key={level.level} className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                       <div className="flex justify-between items-center mb-2">
                         <div className="flex items-center gap-2">
@@ -787,7 +782,7 @@ export default function AchievementManagement() {
                         <span className={`text-xs px-2 py-1 rounded-full ${
                           isDark ? 'bg-gray-600' : 'bg-gray-200'
                         }`}>
-                          {level.requiredPoints}积分
+                          {level.required_points}积分
                         </span>
                       </div>
                       <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>

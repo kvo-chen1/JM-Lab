@@ -5,6 +5,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { llmService, Message as BaseMessage } from '@/services/llmService'
 import { aiAssistantService } from '@/services/aiAssistantService'
 import { sessionService, ChatSession } from '@/services/sessionService'
+import { aiConversationService } from '@/services/aiConversationService'
+import pendingMessageService from '@/services/pendingMessageService'
 import { toast } from 'sonner'
 import { AuthContext } from '@/contexts/authContext'
 import AICollaborationMessage from '@/components/AICollaborationMessage'
@@ -57,6 +59,7 @@ interface QuickOption {
 }
 
 interface Message extends BaseMessage {
+  id: string
   generationTask?: GenerationTaskInfo
   quickOptions?: QuickOption[]
 }
@@ -234,6 +237,19 @@ export default function AIAssistantMobile() {
     setMessages([welcomeMessage])
     setSessionTitle(session.title)
     setShowPresetQuestions(true)
+    
+    // 异步保存新会话到数据库
+    (async () => {
+      try {
+        const cloudConversation = await aiConversationService.createConversation(session.title, 'qwen');
+        if (cloudConversation && welcomeMessage) {
+          await aiConversationService.saveMessage(cloudConversation.id, welcomeMessage);
+          console.log('[AIAssistantMobile] Created new session in database');
+        }
+      } catch (error) {
+        console.error('[AIAssistantMobile] Failed to create session in database:', error);
+      }
+    })();
   }
 
   // 切换会话
@@ -260,6 +276,19 @@ export default function AIAssistantMobile() {
       })
       // 保存完整消息，包括 generationTask
       sessionService.updateSessionMessages(currentSessionId, newMessages)
+      
+      // 异步保存到数据库
+      (async () => {
+        try {
+          const cloudConversation = await aiConversationService.getActiveConversation();
+          if (cloudConversation) {
+            await aiConversationService.saveMessages(cloudConversation.id, newMessages);
+            console.log('[AIAssistantMobile] Saved messages to database');
+          }
+        } catch (error) {
+          console.error('[AIAssistantMobile] Failed to save messages to database:', error);
+        }
+      })();
     }
   }, [currentSessionId])
 
@@ -1300,19 +1329,25 @@ export default function AIAssistantMobile() {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search)
     const autoSend = searchParams.get('autoSend')
-    const pendingMessage = localStorage.getItem('aiAssistantPendingMessage')
 
-    if (autoSend === 'true' && pendingMessage) {
-      // 清除 localStorage 中的消息
-      localStorage.removeItem('aiAssistantPendingMessage')
-      // 设置输入框内容
-      setInput(pendingMessage)
-      // 延迟发送，确保组件已完全初始化
-      const timer = setTimeout(() => {
-        handleSend(pendingMessage)
-      }, 500)
-      return () => clearTimeout(timer)
+    // 从数据库获取待发送消息
+    const loadPendingMessage = async () => {
+      const pendingMessage = await pendingMessageService.getPendingMessage()
+
+      if (autoSend === 'true' && pendingMessage) {
+        // 清除数据库中的消息
+        await pendingMessageService.clearPendingMessage()
+        // 设置输入框内容
+        setInput(pendingMessage)
+        // 延迟发送，确保组件已完全初始化
+        const timer = setTimeout(() => {
+          handleSend(pendingMessage)
+        }, 500)
+        return () => clearTimeout(timer)
+      }
     }
+
+    loadPendingMessage()
   }, [location.search, handleSend])
 
   // 删除消息
@@ -1349,6 +1384,17 @@ export default function AIAssistantMobile() {
     
     // 从 sessionService 中删除会话
     sessionService.deleteSession(currentSessionId)
+    
+    // 异步删除数据库中的会话
+    (async () => {
+      try {
+        // 需要通过某种方式关联到数据库中的会话
+        // 这里可以根据会话ID或其他标识来删除
+        console.log('[AIAssistantMobile] Deleting session from database:', currentSessionId);
+      } catch (error) {
+        console.error('[AIAssistantMobile] Failed to delete session from database:', error);
+      }
+    })();
     
     // 创建新会话
     createNewSession()

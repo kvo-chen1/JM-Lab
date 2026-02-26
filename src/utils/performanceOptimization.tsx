@@ -133,24 +133,46 @@ export function createLazyComponent<T extends ComponentType<any>>(
     let lastError: Error;
     const networkSpeed = getNetworkSpeed();
     const timeoutMultiplier = networkSpeed === 'slow-2g' ? 4 : networkSpeed === '2g' ? 3 : networkSpeed === '3g' ? 2 : 1;
-    const adjustedTimeout = timeout * timeoutMultiplier;
+    // 检测开发环境 - 更宽松的检测条件
+    const isDev = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || 
+       window.location.hostname === '127.0.0.1' ||
+       window.location.port === '3005' ||
+       window.location.port === '3000' ||
+       window.location.port === '5173');
+    
+    // 开发环境使用更长的超时时间
+    const devMultiplier = isDev ? 5 : 1;
+    const adjustedTimeout = timeout * timeoutMultiplier * devMultiplier;
 
-    // 只重试一次，避免不必要的网络请求
+    // 重试加载
     for (let i = 0; i <= retryCount; i++) {
       try {
-        // 添加超时处理
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Component load timeout')), adjustedTimeout);
-        });
+        // 开发环境使用更宽松的加载策略
+        if (isDev) {
+          // 开发环境：直接加载组件，不使用超时限制
+          const result = await importFn();
+          return result;
+        } else {
+          // 生产环境：使用超时保护
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Component load timeout')), adjustedTimeout);
+          });
 
-        const result = await Promise.race([importFn(), timeoutPromise]);
-        return result;
+          const result = await Promise.race([importFn(), timeoutPromise]);
+          return result;
+        }
       } catch (error) {
         lastError = error as Error;
         
+        // 记录错误信息以便调试
+        if (isDev) {
+          console.warn(`[createLazyComponent] Load attempt ${i + 1}/${retryCount + 1} failed for "${name || 'unnamed'}":`, lastError.message);
+        }
+        
         if (i < retryCount) {
-          // 指数退避重试
-          const retryDelay = 500 * (i + 1);
+          // 指数退避重试，开发环境使用更短的延迟
+          const retryDelay = isDev ? 100 * (i + 1) : 500 * (i + 1);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }

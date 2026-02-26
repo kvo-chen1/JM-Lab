@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Event } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
+import { userStateService } from '@/services/userStateService';
 import WorkScoring from './WorkScoring';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import OrganizerSettings from './OrganizerSettings';
@@ -423,6 +424,14 @@ export default function MobileOrganizerCenter() {
   const handleSwitchBrand = (brand: BrandPartnership) => {
     setSelectedBrand(brand);
     localStorage.setItem('selected_brand_id', brand.id);
+    
+    // 异步保存到数据库
+    userStateService.savePreferences({
+      customSettings: { selectedBrandId: brand.id }
+    }).catch(err => {
+      console.error('[MobileOrganizerCenter] Failed to save selected brand to database:', err);
+    });
+    
     toast.success(`已切换到: ${brand.brand_name}`);
     fetchEvents();
   };

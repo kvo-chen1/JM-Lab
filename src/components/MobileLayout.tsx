@@ -27,6 +27,7 @@ import {
 } from '@/utils/accessibility'
 
 import PWAInstallButton from './PWAInstallButton'
+import { userStateService } from '@/services/userStateService'
 
 // 响应式动画速度控制
 const useResponsiveAnimation = () => {
@@ -200,10 +201,17 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
   }, [notifications])
   */
 
-  // 保存通知设置到本地存储
+  // 保存通知设置到本地存储和数据库
   useEffect(() => {
     try {
       localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+      
+      // 异步保存到数据库
+      userStateService.savePreferences({
+        customSettings: { notificationSettings }
+      }).catch(err => {
+        console.error('[MobileLayout] Failed to save notification settings to database:', err);
+      });
     } catch (error) {
       console.error('Failed to save notification settings:', error);
     }

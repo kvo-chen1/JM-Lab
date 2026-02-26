@@ -70,6 +70,7 @@ import {
   Settings,
   Download,
   FileSpreadsheet,
+  X,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -391,7 +392,18 @@ const TaskCard = React.forwardRef<HTMLDivElement, TaskCardProps>(function TaskCa
         {/* 头部 */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            {task.brand_logo ? (
+            {task.cover_image ? (
+              <img 
+                src={task.cover_image} 
+                alt={task.title} 
+                className="w-10 h-10 rounded-xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-sm" 
+              />
+            ) : task.cover_video ? (
+              <video 
+                src={task.cover_video} 
+                className="w-10 h-10 rounded-xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-sm" 
+              />
+            ) : task.brand_logo ? (
               <img 
                 src={task.brand_logo} 
                 alt={task.brand_name} 
@@ -553,17 +565,19 @@ interface TaskDetailPanelProps {
   onPause: (taskId: string) => void;
   onResume: (taskId: string) => void;
   onComplete: (taskId: string) => void;
+  onPublish: (taskId: string) => void;
   onRefresh: () => void;
 }
 
-function TaskDetailPanel({ 
-  task, 
-  isDark, 
-  onEdit, 
-  onDelete, 
-  onPause, 
-  onResume, 
+function TaskDetailPanel({
+  task,
+  isDark,
+  onEdit,
+  onDelete,
+  onPause,
+  onResume,
   onComplete,
+  onPublish,
   onRefresh,
 }: TaskDetailPanelProps) {
   const [stats, setStats] = useState<TaskStats | null>(null);
@@ -622,7 +636,11 @@ function TaskDetailPanel({
       {/* 头部 */}
       <div className={`p-5 border-b ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
         <div className="flex items-start justify-between mb-4">
-          {task.brand_logo ? (
+          {task.cover_image ? (
+            <img src={task.cover_image} alt={task.title} className="w-14 h-14 rounded-xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-md" />
+          ) : task.cover_video ? (
+            <video src={task.cover_video} className="w-14 h-14 rounded-xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-md" />
+          ) : task.brand_logo ? (
             <img src={task.brand_logo} alt={task.brand_name} className="w-14 h-14 rounded-xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-md" />
           ) : (
             <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold shadow-md ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
@@ -736,6 +754,17 @@ function TaskDetailPanel({
                     >
                       <Trash2 className="w-4 h-4" />
                       删除任务
+                    </button>
+                  )}
+                  {(task.status === 'draft' || task.status === 'pending') && (
+                    <button
+                      onClick={() => onPublish(task.id)}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        isDark ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30' : 'bg-green-50 text-green-700 hover:bg-green-100'
+                      }`}
+                    >
+                      <Send className="w-4 h-4" />
+                      {task.status === 'draft' ? '提交审核' : '重新提交'}
                     </button>
                   )}
                 </div>
@@ -1352,10 +1381,13 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
     title: '',
     description: '',
     content: '',
+    cover_image: '',
+    cover_video: '',
     brand_id: '',
     brand_name: '',
+    brand_logo: '',
     required_tags: [''],
-    required_location: '商单广场',
+    required_location: '津脉广场',
     content_requirements: [''],
     participation_conditions: [''],
     start_date: '',
@@ -1368,6 +1400,7 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
     require_approval: true,
     auto_approval_threshold: '',
   });
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
 
   useEffect(() => {
     if (editTask) {
@@ -1387,8 +1420,11 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
         title: editTask.title,
         description: editTask.description,
         content: editTask.content || '',
+        cover_image: editTask.cover_image || '',
+        cover_video: editTask.cover_video || '',
         brand_id: editTask.brand_id || '',
         brand_name: editTask.brand_name,
+        brand_logo: editTask.brand_logo || '',
         required_tags: editTask.required_tags.length > 0 ? editTask.required_tags : [''],
         required_location: editTask.required_location,
         content_requirements: editTask.content_requirements.length > 0 ? editTask.content_requirements : [''],
@@ -1408,9 +1444,81 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
         ...prev,
         brand_id: userBrands[0].id,
         brand_name: userBrands[0].brand_name,
+        brand_logo: userBrands[0].brand_logo,
       }));
     }
   }, [editTask, userBrands]);
+
+  // 验证当前步骤的必填字段
+  const validateCurrentStep = (): boolean => {
+    if (step === 1) {
+      if (!formData.title.trim()) {
+        toast.error('请输入任务标题');
+        return false;
+      }
+      if (!formData.description.trim()) {
+        toast.error('请输入任务简介');
+        return false;
+      }
+      if (!formData.brand_name) {
+        toast.error('请选择品牌');
+        return false;
+      }
+      if (!formData.start_date) {
+        toast.error('请选择开始时间');
+        return false;
+      }
+      if (!formData.end_date) {
+        toast.error('请选择结束时间');
+        return false;
+      }
+      // 验证结束时间是否晚于开始时间
+      if (new Date(formData.end_date) <= new Date(formData.start_date)) {
+        toast.error('结束时间必须晚于开始时间');
+        return false;
+      }
+    } else if (step === 2) {
+      // 步骤2的验证 - 所有字段必填
+      const validTags = formData.required_tags.filter(tag => tag.trim());
+      if (validTags.length === 0) {
+        toast.error('请至少添加一个必须包含的标签');
+        return false;
+      }
+      if (!formData.max_participants || parseInt(formData.max_participants) <= 0) {
+        toast.error('请输入有效的最大参与人数');
+        return false;
+      }
+      if (!formData.max_works_per_user || parseInt(formData.max_works_per_user) <= 0) {
+        toast.error('请输入有效的每人最多作品数');
+        return false;
+      }
+    } else if (step === 3) {
+      if (!formData.total_budget || parseFloat(formData.total_budget) <= 0) {
+        toast.error('请输入有效的总预算');
+        return false;
+      }
+      if (!formData.min_reward || parseFloat(formData.min_reward) <= 0) {
+        toast.error('请输入有效的最低奖励');
+        return false;
+      }
+      if (!formData.max_reward || parseFloat(formData.max_reward) <= 0) {
+        toast.error('请输入有效的最高奖励');
+        return false;
+      }
+      if (parseFloat(formData.min_reward) > parseFloat(formData.max_reward)) {
+        toast.error('最低奖励不能高于最高奖励');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // 处理下一步
+  const handleNextStep = () => {
+    if (validateCurrentStep()) {
+      setStep(step + 1);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!formData.title.trim()) {
@@ -1444,10 +1552,13 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
         title: formData.title.trim(),
         description: formData.description.trim(),
         content: formData.content?.trim(),
+        cover_image: formData.cover_image || undefined,
+        cover_video: formData.cover_video || undefined,
         brand_id: formData.brand_id || undefined,
         brand_name: formData.brand_name,
+        brand_logo: formData.brand_logo || undefined,
         required_tags: formData.required_tags.filter(Boolean),
-        required_location: formData.required_location,
+        required_location: '津脉广场',
         content_requirements: formData.content_requirements.filter(Boolean),
         participation_conditions: formData.participation_conditions.filter(Boolean),
         start_date: new Date(formData.start_date).toISOString(),
@@ -1485,6 +1596,55 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
     const newTags = [...formData.required_tags];
     newTags[index] = value;
     setFormData(prev => ({ ...prev, required_tags: newTags }));
+  };
+
+  // 处理封面上传
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 验证文件类型
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    if (!isImage && !isVideo) {
+      toast.error('请上传图片或视频文件');
+      return;
+    }
+
+    // 验证文件大小 (图片最大 10MB，视频最大 100MB)
+    const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(isVideo ? '视频文件大小不能超过 100MB' : '图片文件大小不能超过 10MB');
+      return;
+    }
+
+    setIsUploadingCover(true);
+    try {
+      const { uploadImage } = await import('@/services/imageService');
+      const folder = isVideo ? 'task-covers/videos' : 'task-covers/images';
+      const url = await uploadImage(file, folder);
+
+      setFormData(prev => ({
+        ...prev,
+        cover_image: isImage ? url : prev.cover_image,
+        cover_video: isVideo ? url : prev.cover_video,
+      }));
+      toast.success(isVideo ? '视频上传成功' : '封面上传成功');
+    } catch (error) {
+      console.error('封面上传失败:', error);
+      toast.error('上传失败，请重试');
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
+  // 移除封面
+  const removeCover = () => {
+    setFormData(prev => ({
+      ...prev,
+      cover_image: '',
+      cover_video: '',
+    }));
   };
 
   if (!isOpen) return null;
@@ -1537,6 +1697,62 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
           {/* 步骤内容 */}
           {step === 1 && (
             <div className="space-y-4">
+              {/* 任务封面上传 */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  任务封面
+                </label>
+                <div className="flex items-center gap-4">
+                  {(formData.cover_image || formData.cover_video) ? (
+                    <div className="relative group">
+                      {formData.cover_image ? (
+                        <img
+                          src={formData.cover_image}
+                          alt="任务封面"
+                          className="w-32 h-32 object-cover rounded-lg border-2 border-blue-500"
+                        />
+                      ) : (
+                        <video
+                          src={formData.cover_video}
+                          className="w-32 h-32 object-cover rounded-lg border-2 border-blue-500"
+                        />
+                      )}
+                      <button
+                        onClick={removeCover}
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className={`flex flex-col items-center justify-center w-32 h-32 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                      isDark ? 'border-gray-700 hover:border-gray-600 bg-gray-800/50' : 'border-gray-300 hover:border-gray-400 bg-gray-50'
+                    }`}>
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={handleCoverUpload}
+                        className="hidden"
+                        disabled={isUploadingCover}
+                      />
+                      {isUploadingCover ? (
+                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <ImageIcon className={`w-8 h-8 mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>上传封面</span>
+                        </>
+                      )}
+                    </label>
+                  )}
+                  <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    <p>支持图片或视频</p>
+                    <p>图片：最大 10MB</p>
+                    <p>视频：最大 100MB</p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   任务标题 <span className="text-red-500">*</span>
@@ -1587,6 +1803,7 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
                           ...prev,
                           brand_id: e.target.value,
                           brand_name: brand?.brand_name || '',
+                          brand_logo: brand?.brand_logo || '',
                         }));
                       }}
                       className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-600 bg-gray-700 text-gray-100' : 'border-gray-300 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
@@ -1605,12 +1822,9 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
                   <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     发布位置
                   </label>
-                  <input
-                    type="text"
-                    value={formData.required_location}
-                    onChange={e => setFormData(prev => ({ ...prev, required_location: e.target.value }))}
-                    className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'} focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                  />
+                  <div className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800 text-emerald-400' : 'border-gray-200 bg-gray-100 text-emerald-600'} font-medium`}>
+                    津脉广场
+                  </div>
                 </div>
               </div>
 
@@ -1646,7 +1860,7 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
             <div className="space-y-4">
               <div>
                 <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  必须包含标签
+                  必须包含标签 <span className="text-red-500">*</span>
                 </label>
                 <div className="space-y-2">
                   {formData.required_tags.map((tag, index) => (
@@ -1681,7 +1895,7 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    最大参与人数
+                    最大参与人数 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -1693,7 +1907,7 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
 
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    每人最多作品数
+                    每人最多作品数 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -1835,7 +2049,7 @@ function CreateTaskModal({ isOpen, onClose, onSuccess, editTask, userBrands }: C
             </button>
             {step < 4 ? (
               <button
-                onClick={() => setStep(step + 1)}
+                onClick={handleNextStep}
                 className="px-6 py-2.5 rounded-lg font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
               >
                 下一步
@@ -1974,6 +2188,21 @@ export default function BrandTaskManager() {
       loadTasks();
     } else {
       toast.error('操作失败');
+    }
+  };
+
+  const handlePublish = async (taskId: string) => {
+    if (!confirm('确定要提交审核吗？提交后任务将进入待审核状态，等待管理员审核通过后才能发布。')) return;
+    const success = await brandTaskService.publishTask(taskId);
+    if (success) {
+      toast.success('任务已提交审核');
+      loadTasks();
+      if (selectedTask?.id === taskId) {
+        const updatedTask = await brandTaskService.getTaskById(taskId);
+        if (updatedTask) setSelectedTask(updatedTask);
+      }
+    } else {
+      toast.error('提交审核失败');
     }
   };
 
@@ -2125,6 +2354,7 @@ export default function BrandTaskManager() {
           onPause={handlePause}
           onResume={handleResume}
           onComplete={handleComplete}
+          onPublish={handlePublish}
           onRefresh={loadTasks}
         />
       </div>

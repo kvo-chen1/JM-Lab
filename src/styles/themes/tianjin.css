@@ -1149,6 +1149,59 @@
 }
 
 /* ========================================
+   天津主题图标样式 - 增强可见性
+   ======================================== */
+
+/* 侧边栏图标样式 - 提高透明度确保清晰可见 */
+.tianjin aside i.fas,
+.tianjin .sidebar i.fas,
+.tianjin nav i.fas {
+  opacity: 0.9 !important;
+  color: var(--color-primary);
+  transition: all 0.3s ease;
+}
+
+/* 非活动状态图标 */
+.tianjin aside button:not(.active) i.fas,
+.tianjin .sidebar button:not(.active) i.fas {
+  opacity: 0.85 !important;
+  color: var(--text-secondary);
+}
+
+/* 悬停时图标效果 */
+.tianjin aside button:hover i.fas,
+.tianjin .sidebar button:hover i.fas {
+  opacity: 1 !important;
+  color: var(--color-primary);
+  transform: scale(1.05);
+}
+
+/* 活动状态图标 */
+.tianjin aside button.active i.fas,
+.tianjin .sidebar button.active i.fas {
+  opacity: 1 !important;
+  color: var(--color-primary);
+  filter: drop-shadow(0 0 3px rgba(30, 95, 142, 0.3));
+}
+
+/* 导航菜单图标 */
+.tianjin nav a i.fas {
+  opacity: 0.9 !important;
+}
+
+/* 按钮图标 */
+.tianjin button i.fas {
+  opacity: 0.95 !important;
+}
+
+/* 功能入口图标 */
+.tianjin .feature-item i.fas,
+.tianjin [class*="feature"] i.fas {
+  opacity: 0.9 !important;
+  color: var(--color-primary);
+}
+
+/* ========================================
    天津特色页面装饰
    ======================================== */
 

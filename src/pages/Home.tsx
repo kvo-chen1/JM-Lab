@@ -16,6 +16,7 @@ import HomeRecommendationSection from '@/components/HomeRecommendationSection'
 import JinMaiTemplatesSection from '@/components/JinMaiTemplatesSection'
 import PartnerBrandsSection from '@/components/PartnerBrandsSection'
 import { recordUserAction } from '@/services/recommendationService'
+import pendingMessageService from '@/services/pendingMessageService'
 import {
   ANIMATION_VARIANTS,
   INTERACTION_VARIANTS,
@@ -331,7 +332,7 @@ export default function Home() {
     }
   }, [search, selectedTags]);
   
-  const handleGenerateClick = useCallback(() => {
+  const handleGenerateClick = useCallback(async () => {
     const p = ensurePrompt();
     
     // 检测是否为手机端
@@ -339,7 +340,8 @@ export default function Home() {
     
     if (isMobile) {
       // 手机端：跳转到津小脉AI助手并自动触发消息
-      localStorage.setItem('aiAssistantPendingMessage', p);
+      // 保存到数据库，下次登录依然可以看到
+      await pendingMessageService.savePendingMessage(p, '/home', { source: 'home-generate' });
       navigate('/ai-assistant?autoSend=true');
     } else {
       // PC端：保持原有行为，跳转到创作中心

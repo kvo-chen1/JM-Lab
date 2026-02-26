@@ -7,7 +7,8 @@ import { toast } from 'sonner';
 import { Event, EventCreateRequest } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
 // import { eventService } from '@/services/eventService'; // 使用 useEventService hook 替代
-import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
+import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService'
+import { userStateService } from '@/services/userStateService';
 import { uploadImage, uploadVideo } from '@/services/imageService';
 import { supabase } from '@/lib/supabase';
 import WorkScoring from './organizer/WorkScoring';
@@ -410,6 +411,14 @@ export default function OrganizerCenter() {
   const handleSwitchBrand = (brand: BrandPartnership) => {
     setSelectedBrand(brand);
     localStorage.setItem('selected_brand_id', brand.id);
+    
+    // 异步保存到数据库
+    userStateService.savePreferences({
+      customSettings: { selectedBrandId: brand.id }
+    }).catch(err => {
+      console.error('[OrganizerCenter] Failed to save selected brand to database:', err);
+    });
+    
     setShowBrandSwitch(false);
     toast.success(`已切换到品牌: ${brand.brand_name}`);
     // 刷新活动列表
@@ -899,6 +908,12 @@ export default function OrganizerCenter() {
         if (!formData.description.trim()) newErrors.description = '请输入活动描述';
         else if (formData.description.length < 5) newErrors.description = '活动描述至少需要5个字符';
 
+        if (!formData.startTime) {
+          newErrors.startTime = '请选择开始时间';
+        }
+        if (!formData.endTime) {
+          newErrors.endTime = '请选择结束时间';
+        }
         if (formData.startTime && formData.endTime) {
           if (formData.startTime >= formData.endTime) newErrors.time = '结束时间必须晚于开始时间';
           else if (formData.endTime.getTime() - formData.startTime.getTime() < 30 * 60 * 1000) {
@@ -906,11 +921,28 @@ export default function OrganizerCenter() {
           }
         }
 
+        if (!formData.registrationDeadline) {
+          newErrors.registrationDeadline = '请选择报名截止时间';
+        }
+        if (!formData.reviewStartDate) {
+          newErrors.reviewStartDate = '请选择评审开始时间';
+        }
+
+        if (!formData.location.trim()) {
+          newErrors.location = '请输入活动地点';
+        }
+
         if (formData.contactPhone && !/^1[3-9]\d{9}$/.test(formData.contactPhone)) {
           newErrors.contactPhone = '请输入有效的11位手机号码';
         }
         if (formData.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contactEmail)) {
           newErrors.contactEmail = '请输入有效的邮箱地址';
+        }
+        break;
+
+      case 'type':
+        if (!formData.eventType) {
+          newErrors.eventType = '请选择活动作品类型';
         }
         break;
 
@@ -924,6 +956,12 @@ export default function OrganizerCenter() {
 
       case 'media':
         if (formData.media.length === 0) newErrors.media = '请上传至少一张图片作为封面';
+        break;
+
+      case 'prizes':
+        if (!prizes || prizes.length === 0) {
+          newErrors.prizes = '请至少设置一个奖品';
+        }
         break;
 
       case 'settings':
@@ -1959,9 +1997,10 @@ export default function OrganizerCenter() {
                               value={formData.startTime ? new Date(formData.startTime.getTime() - formData.startTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
                               onChange={(e) => handleChange('startTime', new Date(e.target.value))}
                               className={`w-full px-4 py-3 rounded-xl border text-sm ${
-                                isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
-                              } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
+                                errors.startTime ? 'border-red-500 focus:ring-red-500/20' : 'border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500/20'
+                              } ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} focus:outline-none focus:ring-4`}
                             />
+                            {errors.startTime && <p className="mt-1 text-sm text-red-500">{errors.startTime}</p>}
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1977,9 +2016,10 @@ export default function OrganizerCenter() {
                                 handleChange('resultDate', newEndTime);
                               }}
                               className={`w-full px-4 py-3 rounded-xl border text-sm ${
-                                isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
-                              } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
+                                errors.endTime ? 'border-red-500 focus:ring-red-500/20' : 'border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500/20'
+                              } ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} focus:outline-none focus:ring-4`}
                             />
+                            {errors.endTime && <p className="mt-1 text-sm text-red-500">{errors.endTime}</p>}
                           </div>
                         </div>
                         {errors.time && <p className="text-sm text-red-500">{errors.time}</p>}
@@ -1993,29 +2033,31 @@ export default function OrganizerCenter() {
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                报名截止时间
+                                报名截止时间 <span className="text-red-500">*</span>
                               </label>
                               <input
                                 type="datetime-local"
                                 value={formData.registrationDeadline ? new Date(formData.registrationDeadline.getTime() - formData.registrationDeadline.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
                                 onChange={(e) => handleChange('registrationDeadline', new Date(e.target.value))}
                                 className={`w-full px-4 py-3 rounded-xl border text-sm ${
-                                  isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
-                                } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
+                                  errors.registrationDeadline ? 'border-red-500 focus:ring-red-500/20' : 'border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500/20'
+                                } ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} focus:outline-none focus:ring-4`}
                               />
+                              {errors.registrationDeadline && <p className="mt-1 text-sm text-red-500">{errors.registrationDeadline}</p>}
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                评审开始时间
+                                评审开始时间 <span className="text-red-500">*</span>
                               </label>
                               <input
                                 type="datetime-local"
                                 value={formData.reviewStartDate ? new Date(formData.reviewStartDate.getTime() - formData.reviewStartDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
                                 onChange={(e) => handleChange('reviewStartDate', new Date(e.target.value))}
                                 className={`w-full px-4 py-3 rounded-xl border text-sm ${
-                                  isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
-                                } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
+                                  errors.reviewStartDate ? 'border-red-500 focus:ring-red-500/20' : 'border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500/20'
+                                } ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} focus:outline-none focus:ring-4`}
                               />
+                              {errors.reviewStartDate && <p className="mt-1 text-sm text-red-500">{errors.reviewStartDate}</p>}
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -2039,7 +2081,7 @@ export default function OrganizerCenter() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            活动地点
+                            活动地点 <span className="text-red-500">*</span>
                           </label>
                           <div className="relative">
                             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -2049,10 +2091,11 @@ export default function OrganizerCenter() {
                               onChange={(e) => handleChange('location', e.target.value)}
                               placeholder="输入活动地点或线上链接"
                               className={`w-full pl-10 pr-4 py-3 rounded-xl border text-sm ${
-                                isDark ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-50 text-gray-900 border-gray-200'
-                              } focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20`}
+                                errors.location ? 'border-red-500 focus:ring-red-500/20' : 'border-gray-200 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500/20'
+                              } ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-50 text-gray-900'} focus:outline-none focus:ring-4`}
                             />
                           </div>
+                          {errors.location && <p className="mt-1 text-sm text-red-500">{errors.location}</p>}
                         </div>
 
                       </div>
@@ -2069,6 +2112,7 @@ export default function OrganizerCenter() {
                             value={formData.eventType || 'document'}
                             onChange={(type) => handleChange('eventType', type)}
                           />
+                          {errors.eventType && <p className="mt-2 text-sm text-red-500">{errors.eventType}</p>}
                         </div>
 
                         <div className={`p-4 rounded-xl border ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
@@ -2299,11 +2343,18 @@ export default function OrganizerCenter() {
                     {/* 奖品设置步骤 */}
                     {currentStep === 'prizes' && (
                       <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            奖品设置 <span className="text-red-500">*</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 font-normal ml-2">请至少设置一个奖品</span>
+                          </label>
+                        </div>
                         <PrizeManager
                           eventId={eventId || 'temp'}
                           initialPrizes={prizes}
                           onPrizesChange={(newPrizes) => setPrizes(newPrizes)}
                         />
+                        {errors.prizes && <p className="text-sm text-red-500">{errors.prizes}</p>}
                       </div>
                     )}
 

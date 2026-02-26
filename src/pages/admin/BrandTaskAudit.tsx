@@ -82,6 +82,10 @@ export default function BrandTaskAudit() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [showParticipantModal, setShowParticipantModal] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<BrandTaskParticipant | null>(null);
+  const [showTaskReviewModal, setShowTaskReviewModal] = useState(false);
+  const [showTaskRejectModal, setShowTaskRejectModal] = useState(false);
+  const [taskReviewNotes, setTaskReviewNotes] = useState('');
+  const [taskRejectReason, setTaskRejectReason] = useState('');
 
   // 获取所有品牌任务
   useEffect(() => {
@@ -166,13 +170,19 @@ export default function BrandTaskAudit() {
   };
 
   // 更新任务状态
-  const handleUpdateTaskStatus = async (taskId: string, status: BrandTask['status']) => {
+  const handleUpdateTaskStatus = async (taskId: string, status: BrandTask['status'], notes?: string) => {
     try {
       let success = false;
       switch (status) {
         case 'published':
-          // 这里可以调用审核通过的API
-          success = true;
+          success = await brandTaskService.approveTask(taskId, notes);
+          break;
+        case 'cancelled':
+          if (!notes) {
+            toast.error('请输入拒绝原因');
+            return;
+          }
+          success = await brandTaskService.rejectTask(taskId, notes);
           break;
         case 'paused':
           success = await brandTaskService.pauseTask(taskId);
@@ -194,6 +204,45 @@ export default function BrandTaskAudit() {
     } catch (error) {
       console.error('更新任务状态失败:', error);
       toast.error('更新任务状态失败');
+    }
+  };
+
+  // 审核任务
+  const handleApproveTask = async () => {
+    if (!selectedTask) return;
+    try {
+      const success = await brandTaskService.approveTask(selectedTask.id, taskReviewNotes);
+      if (success) {
+        toast.success('任务审核通过并已发布');
+        fetchAllTasks();
+        setSelectedTask({ ...selectedTask, status: 'published' });
+        setShowTaskReviewModal(false);
+        setTaskReviewNotes('');
+      }
+    } catch (error) {
+      console.error('审核任务失败:', error);
+      toast.error('审核任务失败');
+    }
+  };
+
+  const handleRejectTask = async () => {
+    if (!selectedTask) return;
+    if (!taskRejectReason.trim()) {
+      toast.error('请输入拒绝原因');
+      return;
+    }
+    try {
+      const success = await brandTaskService.rejectTask(selectedTask.id, taskRejectReason);
+      if (success) {
+        toast.success('任务已拒绝');
+        fetchAllTasks();
+        setSelectedTask({ ...selectedTask, status: 'cancelled' });
+        setShowTaskRejectModal(false);
+        setTaskRejectReason('');
+      }
+    } catch (error) {
+      console.error('拒绝任务失败:', error);
+      toast.error('拒绝任务失败');
     }
   };
 
@@ -563,12 +612,20 @@ export default function BrandTaskAudit() {
             </div>
             <div className="flex gap-2">
               {selectedTask.status === 'pending' && (
-                <button
-                  onClick={() => handleUpdateTaskStatus(selectedTask.id, 'published')}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                >
-                  <i className="fas fa-check mr-2"></i>审核通过
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowTaskReviewModal(true)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                  >
+                    <i className="fas fa-check mr-2"></i>审核通过
+                  </button>
+                  <button
+                    onClick={() => setShowTaskRejectModal(true)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                  >
+                    <i className="fas fa-times mr-2"></i>拒绝
+                  </button>
+                </>
               )}
               {selectedTask.status === 'published' && (
                 <button
@@ -1168,6 +1225,124 @@ export default function BrandTaskAudit() {
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
                   通过
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 任务审核通过模态框 */}
+      <AnimatePresence>
+        {showTaskReviewModal && selectedTask && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`w-full max-w-md rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`}
+            >
+              <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h3 className="text-lg font-bold text-green-600">
+                  <i className="fas fa-check-circle mr-2"></i>
+                  审核通过任务
+                </h3>
+                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {selectedTask.title}
+                </p>
+              </div>
+
+              <div className="p-6">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    审核备注（可选）
+                  </label>
+                  <textarea
+                    value={taskReviewNotes}
+                    onChange={(e) => setTaskReviewNotes(e.target.value)}
+                    placeholder="输入审核备注..."
+                    rows={4}
+                    className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
+                  />
+                </div>
+              </div>
+
+              <div className={`px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-end gap-3`}>
+                <button
+                  onClick={() => {
+                    setShowTaskReviewModal(false);
+                    setTaskReviewNotes('');
+                  }}
+                  className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleApproveTask}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  确认通过
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 任务拒绝模态框 */}
+      <AnimatePresence>
+        {showTaskRejectModal && selectedTask && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`w-full max-w-md rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`}
+            >
+              <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h3 className="text-lg font-bold text-red-600">
+                  <i className="fas fa-times-circle mr-2"></i>
+                  拒绝任务
+                </h3>
+                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {selectedTask.title}
+                </p>
+              </div>
+
+              <div className="p-6">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    拒绝原因 <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={taskRejectReason}
+                    onChange={(e) => setTaskRejectReason(e.target.value)}
+                    placeholder="请输入拒绝原因..."
+                    rows={4}
+                    className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
+                  />
+                  <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    拒绝原因将通知给任务发布者
+                  </p>
+                </div>
+              </div>
+
+              <div className={`px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-end gap-3`}>
+                <button
+                  onClick={() => {
+                    setShowTaskRejectModal(false);
+                    setTaskRejectReason('');
+                  }}
+                  className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleRejectTask}
+                  disabled={!taskRejectReason.trim()}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  确认拒绝
                 </button>
               </div>
             </motion.div>

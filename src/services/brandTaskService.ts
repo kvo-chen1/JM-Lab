@@ -1079,7 +1079,7 @@ class BrandTaskService {
         task_id: submission.task_id,
         submission_id: submissionId,
         amount: reward,
-        status: 'pending',
+        status: 'approved', // 审核通过后直接设为 approved，表示可提现
         source_type: 'task_reward',
         created_at: new Date().toISOString(),
       };

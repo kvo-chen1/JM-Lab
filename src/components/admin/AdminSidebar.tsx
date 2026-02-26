@@ -39,6 +39,7 @@ const navItems: AdminNavItem[] = [
   { id: 'workSubmissionAudit', name: 'IP孵化作品审核', icon: 'lightbulb', showNotification: true },
   { id: 'brandTaskAudit', name: '品牌任务审核', icon: 'clipboard-check', showNotification: true },
   { id: 'promotionUserManagement', name: '推广用户管理', icon: 'bullhorn', showNotification: true },
+  { id: 'promotionOrderManagement', name: '推广订单管理', icon: 'shopping-cart', showNotification: true },
   { id: 'aiFeedback', name: 'AI反馈管理', icon: 'robot', showNotification: true },
   { id: 'achievements', name: '成就管理', icon: 'trophy' },
   { id: 'analytics', name: '数据分析', icon: 'chart-bar' },

@@ -40,10 +40,11 @@ const ReportManagement = lazy(() => import('./ReportManagement'));
 const BrandTaskAudit = lazy(() => import('./BrandTaskAudit'));
 const WorkSubmissionAudit = lazy(() => import('./WorkSubmissionAudit'));
 const PromotionUserManagement = lazy(() => import('./PromotionUserManagement'));
+const PromotionOrderManagement = lazy(() => import('./PromotionOrderManagement'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -1901,6 +1902,21 @@ export default function Admin() {
             </div>
           }>
             <PromotionUserManagement />
+          </Suspense>
+        )}
+
+        {/* 推广订单管理页面 */}
+        {activeTab === 'promotionOrderManagement' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-pink-200 border-t-pink-500 rounded-full"
+              />
+            </div>
+          }>
+            <PromotionOrderManagement />
           </Suspense>
         )}
 

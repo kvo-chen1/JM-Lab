@@ -418,6 +418,8 @@ class PromotionService {
     workTitle?: string;
     workThumbnail?: string;
     packageType: string;
+    packageName?: string;
+    expectedViews?: string;
     target: string;
     metric: string;
     couponId?: string;
@@ -430,28 +432,33 @@ class PromotionService {
       const orderNo = 'PRO' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + 
         Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
 
+      // 构建插入数据
+      const insertData: any = {
+        user_id: orderData.userId,
+        order_no: orderNo,
+        work_id: orderData.workId,
+        work_title: orderData.workTitle || '',
+        work_thumbnail: orderData.workThumbnail || '',
+        package_type: orderData.packageType,
+        target_type: orderData.target,
+        metric_type: orderData.metric,
+        original_price: orderData.originalPrice,
+        discount_amount: orderData.discountAmount,
+        final_price: orderData.finalPrice,
+        coupon_id: orderData.couponId || null,
+        metadata: {
+          target: orderData.target,
+          metric: orderData.metric,
+          package_name: orderData.packageName,
+          expected_views: orderData.expectedViews,
+        },
+        status: 'pending',
+      };
+
       // 直接使用 INSERT 绕过 RPC 函数
       const { data, error } = await supabase
         .from('promotion_orders')
-        .insert({
-          user_id: orderData.userId,
-          order_no: orderNo,
-          work_id: orderData.workId,
-          work_title: orderData.workTitle || '',
-          work_thumbnail: orderData.workThumbnail || '',
-          package_type: orderData.packageType,
-          target_type: orderData.target,
-          metric_type: orderData.metric,
-          original_price: orderData.originalPrice,
-          discount_amount: orderData.discountAmount,
-          final_price: orderData.finalPrice,
-          coupon_id: orderData.couponId || null,
-          metadata: {
-            target: orderData.target,
-            metric: orderData.metric,
-          },
-          status: 'pending',
-        })
+        .insert(insertData)
         .select('id, order_no')
         .single();
 

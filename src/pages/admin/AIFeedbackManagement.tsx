@@ -1,44 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import { 
-  Star, MessageSquare, ThumbsUp, ThumbsDown, Filter, 
+import {
+  Star, MessageSquare, ThumbsUp, ThumbsDown, Filter,
   Search, Calendar, User, Bot, Eye, BarChart3, TrendingUp,
   Clock, CheckCircle, X, Download, RefreshCw, AlertCircle
 } from 'lucide-react';
-import { supabaseAdmin } from '@/lib/supabaseClient';
+import {
+  aiFeedbackService,
+  type AIFeedback,
+  type AIFeedbackStats,
+  FEEDBACK_TYPE_CONFIG,
+  RATING_CONFIG
+} from '@/services/aiFeedbackService';
 
-// AI反馈类型定义
-interface AIFeedback {
-  id: string;
-  userId: string;
-  userName: string;
-  userAvatar?: string;
-  sessionId: string;
-  messageId: string;
-  rating: 1 | 2 | 3 | 4 | 5;
-  feedbackType: 'satisfaction' | 'quality' | 'accuracy' | 'helpfulness' | 'other';
-  comment?: string;
-  aiModel: string;
-  aiResponse: string;
-  userQuery: string;
-  createdAt: string;
-  isRead: boolean;
-  tags?: string[];
-}
-
-// 反馈类型配置
-const FEEDBACK_TYPE_CONFIG: Record<string, { name: string; color: string; bgColor: string }> = {
-  'satisfaction': { name: '满意度', color: '#10B981', bgColor: 'rgba(16, 185, 129, 0.1)' },
-  'quality': { name: '内容质量', color: '#3B82F6', bgColor: 'rgba(59, 130, 246, 0.1)' },
-  'accuracy': { name: '准确性', color: '#8B5CF6', bgColor: 'rgba(139, 92, 246, 0.1)' },
-  'helpfulness': { name: '有用性', color: '#F59E0B', bgColor: 'rgba(245, 158, 11, 0.1)' },
-  'other': { name: '其他', color: '#6B7280', bgColor: 'rgba(107, 114, 128, 0.1)' },
-};
-
-// 评分配置
-const RATING_CONFIG: Record<number, { label: string; color: string; icon: any }> = {
+// 评分配置（带图标）
+const RATING_CONFIG_WITH_ICON: Record<number, { label: string; color: string; icon: any }> = {
   1: { label: '非常不满意', color: '#EF4444', icon: ThumbsDown },
   2: { label: '不满意', color: '#F97316', icon: ThumbsDown },
   3: { label: '一般', color: '#EAB308', icon: Star },
@@ -57,246 +35,103 @@ export default function AIFeedbackManagement() {
   const [dateRange, setDateRange] = useState<string>('7');
   const [selectedFeedback, setSelectedFeedback] = useState<AIFeedback | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [stats, setStats] = useState({
-    total: 0,
+  const [stats, setStats] = useState<AIFeedbackStats>({
+    totalCount: 0,
     avgRating: 0,
-    unread: 0,
-    rating5: 0,
-    rating4: 0,
-    rating3: 0,
-    rating2: 0,
-    rating1: 0,
+    unreadCount: 0,
+    rating5Count: 0,
+    rating4Count: 0,
+    rating3Count: 0,
+    rating2Count: 0,
+    rating1Count: 0,
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 20;
 
-  // 模拟数据加载
-  const fetchFeedbacks = async () => {
+  // 获取统计数据
+  const fetchStats = useCallback(async () => {
+    try {
+      const startDate = dateRange !== 'all'
+        ? new Date(Date.now() - parseInt(dateRange) * 24 * 60 * 60 * 1000).toISOString()
+        : undefined;
+
+      const data = await aiFeedbackService.getFeedbackStats(startDate);
+      setStats(data);
+    } catch (error) {
+      console.error('获取统计数据失败:', error);
+    }
+  }, [dateRange]);
+
+  // 获取反馈列表
+  const fetchFeedbacks = useCallback(async (page: number = 1) => {
     setLoading(true);
     try {
-      // 尝试从数据库获取
-      const { data, error } = await supabaseAdmin
-        .from('ai_feedback')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // 计算日期范围
+      const startDate = dateRange !== 'all'
+        ? new Date(Date.now() - parseInt(dateRange) * 24 * 60 * 60 * 1000).toISOString()
+        : undefined;
 
-      if (error) {
-        // 如果表不存在，使用本地存储的数据
-        console.log('使用本地存储的AI反馈数据');
-        const localData = getLocalAIFeedback();
-        setFeedbacks(localData);
-        calculateStats(localData);
-      } else {
-        const formattedData = (data || []).map((item: any) => ({
-          id: item.id,
-          userId: item.user_id,
-          userName: item.user_name || '匿名用户',
-          userAvatar: item.user_avatar,
-          sessionId: item.session_id,
-          messageId: item.message_id,
-          rating: item.rating,
-          feedbackType: item.feedback_type || 'satisfaction',
-          comment: item.comment,
-          aiModel: item.ai_model || '未知模型',
-          aiResponse: item.ai_response,
-          userQuery: item.user_query,
-          createdAt: item.created_at,
-          isRead: item.is_read || false,
-          tags: item.tags || [],
-        }));
-        setFeedbacks(formattedData);
-        calculateStats(formattedData);
-      }
+      // 解析筛选条件
+      const rating = ratingFilter !== 'all' ? parseInt(ratingFilter) : undefined;
+      const feedbackType = typeFilter !== 'all' ? typeFilter as any : undefined;
+      const isRead = readFilter !== 'all'
+        ? readFilter === 'read'
+        : undefined;
+
+      const { feedbacks: data, total } = await aiFeedbackService.getFeedbackList({
+        page,
+        limit: pageSize,
+        rating,
+        feedbackType,
+        isRead,
+        searchQuery: searchQuery || undefined,
+        startDate,
+      });
+
+      setFeedbacks(data);
+      setTotalCount(total);
+      setCurrentPage(page);
     } catch (error) {
       console.error('获取AI反馈失败:', error);
-      // 使用模拟数据
-      const mockData = getMockAIFeedback();
-      setFeedbacks(mockData);
-      calculateStats(mockData);
+      toast.error('获取数据失败');
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange, ratingFilter, typeFilter, readFilter, searchQuery]);
 
-  // 从本地存储获取
-  const getLocalAIFeedback = (): AIFeedback[] => {
-    if (typeof window === 'undefined') return [];
-    const stored = localStorage.getItem('AI_FEEDBACK_DATA');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch (e) {
-        return [];
-      }
-    }
-    return [];
-  };
-
-  // 模拟数据
-  const getMockAIFeedback = (): AIFeedback[] => {
-    return [
-      {
-        id: '1',
-        userId: 'user-1',
-        userName: '张三',
-        sessionId: 'session-1',
-        messageId: 'msg-1',
-        rating: 5,
-        feedbackType: 'satisfaction',
-        comment: 'AI回答非常详细，帮助很大！',
-        aiModel: 'doubao-pro-32k',
-        aiResponse: '进入首页 → 点击【创作中心】\n选择创作类型：海报/包装/IP形象/短视频脚本等\n设置风格参数：国潮、杨柳青年画、泥人张元素、天津方言文案等',
-        userQuery: '如何创作',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        isRead: false,
-      },
-      {
-        id: '2',
-        userId: 'user-2',
-        userName: '李四',
-        sessionId: 'session-2',
-        messageId: 'msg-2',
-        rating: 4,
-        feedbackType: 'quality',
-        comment: '内容不错，但可以更详细一些',
-        aiModel: 'kimi',
-        aiResponse: '天津特色小吃包括：煎饼果子、耳朵眼炸糕、十八街麻花...',
-        userQuery: '天津有什么特色小吃',
-        createdAt: new Date(Date.now() - 172800000).toISOString(),
-        isRead: true,
-      },
-      {
-        id: '3',
-        userId: 'user-3',
-        userName: '王五',
-        sessionId: 'session-3',
-        messageId: 'msg-3',
-        rating: 3,
-        feedbackType: 'accuracy',
-        comment: '部分信息需要更新',
-        aiModel: 'deepseek',
-        aiResponse: '杨柳青年画起源于明代崇祯年间...',
-        userQuery: '杨柳青年画历史',
-        createdAt: new Date(Date.now() - 259200000).toISOString(),
-        isRead: false,
-      },
-      {
-        id: '4',
-        userId: 'user-4',
-        userName: '赵六',
-        sessionId: 'session-4',
-        messageId: 'msg-4',
-        rating: 5,
-        feedbackType: 'helpfulness',
-        comment: '非常实用，直接解决了我的问题',
-        aiModel: 'doubao-pro-32k',
-        aiResponse: '您可以通过以下步骤完成作品发布...',
-        userQuery: '如何发布作品',
-        createdAt: new Date(Date.now() - 345600000).toISOString(),
-        isRead: true,
-      },
-      {
-        id: '5',
-        userId: 'user-5',
-        userName: '孙七',
-        sessionId: 'session-5',
-        messageId: 'msg-5',
-        rating: 2,
-        feedbackType: 'other',
-        comment: '回答不够准确',
-        aiModel: 'gpt-4',
-        aiResponse: '关于泥人张的历史...',
-        userQuery: '泥人张是谁',
-        createdAt: new Date(Date.now() - 432000000).toISOString(),
-        isRead: false,
-      },
-    ];
-  };
-
-  // 计算统计数据
-  const calculateStats = (data: AIFeedback[]) => {
-    const total = data.length;
-    if (total === 0) {
-      setStats({
-        total: 0,
-        avgRating: 0,
-        unread: 0,
-        rating5: 0,
-        rating4: 0,
-        rating3: 0,
-        rating2: 0,
-        rating1: 0,
-      });
-      return;
-    }
-
-    const sum = data.reduce((acc, item) => acc + item.rating, 0);
-    const unread = data.filter(item => !item.isRead).length;
-    
-    setStats({
-      total,
-      avgRating: parseFloat((sum / total).toFixed(1)),
-      unread,
-      rating5: data.filter(item => item.rating === 5).length,
-      rating4: data.filter(item => item.rating === 4).length,
-      rating3: data.filter(item => item.rating === 3).length,
-      rating2: data.filter(item => item.rating === 2).length,
-      rating1: data.filter(item => item.rating === 1).length,
-    });
-  };
-
-  // 初始化
+  // 初始化加载
   useEffect(() => {
-    fetchFeedbacks();
-  }, []);
-
-  // 筛选反馈
-  const filteredFeedbacks = feedbacks.filter(feedback => {
-    const matchesSearch = !searchQuery || 
-      feedback.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      feedback.comment?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      feedback.userQuery.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesRating = ratingFilter === 'all' || feedback.rating === parseInt(ratingFilter);
-    const matchesType = typeFilter === 'all' || feedback.feedbackType === typeFilter;
-    const matchesRead = readFilter === 'all' || 
-      (readFilter === 'read' && feedback.isRead) ||
-      (readFilter === 'unread' && !feedback.isRead);
-    
-    // 日期筛选
-    let matchesDate = true;
-    if (dateRange !== 'all') {
-      const days = parseInt(dateRange);
-      const cutoff = new Date(Date.now() - days * 86400000);
-      matchesDate = new Date(feedback.createdAt) >= cutoff;
-    }
-    
-    return matchesSearch && matchesRating && matchesType && matchesRead && matchesDate;
-  });
+    fetchStats();
+    fetchFeedbacks(1);
+  }, [fetchStats, fetchFeedbacks]);
 
   // 标记为已读
   const markAsRead = async (feedback: AIFeedback) => {
     try {
-      const updated = feedbacks.map(f => 
-        f.id === feedback.id ? { ...f, isRead: true } : f
-      );
-      setFeedbacks(updated);
-      calculateStats(updated);
-      
-      // 更新数据库
-      await supabaseAdmin
-        .from('ai_feedback')
-        .update({ is_read: true })
-        .eq('id', feedback.id);
-      
-      toast.success('已标记为已读');
+      const success = await aiFeedbackService.markAsRead(feedback.id);
+      if (success) {
+        const updated = feedbacks.map(f =>
+          f.id === feedback.id ? { ...f, isRead: true } : f
+        );
+        setFeedbacks(updated);
+        // 更新统计数据
+        setStats(prev => ({
+          ...prev,
+          unreadCount: Math.max(0, prev.unreadCount - 1),
+        }));
+        toast.success('已标记为已读');
+      }
     } catch (error) {
       console.error('标记已读失败:', error);
+      toast.error('操作失败');
     }
   };
 
   // 导出数据
   const exportData = () => {
     const dataStr = JSON.stringify(filteredFeedbacks, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
     const exportFileDefaultName = `ai-feedback-${new Date().toISOString().split('T')[0]}.json`;
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
@@ -314,6 +149,22 @@ export default function AIFeedbackManagement() {
     }
   };
 
+  // 筛选反馈（本地筛选）
+  const filteredFeedbacks = feedbacks.filter(feedback => {
+    const matchesSearch = !searchQuery ||
+      feedback.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      feedback.comment?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      feedback.userQuery.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesRating = ratingFilter === 'all' || feedback.rating === parseInt(ratingFilter);
+    const matchesType = typeFilter === 'all' || feedback.feedbackType === typeFilter;
+    const matchesRead = readFilter === 'all' ||
+      (readFilter === 'read' && feedback.isRead) ||
+      (readFilter === 'unread' && !feedback.isRead);
+
+    return matchesSearch && matchesRating && matchesType && matchesRead;
+  });
+
   // 获取评分星星
   const renderStars = (rating: number) => {
     return (
@@ -322,8 +173,8 @@ export default function AIFeedbackManagement() {
           <Star
             key={star}
             className={`w-4 h-4 ${
-              star <= rating 
-                ? 'text-yellow-400 fill-yellow-400' 
+              star <= rating
+                ? 'text-yellow-400 fill-yellow-400'
                 : 'text-gray-300'
             }`}
           />
@@ -331,6 +182,9 @@ export default function AIFeedbackManagement() {
       </div>
     );
   };
+
+  // 计算总页数
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <div className="space-y-6">
@@ -352,7 +206,7 @@ export default function AIFeedbackManagement() {
               导出数据
             </button>
             <button
-              onClick={fetchFeedbacks}
+              onClick={() => { fetchStats(); fetchFeedbacks(1); }}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
@@ -368,7 +222,7 @@ export default function AIFeedbackManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总反馈数</p>
-              <p className="text-2xl font-bold">{stats.total}</p>
+              <p className="text-2xl font-bold">{stats.totalCount}</p>
             </div>
             <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
               <MessageSquare className="w-6 h-6 text-blue-600" />
@@ -379,7 +233,7 @@ export default function AIFeedbackManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>平均评分</p>
-              <p className="text-2xl font-bold">{stats.avgRating}</p>
+              <p className="text-2xl font-bold">{stats.avgRating.toFixed(1)}</p>
             </div>
             <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
               <Star className="w-6 h-6 text-yellow-600" />
@@ -390,7 +244,7 @@ export default function AIFeedbackManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>未读反馈</p>
-              <p className="text-2xl font-bold text-red-600">{stats.unread}</p>
+              <p className="text-2xl font-bold text-red-600">{stats.unreadCount}</p>
             </div>
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-red-600" />
@@ -402,7 +256,7 @@ export default function AIFeedbackManagement() {
             <div>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>满意度</p>
               <p className="text-2xl font-bold text-green-600">
-                {stats.total > 0 ? Math.round(((stats.rating5 + stats.rating4) / stats.total) * 100) : 0}%
+                {stats.totalCount > 0 ? Math.round(((stats.rating5Count + stats.rating4Count) / stats.totalCount) * 100) : 0}%
               </p>
             </div>
             <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
@@ -417,8 +271,8 @@ export default function AIFeedbackManagement() {
         <h3 className="font-bold mb-4">评分分布</h3>
         <div className="space-y-3">
           {[5, 4, 3, 2, 1].map((rating) => {
-            const count = stats[`rating${rating}` as keyof typeof stats] as number;
-            const percentage = stats.total > 0 ? (count / stats.total) * 100 : 0;
+            const count = stats[`rating${rating}Count` as keyof AIFeedbackStats] as number;
+            const percentage = stats.totalCount > 0 ? (count / stats.totalCount) * 100 : 0;
             const config = RATING_CONFIG[rating];
             return (
               <div key={rating} className="flex items-center gap-4">
@@ -428,7 +282,7 @@ export default function AIFeedbackManagement() {
                 <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
-                    style={{ 
+                    style={{
                       width: `${percentage}%`,
                       backgroundColor: config.color
                     }}
@@ -455,6 +309,7 @@ export default function AIFeedbackManagement() {
                 placeholder="搜索用户、评论或问题..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && fetchFeedbacks(1)}
                 className={`w-full px-4 py-2 pl-10 rounded-lg bg-transparent border-none outline-none ${isDark ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'}`}
               />
             </div>
@@ -523,86 +378,111 @@ export default function AIFeedbackManagement() {
             <p className={`text-sm mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>用户提交的AI反馈将显示在这里</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">用户</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">评分</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">类型</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">用户问题</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">评论</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">时间</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredFeedbacks.map((feedback) => (
-                  <tr 
-                    key={feedback.id} 
-                    className={`${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors ${!feedback.isRead ? 'bg-red-50 dark:bg-red-900/10' : ''}`}
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-medium">
-                          {feedback.userName.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-medium">{feedback.userName}</p>
-                          {!feedback.isRead && (
-                            <span className="text-xs text-red-600 font-medium">未读</span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1">
-                        {renderStars(feedback.rating)}
-                        <span className="text-xs" style={{ color: RATING_CONFIG[feedback.rating].color }}>
-                          {RATING_CONFIG[feedback.rating].label}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className="px-3 py-1 rounded-full text-xs font-medium"
-                        style={{
-                          backgroundColor: FEEDBACK_TYPE_CONFIG[feedback.feedbackType]?.bgColor,
-                          color: FEEDBACK_TYPE_CONFIG[feedback.feedbackType]?.color
-                        }}
-                      >
-                        {FEEDBACK_TYPE_CONFIG[feedback.feedbackType]?.name}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className={`text-sm truncate max-w-[200px] ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {feedback.userQuery}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className={`text-sm truncate max-w-[200px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {feedback.comment || '-'}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {new Date(feedback.createdAt).toLocaleDateString('zh-CN')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => openDetailModal(feedback)}
-                        className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors`}
-                        title="查看详情"
-                      >
-                        <Eye className="w-4 h-4 text-blue-500" />
-                      </button>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">用户</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">评分</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">类型</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">用户问题</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">评论</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">时间</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold">操作</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredFeedbacks.map((feedback) => (
+                    <tr
+                      key={feedback.id}
+                      className={`${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors ${!feedback.isRead ? 'bg-red-50 dark:bg-red-900/10' : ''}`}
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-medium">
+                            {feedback.userName.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-medium">{feedback.userName}</p>
+                            {!feedback.isRead && (
+                              <span className="text-xs text-red-600 font-medium">未读</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1">
+                          {renderStars(feedback.rating)}
+                          <span className="text-xs" style={{ color: RATING_CONFIG[feedback.rating].color }}>
+                            {RATING_CONFIG[feedback.rating].label}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className="px-3 py-1 rounded-full text-xs font-medium"
+                          style={{
+                            backgroundColor: FEEDBACK_TYPE_CONFIG[feedback.feedbackType]?.bgColor,
+                            color: FEEDBACK_TYPE_CONFIG[feedback.feedbackType]?.color
+                          }}
+                        >
+                          {FEEDBACK_TYPE_CONFIG[feedback.feedbackType]?.name}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className={`text-sm truncate max-w-[200px] ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {feedback.userQuery}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className={`text-sm truncate max-w-[200px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {feedback.comment || '-'}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {new Date(feedback.createdAt).toLocaleDateString('zh-CN')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button
+                          onClick={() => openDetailModal(feedback)}
+                          className={`p-2 rounded-lg ${isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors`}
+                          title="查看详情"
+                        >
+                          <Eye className="w-4 h-4 text-blue-500" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 分页 */}
+            {totalPages > 1 && (
+              <div className={`p-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-center gap-2`}>
+                <button
+                  onClick={() => fetchFeedbacks(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 disabled:opacity-50"
+                >
+                  上一页
+                </button>
+                <span className="px-3 py-1">
+                  第 {currentPage} / {totalPages} 页
+                </span>
+                <button
+                  onClick={() => fetchFeedbacks(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 disabled:opacity-50"
+                >
+                  下一页
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 

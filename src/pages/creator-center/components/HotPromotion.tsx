@@ -174,6 +174,8 @@ const HotPromotion: React.FC = () => {
         workTitle: selectedWork?.title || '',
         workThumbnail: selectedWork?.thumbnail || '',
         packageType: selectedPackage,
+        packageName: selectedPackageData?.name || '',
+        expectedViews: selectedPackageData?.views || '',
         target: selectedTarget,
         metric: selectedMetric,
         couponId: selectedCoupon?.id,

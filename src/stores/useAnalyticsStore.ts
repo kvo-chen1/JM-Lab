@@ -11,6 +11,13 @@ interface AnalyticsState {
   error: string | null;
   isOnline: boolean;
   lastSyncTime: number;
+  // 用户真实的总计数据
+  userTotals: {
+    totalWorks: number;
+    totalViews: number;
+    totalLikes: number;
+    totalComments: number;
+  } | null;
   // 待同步的离线操作队列
   pendingActions: Array<{
     id: string;
@@ -45,16 +52,62 @@ export const useAnalyticsStore = create<AnalyticsState>()(
       error: null,
       isOnline: navigator.onLine,
       lastSyncTime: 0,
+      userTotals: null,
       pendingActions: [],
 
       fetchData: async (params) => {
         set({ isLoading: true, error: null });
         try {
-          // 从后端获取真实数据
-          const data = await analyticsService.getMetricsData(params);
-          const stats = analyticsService.getMetricsStats(data, params.metric);
+          console.log('[useAnalyticsStore] 开始获取数据:', params);
+          
+          // 分别获取趋势数据和用户总计数据，避免一个失败影响另一个
+          let metricsData: DataPoint[] = [];
+          let userAnalytics: any = null;
+          
+          try {
+            metricsData = await analyticsService.getMetricsData(params);
+          } catch (err: any) {
+            console.error('[useAnalyticsStore] 获取指标数据失败:', err);
+          }
+          
+          try {
+            userAnalytics = await analyticsService.getUserAnalytics();
+            console.log('[useAnalyticsStore] 获取到用户分析数据:', userAnalytics);
+          } catch (err: any) {
+            console.error('[useAnalyticsStore] 获取用户分析数据失败:', err);
+          }
+          
+          const stats = analyticsService.getMetricsStats(metricsData, params.metric);
+          
+          console.log('[useAnalyticsStore] 计算前的 stats:', stats);
+          
+          // 使用用户真实的总计数据替换计算出的总计
+          if (userAnalytics) {
+            switch (params.metric) {
+              case 'works':
+                stats.total = userAnalytics.totalWorks;
+                break;
+              case 'views':
+                stats.total = userAnalytics.totalViews;
+                break;
+              case 'likes':
+                stats.total = userAnalytics.totalLikes;
+                break;
+              case 'comments':
+                stats.total = userAnalytics.totalComments;
+                break;
+            }
+          }
+          
+          console.log('[useAnalyticsStore] 计算后的 stats:', stats);
 
-          set({ dataPoints: data, stats, isLoading: false, lastSyncTime: Date.now() });
+          set({ 
+            dataPoints: metricsData, 
+            stats, 
+            userTotals: userAnalytics,
+            isLoading: false, 
+            lastSyncTime: Date.now() 
+          });
         } catch (err: any) {
           console.error('Fetch analytics data failed:', err);
           set({ error: err.message, isLoading: false });
@@ -196,11 +249,9 @@ export const useAnalyticsStore = create<AnalyticsState>()(
     {
       name: 'analytics-storage', // 本地存储 Key
       storage: createJSONStorage(() => localStorage), // 使用 LocalStorage
-      partialize: (state) => ({ 
-        // 只持久化数据和待处理操作，不持久化加载状态
-        dataPoints: state.dataPoints, 
-        stats: state.stats,
-        pendingActions: state.pendingActions 
+      partialize: (state) => ({
+        // 只持久化待处理操作，不持久化数据（避免显示旧数据）
+        pendingActions: state.pendingActions
       }),
     }
   )

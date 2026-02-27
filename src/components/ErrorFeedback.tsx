@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import errorService, { ErrorInfo } from '../services/errorService';
 import { feedbackService } from '@/services/feedbackService';
+import { supabase } from '@/lib/supabase';
+import { AuthContext } from '@/contexts/authContext';
 
 interface ErrorFeedbackProps {
   errorInfo?: ErrorInfo;
@@ -14,6 +16,7 @@ interface ErrorFeedbackProps {
 
 const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose, autoShow = false }) => {
   const { isDark } = useTheme();
+  const { user } = useContext(AuthContext);
   const [description, setDescription] = useState('');
   const [contactInfo, setContactInfo] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,6 +27,38 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
   const [includeLogs, setIncludeLogs] = useState(true);
   const [contactError, setContactError] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>('');
+  
+  // 获取当前登录用户ID
+  useEffect(() => {
+    console.log('[ErrorFeedback] 正在获取用户会话...');
+    console.log('[ErrorFeedback] AuthContext user:', user);
+    
+    // 优先使用 AuthContext 中的用户
+    if (user?.id) {
+      setUserId(user.id);
+      setUserEmail(user.email || '');
+      console.log('[ErrorFeedback] 从 AuthContext 获取用户ID:', user.id);
+      return;
+    }
+    
+    // 如果 AuthContext 没有，尝试从 Supabase 获取
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('[ErrorFeedback] 获取会话失败:', error);
+        return;
+      }
+      if (session?.user?.id) {
+        setUserId(session.user.id);
+        setUserEmail(session.user.email || '');
+        console.log('[ErrorFeedback] 从 Supabase 获取用户ID:', session.user.id);
+        console.log('[ErrorFeedback] 当前用户邮箱:', session.user.email);
+      } else {
+        console.warn('[ErrorFeedback] 用户未登录，session:', session);
+      }
+    });
+  }, [user]);
   
   // 生成表单控件基础样式
   const getFormControlStyles = (hasError = false) => {
@@ -76,16 +111,29 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
         '其他': 'other'
       };
 
+      // 如果未填写联系方式，使用用户邮箱
+      const finalContactInfo = contactInfo.trim() || userEmail;
+      
+      console.log('[ErrorFeedback] 准备提交反馈:', {
+        userId,
+        userEmail,
+        finalContactInfo,
+        description: description.substring(0, 50) + '...'
+      });
+      
       // 提交反馈到数据库
-      await feedbackService.submitFeedback({
+      const result = await feedbackService.submitFeedback({
         type: typeMap[feedbackType] || 'other',
         title: errorDetails?.errorType || feedbackType,
         content: description,
-        contact_info: contactInfo,
-        contact_type: contactInfo.includes('@') ? 'email' : 'phone',
+        contact_info: finalContactInfo,
+        contact_type: finalContactInfo.includes('@') ? 'email' : 'phone',
         screenshots: [],
-        page_url: window.location.href
+        page_url: window.location.href,
+        user_id: userId
       });
+      
+      console.log('[ErrorFeedback] 提交结果:', result);
 
       // 提交成功后显示更丰富的反馈
       toast.success(
@@ -112,13 +160,16 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
       setTimeout(() => {
         onClose();
       }, 500);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[ErrorFeedback] 提交失败:', error);
       toast.error(
         <div className="flex items-center gap-2">
           <i className="fas fa-times-circle text-red-500 text-lg"></i>
           <div>
             <div className="font-medium">提交失败</div>
-            <div className="text-sm text-gray-600 dark:text-gray-300">请稍后再试</div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              {error?.message || '请稍后再试'}
+            </div>
           </div>
         </div>
       );
@@ -329,32 +380,31 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
               </div>
             </div>
             
-            {/* 联系方式 */}
+            {/* 联系方式（选填） */}
             <div>
               <label htmlFor="contactInfo" className={getLabelStyles()}>
-                联系方式 <span className="text-red-500">*</span>
-                <span className="text-xs text-gray-500 ml-1">(必填，用于接收处理结果通知)</span>
+                联系方式
+                <span className="text-xs text-gray-500 ml-1">(选填)</span>
               </label>
               <input
                 id="contactInfo"
                 type="text"
                 value={contactInfo}
                 onChange={handleContactChange}
-                placeholder="请留下您的邮箱或手机号，方便我们联系您并通知处理结果"
-                className={getFormControlStyles(!!contactError || !contactInfo.trim())}
+                placeholder="如需其他联系方式可在此填写"
+                className={getFormControlStyles(!!contactError)}
                 tabIndex={0}
                 aria-label="联系方式"
                 aria-describedby={contactError ? 'contact-error' : undefined}
-                required
               />
-              {!contactInfo.trim() && (
+              {!contactInfo.trim() && !contactError && (
                 <motion.p 
                   initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-xs text-yellow-600 mt-1 flex items-center gap-1"
+                  className="text-xs text-gray-500 mt-1 flex items-center gap-1"
                 >
                   <i className="fas fa-info-circle"></i>
-                  填写联系方式后，我们将在处理完成后通知您
+                  我们会通过您的账号联系您，如需其他联系方式可填写
                 </motion.p>
               )}
               {contactError && (
@@ -472,14 +522,14 @@ const ErrorFeedback: React.FC<ErrorFeedbackProps> = ({ errorInfo, error, onClose
           </button>
           <motion.button
             onClick={handleSubmit}
-            disabled={isSubmitting || !description.trim() || !contactInfo.trim() || !!contactError}
+            disabled={isSubmitting || !description.trim() || !!contactError}
             className={`px-5 py-2.5 sm:px-6 rounded-lg transition-all duration-300 hover:scale-105 font-medium ${
-              isSubmitting || !description.trim() || !contactInfo.trim() || !!contactError
+              isSubmitting || !description.trim() || !!contactError
                 ? 'bg-gray-500 cursor-not-allowed text-gray-200' 
                 : 'bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg'
             }`}
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && !isSubmitting && description.trim() && contactInfo.trim() && !contactError && handleSubmit()}
+            onKeyDown={(e) => e.key === 'Enter' && !isSubmitting && description.trim() && !contactError && handleSubmit()}
             whileTap={{ scale: 0.98 }}
             whileHover={{ scale: 1.05 }}
           >

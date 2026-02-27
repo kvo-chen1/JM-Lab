@@ -29,7 +29,9 @@ export default function Studio() {
     setPrompt,
     setActiveTool,
     setAutoGenerate,
-    updateState
+    updateState,
+    setGeneratedResults,
+    addGeneratedResult
   } = useCreateStore();
   
   const reviewWorkId = selectedResult ? String(selectedResult) : 'draft';
@@ -75,6 +77,97 @@ export default function Studio() {
       }
     }
   }, [setPrompt, setAutoGenerate]);
+
+  // 读取从作品提交页面传递的数据
+  useEffect(() => {
+    const submitWorkData = localStorage.getItem('submitWork_to_create');
+    if (submitWorkData) {
+      try {
+        const data = JSON.parse(submitWorkData);
+        console.log('[Studio] 读取到作品提交页面的数据:', data);
+        
+        // 检查数据是否在10分钟内（避免过期数据）
+        if (Date.now() - data.timestamp < 10 * 60 * 1000) {
+          // 设置提示词（使用描述作为提示词）
+          if (data.description) {
+            setPrompt(data.description);
+            toast.success('已从作品提交页面导入数据', {
+              description: '正在准备创作环境...'
+            });
+          }
+          
+          // 如果有图片文件，需要特殊处理（File对象无法通过localStorage传递）
+          // 这里我们设置一个标志，让 CanvasArea 组件知道需要加载这些图片
+          if (data.files && data.files.length > 0) {
+            // 存储图片信息供 CanvasArea 使用
+            localStorage.setItem('submitWork_images_info', JSON.stringify({
+              count: data.files.length,
+              title: data.title,
+              tags: data.tags,
+              timestamp: Date.now()
+            }));
+            
+            toast.info(`检测到 ${data.files.length} 张图片`, {
+              description: '请在创作中心上传区域查看'
+            });
+          }
+        }
+        
+        // 清除已使用的数据
+        localStorage.removeItem('submitWork_to_create');
+      } catch (error) {
+        console.error('读取作品提交数据失败:', error);
+      }
+    }
+  }, [setPrompt]);
+
+  // 读取从品牌向导传递的数据
+  useEffect(() => {
+    const wizardData = localStorage.getItem('wizard_to_create');
+    if (wizardData) {
+      try {
+        const data = JSON.parse(wizardData);
+        console.log('[Studio] 读取到品牌向导的数据:', data);
+        
+        // 检查数据是否在10分钟内（避免过期数据）
+        if (Date.now() - data.timestamp < 10 * 60 * 1000) {
+          // 设置提示词（使用描述作为提示词）
+          if (data.description) {
+            setPrompt(data.description);
+            toast.success('已从品牌向导导入数据', {
+              description: '正在准备创作环境...'
+            });
+          }
+          
+          // 如果有图片URL，添加到 generatedResults 中显示在预览区域
+          if (data.imageUrl) {
+            // 创建一个新的生成结果对象
+            const newResult = {
+              id: Date.now(), // 使用时间戳作为唯一ID
+              thumbnail: data.imageUrl,
+              score: data.culturalScore || 0,
+              type: 'image' as const,
+              prompt: data.description || ''
+            };
+            
+            // 添加到 generatedResults 中
+            addGeneratedResult(newResult);
+            
+            console.log('[Studio] 已添加品牌向导图片到预览区域:', newResult);
+            
+            toast.success('图片已导入到预览区域', {
+              description: '您可以在创作中心继续编辑'
+            });
+          }
+        }
+        
+        // 清除已使用的数据
+        localStorage.removeItem('wizard_to_create');
+      } catch (error) {
+        console.error('读取品牌向导数据失败:', error);
+      }
+    }
+  }, [setPrompt, addGeneratedResult]);
   
   // 读取从模板页面传递的数据
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { promotionService, PromotionOrder, PromotionStats, PromotionTrendPoint, UserWorkForPromotion, PromotionCoupon, PromotionWallet } from '@/services/promotionService';
+import { promotionService, PromotionOrder, PromotionStats, PromotionTrendPoint, UserWorkForPromotion, PromotionCoupon, PromotionWallet, PromotedWork, PromotionSummary } from '@/services/promotionService';
 
 export interface UsePromotionReturn {
   // 数据
@@ -10,16 +10,18 @@ export interface UsePromotionReturn {
   userWorks: UserWorkForPromotion[];
   coupons: PromotionCoupon[];
   wallet: PromotionWallet | null;
-  
+  promotedWorks: PromotedWork[];
+  promotionSummary: PromotionSummary | null;
+
   // 状态
   loading: boolean;
   error: string | null;
-  
+
   // 操作
   refresh: () => Promise<void>;
   createOrder: (orderData: Parameters<typeof promotionService.createOrder>[0]) => Promise<PromotionOrder | null>;
   payOrder: (orderId: string, couponId?: string) => Promise<boolean>;
-  
+
   // 筛选后的订单
   getOrdersByStatus: (status: PromotionOrder['status']) => PromotionOrder[];
 }
@@ -43,6 +45,8 @@ export function usePromotion(): UsePromotionReturn {
   const [userWorks, setUserWorks] = useState<UserWorkForPromotion[]>([]);
   const [coupons, setCoupons] = useState<PromotionCoupon[]>([]);
   const [wallet, setWallet] = useState<PromotionWallet | null>(null);
+  const [promotedWorks, setPromotedWorks] = useState<PromotedWork[]>([]);
+  const [promotionSummary, setPromotionSummary] = useState<PromotionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +68,8 @@ export function usePromotion(): UsePromotionReturn {
         worksData,
         couponsData,
         walletData,
+        promotedWorksData,
+        summaryData,
       ] = await Promise.all([
         promotionService.getUserOrders(userId),
         promotionService.getPromotionStats(userId),
@@ -71,6 +77,8 @@ export function usePromotion(): UsePromotionReturn {
         promotionService.getUserWorksForPromotion(userId),
         promotionService.getUserCoupons(userId),
         promotionService.getPromotionWallet(userId),
+        promotionService.getUserPromotedWorks(userId),
+        promotionService.getPromotionSummary(userId),
       ]);
 
       setOrders(ordersData);
@@ -79,6 +87,8 @@ export function usePromotion(): UsePromotionReturn {
       setUserWorks(worksData);
       setCoupons(couponsData);
       setWallet(walletData);
+      setPromotedWorks(promotedWorksData);
+      setPromotionSummary(summaryData);
     } catch (err) {
       console.error('获取推广数据失败:', err);
       setError('获取数据失败，请稍后重试');
@@ -131,6 +141,8 @@ export function usePromotion(): UsePromotionReturn {
     userWorks,
     coupons,
     wallet,
+    promotedWorks,
+    promotionSummary,
     loading,
     error,
     refresh,

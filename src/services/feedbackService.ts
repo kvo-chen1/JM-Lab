@@ -211,6 +211,12 @@ class FeedbackService {
     console.log('[FeedbackService] 当前本地数据条数:', this.localFeedbacks.length);
 
     try {
+      console.log('[FeedbackService] 正在提交到数据库:', {
+        user_id: data.user_id,
+        type: data.type,
+        title: data.title
+      });
+      
       const { data: feedback, error } = await supabase
         .from('user_feedbacks')
         .insert({
@@ -223,17 +229,23 @@ class FeedbackService {
         .single();
 
       if (error) {
-        console.warn('数据库提交失败，但已保存到本地存储:', error);
+        console.error('[FeedbackService] 数据库提交失败:', error);
+        console.error('[FeedbackService] 错误详情:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
         this.useLocalStorage = true;
-        return localFeedback;
+        throw error; // 抛出错误让上层捕获
       }
 
       console.log('[FeedbackService] 数据库提交成功:', feedback);
       return feedback;
     } catch (error) {
-      console.error('数据库提交失败，但已保存到本地存储:', error);
+      console.error('[FeedbackService] 数据库提交异常:', error);
       this.useLocalStorage = true;
-      return localFeedback;
+      throw error; // 抛出错误让上层捕获
     }
   }
 
@@ -248,12 +260,13 @@ class FeedbackService {
     search?: string;
     startDate?: string;
     endDate?: string;
+    forceDatabase?: boolean; // 强制从数据库查询
   }): Promise<{ feedbacks: Feedback[]; total: number }> {
     const page = options?.page || 1;
     const limit = options?.limit || 20;
 
-    // 如果使用本地存储，直接从本地读取
-    if (this.useLocalStorage || this.localFeedbacks.length > 0) {
+    // 如果使用本地存储且不强制从数据库查询，直接从本地读取
+    if (!options?.forceDatabase && (this.useLocalStorage || this.localFeedbacks.length > 0)) {
       console.log('[FeedbackService] 使用本地存储，当前数据:', this.localFeedbacks);
       let filtered = [...this.localFeedbacks];
 
@@ -342,12 +355,23 @@ class FeedbackService {
     let adminsMap: Record<string, any> = {};
 
     if (userIds.length > 0) {
+      console.log('[FeedbackService] 查询用户信息，userIds:', userIds);
       const { data: users, error: userError } = await supabase
         .from('users')
         .select('id, username, email, avatar_url')
         .in('id', userIds);
-      if (!userError && users) {
+      if (userError) {
+        console.error('[FeedbackService] 查询用户信息失败:', userError);
+      } else if (users) {
+        console.log('[FeedbackService] 查询到用户信息:', users);
         usersMap = users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {});
+      }
+      
+      // 检查哪些用户ID没有查询到
+      const foundIds = Object.keys(usersMap);
+      const missingIds = userIds.filter(id => !foundIds.includes(id));
+      if (missingIds.length > 0) {
+        console.warn('[FeedbackService] 未找到以下用户信息:', missingIds);
       }
     }
 
@@ -362,12 +386,29 @@ class FeedbackService {
     }
 
     // 合并数据
-    const enrichedFeedbacks = feedbacks.map(f => ({
-      ...f,
-      user: f.user_id ? usersMap[f.user_id] || { username: '未知用户' } : { username: '匿名用户' },
-      assignee: f.assigned_to ? adminsMap[f.assigned_to] || { username: '未知管理员' } : null,
-      responder: f.responded_by ? adminsMap[f.responded_by] || { username: '未知管理员' } : null
-    }));
+    const enrichedFeedbacks = feedbacks.map(f => {
+      let user = f.user_id ? usersMap[f.user_id] : null;
+      
+      // 如果用户不存在于 users 表，但有 contact_info，则使用 contact_info 生成用户信息
+      if (!user && f.contact_info) {
+        const userName = f.contact_info.length > 10 
+          ? f.contact_info.substring(0, 3) + '****' + f.contact_info.substring(f.contact_info.length - 4)
+          : f.contact_info;
+        user = {
+          id: f.user_id || 'unknown',
+          username: userName,
+          email: f.contact_info,
+          avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=random`
+        };
+      }
+      
+      return {
+        ...f,
+        user: user || { username: '匿名用户' },
+        assignee: f.assigned_to ? adminsMap[f.assigned_to] || { username: '未知管理员' } : null,
+        responder: f.responded_by ? adminsMap[f.responded_by] || { username: '未知管理员' } : null
+      };
+    });
 
       return {
         feedbacks: enrichedFeedbacks,

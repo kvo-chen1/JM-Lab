@@ -35,6 +35,10 @@ import { supabase } from '@/lib/supabase'
 import supabasePointsService from '@/services/supabasePointsService'
 import achievementService from '@/services/achievementService'
 import { userStateService } from '@/services/userStateService'
+import { useBrowseHistory } from '@/hooks/useBrowseHistory'
+import { collectionService, CollectionType, type CollectionItem, type UserCollectionStats } from '@/services/collectionService'
+import { draftService, type Draft } from '@/services/draftService'
+import { eventParticipationService, type ParticipationDetail, type ParticipationStatus } from '@/services/eventParticipationService'
 
 // 响应式动画速度控制
 const useResponsiveAnimation = () => {
@@ -340,6 +344,29 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const feedDropdownRef = useRef<HTMLDivElement>(null)
   const feedButtonRef = useRef<HTMLButtonElement>(null)
 
+  // 创作下拉菜单状态
+  const [showCreateDropdown, setShowCreateDropdown] = useState(false)
+
+  // 历史记录下拉菜单状态
+  const [showHistoryDropdown, setShowHistoryDropdown] = useState(false)
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'work' | 'template' | 'post'>('all')
+  const { groupedHistory, totalCount, workCount, templateCount, postCount, removeHistory } = useBrowseHistory()
+
+  // 收藏下拉菜单状态
+  const [showCollectionDropdown, setShowCollectionDropdown] = useState(false)
+  const [collectionFilter, setCollectionFilter] = useState<'all' | 'work' | 'template' | 'post' | 'activity'>('all')
+  const [collectionStats, setCollectionStats] = useState<UserCollectionStats | null>(null)
+  const [recentCollections, setRecentCollections] = useState<CollectionItem[]>([])
+
+  // 草稿箱下拉菜单状态
+  const [showDraftDropdown, setShowDraftDropdown] = useState(false)
+  const [recentDrafts, setRecentDrafts] = useState<Draft[]>([])
+
+  // 我的活动下拉菜单状态
+  const [showActivityDropdown, setShowActivityDropdown] = useState(false)
+  const [activityFilter, setActivityFilter] = useState<ParticipationStatus | 'all'>('all')
+  const [recentActivities, setRecentActivities] = useState<ParticipationDetail[]>([])
+
   // 获取动态下拉菜单数据
   useEffect(() => {
     if (showFeedDropdown && user?.id) {
@@ -384,6 +411,66 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // 获取收藏统计数据和最近收藏
+  useEffect(() => {
+    if (!isAuthenticated || !showCollectionDropdown) return
+
+    const fetchCollectionData = async () => {
+      try {
+        // 获取收藏统计
+        const stats = await collectionService.getUserCollectionStats()
+        setCollectionStats(stats)
+
+        // 获取最近收藏的5条
+        const result = await collectionService.getUserCollections({
+          type: collectionFilter === 'all' ? 'all' : collectionFilter,
+          limit: 5
+        })
+        setRecentCollections(result.items)
+      } catch (error) {
+        console.error('获取收藏数据失败:', error)
+      }
+    }
+
+    fetchCollectionData()
+  }, [showCollectionDropdown, collectionFilter, isAuthenticated])
+
+  // 获取最近草稿（草稿数据存储在本地，不需要登录）
+  useEffect(() => {
+    if (!showDraftDropdown) return
+
+    const fetchDraftData = async () => {
+      try {
+        const drafts = await draftService.getAllDrafts()
+        setRecentDrafts(drafts.slice(0, 5))
+      } catch (error) {
+        console.error('获取草稿数据失败:', error)
+      }
+    }
+
+    fetchDraftData()
+  }, [showDraftDropdown])
+
+  // 获取用户参与活动
+  useEffect(() => {
+    if (!isAuthenticated || !showActivityDropdown || !user?.id) return
+
+    const fetchActivityData = async () => {
+      try {
+        const result = await eventParticipationService.getUserParticipations(
+          user.id,
+          { status: activityFilter },
+          { page: 1, pageSize: 5 }
+        )
+        setRecentActivities(result.data)
+      } catch (error) {
+        console.error('获取活动数据失败:', error)
+      }
+    }
+
+    fetchActivityData()
+  }, [showActivityDropdown, activityFilter, isAuthenticated, user?.id])
 
   // 监听用户变化，获取未读消息数量
   useEffect(() => {
@@ -1088,6 +1175,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         {[
                           { label: '个人中心', path: '/dashboard', icon: 'fa-user' },
                           { label: '数据分析', path: '/analytics', icon: 'fa-chart-line' },
+                          { label: '我的社交', path: '/friends', icon: 'fa-users' },
+                          { label: '原创保护中心', path: '/original-protection', icon: 'fa-shield-alt' },
                           { label: '设置', path: '/settings', icon: 'fa-cog' }
                         ].map((item, index) => (
                           <motion.li
@@ -1205,29 +1294,6 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                 <i className="fas fa-bug text-lg"></i>
                 <span className="text-[10px]">反馈</span>
               </motion.button>
-              {/* 好友管理按钮 */}
-              <motion.button
-                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
-                aria-label="好友"
-                title="好友"
-                onClick={() => navigate('/friends')}
-                whileHover={{ scale: 1.05, y: -1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <div className="relative">
-                  <i className="fas fa-user-friends text-lg"></i>
-                  {friendRequests && friendRequests.length > 0 && (
-                    <motion.span
-                      className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                    >
-                      {friendRequests.length > 99 ? '99+' : friendRequests.length}
-                    </motion.span>
-                  )}
-                </div>
-                <span className="text-[10px]">好友</span>
-              </motion.button>
 
               {/* 动态入口 - 带下拉菜单 */}
               <div 
@@ -1235,9 +1301,11 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                 onMouseEnter={() => {
                   setShowFeedDropdown(true)
                   setShowMessageDropdown(false)
-                }}
-                onMouseLeave={() => {
-                  setShowFeedDropdown(false)
+                  setShowCollectionDropdown(false)
+                  setShowHistoryDropdown(false)
+                  setShowDraftDropdown(false)
+                  setShowCreateDropdown(false)
+                  setShowActivityDropdown(false)
                 }}
               >
                 <motion.button
@@ -1261,6 +1329,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
                     transition={{ duration: 0.2, ease: 'easeOut' }}
+                    onMouseEnter={() => setShowFeedDropdown(true)}
+                    onMouseLeave={() => setShowFeedDropdown(false)}
                     className={`absolute top-full -left-12 mt-2 w-80 rounded-lg shadow-xl z-[100] overflow-hidden ${
                       isDark ? 'bg-[#1a1a2e] border border-gray-700/50' : 'bg-white border border-gray-200'
                     }`}
@@ -1360,9 +1430,11 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                 onMouseEnter={() => {
                   setShowMessageDropdown(true)
                   setShowFeedDropdown(false)
-                }}
-                onMouseLeave={() => {
-                  setShowMessageDropdown(false)
+                  setShowCollectionDropdown(false)
+                  setShowHistoryDropdown(false)
+                  setShowDraftDropdown(false)
+                  setShowCreateDropdown(false)
+                  setShowActivityDropdown(false)
                 }}
               >
                 <motion.button
@@ -1397,6 +1469,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
                     transition={{ duration: 0.2, ease: 'easeOut' }}
+                    onMouseEnter={() => setShowMessageDropdown(true)}
+                    onMouseLeave={() => setShowMessageDropdown(false)}
                     className={`absolute top-full -left-12 mt-2 w-40 py-2 rounded-lg shadow-xl z-[100] ${
                       isDark
                         ? 'bg-[#1a1a2e] border border-gray-700/50'
@@ -1479,73 +1553,962 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                 )}
               </div>
 
-              {/* 收藏入口 */}
-              <motion.button
-                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
-                aria-label="收藏"
-                title="收藏"
-                onClick={() => navigate('/collection')}
-                whileHover={{ scale: 1.05, y: -1 }}
-                whileTap={{ scale: 0.95 }}
+              {/* 收藏入口 - 带下拉菜单 */}
+              <div
+                className="relative inline-block"
+                onMouseEnter={() => {
+                  setShowCollectionDropdown(true)
+                  setShowFeedDropdown(false)
+                  setShowMessageDropdown(false)
+                  setShowHistoryDropdown(false)
+                  setShowDraftDropdown(false)
+                  setShowCreateDropdown(false)
+                  setShowActivityDropdown(false)
+                }}
               >
-                <i className="fas fa-star text-lg"></i>
-                <span className="text-[10px]">收藏</span>
-              </motion.button>
+                <motion.button
+                  className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                  aria-label="收藏"
+                  title="收藏"
+                  onClick={() => navigate('/collection')}
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <i className="fas fa-star text-lg"></i>
+                  <span className="text-[10px]">收藏</span>
+                </motion.button>
 
-              {/* 草稿箱入口 */}
-              <motion.button
-                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
-                aria-label="草稿箱"
-                title="草稿箱"
-                onClick={() => navigate('/drafts')}
-                whileHover={{ scale: 1.05, y: -1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <i className="fas fa-file-alt text-lg"></i>
-                <span className="text-[10px]">草稿箱</span>
-              </motion.button>
+                {/* 收藏下拉菜单 */}
+                {showCollectionDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    onMouseEnter={() => setShowCollectionDropdown(true)}
+                    onMouseLeave={() => setShowCollectionDropdown(false)}
+                    className={`absolute top-full -left-48 mt-2 w-[420px] rounded-xl shadow-2xl z-[100] overflow-hidden ${
+                      isDark
+                        ? 'bg-[#1a1a2e] border border-gray-700/50'
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    {/* 头部标题和数量 */}
+                    <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-bookmark text-gray-400"></i>
+                        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>我的收藏</span>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                        {collectionStats?.total || 0} 条
+                      </span>
+                    </div>
 
-              {/* 历史记录入口 */}
-              <motion.button
-                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
-                aria-label="历史记录"
-                title="历史记录"
-                onClick={() => navigate('/history')}
-                whileHover={{ scale: 1.05, y: -1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <i className="fas fa-history text-lg"></i>
-                <span className="text-[10px]">历史</span>
-              </motion.button>
+                    {/* 筛选标签 - 排成一行 */}
+                    <div className={`grid grid-cols-5 gap-2 px-4 py-3 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      {[
+                        { id: 'all', label: '全部', count: collectionStats?.total || 0, icon: 'fa-th-large' },
+                        { id: 'work', label: '作品', count: collectionStats?.squareWork || 0, icon: 'fa-image' },
+                        { id: 'template', label: '模板', count: collectionStats?.template || 0, icon: 'fa-layer-group' },
+                        { id: 'post', label: '帖子', count: collectionStats?.communityPost || 0, icon: 'fa-comment-alt' },
+                        { id: 'activity', label: '活动', count: collectionStats?.activity || 0, icon: 'fa-calendar-alt' }
+                      ].map((filter) => (
+                        <button
+                          key={filter.id}
+                          onClick={() => setCollectionFilter(filter.id as 'all' | 'work' | 'template' | 'post' | 'activity')}
+                          className={`flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-medium transition-all ${
+                            collectionFilter === filter.id
+                              ? isDark
+                                ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50'
+                                : 'bg-blue-50 text-blue-600 ring-1 ring-blue-200'
+                              : isDark
+                                ? 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          <i className={`fas ${filter.icon}`}></i>
+                          <span>{filter.count}</span>
+                        </button>
+                      ))}
+                    </div>
 
-              {/* 我的活动入口 */}
-              <motion.button
-                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
-                aria-label="我的活动"
-                title="我的活动"
-                onClick={() => navigate('/my-activities')}
-                whileHover={{ scale: 1.05, y: -1 }}
-                whileTap={{ scale: 0.95 }}
+                    {/* 收藏列表 */}
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {recentCollections.length === 0 ? (
+                        <div className={`px-4 py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <i className="fas fa-bookmark text-3xl mb-2"></i>
+                          <p className="text-sm">暂无收藏内容</p>
+                        </div>
+                      ) : (
+                        <div className="py-1">
+                          {recentCollections.map((item) => (
+                            <div
+                              key={item.id}
+                              className={`w-full px-4 py-3 flex items-center gap-3 transition-colors group ${
+                                isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'
+                              }`}
+                            >
+                              {/* 缩略图/视频 - 只有有图片时才显示 */}
+                              {item.thumbnail && (
+                                <div className="relative flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden">
+                                  {item.mediaType === 'video' ? (
+                                    <video
+                                      src={item.thumbnail}
+                                      autoPlay
+                                      muted
+                                      loop
+                                      playsInline
+                                      className="w-full h-full object-cover cursor-pointer"
+                                      onClick={() => {
+                                        navigate(item.link)
+                                        setShowCollectionDropdown(false)
+                                      }}
+                                    />
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        navigate(item.link)
+                                        setShowCollectionDropdown(false)
+                                      }}
+                                      className="w-full h-full"
+                                    >
+                                      <img
+                                        src={item.thumbnail}
+                                        alt={item.title}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = 'none'
+                                        }}
+                                      />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 内容 */}
+                              <button
+                                onClick={() => {
+                                  navigate(item.link)
+                                  setShowCollectionDropdown(false)
+                                }}
+                                className="flex-1 min-w-0 text-left"
+                              >
+                                <div className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                  {item.title}
+                                </div>
+                                <div className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] mr-2 ${
+                                    item.type === CollectionType.SQUARE_WORK
+                                      ? isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-600'
+                                      : item.type === CollectionType.TEMPLATE
+                                        ? isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'
+                                        : item.type === CollectionType.COMMUNITY_POST
+                                          ? isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-50 text-green-600'
+                                          : isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-600'
+                                  }`}>
+                                    {item.type === CollectionType.SQUARE_WORK ? '作品'
+                                      : item.type === CollectionType.TEMPLATE ? '模板'
+                                        : item.type === CollectionType.COMMUNITY_POST ? '帖子'
+                                          : '活动'}
+                                  </span>
+                                  <i className="fas fa-user-circle mr-1"></i>
+                                  {item.author?.name || '未知作者'}
+                                  <span className="mx-1">·</span>
+                                  <i className="fas fa-heart text-[10px]"></i> {item.stats.likes}
+                                </div>
+                              </button>
+
+                              {/* 取消收藏按钮 */}
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  await collectionService.removeBookmark(item.id, item.type)
+                                  // 刷新列表
+                                  const result = await collectionService.getUserCollections({
+                                    type: collectionFilter === 'all' ? 'all' : collectionFilter,
+                                    limit: 5
+                                  })
+                                  setRecentCollections(result.items)
+                                  // 刷新统计
+                                  const stats = await collectionService.getUserCollectionStats()
+                                  setCollectionStats(stats)
+                                }}
+                                className={`p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all ${
+                                  isDark ? 'hover:bg-gray-700 text-gray-500' : 'hover:bg-gray-200 text-gray-400'
+                                }`}
+                                title="取消收藏"
+                              >
+                                <i className="fas fa-trash-alt text-xs"></i>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 底部操作 */}
+                    <div className={`flex items-center justify-between px-4 py-3 border-t ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      <button
+                        onClick={() => {
+                          navigate('/collection')
+                          setShowCollectionDropdown(false)
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          isDark
+                            ? 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        <i className="fas fa-external-link-alt"></i>
+                        查看全部
+                      </button>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                          <i className="fas fa-heart mr-1"></i>
+                          {collectionStats?.totalLikes || 0} 点赞
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* 草稿箱入口 - 带下拉菜单 */}
+              <div
+                className="relative inline-block"
+                onMouseEnter={() => {
+                  setShowDraftDropdown(true)
+                  setShowFeedDropdown(false)
+                  setShowMessageDropdown(false)
+                  setShowCollectionDropdown(false)
+                  setShowHistoryDropdown(false)
+                  setShowCreateDropdown(false)
+                  setShowActivityDropdown(false)
+                }}
               >
-                <i className="fas fa-calendar-alt text-lg"></i>
-                <span className="text-[10px]">我的活动</span>
-              </motion.button>
+                <motion.button
+                  className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                  aria-label="草稿箱"
+                  title="草稿箱"
+                  onClick={() => navigate('/drafts')}
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <i className="fas fa-file-alt text-lg"></i>
+                  <span className="text-[10px]">草稿箱</span>
+                </motion.button>
+
+                {/* 草稿箱下拉菜单 */}
+                {showDraftDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    onMouseEnter={() => setShowDraftDropdown(true)}
+                    onMouseLeave={() => setShowDraftDropdown(false)}
+                    className={`absolute top-full -left-32 mt-2 w-80 rounded-xl shadow-2xl z-[100] overflow-hidden ${
+                      isDark
+                        ? 'bg-[#1a1a2e] border border-gray-700/50'
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    {/* 头部标题和数量 */}
+                    <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-file-alt text-gray-400"></i>
+                        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>草稿箱</span>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                        {recentDrafts.length} 条
+                      </span>
+                    </div>
+
+                    {/* 草稿列表 */}
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {recentDrafts.length === 0 ? (
+                        <div className={`px-4 py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <i className="fas fa-file-alt text-3xl mb-2"></i>
+                          <p className="text-sm">暂无草稿</p>
+                        </div>
+                      ) : (
+                        <div className="py-1">
+                          {recentDrafts.map((draft) => (
+                            <div
+                              key={draft.id}
+                              className={`w-full px-4 py-3 flex items-center gap-3 transition-colors group ${
+                                isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'
+                              }`}
+                            >
+                              {/* 图标 */}
+                              <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
+                                isDark ? 'bg-blue-500/20' : 'bg-blue-50'
+                              }`}>
+                                <i className="fas fa-file-alt text-blue-500"></i>
+                              </div>
+
+                              {/* 内容 */}
+                              <button
+                                onClick={() => {
+                                  navigate(`/create/ai-writer?draft=${draft.id}`)
+                                  setShowDraftDropdown(false)
+                                }}
+                                className="flex-1 min-w-0 text-left"
+                              >
+                                <div className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                  {draft.title || '未命名草稿'}
+                                </div>
+                                <div className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] mr-2 ${
+                                    isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                                  }`}>
+                                    {draft.templateName || 'AI文案'}
+                                  </span>
+                                  {new Date(draft.updatedAt).toLocaleDateString('zh-CN')}
+                                </div>
+                              </button>
+
+                              {/* 删除按钮 */}
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation()
+                                  await draftService.deleteDraft(draft.id)
+                                  const drafts = await draftService.getAllDrafts()
+                                  setRecentDrafts(drafts.slice(0, 5))
+                                }}
+                                className={`p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all ${
+                                  isDark ? 'hover:bg-gray-700 text-gray-500' : 'hover:bg-gray-200 text-gray-400'
+                                }`}
+                                title="删除草稿"
+                              >
+                                <i className="fas fa-trash-alt text-xs"></i>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 底部操作 */}
+                    <div className={`flex items-center justify-between px-4 py-3 border-t ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      <button
+                        onClick={() => {
+                          navigate('/drafts')
+                          setShowDraftDropdown(false)
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          isDark
+                            ? 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        <i className="fas fa-external-link-alt"></i>
+                        查看全部
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/create/ai-writer')
+                          setShowDraftDropdown(false)
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          isDark
+                            ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                            : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                        }`}
+                      >
+                        <i className="fas fa-plus"></i>
+                        新建草稿
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* 历史记录入口 - 带下拉菜单 */}
+              <div
+                className="relative inline-block"
+                onMouseEnter={() => {
+                  setShowHistoryDropdown(true)
+                  setShowFeedDropdown(false)
+                  setShowMessageDropdown(false)
+                  setShowCollectionDropdown(false)
+                  setShowDraftDropdown(false)
+                  setShowCreateDropdown(false)
+                  setShowActivityDropdown(false)
+                }}
+              >
+                <motion.button
+                  className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                  aria-label="历史记录"
+                  title="历史记录"
+                  onClick={() => navigate('/history')}
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <i className="fas fa-history text-lg"></i>
+                  <span className="text-[10px]">历史</span>
+                </motion.button>
+
+                {/* 历史记录下拉菜单 */}
+                {showHistoryDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    onMouseEnter={() => setShowHistoryDropdown(true)}
+                    onMouseLeave={() => setShowHistoryDropdown(false)}
+                    className={`absolute top-full -left-48 mt-2 w-[420px] rounded-xl shadow-2xl z-[100] overflow-hidden ${
+                      isDark
+                        ? 'bg-[#1a1a2e] border border-gray-700/50'
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    {/* 头部标题和数量 */}
+                    <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-history text-gray-400"></i>
+                        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>浏览历史</span>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                        {totalCount} 条
+                      </span>
+                    </div>
+
+                    {/* 筛选标签 - 排成一行 */}
+                    <div className={`grid grid-cols-4 gap-2 px-4 py-3 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      {[
+                        { id: 'all', label: '全部', count: totalCount, icon: 'fa-th-large' },
+                        { id: 'work', label: '作品', count: workCount, icon: 'fa-image' },
+                        { id: 'template', label: '模板', count: templateCount, icon: 'fa-layer-group' },
+                        { id: 'post', label: '帖子', count: postCount, icon: 'fa-comment-alt' }
+                      ].map((filter) => (
+                        <button
+                          key={filter.id}
+                          onClick={() => setHistoryFilter(filter.id as 'all' | 'work' | 'template' | 'post')}
+                          className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${
+                            historyFilter === filter.id
+                              ? isDark
+                                ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50'
+                                : 'bg-blue-50 text-blue-600 ring-1 ring-blue-200'
+                              : isDark
+                                ? 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          <i className={`fas ${filter.icon}`}></i>
+                          <span>{filter.label}</span>
+                          <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] ${
+                            historyFilter === filter.id
+                              ? isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-100 text-blue-600'
+                              : isDark ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-500'
+                          }`}>
+                            {filter.count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* 历史记录列表 */}
+                    <div className="max-h-[400px] overflow-y-auto">
+                      {groupedHistory.length === 0 ? (
+                        <div className={`px-4 py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <i className="fas fa-inbox text-3xl mb-2"></i>
+                          <p className="text-sm">暂无浏览记录</p>
+                        </div>
+                      ) : (
+                        groupedHistory.map((group) => {
+                          // 根据筛选条件过滤
+                          const filteredItems = historyFilter === 'all'
+                            ? group.items
+                            : group.items.filter(item => item.type === historyFilter)
+
+                          if (filteredItems.length === 0) return null
+
+                          return (
+                            <div key={group.label}>
+                              {/* 时间分组标题 */}
+                              <div className={`px-4 py-2 flex items-center gap-2 ${isDark ? 'bg-gray-800/30' : 'bg-gray-50'}`}>
+                                <i className="fas fa-moon text-xs text-gray-400"></i>
+                                <span className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  {group.label}
+                                </span>
+                              </div>
+                              <div className="py-1">
+                                {filteredItems.slice(0, 3).map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className={`w-full px-4 py-3 flex items-center gap-3 transition-colors group ${
+                                      isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    {/* 缩略图/视频播放器 - 视频直接播放 */}
+                                    <div
+                                      className="relative flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden"
+                                    >
+                                      {(() => {
+                                        // 兼容新旧数据：优先使用 videoUrl，否则使用 thumbnail（旧数据可能把视频URL存在这里）
+                                        const videoSrc = item.videoUrl || (item.mediaType === 'video' ? item.thumbnail : null)
+
+                                        if (videoSrc) {
+                                          /* 视频直接播放 */
+                                          return (
+                                            <video
+                                              src={videoSrc}
+                                              autoPlay
+                                              muted
+                                              loop
+                                              playsInline
+                                              className="w-full h-full object-cover cursor-pointer"
+                                              onClick={() => {
+                                                navigate(item.url)
+                                                setShowHistoryDropdown(false)
+                                              }}
+                                            />
+                                          )
+                                        }
+                                        /* 缩略图 */
+                                        return (
+                                          <button
+                                            onClick={() => {
+                                              navigate(item.url)
+                                              setShowHistoryDropdown(false)
+                                            }}
+                                            className="w-full h-full"
+                                          >
+                                            <img
+                                              src={item.thumbnail || '/default-thumbnail.png'}
+                                              alt={item.title}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                (e.target as HTMLImageElement).src = '/default-thumbnail.png'
+                                              }}
+                                            />
+                                          </button>
+                                        )
+                                      })()}
+                                    </div>
+
+                                    {/* 内容 */}
+                                    <button
+                                      onClick={() => {
+                                        navigate(item.url)
+                                        setShowHistoryDropdown(false)
+                                      }}
+                                      className="flex-1 min-w-0 text-left"
+                                    >
+                                      <div className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                        {item.title}
+                                      </div>
+                                      <div className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] mr-2 ${
+                                          item.type === 'work'
+                                            ? isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-600'
+                                            : item.type === 'template'
+                                              ? isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'
+                                              : isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-50 text-green-600'
+                                        }`}>
+                                          {item.type === 'work' ? '作品' : item.type === 'template' ? '模板' : '帖子'}
+                                        </span>
+                                        <i className="fas fa-user-circle mr-1"></i>
+                                        {item.creator?.name || '未知作者'}
+                                        <span className="mx-1">·</span>
+                                        {new Date(item.viewedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                                      </div>
+                                    </button>
+
+                                    {/* 删除按钮 */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        removeHistory(item.id)
+                                      }}
+                                      className={`p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all ${
+                                        isDark ? 'hover:bg-gray-700 text-gray-500' : 'hover:bg-gray-200 text-gray-400'
+                                      }`}
+                                      title="删除记录"
+                                    >
+                                      <i className="fas fa-trash-alt text-xs"></i>
+                                    </button>
+                                  </div>
+                                ))}
+                                {filteredItems.length > 3 && (
+                                  <div className={`px-4 py-2 text-xs text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                    还有 {filteredItems.length - 3} 条记录...
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+
+                    {/* 底部操作 */}
+                    <div className={`flex items-center justify-between px-4 py-3 border-t ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      <button
+                        onClick={() => {
+                          navigate('/history')
+                          setShowHistoryDropdown(false)
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          isDark
+                            ? 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        <i className="fas fa-external-link-alt"></i>
+                        查看全部
+                      </button>
+                      <span className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                        保留最近200条记录
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* 我的活动入口 - 带下拉菜单 */}
+              <div
+                className="relative inline-block"
+                onMouseEnter={() => {
+                  setShowActivityDropdown(true)
+                  setShowFeedDropdown(false)
+                  setShowMessageDropdown(false)
+                  setShowCollectionDropdown(false)
+                  setShowHistoryDropdown(false)
+                  setShowDraftDropdown(false)
+                  setShowCreateDropdown(false)
+                }}
+              >
+                <motion.button
+                  className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-300 hover:scale-105 ${isDark ? 'hover:bg-blue-800/30 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                  aria-label="我的活动"
+                  title="我的活动"
+                  onClick={() => navigate('/my-activities')}
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <i className="fas fa-calendar-alt text-lg"></i>
+                  <span className="text-[10px]">我的活动</span>
+                </motion.button>
+
+                {/* 我的活动下拉菜单 */}
+                {showActivityDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    onMouseEnter={() => setShowActivityDropdown(true)}
+                    onMouseLeave={() => setShowActivityDropdown(false)}
+                    className={`absolute top-full right-0 mt-2 w-[380px] rounded-xl shadow-2xl z-[100] overflow-hidden ${
+                      isDark
+                        ? 'bg-[#1a1a2e] border border-gray-700/50'
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    {/* 头部标题和数量 */}
+                    <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-calendar-alt text-gray-400"></i>
+                        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>我的活动</span>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                        {recentActivities.length} 条
+                      </span>
+                    </div>
+
+                    {/* 筛选标签 - 排成一行 */}
+                    <div className={`grid grid-cols-5 gap-2 px-4 py-3 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      {[
+                        { id: 'all', label: '全部', icon: 'fa-th-large' },
+                        { id: 'registered', label: '已报名', icon: 'fa-check-circle' },
+                        { id: 'reviewing', label: '评审中', icon: 'fa-gavel' },
+                        { id: 'completed', label: '已完成', icon: 'fa-flag-checkered' },
+                        { id: 'awarded', label: '已获奖', icon: 'fa-trophy' }
+                      ].map((filter) => (
+                        <button
+                          key={filter.id}
+                          onClick={() => setActivityFilter(filter.id as ParticipationStatus | 'all')}
+                          className={`flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-medium transition-all ${
+                            activityFilter === filter.id
+                              ? isDark
+                                ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50'
+                                : 'bg-blue-50 text-blue-600 ring-1 ring-blue-200'
+                              : isDark
+                                ? 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          <i className={`fas ${filter.icon}`}></i>
+                          <span>{filter.label}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* 活动列表 */}
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {!isAuthenticated ? (
+                        <div className={`px-4 py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <i className="fas fa-user-lock text-3xl mb-2"></i>
+                          <p className="text-sm">请先登录查看活动</p>
+                        </div>
+                      ) : recentActivities.length === 0 ? (
+                        <div className={`px-4 py-8 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <i className="fas fa-calendar-alt text-3xl mb-2"></i>
+                          <p className="text-sm">暂无参与活动</p>
+                          <button
+                            onClick={() => {
+                              navigate('/events')
+                              setShowActivityDropdown(false)
+                            }}
+                            className={`mt-3 px-4 py-2 rounded-lg text-xs font-medium ${
+                              isDark
+                                ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                                : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                            }`}
+                          >
+                            去发现活动
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="py-1">
+                          {recentActivities.map((activity) => (
+                            <div
+                              key={activity.id}
+                              className={`w-full px-4 py-3 flex items-center gap-3 transition-colors group ${
+                                isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'
+                              }`}
+                            >
+                              {/* 活动缩略图 */}
+                              {activity.event.thumbnailUrl && (
+                                <div className="relative flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden">
+                                  <img
+                                    src={activity.event.thumbnailUrl}
+                                    alt={activity.event.title}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none'
+                                    }}
+                                  />
+                                </div>
+                              )}
+
+                              {/* 内容 */}
+                              <button
+                                onClick={() => {
+                                  navigate(`/events/${activity.eventId}`)
+                                  setShowActivityDropdown(false)
+                                }}
+                                className="flex-1 min-w-0 text-left"
+                              >
+                                <div className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                  {activity.event.title}
+                                </div>
+                                <div className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] mr-2 ${
+                                    activity.participationStatus === 'registered'
+                                      ? isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-50 text-green-600'
+                                      : activity.participationStatus === 'reviewing'
+                                        ? isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-50 text-yellow-600'
+                                        : activity.participationStatus === 'awarded'
+                                          ? isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-600'
+                                          : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                                  }`}>
+                                    {activity.participationStatus === 'registered' ? '已报名'
+                                      : activity.participationStatus === 'reviewing' ? '评审中'
+                                        : activity.participationStatus === 'completed' ? '已完成'
+                                          : activity.participationStatus === 'awarded' ? '已获奖'
+                                            : '已取消'}
+                                  </span>
+                                  {activity.progress > 0 && (
+                                    <span className="mr-2">
+                                      <i className="fas fa-tasks mr-1"></i>
+                                      进度 {activity.progress}%
+                                    </span>
+                                  )}
+                                  {activity.ranking && (
+                                    <span className={`${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                                      <i className="fas fa-trophy mr-1"></i>
+                                      第 {activity.ranking} 名
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 底部操作 */}
+                    <div className={`flex items-center justify-between px-4 py-3 border-t ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
+                      <button
+                        onClick={() => {
+                          navigate('/my-activities')
+                          setShowActivityDropdown(false)
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          isDark
+                            ? 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        <i className="fas fa-external-link-alt"></i>
+                        查看全部
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/events')
+                          setShowActivityDropdown(false)
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          isDark
+                            ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                            : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                        }`}
+                      >
+                        <i className="fas fa-compass"></i>
+                        发现活动
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
 
               {/* 创作者仪表盘 - 已移除 */}
 
-              {/* 去创作按钮 - 模仿B站投稿按钮 */}
+              {/* 创作按钮 - 模仿B站投稿按钮，带下拉菜单 */}
               {isAuthenticated && (
-                <motion.button
-                  className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#ff6699] hover:bg-[#ff4d88] text-white font-medium text-sm transition-colors duration-200"
-                  aria-label="发布"
-                  title="发布"
-                  onClick={() => navigate('/create')}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                <div
+                  className="relative inline-block"
+                  onMouseEnter={() => {
+                    setShowCreateDropdown(true)
+                    setShowFeedDropdown(false)
+                    setShowMessageDropdown(false)
+                    setShowCollectionDropdown(false)
+                    setShowHistoryDropdown(false)
+                    setShowDraftDropdown(false)
+                    setShowActivityDropdown(false)
+                  }}
                 >
-                  <i className="fas fa-upload text-sm"></i>
-                  <span>发布</span>
-                </motion.button>
+                  <motion.button
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#ff6699] hover:bg-[#ff4d88] text-white font-medium text-sm transition-colors duration-200"
+                    aria-label="创作"
+                    title="创作"
+                    onClick={() => navigate('/create')}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <i className="fas fa-upload text-sm"></i>
+                    <span>创作</span>
+                  </motion.button>
+
+                  {/* 创作下拉菜单 */}
+                  {showCreateDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                      onMouseEnter={() => setShowCreateDropdown(true)}
+                      onMouseLeave={() => setShowCreateDropdown(false)}
+                      className={`absolute top-full right-0 mt-2 w-64 rounded-xl shadow-2xl z-[100] overflow-hidden ${
+                        isDark
+                          ? 'bg-[#1a1a2e] border border-gray-700/50'
+                          : 'bg-white border border-gray-200'
+                      }`}
+                    >
+                      {/* 创作中心 */}
+                      <button
+                        onClick={() => {
+                          navigate('/creator-center')
+                          setShowCreateDropdown(false)
+                        }}
+                        className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
+                          isDark
+                            ? 'text-gray-200 hover:bg-gray-800/50'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-blue-500/20' : 'bg-blue-50'}`}>
+                          <i className="fas fa-pen-nib text-blue-500"></i>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-sm font-medium">创作中心</div>
+                          <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>管理您的作品</div>
+                        </div>
+                      </button>
+
+                      {/* AI制作文案 */}
+                      <button
+                        onClick={() => {
+                          navigate('/create/ai-writer')
+                          setShowCreateDropdown(false)
+                        }}
+                        className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
+                          isDark
+                            ? 'text-gray-200 hover:bg-gray-800/50'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-purple-500/20' : 'bg-purple-50'}`}>
+                          <i className="fas fa-robot text-purple-500"></i>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-sm font-medium">AI制作文案</div>
+                          <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>智能生成内容</div>
+                        </div>
+                      </button>
+
+                      {/* 品牌向导 */}
+                      <button
+                        onClick={() => {
+                          navigate('/wizard')
+                          setShowCreateDropdown(false)
+                        }}
+                        className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
+                          isDark
+                            ? 'text-gray-200 hover:bg-gray-800/50'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-amber-500/20' : 'bg-amber-50'}`}>
+                          <i className="fas fa-magic text-amber-500"></i>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-sm font-medium">品牌向导</div>
+                          <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>创作灵感引导</div>
+                        </div>
+                      </button>
+
+                      {/* 分割线 */}
+                      <div className={`mx-4 h-px ${isDark ? 'bg-gray-700/50' : 'bg-gray-200'}`} />
+
+                      {/* 去创作 */}
+                      <button
+                        onClick={() => {
+                          navigate('/create')
+                          setShowCreateDropdown(false)
+                        }}
+                        className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
+                          isDark
+                            ? 'text-pink-400 hover:bg-pink-500/10'
+                            : 'text-pink-500 hover:bg-pink-50'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-pink-500/20' : 'bg-pink-50'}`}>
+                          <i className="fas fa-plus-circle text-pink-500"></i>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-sm font-medium">开始创作</div>
+                          <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>发布新作品</div>
+                        </div>
+                      </button>
+                    </motion.div>
+                  )}
+                </div>
               )}
 
               {!isAuthenticated && (

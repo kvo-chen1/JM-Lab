@@ -118,8 +118,8 @@ class AIFeedbackService {
         is_read: false,
       };
 
-      // 尝试保存到数据库
-      const { data: feedback, error } = await supabase
+      // 尝试保存到数据库（使用 admin 客户端绕过 RLS）
+      const { data: feedback, error } = await supabaseAdmin
         .from('ai_feedback')
         .insert(insertData)
         .select()

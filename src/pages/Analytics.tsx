@@ -37,17 +37,24 @@ export default function Analytics() {
     logUserAction('page_view', { page: 'analytics_dashboard', timestamp: Date.now() });
   }, [logUserAction]);
 
-  // 数据获取
+  // 数据获取 - 只在用户登录后获取数据
   useEffect(() => {
+    // 确保用户已登录
+    if (!user?.id) {
+      console.log('[Analytics] 用户未登录，跳过数据获取');
+      return;
+    }
+
     const queryParams: AnalyticsQueryParams = {
       metric: activeMetric,
       timeRange: timeRange,
       groupBy: groupBy,
       filters: {
-        userId: user?.id // 只查询当前用户的数据
+        userId: user.id // 只查询当前用户的数据
       }
     };
 
+    console.log('[Analytics] 获取数据:', queryParams);
     fetchData(queryParams);
     subscribeToRealtime();
 

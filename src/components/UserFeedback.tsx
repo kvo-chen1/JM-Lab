@@ -1,9 +1,10 @@
-import React, { useState, useContext } from 'react'
+import React, { useState, useContext, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { useTheme } from '@/hooks/useTheme'
 import { AuthContext } from '@/contexts/authContext'
 import { feedbackService, type FeedbackType } from '@/services/feedbackService'
+import { supabase } from '@/lib/supabase'
 
 // 反馈类型定义（复用 feedbackService 中的类型）
 export type { FeedbackType }
@@ -26,6 +27,37 @@ interface UserFeedbackProps {
 const UserFeedback: React.FC<UserFeedbackProps> = ({ isOpen, onClose }) => {
   const { isDark } = useTheme()
   const { user } = useContext(AuthContext)
+  
+  // 从 Supabase 会话获取用户ID（更可靠）
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null)
+  
+  useEffect(() => {
+    // 优先使用 AuthContext 的用户ID，如果不存在则从 Supabase 会话获取
+    if (user?.id) {
+      setSessionUserId(user.id)
+    } else {
+      // 从 Supabase 获取当前会话
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user?.id) {
+          setSessionUserId(session.user.id)
+          console.log('[UserFeedback] 从 Supabase 会话获取用户ID:', session.user.id)
+        } else {
+          setSessionUserId(null)
+          console.log('[UserFeedback] 用户未登录')
+        }
+      })
+    }
+  }, [user])
+  
+  // 当用户登录状态变化时，更新表单邮箱
+  useEffect(() => {
+    if (user?.email) {
+      setFormData(prev => ({
+        ...prev,
+        email: user.email
+      }))
+    }
+  }, [user])
   
   // 表单状态
   const [formData, setFormData] = useState<FeedbackFormData>({
@@ -75,9 +107,8 @@ const UserFeedback: React.FC<UserFeedbackProps> = ({ isOpen, onClose }) => {
       newErrors.description = '描述至少10个字符'
     }
     
-    if (!formData.email.trim()) {
-      newErrors.email = '邮箱不能为空'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    // 联系方式选填，如果填写了则验证格式
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = '请输入有效的邮箱地址'
     }
     
@@ -98,16 +129,21 @@ const UserFeedback: React.FC<UserFeedbackProps> = ({ isOpen, onClose }) => {
 
     try {
       console.log('[UserFeedback] 开始提交反馈:', formData)
-      // 提交反馈到数据库
+      console.log('[UserFeedback] 当前用户ID:', sessionUserId)
+      
+      // 如果未填写联系方式，使用用户账号的邮箱
+      const contactInfo = formData.email.trim() || user?.email || ''
+      
+      // 提交反馈到数据库 - 使用从 Supabase 会话获取的用户ID
       const result = await feedbackService.submitFeedback({
         type: formData.type,
         title: formData.title,
         content: formData.description,
-        contact_info: formData.email,
+        contact_info: contactInfo,
         contact_type: 'email',
         screenshots: formData.screenshot ? [formData.screenshot] : [],
         page_url: window.location.href,
-        user_id: user?.id || null
+        user_id: sessionUserId  // 使用从 Supabase 会话获取的用户ID
       })
       console.log('[UserFeedback] 提交成功:', result)
 
@@ -117,12 +153,12 @@ const UserFeedback: React.FC<UserFeedbackProps> = ({ isOpen, onClose }) => {
       // 关闭反馈表单
       onClose()
 
-      // 重置表单
+      // 重置表单 - 保留用户邮箱
       setFormData({
         type: 'bug',
         title: '',
         description: '',
-        email: '',
+        email: user?.email || '',
         priority: 'normal'
       })
     } catch (error) {
@@ -234,21 +270,29 @@ const UserFeedback: React.FC<UserFeedbackProps> = ({ isOpen, onClose }) => {
             {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
           </div>
           
-          {/* 联系方式 */}
+          {/* 联系方式（选填） */}
           <div>
-            <label className="block text-sm font-medium mb-2">邮箱地址</label>
+            <label className="block text-sm font-medium mb-2">
+              联系方式
+              <span className="text-gray-400 text-xs ml-1">(选填)</span>
+            </label>
             <input
               type="email"
               name="email"
               value={formData.email}
               onChange={handleInputChange}
-              placeholder="请输入您的邮箱，以便我们联系您"
+              placeholder="如需其他联系方式可在此填写"
               className={`w-full px-4 py-2 rounded-lg border ${isDark
                 ? 'bg-gray-700 border-gray-600 text-white'
                 : 'bg-white border-gray-300'}
                 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-500' : ''}`}
             />
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+            {!errors.email && (
+              <p className="text-gray-400 text-xs mt-1">
+                我们会通过您的账号联系您，如需其他联系方式可填写
+              </p>
+            )}
           </div>
           
           {/* 优先级 */}

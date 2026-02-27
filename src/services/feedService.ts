@@ -870,7 +870,15 @@ class FeedService {
   async getComments(feedId: string, page: number = 1, pageSize: number = 20): Promise<{ comments: FeedComment[]; hasMore: boolean }> {
     try {
       // 首先尝试从 feed_comments 表获取评论（支持所有类型的 feed_id）
-      console.log('[getComments] Trying feed_comments table, feedId:', feedId);
+      console.log('[getComments] Trying feed_comments table, feedId:', feedId, 'type:', typeof feedId);
+
+      // 先查询所有评论，看看数据库里有什么
+      const { data: allComments } = await supabase
+        .from('feed_comments')
+        .select('id, feed_id, content, created_at')
+        .limit(10);
+      console.log('[getComments] All recent comments in DB:', allComments);
+
       const { data: feedComments, error: feedError } = await supabase
         .from('feed_comments')
         .select('*')
@@ -880,20 +888,62 @@ class FeedService {
 
       if (!feedError && feedComments && feedComments.length > 0) {
         console.log('[getComments] Found comments in feed_comments:', feedComments.length);
-        const comments: FeedComment[] = feedComments.map((c: any) => ({
-          id: c.id,
-          author: {
-            id: c.user_id,
-            type: 'user',
-            name: c.author_name || '用户',
-            avatar: c.author_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.user_id}`,
-          },
-          content: c.content,
-          createdAt: c.created_at,
-          likes: c.likes_count || 0,
-          isLiked: false,
-          replyCount: 0,
-        }));
+
+        // 获取所有评论用户的ID
+        const userIds = [...new Set(feedComments.map((c: any) => c.user_id).filter(Boolean))];
+
+        // 从 users 表获取用户头像信息
+        let userAvatarMap = new Map<string, string>();
+        if (userIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('id, username, avatar_url')
+            .in('id', userIds);
+
+          usersData?.forEach((u: any) => {
+            userAvatarMap.set(u.id, u.avatar_url);
+          });
+        }
+
+        // 获取当前用户ID，用于检查点赞状态
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const currentUserId = currentUser?.id;
+
+        // 获取当前用户已点赞的评论ID列表
+        let likedCommentIds = new Set<string>();
+        if (currentUserId) {
+          const commentIds = feedComments.map((c: any) => c.id);
+          const { data: likesData } = await supabase
+            .from('feed_comment_likes')
+            .select('comment_id')
+            .eq('user_id', currentUserId)
+            .in('comment_id', commentIds);
+
+          likesData?.forEach((like: any) => {
+            likedCommentIds.add(like.comment_id);
+          });
+        }
+
+        const comments: FeedComment[] = feedComments.map((c: any) => {
+          // 优先使用 users 表中的头像，其次是存储的 author_avatar，最后是基于 user_id 的默认头像
+          const avatarFromUsers = userAvatarMap.get(c.user_id);
+          const avatar = avatarFromUsers || c.author_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.user_id}`;
+
+          return {
+            id: c.id,
+            author: {
+              id: c.user_id,
+              type: 'user',
+              name: c.author_name || '用户',
+              avatar: avatar,
+            },
+            content: c.content,
+            createdAt: c.created_at,
+            likes: c.likes_count || 0,
+            isLiked: likedCommentIds.has(c.id),
+            replyCount: 0,
+          };
+        });
 
         return {
           comments,
@@ -1040,22 +1090,45 @@ class FeedService {
       // 首先尝试直接插入 Supabase feed_comments 表
       // 支持所有类型的 feed_id（UUID 和非 UUID）
       try {
-        console.log('[createComment] Trying to insert into feed_comments table');
-        const { data: insertData, error: feedError } = await supabase
+        console.log('[createComment] Trying to insert into feed_comments table, feedId:', feedId, 'type:', typeof feedId);
+
+        // 构建插入数据，只包含基本字段
+        const insertData: any = {
+          feed_id: feedId,
+          user_id: currentUserId,
+          content: content,
+          parent_id: parentId || null,
+        };
+
+        // 尝试添加 author_name 和 author_avatar 字段（如果表结构支持）
+        try {
+          const { data: testData } = await supabase
+            .from('feed_comments')
+            .select('author_name, author_avatar')
+            .limit(1);
+
+          if (testData !== null) {
+            insertData.author_name = userName;
+            insertData.author_avatar = userAvatar;
+          }
+        } catch (e) {
+          // 字段不存在，不添加
+          console.log('[createComment] author fields not available');
+        }
+
+        const { data: insertedData, error: feedError } = await supabase
           .from('feed_comments')
-          .insert({
-            feed_id: feedId,
-            user_id: currentUserId,
-            content: content,
-            parent_id: parentId || null,
-            author_name: userName,
-            author_avatar: userAvatar,
-          })
+          .insert(insertData)
           .select()
           .single();
 
-        if (!feedError && insertData) {
-          console.log('[createComment] Success via feed_comments table:', insertData);
+        if (feedError) {
+          console.error('[createComment] Insert error:', feedError);
+        }
+
+        if (!feedError && insertedData) {
+          console.log('[createComment] Success via feed_comments table:', insertedData);
+          console.log('[createComment] Saved feed_id:', insertedData.feed_id);
 
           // 更新本地动态评论数
           const feed = this.mockFeeds.find(f => f.id === feedId);
@@ -1064,7 +1137,7 @@ class FeedService {
           }
 
           return {
-            id: insertData.id,
+            id: insertedData.id,
             author: {
               id: currentUserId,
               type: 'user',
@@ -1117,12 +1190,221 @@ class FeedService {
   }
 
   /**
-   * 点赞评论
+   * 点赞评论 - 使用 feed_comment_likes 表
    */
-  async likeComment(commentId: string): Promise<{ success: boolean; likes: number }> {
-    await delay(200);
-    // 模拟点赞评论
-    return { success: true, likes: Math.floor(Math.random() * 100) + 1 };
+  async likeComment(commentId: string, userId?: string): Promise<{ success: boolean; likes: number; isLiked: boolean }> {
+    try {
+      // 获取当前用户ID
+      let currentUserId = userId;
+      if (!currentUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        currentUserId = user?.id;
+      }
+
+      if (!currentUserId) {
+        console.warn('[likeComment] No valid userId');
+        return { success: false, likes: 0, isLiked: false };
+      }
+
+      // 检查是否已点赞
+      const { data: existingLike } = await supabase
+        .from('feed_comment_likes')
+        .select('*')
+        .eq('comment_id', commentId)
+        .eq('user_id', currentUserId)
+        .single();
+
+      if (existingLike) {
+        // 取消点赞
+        const { error } = await supabase
+          .from('feed_comment_likes')
+          .delete()
+          .eq('comment_id', commentId)
+          .eq('user_id', currentUserId);
+
+        if (error) {
+          console.error('[likeComment] Delete like failed:', error);
+          return { success: false, likes: 0, isLiked: true };
+        }
+      } else {
+        // 点赞
+        const { error } = await supabase
+          .from('feed_comment_likes')
+          .insert({
+            comment_id: commentId,
+            user_id: currentUserId,
+          });
+
+        if (error) {
+          console.error('[likeComment] Insert like failed:', error);
+          return { success: false, likes: 0, isLiked: false };
+        }
+      }
+
+      // 获取最新点赞数
+      const { count, error: countError } = await supabase
+        .from('feed_comment_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('comment_id', commentId);
+
+      const likes = countError ? 0 : (count ?? 0);
+
+      return {
+        success: true,
+        likes,
+        isLiked: !existingLike
+      };
+    } catch (error) {
+      console.error('[likeComment] Error:', error);
+      return { success: false, likes: 0, isLiked: false };
+    }
+  }
+
+  /**
+   * 检查用户是否已点赞评论
+   */
+  async checkCommentLiked(commentId: string, userId?: string): Promise<boolean> {
+    try {
+      let currentUserId = userId;
+      if (!currentUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        currentUserId = user?.id;
+      }
+
+      if (!currentUserId) return false;
+
+      const { data } = await supabase
+        .from('feed_comment_likes')
+        .select('*')
+        .eq('comment_id', commentId)
+        .eq('user_id', currentUserId)
+        .single();
+
+      return !!data;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * 编辑评论
+   */
+  async updateComment(commentId: string, content: string, userId?: string): Promise<{ success: boolean; comment?: FeedComment }> {
+    try {
+      let currentUserId = userId;
+      if (!currentUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        currentUserId = user?.id;
+      }
+
+      if (!currentUserId) {
+        console.warn('[updateComment] No valid userId');
+        return { success: false };
+      }
+
+      // 检查评论是否属于当前用户
+      const { data: existingComment } = await supabase
+        .from('feed_comments')
+        .select('*')
+        .eq('id', commentId)
+        .eq('user_id', currentUserId)
+        .single();
+
+      if (!existingComment) {
+        console.warn('[updateComment] Comment not found or not owned by user');
+        return { success: false };
+      }
+
+      // 更新评论
+      const { data, error } = await supabase
+        .from('feed_comments')
+        .update({
+          content,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', commentId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[updateComment] Update failed:', error);
+        return { success: false };
+      }
+
+      // 获取用户头像
+      const { data: userData } = await supabase
+        .from('users')
+        .select('avatar_url')
+        .eq('id', currentUserId)
+        .single();
+
+      const comment: FeedComment = {
+        id: data.id,
+        author: {
+          id: currentUserId,
+          type: 'user',
+          name: data.author_name || '用户',
+          avatar: userData?.avatar_url || data.author_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUserId}`,
+        },
+        content: data.content,
+        createdAt: data.created_at,
+        likes: data.likes_count || 0,
+        isLiked: false,
+        replyCount: 0,
+      };
+
+      return { success: true, comment };
+    } catch (error) {
+      console.error('[updateComment] Error:', error);
+      return { success: false };
+    }
+  }
+
+  /**
+   * 删除评论
+   */
+  async deleteComment(commentId: string, userId?: string): Promise<{ success: boolean }> {
+    try {
+      let currentUserId = userId;
+      if (!currentUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        currentUserId = user?.id;
+      }
+
+      if (!currentUserId) {
+        console.warn('[deleteComment] No valid userId');
+        return { success: false };
+      }
+
+      // 检查评论是否属于当前用户
+      const { data: existingComment } = await supabase
+        .from('feed_comments')
+        .select('*')
+        .eq('id', commentId)
+        .eq('user_id', currentUserId)
+        .single();
+
+      if (!existingComment) {
+        console.warn('[deleteComment] Comment not found or not owned by user');
+        return { success: false };
+      }
+
+      // 删除评论
+      const { error } = await supabase
+        .from('feed_comments')
+        .delete()
+        .eq('id', commentId);
+
+      if (error) {
+        console.error('[deleteComment] Delete failed:', error);
+        return { success: false };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('[deleteComment] Error:', error);
+      return { success: false };
+    }
   }
 
   /**

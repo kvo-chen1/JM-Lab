@@ -112,7 +112,8 @@ export default function FeedbackManagement() {
         status: filters.status || undefined,
         type: filters.type || undefined,
         priority: filters.priority || undefined,
-        search: filters.search || undefined
+        search: filters.search || undefined,
+        forceDatabase: true // 管理后台强制从数据库查询
       });
       console.log('[FeedbackManagement] 加载到的数据:', { data, count });
       setFeedbacks(data);
@@ -319,6 +320,16 @@ export default function FeedbackManagement() {
           className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600"
         >
           手动刷新
+        </button>
+        <button
+          onClick={() => {
+            localStorage.removeItem('user_feedbacks_local');
+            toast.success('本地存储已清除，将从数据库重新加载');
+            window.location.reload();
+          }}
+          className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600"
+        >
+          清除本地存储
         </button>
       </div>
 

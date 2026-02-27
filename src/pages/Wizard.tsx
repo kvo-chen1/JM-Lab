@@ -6,6 +6,7 @@ import { useWorkflow } from '@/contexts/workflowContext';
 import voiceService from '@/services/voiceService';
 import UploadBox from '@/components/UploadBox';
 import { scoreAuthenticity } from '@/services/authenticityService';
+import { contentScoringService } from '@/services/contentScoringService';
 import postService from '@/services/postService';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { llmService } from '@/services/llmService';
@@ -13,7 +14,9 @@ import { aiGenerationSaveService } from '@/services/aiGenerationSaveService';
 import { TianjinImage, TianjinButton, YangliuqingCard } from '@/components/TianjinStyleComponents';
 import AISuggestionBox from '@/components/AISuggestionBox';
 import { toast } from 'sonner';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, AlertCircle } from 'lucide-react';
+import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 
 import { 
   TEMPLATES, 
@@ -24,12 +27,16 @@ import {
 } from '@/constants/creativeData';
 import { StepIndicator, BrandCard3D, TemplateGallery, RadarChart } from '@/components/wizard';
 import { brandService } from '@/services/brandService';
-import { eventService } from '@/services/eventService';
+import { eventService as supabaseEventService } from '@/services/eventService';
 import { eventParticipationService } from '@/services/eventParticipationService';
 import { eventSubmissionService } from '@/services/eventSubmissionService';
+import { useEventService } from '@/hooks/useEventService';
 import { supabase } from '@/lib/supabase';
 import { uploadBase64Image, generateFilePath } from '@/services/supabaseStorageService';
 import { userStateService } from '@/services/userStateService';
+import { brandConsistencyService, BrandConsistencyResult } from '@/services/brandConsistencyService';
+import { brandCheckShareService } from '@/services/brandCheckShareService';
+import ShareSelector from '@/components/ShareSelector';
 
 // Load persisted step from localStorage
 const loadPersistedStep = (): number => {
@@ -80,26 +87,95 @@ export default function Wizard() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+  const [isImportingToCreate, setIsImportingToCreate] = useState(false);
   const [isConsistencyChecking, setIsConsistencyChecking] = useState(false);
   const [consistencyScore, setConsistencyScore] = useState<number | null>(null);
   const [consistencyDetails, setConsistencyDetails] = useState<{item: string; status: 'pass' | 'warn' | 'fail'; message: string}[]>([]);
+  const [consistencySuggestions, setConsistencySuggestions] = useState<string[]>([]);
+  const [culturalScore, setCulturalScore] = useState<number>(0);
   const [isGeneratingVariants, setIsGeneratingVariants] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [newColor, setNewColor] = useState('#000000');
-  const [events, setEvents] = useState<ReturnType<typeof eventService.formatEventForDisplay>[]>([]);
+  const [events, setEvents] = useState<Array<{
+    id: string;
+    title: string;
+    desc: string;
+    deadline: string;
+    organizer: string;
+    prize: string;
+    status: 'ongoing' | 'upcoming' | 'ended';
+    category: string;
+  }>>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  
+  // 确认报名对话框状态
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<typeof events[0] | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  
+  // 使用 API 获取活动数据
+  const { getEvents } = useEventService();
   
   // 模板详情弹窗状态
   const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<typeof CREATIVE_TEMPLATES[0] | null>(null);
+  
+  // 分享弹窗状态
+  const [showShareSelector, setShowShareSelector] = useState(false);
+  const [shareData, setShareData] = useState<{
+    type: 'work' | 'activity' | 'post';
+    id: string;
+    title: string;
+    description?: string;
+    thumbnail?: string;
+    videoUrl?: string;
+    url: string;
+    author?: {
+      name: string;
+      avatar?: string;
+    };
+  } | null>(null);
+  const [shareUserInfo, setShareUserInfo] = useState<{
+    userId: string;
+    userName: string;
+    userAvatar?: string;
+  } | null>(null);
 
-  // Load events from database
+  // Load events from API (使用与津脉活动页面相同的数据源)
   useEffect(() => {
     const loadEvents = async () => {
       setIsLoadingEvents(true);
       try {
-        const dbEvents = await eventService.getPublishedEvents();
-        const formattedEvents = dbEvents.map(eventService.formatEventForDisplay);
+        const apiEvents = await getEvents();
+        // 转换 API 返回的数据格式以匹配组件需要
+        // 只显示已发布且正在进行中的活动
+        const formattedEvents = apiEvents
+          .filter(event => {
+            // 只显示已发布的活动
+            if (event.status !== 'published') return false;
+            
+            // 只显示正在进行中的活动（未结束）
+            const now = Date.now();
+            const endTime = event.endTime ? new Date(event.endTime).getTime() : 0;
+            return now <= endTime;
+          })
+          .map(event => ({
+            id: event.id,
+            title: event.title,
+            desc: event.description || '',
+            deadline: event.endTime ? event.endTime.split('T')[0] : '',
+            organizer: event.organizer?.name || '津脉平台',
+            prize: '丰厚奖品', // API 返回的数据中没有 prize 字段，使用默认值
+            status: (() => {
+              const now = Date.now();
+              const endTime = event.endTime ? new Date(event.endTime).getTime() : 0;
+              const startTime = event.startTime ? new Date(event.startTime).getTime() : 0;
+              if (now > endTime) return 'ended' as const;
+              if (now < startTime) return 'upcoming' as const;
+              return 'ongoing' as const;
+            })(),
+            category: event.category || '创意活动'
+          }));
         setEvents(formattedEvents.length > 0 ? formattedEvents : COMPETITIONS);
       } catch (error) {
         console.error('Failed to load events:', error);
@@ -109,10 +185,17 @@ export default function Wizard() {
       }
     };
     loadEvents();
-  }, []);
+  }, [getEvents]);
+
+  // 自动计算文化纯正度评分
+  useEffect(() => {
+    const scores = contentScoringService.calculateScores(state.inputText || '');
+    setCulturalScore(scores.authenticity_score);
+    setCulturalElements(scores.cultural_elements);
+  }, [state.inputText]);
 
   const next = () => {
-    const newStep = Math.min(4, step + 1);
+    const newStep = Math.min(6, step + 1);
     setStep(newStep);
     // Persist step to localStorage
     if (typeof localStorage !== 'undefined') {
@@ -123,7 +206,7 @@ export default function Wizard() {
       }
     }
   };
-  
+
   const prev = () => {
     const newStep = Math.max(1, step - 1);
     setStep(newStep);
@@ -151,7 +234,7 @@ export default function Wizard() {
     userStateService.saveWorkflowProgress(
       'brand-creation',
       step,
-      4,
+      6,
       {
         brandName: state.brandName,
         inputText: state.inputText,
@@ -159,7 +242,7 @@ export default function Wizard() {
         selectedCompetition: state.selectedCompetition,
         variants: state.variants?.length || 0
       },
-      step === 4
+      step === 6
     ).catch(err => {
       console.error('[Wizard] Failed to save workflow progress:', err);
     });
@@ -545,6 +628,12 @@ export default function Wizard() {
     })();
 
     try {
+      // 0. 先保存到草稿箱（自动保存创作记录）
+      const draft = await saveToDrafts(6);
+      if (draft) {
+        console.log('[savePost] 已自动保存到草稿箱:', draft.id);
+      }
+
       // 1. 首先创建作品
       const post = await postService.addPost({
         title,
@@ -563,23 +652,26 @@ export default function Wizard() {
         await submitToCompetition(post.id, title, thumb);
       }
 
-      // 重置状态
+      // 3. 发布成功后，不重置状态，让用户可以继续查看或重新创作
       setShowImagePreview(false);
-      setUploadedImageUrl('');
-      reset();
-      navigate('/square');
+      
       toast.success(
-        <div className="flex items-center justify-between gap-4 min-w-[280px]">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-emerald-700">作品发布成功</span>
+        <div className="flex flex-col gap-2 min-w-[280px]">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-emerald-700">作品发布成功</span>
+            </div>
+            <button
+              onClick={() => navigate('/square')}
+              className="text-xs px-2.5 py-1 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-md hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
+            >
+              <ExternalLink className="w-3 h-3" />
+              去广场查看
+            </button>
           </div>
-          <button
-            onClick={() => navigate('/square')}
-            className="text-xs px-2.5 py-1 rounded-full bg-gradient-to-r from-[#C02C38] to-[#D64545] text-white hover:shadow-md hover:scale-105 transition-all duration-200 flex items-center gap-1 font-medium whitespace-nowrap"
-          >
-            <ExternalLink className="w-3 h-3" />
-            去广场查看
-          </button>
+          <div className="text-xs text-gray-500">
+            创作记录已自动保存到草稿箱
+          </div>
         </div>,
         {
           duration: 5000,
@@ -883,20 +975,67 @@ export default function Wizard() {
     }
   };
 
-  const runConsistencyCheck = () => {
+  const runConsistencyCheck = async () => {
     setIsConsistencyChecking(true);
-    setTimeout(() => {
-      const score = Math.floor(Math.random() * 20) + 80;
-      setConsistencyScore(score);
-      setConsistencyDetails([
-        { item: 'Logo 完整性', status: 'pass', message: 'Logo 清晰可识别，比例恰当' },
-        { item: '品牌色使用', status: score >= 90 ? 'pass' : 'warn', message: score >= 90 ? '品牌色使用规范' : '建议增加主色占比' },
-        { item: '字体规范', status: score >= 85 ? 'pass' : 'warn', message: score >= 85 ? '字体使用符合规范' : '建议统一字体风格' },
-        { item: '文化元素', status: 'pass', message: '文化元素运用得当' },
+    
+    try {
+      // 获取当前选中的变体图像
+      const selectedVariant = selectedVariantIndex >= 0 && state.variants 
+        ? state.variants[selectedVariantIndex] 
+        : null;
+      const imageUrl = selectedVariant?.image || uploadedImageUrl || '';
+      
+      // 并行执行品牌一致性检测和文化评分计算
+      const [brandResult, culturalScores] = await Promise.all([
+        brandConsistencyService.checkConsistency({
+          brandAssets: {
+            logo: brandAssets.logo,
+            colors: brandAssets.colors,
+            font: brandAssets.font
+          },
+          imageUrl: imageUrl || undefined,
+          textContent: state.inputText || undefined
+        }),
+        Promise.resolve(contentScoringService.calculateScores(state.inputText || ''))
       ]);
+      
+      // 更新品牌一致性状态
+      setConsistencyScore(brandResult.overallScore);
+      setConsistencyDetails(brandResult.items.map(item => ({
+        item: item.item,
+        status: item.status,
+        message: item.message
+      })));
+      setConsistencySuggestions(brandResult.suggestions);
+      
+      // 更新文化纯正度评分状态
+      setCulturalScore(culturalScores.authenticity_score);
+      setCulturalElements(culturalScores.cultural_elements);
+      
+      // 显示成功提示
+      const totalScore = Math.round((brandResult.overallScore + culturalScores.authenticity_score) / 2);
+      if (totalScore >= 80) {
+        toast.success(`检查完成！品牌一致性: ${brandResult.overallScore}分，文化纯正度: ${culturalScores.authenticity_score}分`);
+      } else if (totalScore >= 60) {
+        toast.success(`检查完成！品牌一致性: ${brandResult.overallScore}分，文化纯正度: ${culturalScores.authenticity_score}分，还有提升空间`);
+      } else {
+        toast.warning(`检查完成！品牌一致性: ${brandResult.overallScore}分，文化纯正度: ${culturalScores.authenticity_score}分，建议优化`);
+      }
+    } catch (error) {
+      console.error('检查失败:', error);
+      toast.error('检查失败，请稍后重试');
+      
+      // 使用默认数据作为回退
+      setConsistencyScore(75);
+      setConsistencyDetails([
+        { item: 'Logo 完整性', status: 'warn', message: '检测服务暂时不可用' },
+        { item: '品牌色使用', status: 'warn', message: '检测服务暂时不可用' },
+        { item: '字体规范', status: 'warn', message: '检测服务暂时不可用' },
+        { item: '文化元素', status: 'warn', message: '检测服务暂时不可用' },
+      ]);
+    } finally {
       setIsConsistencyChecking(false);
-      toast.success('品牌一致性检查完成');
-    }, 1500);
+    }
   };
 
   const applyTemplate = (templateId: string) => {
@@ -1001,10 +1140,12 @@ ${dd.expectedEffect}
 
   // Steps configuration
   const steps = [
-    { id: 1, title: '选择品牌', icon: 'fa-store', desc: '选择或输入品牌名称' },
-    { id: 2, title: '创意输入', icon: 'fa-pen-nib', desc: '描述您的创意需求' },
-    { id: 3, title: '生成变体', icon: 'fa-wand-magic-sparkles', desc: 'AI生成多种方案' },
-    { id: 4, title: '评分发布', icon: 'fa-star', desc: '评估并发布作品' }
+    { id: 1, title: '查看历史', icon: 'fa-history', desc: '查看之前生成的内容' },
+    { id: 2, title: '选择品牌', icon: 'fa-store', desc: '选择或输入品牌名称' },
+    { id: 3, title: '创意输入', icon: 'fa-pen-nib', desc: '描述您的创意需求' },
+    { id: 4, title: '生成变体', icon: 'fa-wand-magic-sparkles', desc: 'AI生成多种方案' },
+    { id: 5, title: '方案选择', icon: 'fa-check-circle', desc: '选择并优化最终方案' },
+    { id: 6, title: '评分发布', icon: 'fa-star', desc: '评估并发布作品' }
   ];
 
   // Record brand usage when brand is selected
@@ -1070,21 +1211,21 @@ ${dd.expectedEffect}
                         {state.brandName || '未命名品牌'}
                       </div>
                       <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        当前步骤: {step}/4 · {steps[step-1]?.title}
+                        当前步骤: {step}/6 · {steps[step-1]?.title}
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* 进度条 */}
                   <div className="mt-3">
                     <div className={`h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                      <div 
+                      <div
                         className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all"
-                        style={{ width: `${(step / 4) * 100}%` }}
+                        style={{ width: `${(step / 6) * 100}%` }}
                       />
                     </div>
                     <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      完成进度: {Math.round((step / 4) * 100)}%
+                      完成进度: {Math.round((step / 6) * 100)}%
                     </div>
                   </div>
 
@@ -1184,10 +1325,209 @@ ${dd.expectedEffect}
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.1, duration: 0.5 }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-200 dark:border-blue-800 mb-4"
+                >
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">步骤 1/5</span>
+                </motion.div>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15, duration: 0.5 }}
+                  className="text-4xl sm:text-5xl font-bold tracking-tight"
+                >
+                  <span className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-200 dark:to-gray-400 bg-clip-text text-transparent">
+                    查看历史创作
+                  </span>
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                  className={`text-lg max-w-2xl mx-auto leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+                >
+                  查看您之前生成的图片、模板和文字文案，或开始新的创作
+                </motion.p>
+              </div>
+
+              {/* History Content */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25, duration: 0.5 }}
+                className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+              >
+                {/* Left: Previous Generations */}
+                <div className="space-y-6">
+                  <h3 className={`text-xl font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <i className="fas fa-images text-purple-500"></i>
+                    之前生成的图片
+                  </h3>
+                  {state.variants && state.variants.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      {state.variants.map((variant, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: index * 0.1 }}
+                          className={`relative rounded-xl overflow-hidden border-2 ${
+                            selectedVariantIndex === index
+                              ? 'border-purple-500 ring-2 ring-purple-500/30'
+                              : isDark ? 'border-gray-700' : 'border-gray-200'
+                          } cursor-pointer group`}
+                          onClick={() => {
+                            setSelectedVariantIndex(index);
+                            setState({ imageUrl: variant.image });
+                          }}
+                        >
+                          <img
+                            src={variant.image}
+                            alt={`历史生成-${index}`}
+                            className="w-full aspect-square object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute bottom-3 left-3 right-3">
+                              <p className="text-white text-sm font-medium truncate">{variant.script}</p>
+                            </div>
+                          </div>
+                          {selectedVariantIndex === index && (
+                            <div className="absolute top-2 right-2 w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                              <i className="fas fa-check text-white text-xs"></i>
+                            </div>
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : state.imageUrl ? (
+                    <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}>
+                      <img
+                        src={state.imageUrl}
+                        alt="当前图片"
+                        className="w-full rounded-xl object-cover"
+                      />
+                      <p className={`mt-4 text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        当前创作的图片
+                      </p>
+                    </div>
+                  ) : (
+                    <div className={`p-8 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'} border-2 border-dashed text-center`}>
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center mx-auto mb-4">
+                        <i className="fas fa-image text-white text-2xl"></i>
+                      </div>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        暂无生成的图片
+                      </p>
+                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        开始创作后将在此显示
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Templates & Text */}
+                <div className="space-y-6">
+                  {/* Selected Template */}
+                  <div>
+                    <h3 className={`text-xl font-bold flex items-center gap-2 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      <i className="fas fa-palette text-amber-500"></i>
+                      使用的模板
+                    </h3>
+                    {selectedTemplate ? (
+                      <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}>
+                        {(() => {
+                          const template = [...TEMPLATES, ...EXTENDED_TEMPLATES].find(t => t.id === selectedTemplate);
+                          return template ? (
+                            <div className="flex items-center gap-4">
+                              <img
+                                src={template.thumbnail}
+                                alt={template.name}
+                                className="w-20 h-20 rounded-lg object-cover"
+                              />
+                              <div>
+                                <h4 className="font-semibold">{template.name}</h4>
+                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{template.desc}</p>
+                              </div>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                    ) : (
+                      <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} text-center`}>
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>尚未选择模板</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Input Text */}
+                  <div>
+                    <h3 className={`text-xl font-bold flex items-center gap-2 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      <i className="fas fa-file-alt text-green-500"></i>
+                      文字文案
+                    </h3>
+                    {state.inputText ? (
+                      <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}>
+                        <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'} line-clamp-6`}>
+                          {state.inputText}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} text-center`}>
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>尚未输入创意描述</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Brand Info */}
+                  {state.brandName && (
+                    <div>
+                      <h3 className={`text-xl font-bold flex items-center gap-2 mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <i className="fas fa-store text-red-500"></i>
+                        当前品牌
+                      </h3>
+                      <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border flex items-center gap-4`}>
+                        {selectedBrand && (
+                          <img
+                            src={selectedBrand.image}
+                            alt={selectedBrand.name}
+                            className="w-16 h-16 rounded-lg object-cover"
+                          />
+                        )}
+                        <div>
+                          <h4 className="font-semibold">{state.brandName}</h4>
+                          {selectedBrand && (
+                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} line-clamp-2`}>
+                              {selectedBrand.story}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {step === 2 && (
+            <motion.div
+              key="step2"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+              className="space-y-10"
+            >
+              {/* Header - 优化后的标题区域 */}
+              <div className="text-center space-y-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.5 }}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-red-500/10 to-amber-500/10 border border-red-200 dark:border-red-800 mb-4"
                 >
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                  <span className="text-sm font-medium text-red-600 dark:text-red-400">步骤 1/4</span>
+                  <span className="text-sm font-medium text-red-600 dark:text-red-400">步骤 2/5</span>
                 </motion.div>
                 <motion.h2
                   initial={{ opacity: 0, y: 20 }}
@@ -1646,16 +1986,16 @@ ${dd.expectedEffect}
             </motion.div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <motion.div
-              key="step2"
+              key="step3"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -30 }}
               transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
               className="space-y-8"
             >
-              {/* Header - 优化后的步骤2标题 */}
+              {/* Header - 优化后的步骤3标题 */}
               <div className="text-center space-y-4">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -1664,7 +2004,7 @@ ${dd.expectedEffect}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-200 dark:border-amber-800 mb-4"
                 >
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                  <span className="text-sm font-medium text-amber-600 dark:text-amber-400">步骤 2/4</span>
+                  <span className="text-sm font-medium text-amber-600 dark:text-amber-400">步骤 3/5</span>
                 </motion.div>
                 <motion.h2
                   initial={{ opacity: 0, y: 20 }}
@@ -1994,14 +2334,45 @@ ${dd.expectedEffect}
             </motion.div>
           )}
 
-          {step === 3 && (
-            <motion.div 
-              key="step3"
+          {step === 4 && (
+            <motion.div
+              key="step4"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
+              {/* Header */}
+              <div className="text-center space-y-4 mb-8">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.5 }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-200 dark:border-purple-800 mb-4"
+                >
+                  <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+                  <span className="text-sm font-medium text-purple-600 dark:text-purple-400">步骤 4/5</span>
+                </motion.div>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15, duration: 0.5 }}
+                  className="text-4xl sm:text-5xl font-bold tracking-tight"
+                >
+                  <span className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-200 dark:to-gray-400 bg-clip-text text-transparent">
+                    生成变体
+                  </span>
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                  className={`text-lg max-w-2xl mx-auto leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+                >
+                  选择设计模板，AI将为您生成多种创意方案
+                </motion.p>
+              </div>
+
               {/* Template Selection */}
               <div>
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -2151,14 +2522,258 @@ ${dd.expectedEffect}
             </motion.div>
           )}
 
-          {step === 4 && (
-            <motion.div 
-              key="step4"
+          {step === 5 && (
+            <motion.div
+              key="step5"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
+              {/* Header */}
+              <div className="text-center space-y-4 mb-8">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.5 }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-teal-500/10 to-cyan-500/10 border border-teal-200 dark:border-teal-800 mb-4"
+                >
+                  <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
+                  <span className="text-sm font-medium text-teal-600 dark:text-teal-400">步骤 5/6</span>
+                </motion.div>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15, duration: 0.5 }}
+                  className="text-4xl sm:text-5xl font-bold tracking-tight"
+                >
+                  <span className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-200 dark:to-gray-400 bg-clip-text text-transparent">
+                    方案选择
+                  </span>
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                  className={`text-lg max-w-2xl mx-auto leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+                >
+                  从生成的方案中选择最满意的，进行最终优化
+                </motion.p>
+              </div>
+
+              {/* Selected Variant Display */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Left: Selected Image */}
+                <div className="space-y-6">
+                  <h3 className={`text-xl font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <i className="fas fa-image text-teal-500"></i>
+                    选中的方案
+                  </h3>
+                  {selectedVariantIndex >= 0 && state.variants && state.variants[selectedVariantIndex] ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-lg`}
+                    >
+                      <div className="relative aspect-square rounded-xl overflow-hidden mb-4">
+                        <img
+                          src={state.variants[selectedVariantIndex].image}
+                          alt="选中的方案"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-3 left-3">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${isDark ? 'bg-teal-500/20 text-teal-300' : 'bg-teal-50 text-teal-700'}`}>
+                            方案{String.fromCharCode(65 + selectedVariantIndex)}
+                          </span>
+                        </div>
+                      </div>
+                      <h4 className="font-bold text-lg mb-2">{state.variants[selectedVariantIndex].script}</h4>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        此方案将作为最终发布版本
+                      </p>
+                    </motion.div>
+                  ) : state.imageUrl ? (
+                    <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}>
+                      <img
+                        src={state.imageUrl}
+                        alt="当前图片"
+                        className="w-full rounded-xl object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className={`p-8 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'} border-2 border-dashed text-center`}>
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center mx-auto mb-4">
+                        <i className="fas fa-image text-white text-2xl"></i>
+                      </div>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        请先在步骤4生成方案
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: All Variants for Selection */}
+                <div className="space-y-6">
+                  <h3 className={`text-xl font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <i className="fas fa-th-large text-purple-500"></i>
+                    所有生成的方案
+                  </h3>
+                  {state.variants && state.variants.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      {state.variants.map((variant, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className={`relative rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${
+                            selectedVariantIndex === index
+                              ? 'border-teal-500 ring-2 ring-teal-500/30'
+                              : isDark ? 'border-gray-700 hover:border-gray-600' : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => {
+                            setSelectedVariantIndex(index);
+                            setState({ imageUrl: variant.image });
+                          }}
+                        >
+                          <img
+                            src={variant.image}
+                            alt={`方案-${index}`}
+                            className="w-full aspect-square object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
+                            <div className="absolute bottom-2 left-2 right-2">
+                              <p className="text-white text-xs font-medium truncate">{variant.script}</p>
+                            </div>
+                          </div>
+                          <div className="absolute top-2 left-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isDark ? 'bg-gray-800/80 text-white' : 'bg-white/80 text-gray-900'}`}>
+                              方案{String.fromCharCode(65 + index)}
+                            </span>
+                          </div>
+                          {selectedVariantIndex === index && (
+                            <div className="absolute top-2 right-2 w-6 h-6 bg-teal-500 rounded-full flex items-center justify-center">
+                              <i className="fas fa-check text-white text-xs"></i>
+                            </div>
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={`p-8 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'} border-2 border-dashed text-center`}>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        暂无生成的方案
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Creative Description */}
+              {state.inputText && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'} border`}
+                >
+                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                    <i className="fas fa-pen-nib text-blue-500"></i>
+                    创意描述
+                  </h3>
+                  <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-white'} border ${isDark ? 'border-gray-600' : 'border-gray-200'} max-h-[500px] overflow-y-auto custom-scrollbar`}>
+                    <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {state.inputText}
+                    </p>
+                  </div>
+                  <div className="mt-4 flex items-center gap-4 text-xs">
+                    <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <i className="fas fa-font text-blue-400"></i>
+                      {(state.inputText || '').length} 字
+                    </span>
+                    {selectedBrand && (
+                      <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <i className="fas fa-store text-amber-400"></i>
+                        {selectedBrand.name}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Optimization Suggestions */}
+              {state.variants && state.variants.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-gradient-to-br from-teal-50 to-cyan-50 border-teal-200'} border`}
+                >
+                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                    <i className="fas fa-lightbulb text-yellow-500"></i>
+                    优化建议
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-white'} border ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                      <i className="fas fa-palette text-pink-500 mb-2"></i>
+                      <h4 className="font-semibold text-sm mb-1">色彩搭配</h4>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>确保品牌色彩与设计风格协调统一</p>
+                    </div>
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-white'} border ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                      <i className="fas fa-font text-blue-500 mb-2"></i>
+                      <h4 className="font-semibold text-sm mb-1">字体选择</h4>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>选择与品牌调性匹配的字体风格</p>
+                    </div>
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-white'} border ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                      <i className="fas fa-balance-scale text-green-500 mb-2"></i>
+                      <h4 className="font-semibold text-sm mb-1">构图平衡</h4>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>检查视觉元素的空间分布是否均衡</p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+
+          {step === 6 && (
+            <motion.div
+              key="step6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              {/* Header */}
+              <div className="text-center space-y-4 mb-8">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1, duration: 0.5 }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-200 dark:border-amber-800 mb-4"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span className="text-sm font-medium text-amber-600 dark:text-amber-400">步骤 6/6</span>
+                </motion.div>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15, duration: 0.5 }}
+                  className="text-4xl sm:text-5xl font-bold tracking-tight"
+                >
+                  <span className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-200 dark:to-gray-400 bg-clip-text text-transparent">
+                    评分发布
+                  </span>
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                  className={`text-lg max-w-2xl mx-auto leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+                >
+                  评估您的作品并发布到社区
+                </motion.p>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left: Scores & Checks */}
                 <div className="space-y-6">
@@ -2174,19 +2789,29 @@ ${dd.expectedEffect}
                             stroke="currentColor"
                             strokeWidth="3"
                           />
-                          <path
-                            className="text-red-500"
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="3"
-                            strokeDasharray={`${scoreAuthenticity(state.inputText || '', '').score}, 100`}
-                          />
+                          {(() => {
+                            const scoreColor = culturalScore >= 80 ? 'text-green-500' : culturalScore >= 60 ? 'text-yellow-500' : 'text-red-500';
+                            return (
+                              <path
+                                className={scoreColor}
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                strokeDasharray={`${culturalScore}, 100`}
+                              />
+                            );
+                          })()}
                         </svg>
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-2xl font-black text-red-600">
-                            {scoreAuthenticity(state.inputText || '', '').score}
-                          </span>
+                          {(() => {
+                            const scoreTextColor = culturalScore >= 80 ? 'text-green-600' : culturalScore >= 60 ? 'text-yellow-600' : 'text-red-600';
+                            return (
+                              <span className={`text-2xl font-black ${scoreTextColor}`}>
+                                {culturalScore}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
                       <div className="flex-1">
@@ -2197,11 +2822,15 @@ ${dd.expectedEffect}
                           基于天津文化知识库评估，您的设计展现了良好的文化传承意识
                         </p>
                         <div className="flex gap-2 mt-3">
-                          {['传统元素', '地方特色', '文化内涵'].map(tag => (
-                            <span key={tag} className={`px-2 py-1 rounded-full text-xs ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
-                              {tag}
-                            </span>
-                          ))}
+                          {(() => {
+                            const defaultTags = ['传统元素', '地方特色', '文化内涵'];
+                            const displayTags = culturalElements.length > 0 ? culturalElements.slice(0, 3) : defaultTags;
+                            return displayTags.map(tag => (
+                              <span key={tag} className={`px-2 py-1 rounded-full text-xs ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
+                                {tag}
+                              </span>
+                            ));
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -2255,6 +2884,96 @@ ${dd.expectedEffect}
                               </div>
                             </div>
                           ))}
+                        </div>
+                        
+                        {/* 改进建议 */}
+                        {consistencySuggestions.length > 0 && (
+                          <div className={`mt-4 p-4 rounded-lg ${isDark ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border border-blue-200'}`}>
+                            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                              <i className="fas fa-lightbulb text-yellow-500"></i>
+                              改进建议
+                            </h4>
+                            <ul className="space-y-1">
+                              {consistencySuggestions.slice(0, 3).map((suggestion, index) => (
+                                <li key={index} className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'} flex items-start gap-2`}>
+                                  <span className="text-blue-500 mt-0.5">•</span>
+                                  {suggestion}
+                                </li>
+                              ))}
+                            </ul>
+                            {consistencySuggestions.length > 3 && (
+                              <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                还有 {consistencySuggestions.length - 3} 条建议...
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* 分享按钮 */}
+                        <div className="mt-4 flex gap-2">
+                          <TianjinButton
+                            size="sm"
+                            variant="secondary"
+                            onClick={async () => {
+                              const shareData = {
+                                brandName: state.brandName || '我的设计',
+                                culturalScore,
+                                consistencyScore: consistencyScore || 0,
+                                consistencyDetails,
+                                culturalElements,
+                                suggestions: consistencySuggestions,
+                                imageUrl: selectedVariantIndex >= 0 && state.variants 
+                                  ? state.variants[selectedVariantIndex]?.image 
+                                  : undefined
+                              };
+                              
+                              // 生成分享内容
+                              const shareContent = brandCheckShareService.generateShareText(shareData);
+                              
+                              // 复制到剪贴板
+                              const copied = await brandCheckShareService.copyToClipboard(shareContent.content);
+                              if (copied) {
+                                toast.success('分享内容已复制到剪贴板！');
+                              } else {
+                                toast.error('复制失败，请手动复制');
+                              }
+                            }}
+                            leftIcon={<i className="fas fa-copy"></i>}
+                          >
+                            复制分享
+                          </TianjinButton>
+                          
+                          <TianjinButton
+                            size="sm"
+                            variant="primary"
+                            onClick={() => {
+                              const shareData = {
+                                brandName: state.brandName || '我的设计',
+                                culturalScore,
+                                consistencyScore: consistencyScore || 0,
+                                consistencyDetails,
+                                culturalElements,
+                                suggestions: consistencySuggestions,
+                                imageUrl: selectedVariantIndex >= 0 && state.variants 
+                                  ? state.variants[selectedVariantIndex]?.image 
+                                  : undefined
+                              };
+                              
+                              // 生成社群帖子数据
+                              const postData = brandCheckShareService.generateCommunityPost(shareData);
+                              
+                              // 存储到 localStorage，供社群页面读取
+                              localStorage.setItem('pending_share_post', JSON.stringify(postData));
+                              
+                              // 打开社群页面
+                              window.open('/community?action=create_post', '_blank');
+                              
+                              toast.success('正在打开社群发布页面...');
+                            }}
+                            leftIcon={<i className="fas fa-share-alt"></i>}
+                          >
+                            分享到社群
+                          </TianjinButton>
                         </div>
                       </div>
                     ) : (
@@ -2325,17 +3044,75 @@ ${dd.expectedEffect}
                     <h3 className="font-bold text-lg flex items-center gap-2">
                       <i className="fas fa-upload text-green-500"></i> 发布作品
                     </h3>
-                    <TianjinButton
-                      size="sm"
-                      variant="secondary"
-                      onClick={analyzeImageWithAI}
-                      loading={isAnalyzingImage}
-                      disabled={!selectedVariantImage}
-                      leftIcon={<i className="fas fa-magic"></i>}
-                      ariaLabel={selectedVariantImage ? 'AI自动识别图片内容并填写信息' : '请先生成或选择图片'}
-                    >
-                      {isAnalyzingImage ? '分析中...' : 'AI自动填写'}
-                    </TianjinButton>
+                    <div className="flex items-center gap-2">
+                      {/* 导入到创作中心按钮 */}
+                      <TianjinButton
+                        size="sm"
+                        variant="secondary"
+                        onClick={async () => {
+                          const imageUrl = selectedVariantImage;
+                          if (!imageUrl) {
+                            toast.error('请先生成或选择图片');
+                            return;
+                          }
+                          
+                          setIsImportingToCreate(true);
+                          toast.loading('正在导入到创作中心...', { id: 'import-to-create' });
+                          
+                          try {
+                            // 准备导入的数据
+                            const importData = {
+                              title: publishInfo.title || state.brandName || '',
+                              description: publishInfo.description || state.inputText || '',
+                              tags: publishInfo.tags ? publishInfo.tags.split(',').map(t => t.trim()) : culturalElements,
+                              imageUrl: imageUrl,
+                              brandAssets,
+                              culturalElements,
+                              culturalScore,
+                              timestamp: Date.now()
+                            };
+                            
+                            // 将数据存储到 localStorage，供创作中心读取
+                            localStorage.setItem('wizard_to_create', JSON.stringify(importData));
+                            console.log('[Wizard] 数据已存储到 localStorage:', importData);
+                            
+                            toast.success('数据已准备好', {
+                              id: 'import-to-create',
+                              description: '正在跳转到创作中心...'
+                            });
+                            
+                            // 跳转到创作中心
+                            navigate('/create');
+                          } catch (error: any) {
+                            console.error('导入到创作中心失败:', error);
+                            toast.error('导入失败', {
+                              id: 'import-to-create',
+                              description: error.message || '请稍后重试'
+                            });
+                          } finally {
+                            setIsImportingToCreate(false);
+                          }
+                        }}
+                        loading={isImportingToCreate}
+                        disabled={!selectedVariantImage || isImportingToCreate}
+                        leftIcon={<i className="fas fa-wand-magic-sparkles"></i>}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-0"
+                      >
+                        {isImportingToCreate ? '导入中...' : '导入到创作中心'}
+                      </TianjinButton>
+                      
+                      <TianjinButton
+                        size="sm"
+                        variant="secondary"
+                        onClick={analyzeImageWithAI}
+                        loading={isAnalyzingImage}
+                        disabled={!selectedVariantImage}
+                        leftIcon={<i className="fas fa-magic"></i>}
+                        ariaLabel={selectedVariantImage ? 'AI自动识别图片内容并填写信息' : '请先生成或选择图片'}
+                      >
+                        {isAnalyzingImage ? '分析中...' : 'AI自动填写'}
+                      </TianjinButton>
+                    </div>
                   </div>
                   
                   <div className="space-y-5">
@@ -2375,9 +3152,117 @@ ${dd.expectedEffect}
                       />
                     </div>
 
+                    {/* 分享到社群选项 */}
+                    {consistencyScore !== null && (
+                      <div className={`p-4 rounded-xl border ${isDark ? 'bg-blue-900/10 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="text-sm font-medium flex items-center gap-2">
+                              <i className="fas fa-share-alt text-blue-500"></i>
+                              同时分享到社群
+                            </h4>
+                            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              将设计评估结果分享到社群，与创作者交流
+                            </p>
+                          </div>
+                          <TianjinButton
+                            size="sm"
+                            variant="secondary"
+                            onClick={async () => {
+                              const avgScore = Math.round((culturalScore + (consistencyScore || 0)) / 2);
+                              const currentImage = selectedVariantIndex >= 0 && state.variants 
+                                ? state.variants[selectedVariantIndex]?.image 
+                                : undefined;
+                              
+                              // 获取当前用户信息
+                              const { data: { user } } = await supabase.auth.getUser();
+                              
+                              setShareData({
+                                type: 'work',
+                                id: `brand-check-${Date.now()}`,
+                                title: `【品牌设计评估】${state.brandName || '我的设计'}获得了${avgScore}分！`,
+                                description: `文化纯正度: ${culturalScore}分 · 品牌一致性: ${consistencyScore}分`,
+                                thumbnail: currentImage,
+                                url: `${window.location.origin}/wizard`,
+                                author: {
+                                  name: user?.user_metadata?.username || user?.email?.split('@')[0] || '创作者',
+                                  avatar: user?.user_metadata?.avatar_url
+                                }
+                              });
+                              
+                              setShareUserInfo({
+                                userId: user?.id || '',
+                                userName: user?.user_metadata?.username || user?.email?.split('@')[0] || '创作者',
+                                userAvatar: user?.user_metadata?.avatar_url
+                              });
+                              
+                              setShowShareSelector(true);
+                            }}
+                            leftIcon={<i className="fas fa-external-link-alt"></i>}
+                          >
+                            去分享
+                          </TianjinButton>
+                        </div>
+                        
+                        {/* 预览卡片 */}
+                        <div className={`mt-3 p-3 rounded-lg ${isDark ? 'bg-gray-800/50' : 'bg-white/50'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                          <p className={`text-xs mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>预览</p>
+                          <div className="flex gap-3">
+                            {/* 图片预览 */}
+                            {selectedVariantIndex >= 0 && state.variants && state.variants[selectedVariantIndex]?.image && (
+                              <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                                <img 
+                                  src={state.variants[selectedVariantIndex].image} 
+                                  alt="作品预览"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            {/* 文字预览 */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                【品牌设计评估】{state.brandName || '我的设计'}获得了{Math.round((culturalScore + (consistencyScore || 0)) / 2)}分！
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${culturalScore >= 80 ? 'bg-green-100 text-green-700' : culturalScore >= 60 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                  文化{culturalScore}分
+                                </span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${(consistencyScore || 0) >= 80 ? 'bg-green-100 text-green-700' : (consistencyScore || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                  品牌{consistencyScore}分
+                                </span>
+                                {culturalElements.slice(0, 2).map((el, idx) => (
+                                  <span key={idx} className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                    {el}
+                                  </span>
+                                ))}
+                              </div>
+                              <p className={`text-xs mt-2 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {(() => {
+                                  const passedCount = consistencyDetails.filter(d => d.status === 'pass').length;
+                                  const warnCount = consistencyDetails.filter(d => d.status === 'warn').length;
+                                  return `检查完成：${passedCount}项通过${warnCount > 0 ? `，${warnCount}项需优化` : ''} · ${consistencySuggestions.length}条改进建议`;
+                                })()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 flex gap-4 text-xs">
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                            <i className="fas fa-landmark mr-1 text-amber-500"></i>
+                            文化纯正度: {culturalScore}分
+                          </span>
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                            <i className="fas fa-shield-alt mr-1 text-blue-500"></i>
+                            品牌一致性: {consistencyScore}分
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-sm font-medium mb-2">
-                        <i className="fas fa-trophy text-gray-400 mr-1"></i> 参与赛事 (可选)
+                        <i className="fas fa-trophy text-gray-400 mr-1"></i> 参与赛事
                         {isLoadingEvents && <span className="ml-2 text-xs text-gray-400">加载中...</span>}
                       </label>
                       <div className="space-y-2 max-h-[400px] overflow-y-auto">
@@ -2389,7 +3274,11 @@ ${dd.expectedEffect}
                           events.map(c => (
                             <button
                               key={c.id}
-                              onClick={() => setPublishInfo({...publishInfo, competitionId: publishInfo.competitionId === c.id ? '' : c.id})}
+                              onClick={() => {
+                                // 弹出确认对话框
+                                setSelectedEvent(c);
+                                setShowConfirmDialog(true);
+                              }}
                               className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
                                 publishInfo.competitionId === c.id
                                   ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
@@ -2515,24 +3404,68 @@ ${dd.expectedEffect}
             
             {/* Step Info */}
             <span className={`hidden sm:block text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              步骤 {step}/4: {steps[step-1].title}
+              步骤 {step}/6: {steps[step-1].title}
             </span>
-            
-            {step === 4 ? (
-              <TianjinButton 
-                primary 
-                onClick={preparePublish} 
-                rightIcon={<i className="fas fa-check"></i>}
-                disabled={!publishInfo.title || isUploadingImage}
-                loading={isUploadingImage}
-              >
-                {isUploadingImage ? '上传图片中...' : '发布并完成'}
-              </TianjinButton>
+
+            {step === 6 ? (
+              <div className="flex items-center gap-2">
+                {/* 重新创作按钮 */}
+                <TianjinButton
+                  variant="secondary"
+                  onClick={async () => {
+                    // 先保存当前进度到草稿箱
+                    await saveToDrafts(6);
+                    
+                    // 清空所有状态
+                    reset();
+                    setPublishInfo({
+                      title: '',
+                      description: '',
+                      competitionId: '',
+                      tags: '',
+                    });
+                    setBrandAssets({
+                      logo: '',
+                      colors: ['#D32F2F', '#FFC107', '#212121'],
+                      font: 'SimSun',
+                    });
+                    setSelectedTemplate('');
+                    setSelectedVariantIndex(-1);
+                    setUploadedImageUrl('');
+                    setShowImagePreview(false);
+                    setCulturalElements([]);
+                    setCulturalScore(0);
+                    setConsistencyScore(null);
+                    setConsistencyDetails([]);
+                    setConsistencySuggestions([]);
+                    
+                    // 重置到第二步（选择或输入品牌名称）
+                    setStep(2);
+                    
+                    toast.success('已重新开始创作', {
+                      description: '之前的内容已保存到草稿箱，请从品牌名称开始'
+                    });
+                  }}
+                  leftIcon={<i className="fas fa-redo"></i>}
+                >
+                  重新创作
+                </TianjinButton>
+                
+                <TianjinButton
+                  primary
+                  onClick={preparePublish}
+                  rightIcon={<i className="fas fa-paper-plane"></i>}
+                  disabled={!publishInfo.title || isUploadingImage}
+                  loading={isUploadingImage}
+                >
+                  {isUploadingImage ? '上传图片中...' : '发布到广场'}
+                </TianjinButton>
+              </div>
             ) : (
-              <TianjinButton 
-                primary 
-                onClick={next} 
-                disabled={(step === 1 && !state.brandName) || (step === 2 && !state.inputText) || (step === 3 && selectedVariantIndex < 0)} 
+              <TianjinButton
+                primary
+                onClick={next}
+                disabled={(step === 2 && !state.brandName) || (step === 3 && !state.inputText) || (step === 5 && selectedVariantIndex < 0)}
                 rightIcon={<i className="fas fa-arrow-right"></i>}
               >
                 下一步
@@ -2882,6 +3815,156 @@ ${dd.expectedEffect}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 确认报名参赛对话框 */}
+      <Modal
+        isOpen={showConfirmDialog}
+        onClose={() => setShowConfirmDialog(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-500" />
+            确认报名参赛
+          </div>
+        }
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmDialog(false)}
+              disabled={isRegistering}
+              className={isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!selectedEvent) return;
+                
+                setIsRegistering(true);
+                try {
+                  // 获取当前用户ID
+                  const { data: { user } } = await supabase.auth.getUser();
+                  const userId = user?.id || JSON.parse(localStorage.getItem('user') || '{}')?.id;
+                  
+                  if (!userId) {
+                    toast.error('请先登录后再报名参赛');
+                    navigate('/login');
+                    return;
+                  }
+
+                  // 检查用户是否已报名
+                  const { isParticipated } = await eventParticipationService.checkParticipation(selectedEvent.id, userId);
+                  
+                  if (isParticipated) {
+                    toast.info('您已经报名参加了该活动');
+                  } else {
+                    // 报名参赛
+                    const registerResult = await eventParticipationService.registerForEvent(selectedEvent.id, userId);
+                    if (!registerResult.success) {
+                      toast.error(`报名失败: ${registerResult.error}`);
+                      setIsRegistering(false);
+                      return;
+                    }
+                    toast.success('报名成功！');
+                  }
+
+                  // 保存选中的活动ID
+                  setPublishInfo({...publishInfo, competitionId: selectedEvent.id});
+                  
+                  // 关闭对话框
+                  setShowConfirmDialog(false);
+                  
+                  // 准备作品提交页面的数据
+                  // 获取选中的变体图片或主图片
+                  const selectedVariantImage = selectedVariantIndex >= 0 && state.variants 
+                    ? state.variants[selectedVariantIndex]?.image 
+                    : null;
+                  const mainImage = selectedVariantImage || state.imageUrl || uploadedImageUrl || '';
+                  
+                  // 获取所有生成的变体图片
+                  const allImages = state.variants 
+                    ? state.variants.map((v, index) => ({
+                        url: v.image,
+                        script: v.script,
+                        isSelected: index === selectedVariantIndex
+                      }))
+                    : [];
+                  
+                  const workData = {
+                    title: state.brandName || publishInfo.title || '',
+                    description: state.inputText || publishInfo.description || '',
+                    brandAssets,
+                    selectedTemplate,
+                    culturalElements,
+                    culturalScore,
+                    consistencyScore,
+                    // 图片相关数据
+                    mainImage,
+                    allImages,
+                    selectedVariantIndex
+                  };
+                  
+                  // 将数据存储到 localStorage，供作品提交页面使用
+                  localStorage.setItem('wizard_work_data', JSON.stringify(workData));
+                  
+                  // 跳转到作品提交页面
+                  navigate(`/events/${selectedEvent.id}/submit`);
+                  
+                } catch (error: any) {
+                  console.error('报名参赛失败:', error);
+                  toast.error(`报名参赛失败: ${error.message}`);
+                } finally {
+                  setIsRegistering(false);
+                }
+              }}
+              disabled={isRegistering}
+              className="bg-gradient-to-r from-[#C02C38] to-[#D64545] hover:from-[#A82530] hover:to-[#C03A3A] text-white"
+            >
+              {isRegistering ? (
+                <>
+                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  报名中...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-check mr-2"></i>
+                  确认报名并提交作品
+                </>
+              )}
+            </Button>
+          </div>
+        }
+      >
+        <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>
+          您选择参加「{selectedEvent?.title}」，确认要报名参赛吗？
+        </p>
+        
+        <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'} my-4`}>
+          <h4 className="font-medium mb-2">活动信息</h4>
+          <ul className="text-sm space-y-1 text-gray-500">
+            <li>活动名称: {selectedEvent?.title}</li>
+            <li>截止日期: {selectedEvent?.deadline}</li>
+            <li>主办方: {selectedEvent?.organizer}</li>
+          </ul>
+        </div>
+      </Modal>
+
+      {/* 分享选择弹窗 */}
+      {shareData && shareUserInfo && (
+        <ShareSelector
+          isOpen={showShareSelector}
+          onClose={() => {
+            setShowShareSelector(false);
+            setShareData(null);
+            setShareUserInfo(null);
+          }}
+          shareData={shareData}
+          userId={shareUserInfo.userId}
+          userName={shareUserInfo.userName}
+          userAvatar={shareUserInfo.userAvatar}
+        />
+      )}
     </main>
   );
 }

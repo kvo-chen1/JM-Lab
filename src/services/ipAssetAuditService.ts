@@ -221,19 +221,40 @@ export async function getIPAssets(options: IPAssetFilterOptions = {}): Promise<{
 
     // 获取所有用户ID
     const userIds = [...new Set((data || []).map(item => item.user_id))];
+    console.log('[ipAssetAuditService] 需要获取的用户ID:', userIds);
 
-    // 批量获取用户信息 - 使用 auth.users 表
+    // 批量获取用户信息 - 使用 public.users 表
     let userMap = new Map();
     if (userIds.length > 0) {
-      // 使用 RPC 函数获取用户信息
+      // 首先尝试从 public.users 表获取
       const { data: userData, error: userError } = await supabase
-        .rpc('get_auth_users_info', { user_ids: userIds });
+        .from('users')
+        .select('id, username, avatar_url, email')
+        .in('id', userIds);
 
       if (userError) {
-        console.error('获取用户信息失败:', userError);
+        console.error('从 users 表获取用户信息失败:', userError);
+      } else if (userData && userData.length > 0) {
+        console.log('[ipAssetAuditService] 从 users 表获取到的用户数据:', userData);
+        userMap = new Map(userData.map((u: any) => [u.id, u]));
       } else {
-        userMap = new Map(userData?.map((u: any) => [u.id, u]) || []);
+        console.log('[ipAssetAuditService] users 表中没有找到用户数据，尝试使用 RPC');
+        // 如果 users 表没有数据，尝试使用 RPC 函数
+        try {
+          const { data: rpcUserData, error: rpcError } = await supabase
+            .rpc('get_auth_users_info', { user_ids: userIds });
+
+          if (rpcError) {
+            console.error('从 RPC 获取用户信息失败:', rpcError);
+          } else {
+            console.log('[ipAssetAuditService] 从 RPC 获取到的用户数据:', rpcUserData);
+            userMap = new Map(rpcUserData?.map((u: any) => [u.id, u]) || []);
+          }
+        } catch (e) {
+          console.error('RPC 调用异常:', e);
+        }
       }
+      console.log('[ipAssetAuditService] 最终用户Map:', Array.from(userMap.entries()));
     }
 
     // 转换数据格式

@@ -362,6 +362,7 @@ export default function IPIncubationSubmit() {
 
     try {
       // 创建IP资产，传入 userId
+      // 状态设置为 pending_review，需要管理员审核后才能发布
       const result = await ipService.createIPAsset({
         name: formData.title,
         description: formData.description,
@@ -369,7 +370,7 @@ export default function IPIncubationSubmit() {
         thumbnail: uploadedImages[0],
         commercialValue: formData.commercialValue,
         originalWorkId: formData.originalWorkId || '',
-        status: 'active',
+        status: 'pending_review',
       }, user.id);
 
       if (result) {

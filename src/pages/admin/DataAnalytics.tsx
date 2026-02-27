@@ -89,6 +89,7 @@ interface TrendData {
 interface DeviceData {
   name: string;
   value: number;
+  count?: number;
 }
 
 // 热门内容数据类型
@@ -304,6 +305,8 @@ export default function DataAnalytics() {
       setData(mergedData);
 
       // 更新设备和来源数据
+      console.log('[DataAnalytics] 设备数据:', devices);
+      console.log('[DataAnalytics] 来源数据:', sources);
       setDeviceData(devices);
       setSourceData(sources);
 
@@ -1073,7 +1076,10 @@ export default function DataAnalytics() {
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
                     <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>{item.name}</span>
                   </div>
-                  <span className="font-medium">{item.value}%</span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium text-blue-600 dark:text-blue-400">{item.count || 0}人</span>
+                    <span className="font-medium">{item.value}%</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1128,7 +1134,10 @@ export default function DataAnalytics() {
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
                     <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>{item.name}</span>
                   </div>
-                  <span className="font-medium">{item.value}%</span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium text-blue-600 dark:text-blue-400">{item.count || 0}人</span>
+                    <span className="font-medium">{item.value}%</span>
+                  </div>
                 </div>
               ))}
             </div>

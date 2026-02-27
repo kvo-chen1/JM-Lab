@@ -22,7 +22,7 @@ import {
   Eye
 } from 'lucide-react';
 import { OutlineSection } from './types';
-import { Button } from '@/components/ui/button';
+import Button from '@/components/ui/Button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';

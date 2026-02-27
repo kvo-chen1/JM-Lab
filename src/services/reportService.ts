@@ -11,6 +11,15 @@ export type ReportType =
   | 'social_rumor'   // 涉社会事件谣言
   | 'false_info'     // 虚假不实信息
   | 'external_link'  // 违法信息外链
+  // 原创保护相关举报类型
+  | 'portrait'       // 曝光肖像
+  | 'privacy'        // 泄露隐私
+  | 'impersonation'  // 冒充身份
+  | 'reputation'     // 损害个人名誉
+  | 'business_reputation' // 损害企业名誉
+  | 'plagiarism'     // 搬运/抄袭/洗稿
+  | 'trademark'      // 假冒商标
+  | 'patent'         // 假冒专利
   | 'other';         // 其他
 
 // 举报状态
@@ -30,6 +39,15 @@ export const REPORT_TYPE_CONFIG: Record<ReportType, { label: string; color: stri
   social_rumor: { label: '涉社会事件谣言', color: '#0891b2', description: '社会热点事件的虚假信息' },
   false_info: { label: '虚假不实信息', color: '#ea580c', description: '其他类型的虚假信息' },
   external_link: { label: '违法信息外链', color: '#be123c', description: '链接指向违法违规内容' },
+  // 原创保护相关
+  portrait: { label: '曝光肖像', color: '#3b82f6', description: '肖像被丑化/污损，或未经他人授权使用' },
+  privacy: { label: '泄露隐私', color: '#8b5cf6', description: '泄露他人隐私信息' },
+  impersonation: { label: '冒充身份', color: '#f59e0b', description: '冒充他人身份进行欺诈' },
+  reputation: { label: '损害个人名誉', color: '#ef4444', description: '诽谤、侮辱他人' },
+  business_reputation: { label: '损害企业名誉', color: '#dc2626', description: '损害企业商誉' },
+  plagiarism: { label: '搬运/抄袭/洗稿', color: '#f97316', description: '未经授权使用他人作品' },
+  trademark: { label: '假冒商标', color: '#6366f1', description: '使用假冒商标' },
+  patent: { label: '假冒专利', color: '#06b6d4', description: '假冒他人专利' },
   other: { label: '其他', color: '#6b7280', description: '其他违规内容' }
 };
 

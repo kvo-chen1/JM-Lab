@@ -2347,49 +2347,54 @@ export async function unbookmarkPost(id: string, userId: string): Promise<Post |
 // 获取作品评论列表
 export async function getWorkComments(workId: string): Promise<Comment[]> {
   console.log('[getWorkComments] Called with:', workId);
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
-  // 优先使用后端 API
-  if (token) {
-    try {
-      const response = await fetch(`/api/works/${workId}/comments`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+  // 直接使用 Supabase 获取评论
+  try {
+    const { data, error } = await supabase
+      .from('work_comments')
+      .select('*')
+      .eq('work_id', workId)
+      .order('created_at', { ascending: false });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.code === 0 && Array.isArray(result.data)) {
-          // 转换后端数据为 Comment 类型
-          return result.data.map((c: any) => ({
-            id: c.id.toString(),
-            content: c.content,
-            date: typeof c.created_at === 'string' ? c.created_at : new Date(c.created_at).toISOString(),
-            author: c.user?.username || '用户',
-            authorAvatar: c.user?.avatar_url || '',
-            likes: c.likes || 0,
-            reactions: {},
-            replies: [],
-            userId: c.user?.id,
-            userReactions: [],
-            parentId: c.parent_id,
-            images: c.images || []
-          }));
-        }
-      } else {
-        console.error('[getWorkComments] Backend API returned', response.status);
-        return [];
-      }
-    } catch (error) {
-      console.error('[getWorkComments] Backend API error:', error);
+    if (error) {
+      console.error('[getWorkComments] Supabase error:', error);
       return [];
     }
-  }
 
-  // 没有token，返回空数组
-  console.log('[getWorkComments] No token, returning empty array');
-  return [];
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    // 获取所有评论的用户信息
+    const userIds = [...new Set(data.map(c => c.user_id).filter(Boolean))];
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, username, avatar_url')
+      .in('id', userIds);
+
+    const userMap = new Map(users?.map(u => [u.id, u]) || []);
+
+    return data.map((c: any) => {
+      const user = userMap.get(c.user_id);
+      return {
+        id: c.id.toString(),
+        content: c.content,
+        date: typeof c.created_at === 'string' ? c.created_at : new Date(c.created_at).toISOString(),
+        author: user?.username || '用户',
+        authorAvatar: user?.avatar_url || '',
+        likes: c.likes_count || 0,
+        reactions: {},
+        replies: [],
+        userId: c.user_id,
+        userReactions: [],
+        parentId: c.parent_id,
+        images: c.images || []
+      };
+    });
+  } catch (error) {
+    console.error('[getWorkComments] Error:', error);
+    return [];
+  }
 }
 
 // 删除作品评论
@@ -2487,9 +2492,9 @@ async function uploadCommentImage(file: File, userId: string): Promise<string> {
 }
 
 export async function addComment(
-  postId: string, 
-  content: string, 
-  parentId?: string, 
+  postId: string,
+  content: string,
+  parentId?: string,
   user?: User,
   images?: File[]
 ): Promise<Post | undefined> {
@@ -2497,9 +2502,9 @@ export async function addComment(
     console.error('[addComment] No user provided');
     throw new Error('请先登录后再评论');
   }
-  
+
   console.log('[addComment] Called with:', { postId, content, userId: user.id, imageCount: images?.length });
-  
+
   // 上传图片（如果有）
   let imageUrls: string[] = [];
   if (images && images.length > 0) {
@@ -2513,77 +2518,33 @@ export async function addComment(
       throw new Error('图片上传失败: ' + error.message);
     }
   }
-  
-  // 首先尝试使用后端API添加评论
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  console.log('[addComment] Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'null');
-  
-  if (token) {
-    try {
-      console.log('[addComment] Sending request to backend API (posts)...');
-      let response = await fetch(`/api/posts/${postId}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          content: content,
-          parent_id: parentId || null,
-          images: imageUrls
-        })
-      });
-      
-      console.log('[addComment] Posts API response status:', response.status);
-      
-      // 如果 posts 端点失败，尝试 works 端点
-      if (!response.ok && response.status !== 401) {
-        console.log('[addComment] Posts API failed, trying works API...');
-        response = await fetch(`/api/works/${postId}/comments`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            content: content,
-            parent_id: parentId || null,
-            images: imageUrls
-          })
-        });
-        console.log('[addComment] Works API response status:', response.status);
-      }
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.code === 0) {
-          console.log('[addComment] Success via backend API:', result.data);
-          return { id: postId } as unknown as Post;
-        }
-      } else if (response.status === 401) {
-        console.warn('[addComment] Backend API returned 401 - token invalid or expired');
-        const errorText = await response.text();
-        console.warn('[addComment] 401 response body:', errorText);
-        throw new Error('请先登录后再评论');
-      } else {
-        // 后端API返回错误，获取错误信息
-        const errorText = await response.text();
-        console.error('[addComment] Backend API error:', response.status, errorText);
-        throw new Error('评论失败: ' + (errorText || '服务器错误'));
-      }
-    } catch (error: any) {
-      console.error('[addComment] Backend API error:', error);
-      // 如果已经抛出错误，直接抛出
-      if (error.message?.includes('请先登录') || error.message?.includes('评论失败')) {
-        throw error;
-      }
-      // 其他错误也抛出
-      throw new Error('评论失败: ' + (error.message || '网络错误'));
-    }
-  }
 
-  // 如果没有token，提示登录
-  throw new Error('请先登录后再评论');
+  // 直接使用 Supabase 添加评论
+  try {
+    const result = await supabase
+      .from('work_comments')
+      .insert({
+        work_id: postId,
+        user_id: user.id,
+        content: content.trim(),
+        parent_id: parentId || null,
+        likes_count: 0,
+        images: imageUrls,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+    if (result.error) {
+      console.error('[addComment] Supabase error:', result.error);
+      throw new Error('评论失败: ' + result.error.message);
+    }
+
+    console.log('[addComment] Success via Supabase');
+    return { id: postId } as unknown as Post;
+  } catch (error: any) {
+    console.error('[addComment] Supabase error:', error);
+    throw new Error('评论失败: ' + (error.message || '网络错误'));
+  }
 }
 
 
@@ -3396,17 +3357,16 @@ export async function replyToComment(postId: string, commentId: string, content:
       if (response.ok) {
         const result = await response.json();
         return result.code === 0;
-      } else if (response.status === 404) {
-        console.log('[replyToComment] Backend API returned 404, trying Supabase');
+      } else {
+        console.log(`[replyToComment] Backend API returned ${response.status}, trying Supabase`);
       }
     } catch (error) {
       console.warn('[replyToComment] Backend API error:', error);
     }
   }
 
-  // 回退到 Supabase - 尝试 work_comments 表
+  // 直接使用 Supabase 添加回复
   try {
-    // work_comments 表：work_id 和 user_id 都是 UUID，created_at 是数字时间戳
     const result = await supabase
       .from('work_comments')
       .insert({
@@ -3414,34 +3374,17 @@ export async function replyToComment(postId: string, commentId: string, content:
         user_id: userId,
         content: content.trim(),
         parent_id: commentId,
-        likes: 0,
-        created_at: Math.floor(Date.now() / 1000),
-        updated_at: Math.floor(Date.now() / 1000)
+        likes_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
     
     if (!result.error) {
       return true;
     }
     
-    console.log('[replyToComment] work_comments failed, trying comments table:', result.error);
-    
-    // 如果失败，尝试 comments 表
-    const result2 = await supabase
-      .from('comments')
-      .insert({
-        post_id: postId,
-        user_id: userId,
-        content: content.trim(),
-        parent_id: commentId,
-        created_at: new Date().toISOString()
-      });
-    
-    if (result2.error) {
-      console.error('[replyToComment] Supabase error:', result2.error);
-      return false;
-    }
-
-    return true;
+    console.error('[replyToComment] work_comments failed:', result.error);
+    return false;
   } catch (error) {
     console.error('[replyToComment] Error:', error);
     return false;
@@ -3734,6 +3677,185 @@ export async function recordView(itemId: string, type: 'works' | 'posts' = 'work
   return false;
 }
 
+// ==================== 广场推广集成 ====================
+
+// 推广作品接口
+export interface PromotedPost {
+  id: string;
+  work_type: 'normal' | 'promoted';
+  title: string;
+  thumbnail: string;
+  video_url?: string;
+  creator_id: string;
+  creator_username: string;
+  creator_avatar?: string;
+  views: number;
+  likes: number;
+  comments: number;
+  created_at: string;
+  is_promoted: boolean;
+  promoted_work_id?: string;
+  package_type?: string;
+  promotion_weight?: number;
+}
+
+/**
+ * 获取广场作品列表（包含推广作品）
+ * @param limit 每页数量
+ * @param offset 偏移量
+ * @param userId 当前用户ID（用于排除自己的推广）
+ */
+export async function getSquareWorksWithPromotion(
+  limit: number = 20,
+  offset: number = 0,
+  userId?: string
+): Promise<PromotedPost[]> {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_square_works_with_promotion', {
+        p_limit: limit,
+        p_offset: offset,
+        p_user_id: userId || null
+      });
+
+    if (error) {
+      console.warn('获取广场作品（含推广）失败:', error);
+      // 降级：返回普通作品
+      return [];
+    }
+
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      work_type: item.work_type,
+      title: item.title,
+      thumbnail: item.thumbnail,
+      video_url: item.video_url,
+      creator_id: item.creator_id,
+      creator_username: item.creator_username,
+      creator_avatar: item.creator_avatar,
+      views: item.views,
+      likes: item.likes,
+      comments: item.comments,
+      created_at: item.created_at,
+      is_promoted: item.is_promoted,
+      promoted_work_id: item.promoted_work_id,
+      package_type: item.package_type,
+      promotion_weight: item.promotion_weight
+    }));
+  } catch (err) {
+    console.error('获取广场作品（含推广）失败:', err);
+    return [];
+  }
+}
+
+/**
+ * 记录推广作品曝光（用户真正看到时调用）
+ * @param promotedWorkId 推广作品ID
+ * @param viewerId 观看者ID
+ */
+export async function recordPromotionView(
+  promotedWorkId: string,
+  viewerId?: string
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .rpc('record_promotion_view', {
+        p_promoted_work_id: promotedWorkId,
+        p_viewer_id: viewerId || null
+      });
+
+    if (error) {
+      console.warn('记录推广曝光失败:', error);
+      return false;
+    }
+
+    return data === true;
+  } catch (err) {
+    console.error('记录推广曝光失败:', err);
+    return false;
+  }
+}
+
+/**
+ * 记录推广作品点击
+ * @param promotedWorkId 推广作品ID
+ * @param viewerId 点击者ID
+ */
+export async function recordPromotionClick(
+  promotedWorkId: string,
+  viewerId?: string
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .rpc('record_promotion_click', {
+        p_promoted_work_id: promotedWorkId,
+        p_viewer_id: viewerId || null
+      });
+
+    if (error) {
+      console.warn('记录推广点击失败:', error);
+      return false;
+    }
+
+    return data === true;
+  } catch (err) {
+    console.error('记录推广点击失败:', err);
+    return false;
+  }
+}
+
+// 将 PromotedPost 转换为 Post 格式
+export function convertPromotedPostToPost(promotedPost: PromotedPost): Post {
+  return {
+    id: promotedPost.id,
+    title: promotedPost.title,
+    thumbnail: promotedPost.thumbnail,
+    videoUrl: promotedPost.video_url,
+    type: promotedPost.video_url ? 'video' : 'image',
+    likes: promotedPost.likes,
+    comments: [],
+    date: new Date(promotedPost.created_at).toISOString().split('T')[0],
+    author: {
+      id: promotedPost.creator_id,
+      username: promotedPost.creator_username,
+      email: '',
+      avatar: promotedPost.creator_avatar
+    },
+    isLiked: false,
+    isBookmarked: false,
+    category: 'other',
+    tags: promotedPost.is_promoted ? ['推广'] : [],
+    description: promotedPost.is_promoted ? '【推广作品】' : '',
+    views: promotedPost.views,
+    shares: 0,
+    isFeatured: promotedPost.is_promoted,
+    isDraft: false,
+    completionStatus: 'published',
+    creativeDirection: '',
+    culturalElements: [],
+    colorScheme: [],
+    toolsUsed: [],
+    publishType: 'explore',
+    communityId: null,
+    moderationStatus: 'approved',
+    rejectionReason: null,
+    scheduledPublishDate: null,
+    visibility: 'public',
+    commentCount: promotedPost.comments,
+    engagementRate: 0,
+    trendingScore: promotedPost.promotion_weight || 0,
+    reach: 0,
+    moderator: null,
+    reviewedAt: null,
+    recommendationScore: promotedPost.is_promoted ? 100 : 0,
+    recommendedFor: promotedPost.is_promoted ? ['推广'] : [],
+    // 扩展字段，用于标识推广
+    _isPromoted: promotedPost.is_promoted,
+    _promotedWorkId: promotedPost.promoted_work_id,
+    _packageType: promotedPost.package_type
+  } as Post & { _isPromoted?: boolean; _promotedWorkId?: string; _packageType?: string };
+}
+
 export default {
   getPosts,
   addPost,
@@ -3764,5 +3886,10 @@ export default {
   getUserCommunities,
   getPublishStats,
   getEngagementStats,
-  recordView
+  recordView,
+  // 广场推广集成
+  getSquareWorksWithPromotion,
+  recordPromotionView,
+  recordPromotionClick,
+  convertPromotedPostToPost
 };

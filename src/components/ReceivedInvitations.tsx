@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import Button from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';

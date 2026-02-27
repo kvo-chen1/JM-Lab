@@ -37,6 +37,7 @@ import {
   Award,
   Zap,
   ArrowRight,
+  MousePointer,
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
@@ -86,7 +87,7 @@ const tasks = [
 const HotPromotion: React.FC = () => {
   const { isDark } = useTheme();
   const { user } = useAuth();
-  const { stats, trendData, userWorks, coupons, wallet, loading, orders, refresh, createOrder, payOrder } = usePromotion();
+  const { stats, trendData, userWorks, coupons, wallet, loading, orders, promotedWorks, promotionSummary, refresh, createOrder, payOrder } = usePromotion();
   const { stats: creatorStats, works: creatorWorks, level, revenue } = useCreatorCenter();
   
   const [activeTab, setActiveTab] = useState<TabType>('home');
@@ -681,6 +682,34 @@ const HotPromotion: React.FC = () => {
         ))}
       </div>
 
+      {/* 推广效果概览卡片 */}
+      {promotionSummary && (
+        <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+          <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>推广效果概览</h3>
+          <div className="grid grid-cols-6 gap-4">
+            {[
+              { label: '活跃推广', value: promotionSummary.active_promotions || 0, icon: Target, color: 'blue' },
+              { label: '总曝光', value: formatNumber(promotionSummary.total_impressions || 0), icon: Eye, color: 'green' },
+              { label: '总点击', value: formatNumber(promotionSummary.total_clicks || 0), icon: MousePointer, color: 'purple' },
+              { label: '点击率', value: `${promotionSummary.avg_ctr || 0}%`, icon: TrendingUp, color: 'orange' },
+              { label: '今日曝光', value: formatNumber(promotionSummary.today_impressions || 0), icon: Zap, color: 'pink' },
+              { label: '今日点击', value: formatNumber(promotionSummary.today_clicks || 0), icon: MousePointer, color: 'cyan' },
+            ].map((stat, idx) => {
+              const Icon = stat.icon;
+              return (
+                <div key={idx} className={`p-3 rounded-lg ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                  <div className={`w-8 h-8 rounded-lg bg-${stat.color}-100 flex items-center justify-center mb-2`}>
+                    <Icon className={`w-4 h-4 text-${stat.color}-500`} />
+                  </div>
+                  <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{stat.value}</p>
+                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 数据卡片网格 - 使用真实数据 */}
       <div className="grid grid-cols-5 gap-4">
         {[
@@ -693,7 +722,7 @@ const HotPromotion: React.FC = () => {
           { label: '弹幕', value: '0', icon: MessageCircle },
           { label: '收藏', value: '0', icon: Bookmark },
           { label: '分享', value: formatNumber(creatorStats?.totalShares || 0), icon: Share2 },
-          { label: '曝光量', value: formatNumber(stats.totalViews * 3), icon: Eye },
+          { label: '曝光量', value: formatNumber(promotionSummary?.total_impressions || stats.totalViews * 3), icon: Eye },
         ].map((stat, idx) => {
           const Icon = stat.icon;
           return (
@@ -717,12 +746,78 @@ const HotPromotion: React.FC = () => {
         })}
       </div>
 
+      {/* 正在推广的作品列表 */}
+      {promotedWorks.length > 0 && (
+        <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
+          <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>正在推广的作品</h3>
+          <div className="space-y-4">
+            {promotedWorks.filter(pw => pw.status === 'active').map((pw) => (
+              <div key={pw.id} className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                <div className="flex items-center gap-4">
+                  {pw.workThumbnail ? (
+                    <img src={pw.workThumbnail} alt={pw.workTitle} className="w-20 h-14 rounded-lg object-cover" />
+                  ) : (
+                    <div className="w-20 h-14 rounded-lg bg-gradient-to-br from-pink-400 to-purple-500" />
+                  )}
+                  <div className="flex-1">
+                    <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{pw.workTitle}</p>
+                    <p className="text-sm text-gray-500">
+                      {pw.packageType === 'standard' ? '标准套餐' : pw.packageType === 'basic' ? '基础套餐' : '长效套餐'}
+                      · 目标曝光 {formatNumber(pw.targetViews)}
+                    </p>
+                    <div className="flex items-center gap-4 mt-2">
+                      <div className="flex-1">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>曝光进度</span>
+                          <span className="text-pink-500">{pw.targetViews > 0 ? Math.round((pw.actualViews / pw.targetViews) * 100) : 0}%</span>
+                        </div>
+                        <div className={`h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                          <div
+                            className="h-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 transition-all"
+                            style={{ width: `${pw.targetViews > 0 ? Math.min((pw.actualViews / pw.targetViews) * 100, 100) : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatNumber(pw.actualViews)}</p>
+                    <p className="text-xs text-gray-500">实际曝光</p>
+                    <p className="text-xs text-pink-500 mt-1">
+                      点击{pw.actualClicks} · 点击率{pw.actualViews > 0 ? ((pw.actualClicks / pw.actualViews) * 100).toFixed(2) : 0}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 趋势图表 - 使用真实趋势数据 */}
       <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm border ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
         <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>趋势分析</h3>
-        <div className="h-64 flex items-center justify-center">
-          <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>趋势图表数据加载中...</p>
-        </div>
+        {trendData.length > 0 ? (
+          <div className="h-64 flex items-end gap-2">
+            {trendData.map((point, idx) => {
+              const maxSpent = Math.max(...trendData.map(d => d.spent), 1);
+              const height = maxSpent > 0 ? (point.spent / maxSpent) * 100 : 0;
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+                  <div
+                    className="w-full bg-gradient-to-t from-pink-500 to-rose-400 rounded-t transition-all"
+                    style={{ height: `${Math.max(height, 5)}%` }}
+                  />
+                  <span className="text-xs text-gray-500">{point.date}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="h-64 flex items-center justify-center">
+            <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>暂无趋势数据</p>
+          </div>
+        )}
       </div>
     </div>
   );

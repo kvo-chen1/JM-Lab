@@ -8,6 +8,7 @@ export interface HistoryItem {
   title: string;
   description?: string;
   thumbnail?: string;
+  videoUrl?: string;
   url: string;
   viewedAt: number;
   creator?: {

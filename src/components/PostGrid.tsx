@@ -204,7 +204,27 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
         })()}
         
         {/* 渐变遮罩 - 从底部向上 */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        
+        {/* 作品描述悬浮层 - 玻璃态效果 */}
+        <div className="absolute inset-x-0 bottom-[72px] p-4 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-10">
+          {/* 描述内容容器 - 玻璃态背景 */}
+          <div className="relative overflow-hidden rounded-xl bg-white/10 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.3)] p-3.5">
+            {/* 顶部光效线条 */}
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+            
+            {/* 描述文字 */}
+            <p className="text-white/95 text-[13px] leading-relaxed line-clamp-3 font-light tracking-wide drop-shadow-sm">
+              {post.description || '暂无描述'}
+            </p>
+            
+            {/* 底部装饰 - 渐变色条 */}
+            <div className="mt-2.5 flex items-center gap-2">
+              <div className="flex-1 h-0.5 rounded-full bg-gradient-to-r from-blue-400/60 via-purple-400/60 to-pink-400/60" />
+              <span className="text-[10px] text-white/60 font-medium tracking-wider uppercase">Description</span>
+            </div>
+          </div>
+        </div>
         
         {/* 悬停操作按钮 - 从底部滑入 */}
         <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-3 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">

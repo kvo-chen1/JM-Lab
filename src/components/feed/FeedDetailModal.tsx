@@ -9,6 +9,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import type { FeedItem, FeedComment } from '@/types/feed';
 import feedService from '@/services/feedService';
+import { VideoPlayer } from './VideoPlayer';
 import {
   X,
   Heart,
@@ -22,7 +23,9 @@ import {
   Award,
   MapPin,
   ChevronLeft,
-  Play,
+  Edit2,
+  Trash2,
+  MoreHorizontal,
 } from 'lucide-react';
 
 interface FeedDetailModalProps {
@@ -99,11 +102,26 @@ export function FeedDetailModal({
   const [hasMoreComments, setHasMoreComments] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [localCommentsCount, setLocalCommentsCount] = useState(feed?.comments || 0);
   const commentsEndRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // 同步本地评论数与 feed 数据
+  useEffect(() => {
+    if (feed) {
+      setLocalCommentsCount(feed.comments);
+    }
+  }, [feed?.comments, feed?.id]);
 
   // 加载评论
   useEffect(() => {
     if (feed && isOpen) {
+      console.log('[FeedDetailModal] Loading comments for feed:', feed.id, 'title:', feed.title);
       loadComments(true);
     }
   }, [feed, isOpen]);
@@ -143,6 +161,7 @@ export function FeedDetailModal({
       const comment = await feedService.createComment(feed.id, newComment.trim(), undefined, currentUserId, currentUserName, currentUserAvatar);
       if (comment) {
         setComments(prev => [comment, ...prev]);
+        setLocalCommentsCount(prev => prev + 1);
         setNewComment('');
         toast.success('评论发布成功');
         // 通知父组件评论已添加
@@ -160,16 +179,125 @@ export function FeedDetailModal({
   // 点赞评论
   const handleLikeComment = async (commentId: string) => {
     try {
-      const result = await feedService.likeComment(commentId);
+      const result = await feedService.likeComment(commentId, currentUserId);
       if (result.success) {
         setComments(prev => prev.map(comment =>
           comment.id === commentId
-            ? { ...comment, isLiked: !comment.isLiked, likes: result.likes }
+            ? { ...comment, isLiked: result.isLiked, likes: result.likes }
             : comment
         ));
       }
     } catch (error) {
       toast.error('操作失败');
+    }
+  };
+
+  // 开始编辑评论
+  const handleStartEdit = (comment: FeedComment) => {
+    setEditingCommentId(comment.id);
+    setEditContent(comment.content);
+    setActiveMenuId(null);
+  };
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditContent('');
+  };
+
+  // 保存编辑
+  const handleSaveEdit = async (commentId: string) => {
+    if (!editContent.trim()) return;
+
+    try {
+      const result = await feedService.updateComment(commentId, editContent.trim(), currentUserId);
+      if (result.success && result.comment) {
+        setComments(prev => prev.map(comment =>
+          comment.id === commentId ? result.comment! : comment
+        ));
+        setEditingCommentId(null);
+        setEditContent('');
+        toast.success('评论已更新');
+      } else {
+        toast.error('更新失败，只能编辑自己的评论');
+      }
+    } catch (error) {
+      toast.error('更新失败');
+    }
+  };
+
+  // 删除评论
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      const result = await feedService.deleteComment(commentId, currentUserId);
+      if (result.success) {
+        setComments(prev => prev.filter(comment => comment.id !== commentId));
+        setLocalCommentsCount(prev => Math.max(0, prev - 1));
+        setActiveMenuId(null);
+        toast.success('评论已删除');
+        // 通知父组件评论已删除
+        onCommentAdded?.(feed?.id || '');
+      } else {
+        toast.error('删除失败，只能删除自己的评论');
+      }
+    } catch (error) {
+      toast.error('删除失败');
+    }
+  };
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setActiveMenuId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // 检查是否是当前用户的评论
+  const isOwnComment = (comment: FeedComment) => {
+    return currentUserId && comment.author.id === currentUserId;
+  };
+
+  // 开始回复评论
+  const handleStartReply = (commentId: string) => {
+    setReplyingToId(commentId);
+    setReplyContent('');
+  };
+
+  // 取消回复
+  const handleCancelReply = () => {
+    setReplyingToId(null);
+    setReplyContent('');
+  };
+
+  // 提交回复
+  const handleSubmitReply = async (parentId: string) => {
+    if (!feed || !replyContent.trim()) return;
+
+    try {
+      const comment = await feedService.createComment(
+        feed.id,
+        replyContent.trim(),
+        parentId,
+        currentUserId,
+        currentUserName,
+        currentUserAvatar
+      );
+      if (comment) {
+        setComments(prev => [comment, ...prev]);
+        setReplyingToId(null);
+        setReplyContent('');
+        toast.success('回复发布成功');
+        onCommentAdded?.(feed.id);
+      } else {
+        toast.error('回复发布失败，请检查是否已登录');
+      }
+    } catch (error) {
+      toast.error('回复发布失败');
     }
   };
 
@@ -309,18 +437,11 @@ export function FeedDetailModal({
                           }`}
                         >
                           {media.type === 'video' ? (
-                            <>
-                              <img
-                                src={media.thumbnailUrl}
-                                alt={`视频封面 ${index + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center">
-                                  <Play className="w-8 h-8 text-gray-900 ml-1" />
-                                </div>
-                              </div>
-                            </>
+                            <VideoPlayer
+                              src={media.url}
+                              thumbnailUrl={media.thumbnailUrl}
+                              className="w-full h-full"
+                            />
                           ) : (
                             <img
                               src={media.url}
@@ -360,7 +481,7 @@ export function FeedDetailModal({
                         }`}
                       >
                         <MessageCircle className="w-6 h-6" />
-                        <span className="font-medium">{formatNumber(feed.comments)}</span>
+                        <span className="font-medium">{formatNumber(localCommentsCount)}</span>
                       </button>
 
                       <button
@@ -397,7 +518,7 @@ export function FeedDetailModal({
                 {/* 评论列表 */}
                 <div className="flex-1 overflow-y-auto p-4">
                   <h3 className={`font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    评论 ({formatNumber(comments.length)})
+                    评论 ({formatNumber(localCommentsCount)})
                   </h3>
 
                   <div className="space-y-4">
@@ -409,39 +530,173 @@ export function FeedDetailModal({
                           className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-medium text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                              {comment.author.name}
-                            </span>
-                            <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-                              {formatTime(comment.createdAt)}
-                            </span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className={`font-medium text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                {comment.author.name}
+                              </span>
+                              <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+                                {formatTime(comment.createdAt)}
+                              </span>
+                            </div>
+                            {/* 更多操作菜单 */}
+                            {isOwnComment(comment) && (
+                              <div className="relative" ref={activeMenuId === comment.id ? menuRef : undefined}>
+                                <button
+                                  onClick={() => setActiveMenuId(activeMenuId === comment.id ? null : comment.id)}
+                                  className={`p-1 rounded transition-colors ${
+                                    isDark ? 'hover:bg-gray-800 text-gray-500' : 'hover:bg-gray-100 text-gray-400'
+                                  }`}
+                                >
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </button>
+                                {activeMenuId === comment.id && (
+                                  <div className={`absolute right-0 top-full mt-1 py-1 rounded-lg shadow-lg z-10 min-w-[100px] ${
+                                    isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100'
+                                  }`}>
+                                    <button
+                                      onClick={() => handleStartEdit(comment)}
+                                      className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 transition-colors ${
+                                        isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-50 text-gray-700'
+                                      }`}
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                      编辑
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteComment(comment.id)}
+                                      className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10`}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      删除
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <p className={`text-sm mt-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                            {comment.content}
-                          </p>
-                          <div className="flex items-center gap-4 mt-2">
-                            <button
-                              onClick={() => handleLikeComment(comment.id)}
-                              className={`flex items-center gap-1 text-xs transition-colors ${
-                                comment.isLiked
-                                  ? 'text-pink-500'
-                                  : isDark
-                                  ? 'text-gray-500 hover:text-pink-400'
-                                  : 'text-gray-500 hover:text-pink-500'
-                              }`}
-                            >
-                              <Heart className={`w-3.5 h-3.5 ${comment.isLiked ? 'fill-current' : ''}`} />
-                              {comment.likes > 0 && comment.likes}
-                            </button>
-                            <button className={`text-xs transition-colors ${
-                              isDark 
-                                ? 'text-gray-500 hover:text-blue-400' 
-                                : 'text-gray-500 hover:text-blue-500'
-                            }`}>
-                              回复
-                            </button>
-                          </div>
+                          {/* 编辑模式 */}
+                          {editingCommentId === comment.id ? (
+                            <div className="mt-2">
+                              <input
+                                type="text"
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSaveEdit(comment.id);
+                                  }
+                                  if (e.key === 'Escape') {
+                                    handleCancelEdit();
+                                  }
+                                }}
+                                className={`w-full px-3 py-2 text-sm rounded-lg outline-none transition-colors ${
+                                  isDark
+                                    ? 'bg-gray-800 text-white placeholder-gray-500 focus:bg-gray-750'
+                                    : 'bg-gray-100 text-gray-900 placeholder-gray-400 focus:bg-gray-50'
+                                }`}
+                                autoFocus
+                              />
+                              <div className="flex items-center gap-2 mt-2">
+                                <button
+                                  onClick={() => handleSaveEdit(comment.id)}
+                                  disabled={!editContent.trim()}
+                                  className={`px-3 py-1 text-xs rounded transition-colors ${
+                                    !editContent.trim()
+                                      ? isDark ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
+                                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                                  }`}
+                                >
+                                  保存
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className={`px-3 py-1 text-xs rounded transition-colors ${
+                                    isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
+                                  }`}
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className={`text-sm mt-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                {comment.content}
+                              </p>
+                              <div className="flex items-center gap-4 mt-2">
+                                <button
+                                  onClick={() => handleLikeComment(comment.id)}
+                                  className={`flex items-center gap-1 text-xs transition-colors ${
+                                    comment.isLiked
+                                      ? 'text-pink-500'
+                                      : isDark
+                                      ? 'text-gray-500 hover:text-pink-400'
+                                      : 'text-gray-500 hover:text-pink-500'
+                                  }`}
+                                >
+                                  <Heart className={`w-3.5 h-3.5 ${comment.isLiked ? 'fill-current' : ''}`} />
+                                  {comment.likes > 0 && comment.likes}
+                                </button>
+                                <button
+                                  onClick={() => handleStartReply(comment.id)}
+                                  className={`text-xs transition-colors ${
+                                    isDark
+                                      ? 'text-gray-500 hover:text-blue-400'
+                                      : 'text-gray-500 hover:text-blue-500'
+                                  }`}
+                                >
+                                  回复
+                                </button>
+                              </div>
+                              {/* 回复输入框 */}
+                              {replyingToId === comment.id && (
+                                <div className="mt-3 flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={replyContent}
+                                    onChange={(e) => setReplyContent(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSubmitReply(comment.id);
+                                      }
+                                      if (e.key === 'Escape') {
+                                        handleCancelReply();
+                                      }
+                                    }}
+                                    placeholder={`回复 ${comment.author.name}...`}
+                                    className={`flex-1 px-3 py-2 text-sm rounded-lg outline-none transition-colors ${
+                                      isDark
+                                        ? 'bg-gray-800 text-white placeholder-gray-500 focus:bg-gray-750'
+                                        : 'bg-gray-100 text-gray-900 placeholder-gray-400 focus:bg-gray-50'
+                                    }`}
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleSubmitReply(comment.id)}
+                                    disabled={!replyContent.trim()}
+                                    className={`px-3 py-2 rounded-lg transition-colors ${
+                                      !replyContent.trim()
+                                        ? isDark ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
+                                        : 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10'
+                                    }`}
+                                  >
+                                    <Send className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={handleCancelReply}
+                                    className={`px-3 py-2 rounded-lg transition-colors ${
+                                      isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}

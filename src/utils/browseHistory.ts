@@ -75,7 +75,8 @@ export const trackWorkView = (work: {
     mediaType: work.mediaType || (work.videoUrl ? 'video' : 'image'),
     title: work.title,
     description: work.description,
-    thumbnail: work.thumbnail || work.videoUrl,
+    thumbnail: work.thumbnail,
+    videoUrl: work.videoUrl,
     url: `/work/${work.id}`,
     creator: work.creator
   });
@@ -95,7 +96,8 @@ export const trackTemplateView = (template: {
     mediaType: template.mediaType || (template.videoUrl ? 'video' : 'image'),
     title: template.name,
     description: template.description,
-    thumbnail: template.previewUrl || template.videoUrl,
+    thumbnail: template.previewUrl,
+    videoUrl: template.videoUrl,
     url: `/template/${template.id}`,
     creator: template.creator
   });
@@ -115,7 +117,8 @@ export const trackPostView = (post: {
     mediaType: post.mediaType || (post.videoUrl ? 'video' : 'image'),
     title: post.title,
     description: post.content?.substring(0, 100),
-    thumbnail: post.thumbnail || post.videoUrl,
+    thumbnail: post.thumbnail,
+    videoUrl: post.videoUrl,
     url: `/community/post/${post.id}`,
     creator: post.creator
   });

@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import Button from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';

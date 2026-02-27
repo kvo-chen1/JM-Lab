@@ -3260,6 +3260,78 @@ ${description}
       return { success: false, error: error instanceof Error ? error.message : '提示词分析失败' };
     }
   }
+
+  /**
+   * 优化作品描述
+   * 使用千问API优化设计作品的描述文案
+   * @param title 作品标题
+   * @param description 原始描述
+   * @param brandName 品牌名称
+   * @param culturalElements 文化元素
+   * @returns 优化后的描述
+   */
+  async optimizeWorkDescription(
+    title: string,
+    description: string,
+    brandName?: string,
+    culturalElements?: string[]
+  ): Promise<{
+    success: boolean;
+    optimized?: string;
+    error?: string;
+  }> {
+    try {
+      console.log('[LLM] Optimizing work description for:', title);
+
+      const prompt = `请优化以下设计作品的描述文案，使其更加专业、有吸引力，同时保持原有的核心内容。
+
+作品标题: ${title}
+品牌名称: ${brandName || '未指定'}
+文化元素: ${culturalElements?.join(', ') || '未指定'}
+
+原始描述:
+${description}
+
+请生成一个优化后的描述，要求:
+1. 语言流畅、专业
+2. 突出设计亮点和创意理念
+3. 体现文化元素和品牌特色
+4. 控制在200-300字左右
+5. 适合用于设计比赛的作品提交
+
+直接返回优化后的描述文本，不要包含任何解释或标记。`;
+
+      const response = await fetch('/api/qwen/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          temperature: 0.7,
+          max_tokens: 800
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[LLM] Optimize description failed:', errorData);
+        return { success: false, error: errorData.error || '优化失败' };
+      }
+
+      const result = await response.json();
+
+      if (result.ok && result.data?.response) {
+        return {
+          success: true,
+          optimized: result.data.response.trim()
+        };
+      }
+
+      return { success: false, error: '优化结果解析失败' };
+    } catch (error) {
+      console.error('[LLM] Optimize description error:', error);
+      return { success: false, error: error instanceof Error ? error.message : '优化失败' };
+    }
+  }
 }
 
 // 导出LLM服务实例

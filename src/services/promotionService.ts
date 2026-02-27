@@ -87,6 +87,59 @@ export interface PromotionWallet {
   totalSpent: number;
 }
 
+// 推广作品接口
+export interface PromotedWork {
+  id: string;
+  orderId: string;
+  workId: string;
+  userId: string;
+  packageType: 'standard' | 'basic' | 'long' | 'custom';
+  targetType: string;
+  metricType: string;
+  startTime: string;
+  endTime: string;
+  targetViews: number;
+  actualViews: number;
+  targetClicks: number;
+  actualClicks: number;
+  promotionWeight: number;
+  priorityScore: number;
+  displayPosition: number;
+  isFeatured: boolean;
+  status: 'active' | 'paused' | 'completed' | 'expired';
+  dailyViews: number;
+  dailyClicks: number;
+  workTitle: string;
+  workThumbnail: string;
+  finalPrice: number;
+  orderNo: string;
+}
+
+// 推广摘要接口
+export interface PromotionSummary {
+  active_promotions: number;
+  total_impressions: number;
+  total_clicks: number;
+  avg_ctr: number;
+  total_spent: number;
+  today_impressions: number;
+  today_clicks: number;
+}
+
+// 活跃推广作品接口（用于广场展示）
+export interface ActivePromotedWork {
+  promotedWorkId: string;
+  orderId: string;
+  workId: string;
+  userId: string;
+  promotionWeight: number;
+  priorityScore: number;
+  displayPosition: number;
+  isFeatured: boolean;
+  packageType: 'standard' | 'basic' | 'long' | 'custom';
+  remainingHours: number;
+}
+
 class PromotionService {
   /**
    * 获取用户的推广订单列表
@@ -127,7 +180,7 @@ class PromotionService {
         actualViews: order.actual_views || 0,
         status: order.status,
         createdAt: order.created_at,
-        paidAt: order.paid_at,
+        paidAt: order.payment_time,
         startAt: order.start_at,
         endAt: order.end_at,
       }));
@@ -509,10 +562,143 @@ class PromotionService {
           .eq('id', couponId);
       }
 
+      // 注意：支付成功后不自动激活推广，需要管理员人工审核
+      // 订单状态保持为 'paid'，等待管理员审核后激活
+
       return true;
     } catch (err) {
       console.error('支付订单失败:', err);
       return false;
+    }
+  }
+
+  /**
+   * 激活推广订单（支付后调用）
+   */
+  async activatePromotion(orderId: string): Promise<string | null> {
+    try {
+      const { data, error } = await supabase
+        .rpc('activate_promotion_order', {
+          p_order_id: orderId,
+          p_start_time: new Date().toISOString(),
+        });
+
+      if (error) {
+        console.error('激活推广失败:', error);
+        return null;
+      }
+
+      return data;
+    } catch (err) {
+      console.error('激活推广失败:', err);
+      return null;
+    }
+  }
+
+  /**
+   * 获取用户的推广作品列表（正在推广中）
+   */
+  async getUserPromotedWorks(userId: string): Promise<PromotedWork[]> {
+    try {
+      const { data, error } = await supabase
+        .from('promoted_works')
+        .select(`
+          *,
+          promotion_orders!inner(work_title, work_thumbnail, final_price, order_no)
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('获取推广作品失败:', error);
+        return [];
+      }
+
+      return (data || []).map(pw => ({
+        id: pw.id,
+        orderId: pw.order_id,
+        workId: pw.work_id,
+        userId: pw.user_id,
+        packageType: pw.package_type,
+        targetType: pw.target_type,
+        metricType: pw.metric_type,
+        startTime: pw.start_time,
+        endTime: pw.end_time,
+        targetViews: pw.target_views,
+        actualViews: pw.actual_views,
+        targetClicks: pw.target_clicks,
+        actualClicks: pw.actual_clicks,
+        promotionWeight: pw.promotion_weight,
+        priorityScore: pw.priority_score,
+        displayPosition: pw.display_position,
+        isFeatured: pw.is_featured,
+        status: pw.status,
+        dailyViews: pw.daily_views,
+        dailyClicks: pw.daily_clicks,
+        workTitle: pw.promotion_orders?.work_title || '',
+        workThumbnail: pw.promotion_orders?.work_thumbnail || '',
+        finalPrice: pw.promotion_orders?.final_price || 0,
+        orderNo: pw.promotion_orders?.order_no || '',
+      }));
+    } catch (err) {
+      console.error('获取推广作品失败:', err);
+      return [];
+    }
+  }
+
+  /**
+   * 获取推广效果摘要
+   */
+  async getPromotionSummary(userId: string): Promise<PromotionSummary | null> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_promotion_summary', {
+          p_user_id: userId,
+        });
+
+      if (error) {
+        console.warn('获取推广摘要失败:', error);
+        return null;
+      }
+
+      return data;
+    } catch (err) {
+      console.error('获取推广摘要失败:', err);
+      return null;
+    }
+  }
+
+  /**
+   * 获取活跃推广作品（用于广场展示）
+   */
+  async getActivePromotedWorks(limit: number = 10, offset: number = 0): Promise<ActivePromotedWork[]> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_active_promoted_works', {
+          p_limit: limit,
+          p_offset: offset,
+        });
+
+      if (error) {
+        console.warn('获取活跃推广作品失败:', error);
+        return [];
+      }
+
+      return (data || []).map((pw: any) => ({
+        promotedWorkId: pw.promoted_work_id,
+        orderId: pw.order_id,
+        workId: pw.work_id,
+        userId: pw.user_id,
+        promotionWeight: pw.promotion_weight,
+        priorityScore: pw.priority_score,
+        displayPosition: pw.display_position,
+        isFeatured: pw.is_featured,
+        packageType: pw.package_type,
+        remainingHours: pw.remaining_hours,
+      }));
+    } catch (err) {
+      console.error('获取活跃推广作品失败:', err);
+      return [];
     }
   }
 
@@ -591,6 +777,486 @@ class PromotionService {
       totalRecharged: 0,
       totalSpent: 0,
     };
+  }
+
+  // ==================== 管理员功能 ====================
+
+  /**
+   * 获取所有推广订单（管理员用）
+   */
+  async getAllOrders(status?: string): Promise<PromotionOrder[]> {
+    try {
+      let query = supabase
+        .from('promotion_orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.warn('获取所有推广订单失败:', error);
+        return [];
+      }
+
+      return (data || []).map(order => ({
+        id: order.id,
+        userId: order.user_id,
+        workId: order.work_id,
+        workTitle: order.work_title,
+        workThumbnail: order.work_thumbnail,
+        packageType: order.package_type,
+        packageName: order.package_name,
+        targetType: order.target_type,
+        boostMetric: order.metric_type,
+        price: order.original_price,
+        discountAmount: order.discount_amount,
+        finalPrice: order.final_price,
+        expectedViews: order.expected_views,
+        actualViews: order.actual_views || 0,
+        status: order.status,
+        createdAt: order.created_at,
+        paidAt: order.payment_time,
+        startAt: order.start_at,
+        endAt: order.end_at,
+      }));
+    } catch (err) {
+      console.error('获取所有推广订单失败:', err);
+      return [];
+    }
+  }
+
+  /**
+   * 审核推广订单
+   * @param orderId 订单ID
+   * @param approved 是否通过
+   * @param notes 审核备注
+   */
+  async auditOrder(orderId: string, approved: boolean, notes?: string): Promise<boolean> {
+    try {
+      // 使用数据库函数进行审核
+      const { data, error } = await supabase
+        .rpc('audit_promotion_order', {
+          p_order_id: orderId,
+          p_approved: approved,
+          p_notes: notes || ''
+        });
+
+      if (error) {
+        console.error('审核订单失败:', error);
+        return false;
+      }
+
+      return data === true;
+    } catch (err) {
+      console.error('审核订单失败:', err);
+      return false;
+    }
+  }
+
+  /**
+   * 创建推广作品记录（审核通过后调用）
+   */
+  private async createPromotedWork(orderId: string): Promise<boolean> {
+    try {
+      // 获取订单信息
+      const { data: order, error: orderError } = await supabase
+        .from('promotion_orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError || !order) {
+        console.error('获取订单信息失败:', orderError);
+        return false;
+      }
+
+      // 计算推广时长（根据套餐类型）
+      const durationHours = this.getPackageDuration(order.package_type);
+      const startTime = new Date();
+      const endTime = new Date(startTime.getTime() + durationHours * 60 * 60 * 1000);
+
+      // 计算目标曝光量
+      const targetViews = this.getPackageTargetViews(order.package_type);
+
+      // 创建推广作品记录
+      const { error } = await supabase
+        .from('promoted_works')
+        .insert({
+          order_id: orderId,
+          work_id: order.work_id,
+          user_id: order.user_id,
+          package_type: order.package_type,
+          target_type: order.target_type || 'account',
+          metric_type: order.metric_type || 'views',
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+          target_views: targetViews,
+          actual_views: 0,
+          target_clicks: Math.floor(targetViews * 0.05), // 假设5%点击率
+          actual_clicks: 0,
+          promotion_weight: this.getPackageWeight(order.package_type),
+          priority_score: 0,
+          display_position: 0,
+          is_featured: order.package_type === 'long' || order.package_type === 'custom',
+          status: 'active',
+          daily_views: 0,
+          daily_clicks: 0,
+          total_cost: 0,
+        });
+
+      if (error) {
+        console.error('创建推广作品记录失败:', error);
+        return false;
+      }
+
+      // 更新订单状态为推广中
+      await supabase
+        .from('promotion_orders')
+        .update({
+          status: 'running',
+          start_at: startTime.toISOString(),
+          end_at: endTime.toISOString(),
+        })
+        .eq('id', orderId);
+
+      return true;
+    } catch (err) {
+      console.error('创建推广作品记录失败:', err);
+      return false;
+    }
+  }
+
+  /**
+   * 获取套餐时长（小时）
+   */
+  private getPackageDuration(packageType: string): number {
+    const durations: Record<string, number> = {
+      standard: 24,
+      basic: 24,
+      long: 48,
+      custom: 72,
+    };
+    return durations[packageType] || 24;
+  }
+
+  /**
+   * 获取套餐目标曝光量
+   */
+  private getPackageTargetViews(packageType: string): number {
+    const views: Record<string, number> = {
+      standard: 1000,
+      basic: 2500,
+      long: 7500,
+      custom: 15000,
+    };
+    return views[packageType] || 1000;
+  }
+
+  /**
+   * 获取套餐权重
+   */
+  private getPackageWeight(packageType: string): number {
+    const weights: Record<string, number> = {
+      standard: 1.0,
+      basic: 1.5,
+      long: 2.0,
+      custom: 3.0,
+    };
+    return weights[packageType] || 1.0;
+  }
+
+  /**
+   * 获取所有推广作品（管理员用）
+   */
+  async getAllPromotedWorks(status?: string): Promise<PromotedWork[]> {
+    try {
+      // 首先检查表是否存在
+      const { data: testData, error: testError } = await supabase
+        .from('promoted_works')
+        .select('count')
+        .limit(1);
+      
+      if (testError) {
+        console.warn('promoted_works 表可能不存在:', testError);
+        return [];
+      }
+
+      let query = supabase
+        .from('promoted_works')
+        .select(`
+          *,
+          promotion_orders(work_title, work_thumbnail, final_price, order_no, user_id)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.warn('获取所有推广作品失败:', error);
+        return [];
+      }
+
+      return (data || []).map(pw => ({
+        id: pw.id,
+        orderId: pw.order_id,
+        workId: pw.work_id,
+        userId: pw.user_id,
+        packageType: pw.package_type,
+        targetType: pw.target_type,
+        metricType: pw.metric_type,
+        startTime: pw.start_time,
+        endTime: pw.end_time,
+        targetViews: pw.target_views,
+        actualViews: pw.actual_views,
+        targetClicks: pw.target_clicks,
+        actualClicks: pw.actual_clicks,
+        promotionWeight: pw.promotion_weight,
+        priorityScore: pw.priority_score,
+        displayPosition: pw.display_position,
+        isFeatured: pw.is_featured,
+        status: pw.status,
+        dailyViews: pw.daily_views,
+        dailyClicks: pw.daily_clicks,
+        workTitle: pw.promotion_orders?.work_title || '',
+        workThumbnail: pw.promotion_orders?.work_thumbnail || '',
+        finalPrice: pw.promotion_orders?.final_price || 0,
+        orderNo: pw.promotion_orders?.order_no || '',
+      }));
+    } catch (err) {
+      console.error('获取所有推广作品失败:', err);
+      return [];
+    }
+  }
+
+  /**
+   * 获取推广作品的每日统计数据
+   */
+  async getPromotedWorkDailyStats(promotedWorkId: string, days: number = 7): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('promotion_daily_stats')
+        .select('*')
+        .eq('promoted_work_id', promotedWorkId)
+        .order('date', { ascending: false })
+        .limit(days);
+
+      if (error) {
+        console.warn('获取推广作品每日统计失败:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('获取推广作品每日统计失败:', err);
+      return [];
+    }
+  }
+
+  /**
+   * 模拟增加曝光量（用于测试）
+   */
+  async simulateImpression(promotedWorkId: string): Promise<boolean> {
+    try {
+      // 获取当前数据
+      const { data: pw, error: pwError } = await supabase
+        .from('promoted_works')
+        .select('*')
+        .eq('id', promotedWorkId)
+        .single();
+
+      if (pwError || !pw) {
+        console.error('获取推广作品失败:', pwError);
+        return false;
+      }
+
+      // 随机决定是否点击（5%概率）
+      const isClicked = Math.random() < 0.05;
+
+      // 更新推广作品数据
+      const { error } = await supabase
+        .from('promoted_works')
+        .update({
+          actual_views: (pw.actual_views || 0) + 1,
+          actual_clicks: (pw.actual_clicks || 0) + (isClicked ? 1 : 0),
+          daily_views: (pw.daily_views || 0) + 1,
+          daily_clicks: (pw.daily_clicks || 0) + (isClicked ? 1 : 0),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', promotedWorkId);
+
+      if (error) {
+        console.error('更新曝光量失败:', error);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error('模拟曝光失败:', err);
+      return false;
+    }
+  }
+
+  // ==================== 曝光机制 API ====================
+
+  /**
+   * 增加推广作品的曝光量
+   * @param workId 推广作品ID
+   * @param viewCount 增加的曝光数，默认1
+   */
+  async incrementViews(workId: string, viewCount: number = 1): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .rpc('increment_promotion_views', {
+          p_work_id: workId,
+          p_view_count: viewCount
+        });
+
+      if (error) {
+        console.error('增加曝光量失败:', error);
+        return false;
+      }
+
+      return data === true;
+    } catch (err) {
+      console.error('增加曝光量失败:', err);
+      return false;
+    }
+  }
+
+  /**
+   * 增加推广作品的点击量
+   * @param workId 推广作品ID
+   * @param clickCount 增加的点击数，默认1
+   */
+  async incrementClicks(workId: string, clickCount: number = 1): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .rpc('increment_promotion_clicks', {
+          p_work_id: workId,
+          p_click_count: clickCount
+        });
+
+      if (error) {
+        console.error('增加点击量失败:', error);
+        return false;
+      }
+
+      return data === true;
+    } catch (err) {
+      console.error('增加点击量失败:', err);
+      return false;
+    }
+  }
+
+  /**
+   * 模拟推广曝光（为所有活跃推广增加曝光）
+   * 管理员手动触发或定时任务调用
+   */
+  async simulatePromotionExposure(): Promise<Array<{workId: string; workTitle: string; viewsAdded: number; clicksAdded: number}>> {
+    try {
+      const { data, error } = await supabase
+        .rpc('simulate_promotion_exposure');
+
+      if (error) {
+        console.error('模拟推广曝光失败:', error);
+        return [];
+      }
+
+      return (data || []).map((item: any) => ({
+        workId: item.work_id,
+        workTitle: item.work_title,
+        viewsAdded: item.views_added,
+        clicksAdded: item.clicks_added
+      }));
+    } catch (err) {
+      console.error('模拟推广曝光失败:', err);
+      return [];
+    }
+  }
+
+  /**
+   * 自动曝光任务 - 为活跃推广批量增加曝光
+   * 前端定时调用此方法来模拟真实曝光
+   */
+  async autoExposureBatch(): Promise<{
+    processed: number;
+    totalViewsAdded: number;
+    totalClicksAdded: number;
+  }> {
+    try {
+      // 获取所有活跃推广
+      const { data: activeWorks, error } = await supabase
+        .from('promoted_works')
+        .select('id, actual_views, target_views, order_id')
+        .eq('status', 'active')
+        .gt('end_time', new Date().toISOString());
+
+      if (error || !activeWorks || activeWorks.length === 0) {
+        return { processed: 0, totalViewsAdded: 0, totalClicksAdded: 0 };
+      }
+
+      let totalViews = 0;
+      let totalClicks = 0;
+
+      // 为每个活跃推广增加曝光
+      for (const work of activeWorks) {
+        // 计算剩余需要曝光的数量
+        const remainingViews = Math.max(0, (work.target_views || 1000) - (work.actual_views || 0));
+        
+        if (remainingViews <= 0) continue;
+
+        // 随机增加 1-10 次曝光
+        const viewsToAdd = Math.min(remainingViews, Math.floor(Math.random() * 10) + 1);
+        
+        // 点击率 1%-5%
+        const ctr = 0.01 + Math.random() * 0.04;
+        const clicksToAdd = Math.max(0, Math.round(viewsToAdd * ctr));
+
+        // 更新数据库
+        const { error: updateError } = await supabase
+          .from('promoted_works')
+          .update({
+            actual_views: (work.actual_views || 0) + viewsToAdd,
+            actual_clicks: (work.actual_clicks || 0) + clicksToAdd,
+            updated_at: new Date().toISOString(),
+            // 如果达到目标，自动完成
+            status: (work.actual_views || 0) + viewsToAdd >= (work.target_views || 1000) ? 'completed' : 'active',
+            end_time: (work.actual_views || 0) + viewsToAdd >= (work.target_views || 1000) ? new Date().toISOString() : undefined
+          })
+          .eq('id', work.id);
+
+        if (!updateError) {
+          totalViews += viewsToAdd;
+          totalClicks += clicksToAdd;
+
+          // 同时更新订单表
+          await supabase
+            .from('promotion_orders')
+            .update({
+              actual_views: (work.actual_views || 0) + viewsToAdd,
+              actual_clicks: (work.actual_clicks || 0) + clicksToAdd
+            })
+            .eq('id', work.order_id);
+        }
+      }
+
+      return {
+        processed: activeWorks.length,
+        totalViewsAdded: totalViews,
+        totalClicksAdded: totalClicks
+      };
+    } catch (err) {
+      console.error('自动曝光批处理失败:', err);
+      return { processed: 0, totalViewsAdded: 0, totalClicksAdded: 0 };
+    }
   }
 }
 

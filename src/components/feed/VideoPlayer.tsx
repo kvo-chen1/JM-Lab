@@ -110,7 +110,7 @@ export function VideoPlayer({ src, thumbnailUrl, duration, className = '' }: Vid
         ref={videoRef}
         src={src}
         poster={thumbnailUrl}
-        className="w-full h-full object-cover"
+        className="w-full h-full object-contain"
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onTimeUpdate={handleTimeUpdate}
@@ -129,7 +129,7 @@ export function VideoPlayer({ src, thumbnailUrl, duration, className = '' }: Vid
           <img
             src={thumbnailUrl}
             alt="视频封面"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
           <div className="absolute inset-0 flex items-center justify-center bg-black/30">
             <div className="w-10 h-10 border-2 border-white/30 border-t-white rounded-full animate-spin" />

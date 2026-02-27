@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import Button from '@/components/ui/Button';
 import {
   Dialog,
   DialogContent,

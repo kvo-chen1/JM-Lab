@@ -277,7 +277,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
             title: postData.title || '未命名作品',
             description: postData.content?.substring(0, 100),
             thumbnail: postData.thumbnail || postData.coverImage,
-            videoUrl: isVideo ? (postData.thumbnail || postData.coverImage) : undefined,
+            videoUrl: isVideo ? postData.videoUrl : undefined,
             mediaType: isVideo ? 'video' : 'image',
             creator: postData.creator ? {
               id: postData.creator.id || '',
@@ -729,7 +729,11 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
   const handleSendReply = async () => {
     if (!post?.id || !replyToComment || !replyText.trim() || !currentUser?.id) return;
     try {
-      await postsApi.replyToComment(post.id, replyToComment.id, replyText, currentUser.id);
+      const success = await postsApi.replyToComment(post.id, replyToComment.id, replyText, currentUser.id);
+      if (!success) {
+        toast.error('回复发送失败，请稍后重试');
+        return;
+      }
       setReplyText('');
       setReplyToComment(null);
       toast.success('回复发送成功！');

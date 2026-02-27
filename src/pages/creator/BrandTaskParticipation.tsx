@@ -253,6 +253,7 @@ interface TaskDetailModalProps {
 
 function TaskDetailModal({ task, isOpen, onClose, onApply, participationStatus, mySubmissions = [] }: TaskDetailModalProps) {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
 
   if (!isOpen || !task) return null;
 

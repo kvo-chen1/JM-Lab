@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   DollarSign, 
@@ -21,13 +21,25 @@ import {
   Building2,
   Users,
   PiggyBank,
-  Target
+  Target,
+  TrendingUp
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
-import { useCreatorCenter } from '@/hooks/useCreatorCenter';
+import { useCreatorCenter, RevenueRecord } from '@/hooks/useCreatorCenter';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import BrandTaskParticipation from '@/pages/creator/BrandTaskParticipation';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Dot
+} from 'recharts';
 
 // 格式化金额
 const formatCurrency = (amount: number): string => {
@@ -123,6 +135,178 @@ const taskFilters = [
 
 const MIN_FOLLOWERS_FOR_TASKS = 2; // 最低粉丝数要求
 
+// 根据收入记录生成近30天收益数据
+const generateRevenueDataFromRecords = (records: RevenueRecord[]) => {
+  const data = [];
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+  
+  // 创建日期到收益的映射（只统计收入，不包括提现）
+  const dailyRevenue: Record<string, number> = {};
+  
+  records.forEach(record => {
+    // 只统计收入类型的记录（排除提现）
+    if (record.type === 'withdrawal' || record.status === 'cancelled') {
+      return;
+    }
+    
+    const recordDate = new Date(record.createdAt);
+    // 只统计近30天的记录
+    if (recordDate >= thirtyDaysAgo && recordDate <= today) {
+      const dateKey = recordDate.toISOString().split('T')[0];
+      dailyRevenue[dateKey] = (dailyRevenue[dateKey] || 0) + record.amount;
+    }
+  });
+  
+  // 生成近30天的数据（包括没有收益的日期）
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateKey = date.toISOString().split('T')[0];
+    data.push({
+      date: dateKey,
+      amount: dailyRevenue[dateKey] || 0,
+    });
+  }
+  
+  return data;
+};
+
+// 收益趋势图表组件
+const RevenueChart: React.FC<{ data: { date: string; amount: number }[] }> = ({ data }) => {
+  const { isDark } = useTheme();
+  
+  const [hoveredData, setHoveredData] = useState<{ date: string; amount: number } | null>(null);
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const value = payload[0].value;
+      const date = new Date(label);
+      const formattedDate = date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).replace(/\//g, '/');
+      
+      return (
+        <div className={`p-3 rounded-xl border shadow-lg ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+          <p className={`text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{formattedDate}</p>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+            <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>总收益（元）：</span>
+            <span className="text-lg font-bold text-rose-500">{value}</span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const CustomDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    if (hoveredData && hoveredData.date === payload.date) {
+      return (
+        <Dot
+          cx={cx}
+          cy={cy}
+          r={6}
+          fill="#fff"
+          stroke="#ec4899"
+          strokeWidth={3}
+        />
+      );
+    }
+    return null;
+  };
+
+  const formatXAxis = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).replace(/\//g, '/');
+  };
+
+  return (
+    <div className={`p-6 rounded-2xl ${isDark ? 'bg-gray-800/80' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700/50' : 'border-gray-100'}`}>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <TrendingUp className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+          <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>近30天总收益（元）</h3>
+        </div>
+        <button className={`text-sm flex items-center gap-1 transition-colors ${isDark ? 'text-rose-400 hover:text-rose-300' : 'text-rose-500 hover:text-rose-600'}`}>
+          查看收益明细
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+      
+      <div className="h-[280px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={data}
+            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+            onMouseMove={(e: any) => {
+              if (e.activePayload && e.activePayload[0]) {
+                setHoveredData(e.activePayload[0].payload);
+              }
+            }}
+            onMouseLeave={() => setHoveredData(null)}
+          >
+            <defs>
+              <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid 
+              strokeDasharray="3 3" 
+              vertical={true}
+              horizontal={true}
+              stroke={isDark ? '#374151' : '#E5E7EB'}
+            />
+            <XAxis
+              dataKey="date"
+              tickFormatter={formatXAxis}
+              stroke={isDark ? '#6B7280' : '#9CA3AF'}
+              tick={{ fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+              interval={4}
+            />
+            <YAxis
+              stroke={isDark ? '#6B7280' : '#9CA3AF'}
+              tick={{ fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+              domain={[0, 'auto']}
+              allowDecimals={false}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            {hoveredData && (
+              <ReferenceLine
+                x={hoveredData.date}
+                stroke="#ec4899"
+                strokeDasharray="3 3"
+              />
+            )}
+            <Line
+              type="monotone"
+              dataKey="amount"
+              stroke="#ec4899"
+              strokeWidth={2}
+              dot={<CustomDot />}
+              activeDot={{ r: 6, fill: '#fff', stroke: '#ec4899', strokeWidth: 3 }}
+              fill="url(#revenueGradient)"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
 const MonetizationCenter: React.FC = () => {
   const { isDark } = useTheme();
   const { revenue, stats, businessTasks, taskApplications, revenueRecords, loading, applyForTask, createWithdrawal } = useCreatorCenter();
@@ -133,6 +317,9 @@ const MonetizationCenter: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAmount, setShowAmount] = useState(true);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  // 根据真实收入记录生成近30天收益数据
+  const revenueData = useMemo(() => generateRevenueDataFromRecords(revenueRecords), [revenueRecords]);
 
   // 获取粉丝数
   const followersCount = stats?.followersCount || 0;
@@ -380,6 +567,9 @@ const MonetizationCenter: React.FC = () => {
           );
         })}
       </div>
+
+      {/* 近30天收益趋势图 */}
+      <RevenueChart data={revenueData} />
 
       {/* 标签页 */}
       <div className={`rounded-3xl ${isDark ? 'bg-gray-800/80' : 'bg-white'} shadow-xl border ${

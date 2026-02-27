@@ -468,28 +468,25 @@ class AdminService {
       startDate.setDate(startDate.getDate() - days + 1);
       startDate.setHours(0, 0, 0, 0);
 
-      // 批量获取数据
+      // 批量获取数据（不过滤日期，在内存中过滤以处理数字时间戳）
       let rawData: any[] = [];
       
       if (metric === 'users') {
         const { data } = await supabaseAdmin
           .from('users')
           .select('created_at')
-          .gte('created_at', startDate.toISOString())
           .order('created_at', { ascending: true });
         rawData = data || [];
       } else if (metric === 'works') {
         const { data } = await supabaseAdmin
           .from('works')
           .select('created_at, views, likes')
-          .gte('created_at', startDate.toISOString())
           .order('created_at', { ascending: true });
         rawData = data || [];
       } else if (metric === 'views' || metric === 'likes') {
         const { data } = await supabaseAdmin
           .from('works')
           .select('created_at, views, likes')
-          .gte('created_at', startDate.toISOString())
           .order('created_at', { ascending: true });
         rawData = data || [];
       }
@@ -505,21 +502,54 @@ class AdminService {
         dateMap.set(dateStr, 0);
       }
 
-      // 统计每天的数据
-      rawData.forEach((item) => {
-        const itemDate = new Date(item.created_at);
-        const dateStr = itemDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-        
-        if (dateMap.has(dateStr)) {
-          if (metric === 'users' || metric === 'works') {
-            dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + 1);
-          } else if (metric === 'views') {
-            dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + (item.views || 0));
-          } else if (metric === 'likes') {
-            dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + (item.likes || 0));
+      // 调试日志
+      console.log(`[getTrendData] ${metric} - 原始数据条数:`, rawData.length);
+      console.log(`[getTrendData] ${metric} - 日期范围:`, startDate.toISOString(), '到', now.toISOString());
+      console.log(`[getTrendData] ${metric} - dateMap中的日期:`, Array.from(dateMap.keys()));
+      
+      // 统计每天的数据（在内存中过滤日期范围）
+      let matchedCount = 0;
+      rawData.forEach((item, index) => {
+        // 处理数字时间戳（毫秒或秒）
+        let createdAt = item.created_at;
+        if (typeof createdAt === 'number') {
+          // 如果是秒级时间戳（小于 1e12），转换为毫秒
+          if (createdAt < 1e12) {
+            createdAt = createdAt * 1000;
           }
         }
+        
+        const itemDate = new Date(createdAt);
+        
+        // 只统计在日期范围内的数据
+        if (itemDate >= startDate && itemDate <= now) {
+          matchedCount++;
+          const dateStr = itemDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+          
+          if (dateMap.has(dateStr)) {
+            if (metric === 'users' || metric === 'works') {
+              dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + 1);
+            } else if (metric === 'views') {
+              dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + (item.views || 0));
+            } else if (metric === 'likes') {
+              dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + (item.likes || 0));
+            }
+          }
+        }
+        
+        // 打印前几条数据的处理情况
+        if (index < 3) {
+          console.log(`[getTrendData] ${metric} - 数据${index}:`, {
+            created_at: item.created_at,
+            parsedDate: itemDate.toISOString(),
+            inRange: itemDate >= startDate && itemDate <= now,
+            dateStr: itemDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+          });
+        }
       });
+      
+      console.log(`[getTrendData] ${metric} - 匹配日期范围的数据:`, matchedCount);
+      console.log(`[getTrendData] ${metric} - 统计后的dateMap:`, Array.from(dateMap.entries()));
 
       // 转换为数组格式
       const data: { date: string; value: number }[] = [];
@@ -538,7 +568,7 @@ class AdminService {
   }
 
   // 获取设备分布数据
-  async getDeviceDistribution(timeRange: '7d' | '30d' | '90d' | '1y' | 'all' = '30d'): Promise<{ name: string; value: number }[]> {
+  async getDeviceDistribution(timeRange: '7d' | '30d' | '90d' | '1y' | 'all' = '30d'): Promise<{ name: string; value: number; count?: number }[]> {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -553,6 +583,12 @@ class AdminService {
       });
 
       const result = await response.json();
+      
+      // 调试日志
+      console.log('[AdminService] 设备分布 API 响应:', result);
+      if (result.data) {
+        console.log('[AdminService] 设备分布 data 详情:', JSON.stringify(result.data, null, 2));
+      }
 
       if (response.ok && result.code === 0 && result.data) {
         return result.data;
@@ -567,28 +603,28 @@ class AdminService {
   }
 
   // 基于当前时间估算设备分布（无数据时的默认方案）
-  private estimateDeviceDistribution(): { name: string; value: number }[] {
+  private estimateDeviceDistribution(): { name: string; value: number; count: number }[] {
     // 根据当前时段估算：工作时间桌面端多，晚间移动端多
     const hour = new Date().getHours();
     const isWorkTime = hour >= 9 && hour < 18;
     
     if (isWorkTime) {
       return [
-        { name: '桌面端', value: 55 },
-        { name: '移动端', value: 35 },
-        { name: '平板', value: 10 },
+        { name: '桌面端', value: 55, count: 0 },
+        { name: '移动端', value: 35, count: 0 },
+        { name: '平板', value: 10, count: 0 },
       ];
     } else {
       return [
-        { name: '移动端', value: 50 },
-        { name: '桌面端', value: 35 },
-        { name: '平板', value: 15 },
+        { name: '移动端', value: 50, count: 0 },
+        { name: '桌面端', value: 35, count: 0 },
+        { name: '平板', value: 15, count: 0 },
       ];
     }
   }
 
   // 获取用户来源数据
-  async getSourceDistribution(timeRange: '7d' | '30d' | '90d' | '1y' | 'all' = '30d'): Promise<{ name: string; value: number }[]> {
+  async getSourceDistribution(timeRange: '7d' | '30d' | '90d' | '1y' | 'all' = '30d'): Promise<{ name: string; value: number; count?: number }[]> {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -603,6 +639,12 @@ class AdminService {
       });
 
       const result = await response.json();
+      
+      // 调试日志
+      console.log('[AdminService] 流量来源 API 响应:', result);
+      if (result.data) {
+        console.log('[AdminService] 流量来源 data 详情:', JSON.stringify(result.data, null, 2));
+      }
 
       if (response.ok && result.code === 0 && result.data) {
         return result.data;
@@ -617,12 +659,12 @@ class AdminService {
   }
 
   // 默认来源分布数据
-  private getDefaultSourceDistribution(): { name: string; value: number }[] {
+  private getDefaultSourceDistribution(): { name: string; value: number; count: number }[] {
     return [
-      { name: '直接访问', value: 35 },
-      { name: '搜索引擎', value: 28 },
-      { name: '社交媒体', value: 22 },
-      { name: '外部链接', value: 15 },
+      { name: '直接访问', value: 35, count: 0 },
+      { name: '搜索引擎', value: 28, count: 0 },
+      { name: '社交媒体', value: 22, count: 0 },
+      { name: '外部链接', value: 15, count: 0 },
     ];
   }
 

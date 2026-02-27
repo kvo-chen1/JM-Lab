@@ -31,6 +31,7 @@ interface AdminSidebarProps {
 
 const navItems: AdminNavItem[] = [
   { id: 'dashboard', name: '控制台', icon: 'tachometer-alt' },
+  { id: 'analytics', name: '数据分析', icon: 'chart-bar' },
   { id: 'campaigns', name: '津脉活动管理', icon: 'calendar-alt', showNotification: true },
   { id: 'jinmaiCommunity', name: '津脉社区管理', icon: 'users-cog', showNotification: true },
   { id: 'knowledgeBase', name: '文化知识库管理', icon: 'book' },
@@ -38,11 +39,10 @@ const navItems: AdminNavItem[] = [
   { id: 'contentAudit', name: '津脉广场作品管理', icon: 'file-alt', showNotification: true },
   { id: 'workSubmissionAudit', name: 'IP孵化作品审核', icon: 'lightbulb', showNotification: true },
   { id: 'brandTaskAudit', name: '品牌任务审核', icon: 'clipboard-check', showNotification: true },
-  { id: 'promotionUserManagement', name: '推广用户管理', icon: 'bullhorn', showNotification: true },
   { id: 'promotionOrderManagement', name: '推广订单管理', icon: 'shopping-cart', showNotification: true },
   { id: 'aiFeedback', name: 'AI反馈管理', icon: 'robot', showNotification: true },
   { id: 'achievements', name: '成就管理', icon: 'trophy' },
-  { id: 'analytics', name: '数据分析', icon: 'chart-bar' },
+  { id: 'searchRecords', name: '搜索记录管理', icon: 'search' },
   { id: 'adoption', name: '品牌管理', icon: 'star' },
   { id: 'users', name: '用户管理', icon: 'users', showNotification: true },
   { id: 'userAudit', name: '用户审计', icon: 'user-shield', showNotification: true },
@@ -131,7 +131,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       <nav className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent min-h-0 ${isCollapsed ? 'px-2' : 'px-4'}`}>
         <ul className="space-y-1">
           {navItems.map((item, index) => {
-            const isActive = activeTab === item.id;
+            // 推广订单管理相关页面都高亮同一个菜单
+            const promotionTabs = ['promotionOrderManagement', 'promotionUserManagement', 'promotionOrderImplementation'];
+            const isPromotionTab = promotionTabs.includes(activeTab);
+            const isPromotionMenu = item.id === 'promotionOrderManagement';
+            const isActive = activeTab === item.id || (isPromotionTab && isPromotionMenu);
             const notificationState = notifications?.[item.id as NavItemType];
             const hasNotification = notificationState && notificationState.count > 0;
             const showNotification = item.showNotification && hasNotification;

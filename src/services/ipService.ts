@@ -311,6 +311,7 @@ class IPService {
     const validOriginalWorkId = originalWorkId && uuidRegex.test(originalWorkId) ? originalWorkId : null;
 
     // 使用RPC函数创建IP资产并初始化阶段
+    // 传递 status 参数，支持审核流程
     const { data: assetId, error: rpcError } = await supabase
       .rpc('create_ip_asset_with_stages', {
         p_user_id: targetUserId,
@@ -319,7 +320,8 @@ class IPService {
         p_type: asset.type,
         p_original_work_id: validOriginalWorkId,
         p_commercial_value: asset.commercialValue,
-        p_thumbnail: asset.thumbnail
+        p_thumbnail: asset.thumbnail,
+        p_status: asset.status || 'pending_review'  // 默认待审核
       });
 
     if (rpcError) {

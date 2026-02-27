@@ -1,7 +1,7 @@
 import { useTheme } from '@/hooks/useTheme'
 import { useState, useMemo, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
-import postsApi, { Post } from '@/services/postService'
+import postsApi, { Post, PromotedPost, convertPromotedPostToPost } from '@/services/postService'
 import { SearchResultType } from '@/components/SearchBar'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -9,10 +9,12 @@ import { toast } from 'sonner'
 import { AuthContext } from '@/contexts/authContext'
 import { useContext } from 'react'
 import { useNotifications } from '@/contexts/NotificationContext'
+import { useAuthCheck } from '@/hooks/useAuthCheck'
 
 import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal'
 import ShareSelector from '@/components/ShareSelector'
 import PublishToSquareModal from '@/components/PublishToSquareModal'
+import LoginPromptModal from '@/components/LoginPromptModal'
 
 
 import apiClient from '@/lib/apiClient'
@@ -30,6 +32,7 @@ export default function Square() {
   const [searchParams] = useSearchParams()
   const { user } = useContext(AuthContext)
   const { addNotification } = useNotifications()
+  const { isLoginModalOpen, closeLoginModal, checkAuth, loginModalTitle, loginModalDescription } = useAuthCheck()
   
   // 检测是否为移动端（屏幕宽度小于 768px）
   const [isMobile, setIsMobile] = useState(() => {
@@ -257,7 +260,29 @@ export default function Square() {
         }
 
         // 津脉广场只显示作品（works表），不显示帖子（posts表）
-        const current = await postsApi.getPosts(undefined, user?.id, false, 'works')
+        // 同时获取推广作品并混合展示
+        let current: Post[] = [];
+        try {
+          // 尝试获取包含推广作品的数据
+          const promotedPosts = await postsApi.getSquareWorksWithPromotion(20, 0, user?.id);
+          if (promotedPosts && promotedPosts.length > 0) {
+            // 转换推广作品为Post格式
+            current = promotedPosts.map(convertPromotedPostToPost);
+            console.log('Loaded posts with promotion:', current.length, 'posts,', 
+              promotedPosts.filter(p => p.is_promoted).length, 'promoted');
+            
+            // 记录推广作品曝光
+            promotedPosts.filter(p => p.is_promoted && p.promoted_work_id).forEach(p => {
+              postsApi.recordPromotionView(p.promoted_work_id!, user?.id);
+            });
+          } else {
+            // 降级：只获取普通作品
+            current = await postsApi.getPosts(undefined, user?.id, false, 'works');
+          }
+        } catch (promoError) {
+          console.warn('Failed to load promoted posts, falling back to normal posts:', promoError);
+          current = await postsApi.getPosts(undefined, user?.id, false, 'works');
+        }
 
         if (Array.isArray(current)) {
           // 调试：检查视频帖子数据
@@ -293,7 +318,24 @@ export default function Square() {
       try {
         // 清除缓存，确保获取最新数据
         await postsApi.clearAllCaches();
-        const current = await postsApi.getPosts(undefined, user?.id, false, 'works');
+        
+        // 尝试获取包含推广作品的数据
+        let current: Post[] = [];
+        try {
+          const promotedPosts = await postsApi.getSquareWorksWithPromotion(20, 0, user?.id);
+          if (promotedPosts && promotedPosts.length > 0) {
+            current = promotedPosts.map(convertPromotedPostToPost);
+            // 记录推广作品曝光
+            promotedPosts.filter(p => p.is_promoted && p.promoted_work_id).forEach(p => {
+              postsApi.recordPromotionView(p.promoted_work_id!, user?.id);
+            });
+          } else {
+            current = await postsApi.getPosts(undefined, user?.id, false, 'works');
+          }
+        } catch (promoError) {
+          current = await postsApi.getPosts(undefined, user?.id, false, 'works');
+        }
+        
         setPosts(current);
         // 重置分页，显示最新作品
         setPage(1);
@@ -419,9 +461,7 @@ export default function Square() {
   
   // 优化：使用useCallback稳定like函数
   const like = useCallback(async (id: string) => {
-    if (!user?.id) {
-      toast.error('请先登录后再点赞')
-      navigate('/login')
+    if (!checkAuth()) {
       return
     }
     
@@ -481,9 +521,7 @@ export default function Square() {
     if (!content) return
     
     // 检查用户是否登录
-    if (!user?.id) {
-      toast.error('请先登录后再评论')
-      navigate('/login')
+    if (!checkAuth()) {
       return
     }
     
@@ -539,9 +577,7 @@ export default function Square() {
   // 优化：使用useCallback稳定toggleFavorite函数
   const toggleFavorite = useCallback(async (id: string) => {
     // 中文注释：收藏/取消收藏
-    if (!user?.id) {
-      toast.error('请先登录后再收藏')
-      navigate('/login')
+    if (!checkAuth()) {
       return
     }
 
@@ -836,7 +872,11 @@ export default function Square() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setIsPublishModalOpen(true)}
+              onClick={() => {
+                if (checkAuth()) {
+                  setIsPublishModalOpen(true)
+                }
+              }}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all md:hidden ${
                 isDark
                   ? 'bg-blue-600/20 text-blue-400 border border-blue-600/30 hover:bg-blue-600/30'
@@ -1004,6 +1044,14 @@ export default function Square() {
       <PublishToSquareModal
         isOpen={isPublishModalOpen}
         onClose={() => setIsPublishModalOpen(false)}
+      />
+
+      {/* 登录提示弹窗 */}
+      <LoginPromptModal
+        isOpen={isLoginModalOpen}
+        onClose={closeLoginModal}
+        title={loginModalTitle}
+        description={loginModalDescription}
       />
     </div>
   )

@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS public.brand_tasks (
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     content TEXT, -- 详细任务说明
+    cover_image TEXT, -- 封面图片
+    cover_video TEXT, -- 封面视频
     
     -- 品牌信息
     brand_id UUID REFERENCES public.brand_partnerships(id),

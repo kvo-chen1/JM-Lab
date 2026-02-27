@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ShoppingCart,
@@ -20,7 +21,12 @@ import {
   Package,
   User,
   Calendar,
-  CreditCard
+  CreditCard,
+  MousePointer,
+  Percent,
+  Activity,
+  ArrowRight,
+  Flame
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabaseClient';
 
@@ -58,9 +64,10 @@ interface PromotionOrder {
   final_price: number;
   expected_views: string;
   actual_views: number;
+  actual_clicks: number;
   status: string;
   created_at: string;
-  paid_at: string | null;
+  payment_time: string | null;
   user?: {
     username: string;
     email: string;
@@ -76,10 +83,16 @@ interface OrderStats {
   completedCount: number;
   totalRevenue: number;
   todayRevenue: number;
+  // 推广效果统计
+  totalImpressions: number;
+  totalClicks: number;
+  avgCtr: number;
+  activePromotions: number;
 }
 
 export default function PromotionOrderManagement() {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
 
   // 数据状态
   const [orders, setOrders] = useState<PromotionOrder[]>([]);
@@ -91,7 +104,13 @@ export default function PromotionOrderManagement() {
     completedCount: 0,
     totalRevenue: 0,
     todayRevenue: 0,
+    // 推广效果统计
+    totalImpressions: 0,
+    totalClicks: 0,
+    avgCtr: 0,
+    activePromotions: 0,
   });
+  const [promotedWorksStats, setPromotedWorksStats] = useState<any[]>([]);
 
   // UI状态
   const [loading, setLoading] = useState(true);
@@ -177,22 +196,87 @@ export default function PromotionOrderManagement() {
     try {
       const { data: allOrders } = await supabaseAdmin
         .from('promotion_orders')
-        .select('status, final_price, created_at');
+        .select('status, final_price, created_at, actual_views, actual_clicks');
 
       const today = new Date().toISOString().split('T')[0];
+
+      // 获取推广作品统计
+      const { data: promotedWorks } = await supabaseAdmin
+        .from('promoted_works')
+        .select('status, actual_views, actual_clicks');
+
+      const totalImpressions = promotedWorks?.reduce((sum, pw) => sum + (pw.actual_views || 0), 0) || 0;
+      const totalClicks = promotedWorks?.reduce((sum, pw) => sum + (pw.actual_clicks || 0), 0) || 0;
+      const activePromotions = promotedWorks?.filter(pw => pw.status === 'active').length || 0;
 
       const stats: OrderStats = {
         totalOrders: allOrders?.length || 0,
         pendingCount: allOrders?.filter(o => o.status === 'pending').length || 0,
         paidCount: allOrders?.filter(o => o.status === 'paid').length || 0,
-        runningCount: allOrders?.filter(o => o.status === 'running').length || 0,
+        runningCount: allOrders?.filter(o => o.status === 'running' || o.status === 'active').length || 0,
         completedCount: allOrders?.filter(o => o.status === 'completed').length || 0,
         totalRevenue: allOrders?.reduce((sum, o) => sum + (o.final_price || 0), 0) || 0,
         todayRevenue: allOrders?.filter(o => o.created_at?.startsWith(today))
           .reduce((sum, o) => sum + (o.final_price || 0), 0) || 0,
+        // 推广效果统计
+        totalImpressions,
+        totalClicks,
+        avgCtr: totalImpressions > 0 ? Number(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
+        activePromotions,
       };
 
       setStats(stats);
+
+      // 获取推广作品详细统计
+      try {
+        const { data: promotedWorksDetail, error: detailError } = await supabaseAdmin
+          .from('promoted_works')
+          .select('*')
+          .order('actual_views', { ascending: false })
+          .limit(10);
+
+        if (detailError) {
+          console.error('获取推广作品详细统计失败:', detailError);
+          setPromotedWorksStats([]);
+        } else if (promotedWorksDetail && promotedWorksDetail.length > 0) {
+          // 获取关联的订单信息以获取用户和作品详情
+          const orderIds = promotedWorksDetail.map(pw => pw.order_id);
+          const { data: ordersData } = await supabaseAdmin
+            .from('promotion_orders')
+            .select('id, user_id, work_id, work_title, work_thumbnail')
+            .in('id', orderIds);
+
+          // 获取用户信息
+          const userIds = [...new Set((ordersData || []).map(o => o.user_id))];
+          const { data: usersData } = await supabaseAdmin
+            .from('users')
+            .select('id, username, email, avatar_url')
+            .in('id', userIds);
+
+          const orderMap = new Map(ordersData?.map(o => [o.id, o]) || []);
+          const userMap = new Map(usersData?.map(u => [u.id, u]) || []);
+
+          // 合并数据
+          const enrichedPromotedWorks = promotedWorksDetail.map(pw => {
+            const order = orderMap.get(pw.order_id);
+            const user = order ? userMap.get(order.user_id) : null;
+            return {
+              ...pw,
+              work_title: order?.work_title || pw.work_title,
+              work_thumbnail: order?.work_thumbnail || pw.work_thumbnail,
+              user_username: user?.username || '未知用户',
+              user_avatar: user?.avatar_url || null,
+            };
+          });
+
+          setPromotedWorksStats(enrichedPromotedWorks);
+        } else {
+          setPromotedWorksStats([]);
+        }
+      } catch (e) {
+        console.error('获取推广作品详细统计异常:', e);
+        setPromotedWorksStats([]);
+      }
     } catch (error) {
       console.error('获取统计数据失败:', error);
     }
@@ -235,16 +319,42 @@ export default function PromotionOrderManagement() {
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'} p-6`}>
       {/* 页面标题 */}
-      <div className="mb-6">
-        <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          推广订单管理
-        </h1>
-        <p className={`mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          查看和管理所有推广订单
-        </p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className={`text-2xl font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <ShoppingCart className="w-6 h-6 text-indigo-500" />
+            推广订单管理
+            <span className="text-sm font-normal text-gray-400">/ 订单</span>
+          </h1>
+          <p className={`mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            查看和管理所有推广订单
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/admin?tab=promotionUserManagement')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              isDark ? 'bg-pink-600 hover:bg-pink-700 text-white' : 'bg-pink-500 hover:bg-pink-600 text-white'
+            }`}
+          >
+            <Flame className="w-4 h-4" />
+            审核
+            <ArrowRight className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => navigate('/admin?tab=promotionOrderImplementation')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            实施
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* 统计卡片 */}
+      {/* 订单统计卡片 */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
         <StatCard
           title="总订单数"
@@ -541,16 +651,117 @@ export default function PromotionOrderManagement() {
         </div>
       </div>
 
+      {/* 推广作品效果排行 */}
+      {promotedWorksStats.length > 0 && (
+        <div className={`rounded-xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm mt-6`}>
+          <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              推广作品效果排行（Top 10）
+            </h3>
+          </div>
+          <table className="w-full">
+            <thead className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+              <tr>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>排名</th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>作品</th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>用户</th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>曝光量</th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>点击量</th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>点击率</th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>进度</th>
+                <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>状态</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {promotedWorksStats.map((pw, index) => (
+                <tr key={pw.id} className={`${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors`}>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                      index === 0 ? 'bg-yellow-500 text-white' :
+                      index === 1 ? 'bg-gray-400 text-white' :
+                      index === 2 ? 'bg-orange-400 text-white' :
+                      isDark ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      {index + 1}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {pw.work_thumbnail ? (
+                        <img src={pw.work_thumbnail} alt={pw.work_title} className="w-10 h-10 rounded-lg object-cover" />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                          <Package className={`w-5 h-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                        </div>
+                      )}
+                      <div>
+                        <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{pw.work_title || '未命名'}</p>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{pw.package_type}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {pw.user_avatar ? (
+                        <img src={pw.user_avatar} alt={pw.user_username} className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                          <User className={`w-3 h-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+                        </div>
+                      )}
+                      <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{pw.user_username || '未知'}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{(pw.actual_views || 0).toLocaleString()}</p>
+                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>目标: {(pw.target_views || 0).toLocaleString()}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{(pw.actual_clicks || 0).toLocaleString()}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-sm font-medium ${(pw.ctr || 0) > 5 ? 'text-green-500' : (pw.ctr || 0) > 2 ? 'text-yellow-500' : 'text-gray-500'}`}>
+                      {pw.ctr || 0}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="w-24">
+                      <div className={`h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                        <div
+                          className="h-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-500"
+                          style={{ width: `${Math.min(pw.progress_percent || 0, 100)}%` }}
+                        />
+                      </div>
+                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{pw.progress_percent || 0}%</p>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      pw.status === 'active' ? 'bg-green-100 text-green-600' :
+                      pw.status === 'completed' ? 'bg-blue-100 text-blue-600' :
+                      pw.status === 'paused' ? 'bg-yellow-100 text-yellow-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {pw.status === 'active' ? '推广中' : pw.status === 'completed' ? '已完成' : pw.status === 'paused' ? '已暂停' : pw.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* 详情弹窗 */}
       {showDetailModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className={`w-full max-w-2xl rounded-2xl p-6 ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl`}
+            className={`w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-xl flex flex-col`}
           >
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 订单详情
               </h2>
@@ -562,7 +773,7 @@ export default function PromotionOrderManagement() {
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto">
               {/* 作品信息 */}
               <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                 <h3 className={`font-medium mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>作品信息</h3>
@@ -641,6 +852,49 @@ export default function PromotionOrderManagement() {
                 </div>
               </div>
 
+              {/* 推广效果统计 */}
+              {(selectedOrder.actual_views > 0 || selectedOrder.actual_clicks > 0) && (
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <h3 className={`font-medium mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>推广效果</h3>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>实际曝光</p>
+                      <p className={`font-medium text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{(selectedOrder.actual_views || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>实际点击</p>
+                      <p className={`font-medium text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{(selectedOrder.actual_clicks || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>点击率</p>
+                      <p className={`font-medium text-lg ${selectedOrder.actual_views > 0 && (selectedOrder.actual_clicks / selectedOrder.actual_views) > 0.05 ? 'text-green-500' : isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {selectedOrder.actual_views > 0 ? ((selectedOrder.actual_clicks / selectedOrder.actual_views) * 100).toFixed(2) : 0}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>完成进度</p>
+                      <p className={`font-medium text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {Number(selectedOrder.expected_views) > 0 ? Math.min(Math.round((selectedOrder.actual_views / Number(selectedOrder.expected_views)) * 100), 100) : 0}%
+                      </p>
+                    </div>
+                  </div>
+                  {/* 进度条 */}
+                  {Number(selectedOrder.expected_views) > 0 && (
+                    <div className="mt-3">
+                      <div className={`h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                        <div
+                          className="h-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 transition-all"
+                          style={{ width: `${Math.min((selectedOrder.actual_views / Number(selectedOrder.expected_views)) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        目标曝光: {Number(selectedOrder.expected_views).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 时间信息 */}
               <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                 <h3 className={`font-medium mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>时间信息</h3>
@@ -654,13 +908,13 @@ export default function PromotionOrderManagement() {
                       </p>
                     </div>
                   </div>
-                  {selectedOrder.paid_at && (
+                  {selectedOrder.payment_time && (
                     <div className="flex items-center gap-2">
                       <CreditCard className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
                       <div>
                         <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>支付时间</p>
                         <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {new Date(selectedOrder.paid_at).toLocaleString('zh-CN')}
+                          {new Date(selectedOrder.payment_time).toLocaleString('zh-CN')}
                         </p>
                       </div>
                     </div>
@@ -691,6 +945,7 @@ function StatCard({ title, value, icon: Icon, color, isDark }: {
     orange: { bg: 'bg-orange-500/10', text: 'text-orange-500' },
     red: { bg: 'bg-red-500/10', text: 'text-red-500' },
     gray: { bg: 'bg-gray-500/10', text: 'text-gray-500' },
+    pink: { bg: 'bg-pink-500/10', text: 'text-pink-500' },
   };
 
   const colors = colorClasses[color] || colorClasses.gray;

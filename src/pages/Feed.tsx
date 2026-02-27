@@ -90,6 +90,29 @@ export default function Feed() {
 
   const feedListRef = useRef<HTMLDivElement>(null);
 
+  // 使用 ref 存储最新的筛选和排序状态，避免 useCallback 依赖问题
+  const activeFilterRef = useRef(activeFilter);
+  const activeSortRef = useRef(activeSort);
+  const pageRef = useRef(page);
+  const userRef = useRef(user);
+
+  // 同步 ref 值
+  useEffect(() => {
+    activeFilterRef.current = activeFilter;
+  }, [activeFilter]);
+
+  useEffect(() => {
+    activeSortRef.current = activeSort;
+  }, [activeSort]);
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   // 加载动态列表
   const loadFeeds = useCallback(async (isRefresh = false, targetPage?: number) => {
     if (isRefresh) {
@@ -99,17 +122,21 @@ export default function Feed() {
     }
 
     try {
-      const currentPage = isRefresh ? 1 : (targetPage ?? page);
+      // 使用 ref 获取最新的值
+      const currentPage = isRefresh ? 1 : (targetPage ?? pageRef.current);
       const params: FeedQueryParams = {
-        filter: activeFilter,
-        sort: activeSort,
+        filter: activeFilterRef.current,
+        sort: activeSortRef.current,
         page: currentPage,
         pageSize: 10,
-        currentUserId: user?.id, // 传递当前用户ID，用于活动筛选（自己及关注用户的活动）
-        // 注意：不要在这里传 userId，否则会只显示当前用户的动态
+        currentUserId: userRef.current?.id,
       };
 
+      console.log('[loadFeeds] Loading with params:', params);
+
       const response = await feedService.getFeeds(params);
+
+      console.log('[loadFeeds] Response:', { feedsCount: response.feeds.length, hasMore: response.hasMore });
 
       if (isRefresh) {
         setFeeds(response.feeds);
@@ -121,12 +148,13 @@ export default function Feed() {
 
       setHasMore(response.hasMore);
     } catch (error) {
+      console.error('[loadFeeds] Error:', error);
       toast.error('加载动态失败，请稍后重试');
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [activeFilter, activeSort, page]);
+  }, []);
 
   // 加载右侧栏数据
   const loadSidebarData = useCallback(async () => {
@@ -191,9 +219,14 @@ export default function Feed() {
   // 筛选或排序变化时重新加载
   useEffect(() => {
     console.log('[Feed] Filter or sort changed:', { activeFilter, activeSort });
-    loadFeeds(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFilter, activeSort]);
+    // 重置页码并重新加载
+    setPage(1);
+    // 使用 setTimeout 确保 page 状态更新后再加载
+    const timer = setTimeout(() => {
+      loadFeeds(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [activeFilter, activeSort, loadFeeds]);
 
   // 无限滚动
   useEffect(() => {
@@ -212,8 +245,7 @@ export default function Feed() {
     }
 
     return () => observer.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore, isLoadingMore, isLoading]);
+  }, [hasMore, isLoadingMore, isLoading, loadFeeds]);
 
   // 发布动态
   const handlePublish = async (data: CreateFeedRequest) => {
@@ -438,9 +470,10 @@ export default function Feed() {
     try {
       if (userId) {
         // 获取特定用户的动态（同时应用主筛选和排序）
+        // 使用 ref 获取最新的筛选和排序状态
         const response = await feedService.getFeeds({
-          filter: activeFilter,
-          sort: activeSort,
+          filter: activeFilterRef.current,
+          sort: activeSortRef.current,
           userId,
           page: 1,
           pageSize: 10,
@@ -456,8 +489,7 @@ export default function Feed() {
     } finally {
       setIsLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFilter, activeSort]);
+  }, [loadFeeds]);
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-950' : 'bg-[#f1f2f3]'}`}>

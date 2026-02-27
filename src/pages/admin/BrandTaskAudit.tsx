@@ -660,8 +660,8 @@ export default function BrandTaskAudit() {
           <div className="flex space-x-6">
             {[
               { id: 'overview', label: '概览', icon: 'chart-pie' },
-              { id: 'participants', label: '参与者', icon: 'users', badge: participants.filter(p => p.status === 'applied').length },
-              { id: 'submissions', label: '作品审核', icon: 'images', badge: submissions.filter(s => s.status === 'pending').length },
+              { id: 'participants', label: '参与者', icon: 'users', badge: participants.length, pendingCount: participants.filter(p => p.status === 'applied').length },
+              { id: 'submissions', label: '作品审核', icon: 'images', badge: submissions.length, pendingCount: submissions.filter(s => s.status === 'pending').length },
               { id: 'analytics', label: '数据分析', icon: 'chart-line' }
             ].map((tab) => (
               <button
@@ -675,8 +675,10 @@ export default function BrandTaskAudit() {
               >
                 <i className={`fas fa-${tab.icon} mr-2`}></i>
                 {tab.label}
-                {tab.badge && tab.badge > 0 && (
-                  <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
+                {tab.badge !== undefined && tab.badge > 0 && (
+                  <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                    tab.pendingCount > 0 ? 'bg-red-500 text-white' : 'bg-gray-500 text-white'
+                  }`}>
                     {tab.badge}
                   </span>
                 )}

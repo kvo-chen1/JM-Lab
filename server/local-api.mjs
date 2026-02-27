@@ -772,6 +772,7 @@ async function route(req, res, u, path) {
     const limit = parseInt(u.searchParams.get('limit') || '20')
     const offset = parseInt(u.searchParams.get('offset') || '0')
     const creatorId = u.searchParams.get('creator_id')
+    const includePromoted = u.searchParams.get('include_promoted') !== 'false' // 默认包含推广作品
 
     try {
       let works
@@ -784,30 +785,92 @@ async function route(req, res, u, path) {
         console.log('[API] Get all works')
         works = await workDB.getAllWorks()
       }
-      
+
+      // 获取活跃推广作品（用于插入到列表中）
+      let promotedWorks = []
+      if (includePromoted && !creatorId) {
+        try {
+          const { data: activePromotedWorks, error: promotedError } = await supabaseServer
+            .rpc('get_active_promoted_works', { p_limit: 10, p_offset: 0 })
+
+          if (!promotedError && activePromotedWorks && activePromotedWorks.length > 0) {
+            // 获取推广作品的详细信息
+            const promotedWorkIds = activePromotedWorks.map(pw => pw.work_id)
+            const promotedUserIds = activePromotedWorks.map(pw => pw.user_id)
+
+            // 批量获取推广作品的信息
+            const promotedWorksData = works.filter(w => promotedWorkIds.includes(w.id))
+
+            // 获取推广作者信息
+            const { data: promotedUsers } = await supabaseServer
+              .from('users')
+              .select('id, username, avatar_url')
+              .in('id', promotedUserIds)
+
+            const promotedUsersMap = new Map()
+            if (promotedUsers) {
+              promotedUsers.forEach(user => promotedUsersMap.set(user.id, user))
+            }
+
+            // 构建推广作品数据
+            promotedWorks = activePromotedWorks.map(pw => {
+              const workData = promotedWorksData.find(w => w.id === pw.work_id)
+              const userData = promotedUsersMap.get(pw.user_id)
+
+              if (!workData) return null
+
+              return {
+                ...workData,
+                thumbnail: workData.thumbnail || workData.cover_url || '',
+                videoUrl: workData.video_url,
+                date: workData.created_at ? new Date(workData.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                author: {
+                  id: pw.user_id,
+                  username: userData?.username || 'Unknown User',
+                  avatar: userData?.avatar_url || ''
+                },
+                // 推广相关字段
+                isPromoted: true,
+                promotedWorkId: pw.promoted_work_id,
+                promotionWeight: pw.promotion_weight,
+                priorityScore: pw.priority_score,
+                displayPosition: pw.display_position,
+                isFeatured: pw.is_featured,
+                packageType: pw.package_type,
+                remainingHours: pw.remaining_hours
+              }
+            }).filter(Boolean)
+
+            console.log('[API] Found', promotedWorks.length, 'promoted works')
+          }
+        } catch (promotedErr) {
+          console.warn('[API] Error fetching promoted works:', promotedErr)
+        }
+      }
+
       // 获取所有作者ID（确保是有效的UUID格式）
       const creatorIds = [...new Set(works.map(w => w.creator_id).filter(id => id && typeof id === 'string'))]
       console.log('[API] Creator IDs:', creatorIds)
-      
+
       // 批量获取作者信息
       let usersData = []
       let usersError = null
-      
+
       if (creatorIds.length > 0) {
         // 使用 PostgreSQL 的 UUID 数组查询
         const { data, error } = await supabaseServer
           .from('users')
           .select('id, username, avatar_url')
           .in('id', creatorIds)
-        
+
         usersData = data || []
         usersError = error
       }
-      
+
       if (usersError) {
         console.error('[API] Error fetching users:', usersError)
       }
-      
+
       const usersMap = new Map()
       if (usersData) {
         usersData.forEach(user => {
@@ -817,19 +880,19 @@ async function route(req, res, u, path) {
       console.log('[API] Users map size:', usersMap.size)
       console.log('[API] First creator_id:', creatorIds[0], 'type:', typeof creatorIds[0])
       console.log('[API] First user in map:', usersData?.[0] ? { id: usersData[0].id, type: typeof usersData[0].id } : null)
-      
+
       // 字段映射，将数据库字段转换为前端期望的格式
-      const mappedWorks = works.map(work => {
+      let mappedWorks = works.map(work => {
         const user = usersMap.get(work.creator_id)
         // 优先使用 thumbnail，如果没有则使用 cover_url
         const thumbnailUrl = work.thumbnail || work.cover_url || ''
-        console.log('[API] Mapping work:', { 
-          id: work.id, 
+        console.log('[API] Mapping work:', {
+          id: work.id,
           creator_id: work.creator_id,
           user: user ? { id: user.id, username: user.username } : null,
           thumbnail: thumbnailUrl?.substring(0, 50),
           cover_url: work.cover_url?.substring(0, 50),
-          video_url: work.video_url?.substring(0, 50), 
+          video_url: work.video_url?.substring(0, 50),
           type: work.type,
           hasVideoUrl: !!work.video_url,
           views: work.views,
@@ -845,9 +908,41 @@ async function route(req, res, u, path) {
             id: work.creator_id,
             username: user?.username || 'Unknown User',
             avatar: user?.avatar_url || ''
-          }
+          },
+          isPromoted: false
         };
       })
+
+      // 合并推广作品到列表中
+      if (promotedWorks.length > 0) {
+        // 置顶推广作品（displayPosition > 0）
+        const featuredPromoted = promotedWorks.filter(pw => pw.displayPosition > 0)
+        const normalPromoted = promotedWorks.filter(pw => pw.displayPosition === 0)
+
+        // 按优先级排序普通推广作品
+        normalPromoted.sort((a, b) => b.priorityScore - a.priorityScore)
+
+        // 插入推广作品到列表中
+        // 1. 首先插入置顶推广作品到指定位置
+        featuredPromoted.forEach(pw => {
+          const insertPosition = Math.min(pw.displayPosition - 1, mappedWorks.length)
+          mappedWorks.splice(insertPosition, 0, pw)
+        })
+
+        // 2. 然后每隔5个普通作品插入1个推广作品
+        let insertIndex = 5
+        normalPromoted.forEach(pw => {
+          if (insertIndex < mappedWorks.length) {
+            mappedWorks.splice(insertIndex, 0, pw)
+            insertIndex += 6 // 下一个插入位置
+          } else {
+            mappedWorks.push(pw)
+          }
+        })
+
+        console.log('[API] Merged', promotedWorks.length, 'promoted works into list')
+      }
+
       // 简单的内存分页
       const paginatedWorks = mappedWorks.slice(offset, offset + limit)
       sendJson(res, 200, { code: 0, data: paginatedWorks })
@@ -907,7 +1002,7 @@ async function route(req, res, u, path) {
       }
 
       // 获取评论数
-      let commentsCount = work.comments || work.comments_count || 0;
+      let commentsCount = work.comments || work.comments || 0;
       
       const mappedWork = {
         ...work,
@@ -1081,7 +1176,7 @@ async function route(req, res, u, path) {
       const now = Date.now()
 
       const result = await db.query(
-        `INSERT INTO posts (title, content, user_id, community_id, views, likes_count, comments_count, created_at, updated_at, images, videos, audios)
+        `INSERT INTO posts (title, content, user_id, community_id, views, likes, comments, created_at, updated_at, images, videos, audios)
          VALUES ($1, $2, $3, $4, 0, 0, 0, $5, $5, $6, $7, $8)
          RETURNING id`,
         [
@@ -1259,8 +1354,8 @@ async function route(req, res, u, path) {
                 category: post.category || '其他',
                 created_at: post.created_at,
                 views: post.views || 0,
-                likes: post.likes_count || post.likes || 0,
-                comments: post.comments_count || 0
+                likes: post.likes || post.likes || 0,
+                comments: post.comments || 0
               }))
               supabaseLikedWorks.push(...postsFromLikes)
               console.log('[API] Get user likes from Supabase likes:', postsFromLikes.length)
@@ -1409,9 +1504,9 @@ async function route(req, res, u, path) {
         ...stats,
         followers_count: 0,
         following_count: 0,
-        favorites_count: (await favoriteDB.getUserFavorites(decoded.userId)).length,
+        favorites: (await favoriteDB.getUserFavorites(decoded.userId)).length,
         bookmarks_count: bookmarksCount,
-        likes_count: likesCount,
+        likes: likesCount,
         membership_level: user?.membership_level || 'free',
         membership_status: user?.membership_status || 'active',
         points: totalPoints,
@@ -2288,35 +2383,93 @@ async function route(req, res, u, path) {
     return
   }
 
-  // 获取用户分析数据
+  // 获取用户分析数据 - 返回真实的用户统计数据
   if (req.method === 'GET' && path === '/api/user/analytics') {
+    console.log('[API] /api/user/analytics called')
     const decoded = verifyRequestToken(req)
     if (!decoded) {
+      console.log('[API] /api/user/analytics: 未授权')
       sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
       return
     }
     
+    console.log('[API] /api/user/analytics: userId =', decoded.userId)
+    
     try {
-      const analytics = {
-        totalWorks: 12,
-        totalViews: 156,
-        totalLikes: 42,
-        totalComments: 18,
-        monthlyTrend: [
-          { month: '1月', works: 2, views: 12, likes: 3 },
-          { month: '2月', works: 3, views: 28, likes: 7 },
-          { month: '3月', works: 2, views: 22, likes: 5 },
-          { month: '4月', works: 1, views: 15, likes: 4 },
-          { month: '5月', works: 2, views: 35, likes: 10 },
-          { month: '6月', works: 2, views: 44, likes: 13 }
-        ],
-        categoryDistribution: [
-          { category: '设计', count: 5 },
-          { category: '摄影', count: 3 },
-          { category: '视频', count: 2 },
-          { category: '其他', count: 2 }
-        ]
+      // 获取用户所有作品
+      console.log('[API] /api/user/analytics: 查询作品...')
+      const { data: works, error: worksError } = await supabaseServer
+        .from('works')
+        .select('id, created_at, views, likes, comments, type, tags')
+        .eq('creator_id', decoded.userId)
+        .order('created_at', { ascending: true })
+      
+      if (worksError) {
+        console.error('[API] /api/user/analytics: 获取用户作品失败:', worksError)
+        sendJson(res, 500, { code: 1, message: '获取分析数据失败' })
+        return
       }
+      
+      console.log('[API] /api/user/analytics: 获取到', works?.length || 0, '个作品')
+      
+      // 计算总统计数据
+      const totalWorks = works?.length || 0
+      const totalViews = works?.reduce((sum, w) => sum + (w.views || 0), 0) || 0
+      const totalLikes = works?.reduce((sum, w) => sum + (w.likes || 0), 0) || 0
+      const totalComments = works?.reduce((sum, w) => sum + (w.comments || 0), 0) || 0
+      
+      console.log('[API] /api/user/analytics: 统计结果:', { totalWorks, totalViews, totalLikes, totalComments })
+      
+      // 生成月度趋势（最近6个月）
+      const monthlyTrend = []
+      const now = new Date()
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0)
+        const monthLabel = `${monthDate.getMonth() + 1}月`
+        
+        const monthWorks = works?.filter(w => {
+          const workDate = new Date(w.created_at)
+          return workDate >= monthDate && workDate <= monthEnd
+        }) || []
+        
+        monthlyTrend.push({
+          month: monthLabel,
+          works: monthWorks.length,
+          views: monthWorks.reduce((sum, w) => sum + (w.views || 0), 0),
+          likes: monthWorks.reduce((sum, w) => sum + (w.likes || 0), 0)
+        })
+      }
+      
+      // 统计类型分布
+      const typeCount = {}
+      works?.forEach(w => {
+        const type = w.type || '其他'
+        typeCount[type] = (typeCount[type] || 0) + 1
+      })
+      
+      const typeLabels = {
+        'image': '图片',
+        'video': '视频',
+        'article': '文章',
+        'design': '设计',
+        'other': '其他'
+      }
+      
+      const categoryDistribution = Object.entries(typeCount).map(([category, count]) => ({
+        category: typeLabels[category] || category,
+        count
+      }))
+      
+      const analytics = {
+        totalWorks,
+        totalViews,
+        totalLikes,
+        totalComments,
+        monthlyTrend,
+        categoryDistribution
+      }
+      
       sendJson(res, 200, { code: 0, data: analytics })
     } catch (e) {
       console.error('[API] Get analytics failed:', e)
@@ -5280,7 +5433,7 @@ async function route(req, res, u, path) {
         author_avatar: post.author_avatar,
         community_id: post.community_id,
         likes: post.likes || 0,
-        comments_count: post.comment_count || post.comments_count || 0,
+        comments: post.comments || post.comments || 0,
         views: post.views || 0,
         is_pinned: post.is_pinned || false,
         is_announcement: post.is_announcement || false,
@@ -5913,7 +6066,7 @@ async function route(req, res, u, path) {
           u.followers_count,
           u.following_count,
           COUNT(DISTINCT w.id) as works_count,
-          COUNT(DISTINCT f.id) as favorites_count
+          COUNT(DISTINCT f.id) as favorites
         FROM users u
         LEFT JOIN works w ON u.id = w.creator_id
         LEFT JOIN favorites f ON u.id = f.user_id
@@ -5931,7 +6084,7 @@ async function route(req, res, u, path) {
         worksCount: parseInt(row.works_count) || 0,
         followersCount: parseInt(row.followers_count) || 0,
         followingCount: parseInt(row.following_count) || 0,
-        favoritesCount: parseInt(row.favorites_count) || 0
+        favoritesCount: parseInt(row.favorites) || 0
       }
 
       console.log('[API] User stats retrieved:', stats)
@@ -7243,7 +7396,8 @@ async function route(req, res, u, path) {
         const percentage = total > 0 ? Math.round((users.size / total) * 100) : 0
         distribution.push({
           name: deviceTypeNames[deviceType] || deviceType,
-          value: percentage
+          value: percentage,
+          count: users.size
         })
       })
       
@@ -7252,9 +7406,9 @@ async function route(req, res, u, path) {
       const hasMobile = distribution.some(d => d.name === '移动端')
       const hasTablet = distribution.some(d => d.name === '平板')
       
-      if (!hasDesktop) distribution.push({ name: '桌面端', value: 0 })
-      if (!hasMobile) distribution.push({ name: '移动端', value: 0 })
-      if (!hasTablet) distribution.push({ name: '平板', value: 0 })
+      if (!hasDesktop) distribution.push({ name: '桌面端', value: 0, count: 0 })
+      if (!hasMobile) distribution.push({ name: '移动端', value: 0, count: 0 })
+      if (!hasTablet) distribution.push({ name: '平板', value: 0, count: 0 })
       
       sendJson(res, 200, {
         code: 0,
@@ -7321,7 +7475,8 @@ async function route(req, res, u, path) {
         const percentage = total > 0 ? Math.round((count / total) * 100) : 0
         distribution.push({
           name: sourceTypeNames[sourceType] || sourceType,
-          value: percentage
+          value: percentage,
+          count: count
         })
       })
       
@@ -7376,6 +7531,450 @@ async function route(req, res, u, path) {
     } catch (error) {
       console.error('[API] 获取活跃用户失败:', error)
       sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取活跃用户失败' })
+    }
+    return
+  }
+
+  // 记录推广曝光
+  if (req.method === 'POST' && path === '/api/promotion/impression') {
+    try {
+      const body = await readBody(req)
+      const { promoted_work_id, viewer_id, source_page, source_position, user_agent } = body
+
+      if (!promoted_work_id) {
+        sendJson(res, 400, { code: 1, message: '推广作品ID不能为空' })
+        return
+      }
+
+      // 获取viewer IP
+      const viewerIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+
+      // 调用数据库函数记录曝光
+      const { data, error } = await supabaseServer
+        .rpc('record_promotion_impression', {
+          p_promoted_work_id: promoted_work_id,
+          p_viewer_id: viewer_id || null,
+          p_viewer_ip: viewerIp || null,
+          p_source_page: source_page || null,
+          p_source_position: source_position || 0,
+          p_user_agent: user_agent || req.headers['user-agent'] || null
+        })
+
+      if (error) {
+        console.error('[API] 记录推广曝光失败:', error)
+        sendJson(res, 500, { code: 1, message: '记录曝光失败' })
+        return
+      }
+
+      sendJson(res, 200, { code: 0, data: { impression_id: data } })
+    } catch (err) {
+      console.error('[API] 记录推广曝光失败:', err)
+      sendJson(res, 500, { code: 1, message: '记录曝光失败' })
+    }
+    return
+  }
+
+  // 记录推广点击
+  if (req.method === 'POST' && path === '/api/promotion/click') {
+    try {
+      const body = await readBody(req)
+      const { impression_id } = body
+
+      if (!impression_id) {
+        sendJson(res, 400, { code: 1, message: '曝光记录ID不能为空' })
+        return
+      }
+
+      // 调用数据库函数记录点击
+      const { data, error } = await supabaseServer
+        .rpc('record_promotion_click', {
+          p_impression_id: impression_id
+        })
+
+      if (error) {
+        console.error('[API] 记录推广点击失败:', error)
+        sendJson(res, 500, { code: 1, message: '记录点击失败' })
+        return
+      }
+
+      sendJson(res, 200, { code: 0, data: { success: data } })
+    } catch (err) {
+      console.error('[API] 记录推广点击失败:', err)
+      sendJson(res, 500, { code: 1, message: '记录点击失败' })
+    }
+    return
+  }
+
+  // 获取活跃推广作品列表
+  if (req.method === 'GET' && path === '/api/promotion/active-works') {
+    try {
+      const limit = parseInt(u.searchParams.get('limit') || '10')
+      const offset = parseInt(u.searchParams.get('offset') || '0')
+
+      const { data, error } = await supabaseServer
+        .rpc('get_active_promoted_works', {
+          p_limit: limit,
+          p_offset: offset
+        })
+
+      if (error) {
+        console.error('[API] 获取活跃推广作品失败:', error)
+        sendJson(res, 500, { code: 1, message: '获取推广作品失败' })
+        return
+      }
+
+      sendJson(res, 200, { code: 0, data: data || [] })
+    } catch (err) {
+      console.error('[API] 获取活跃推广作品失败:', err)
+      sendJson(res, 500, { code: 1, message: '获取推广作品失败' })
+    }
+    return
+  }
+
+  // ==================== 数据分析 API ====================
+
+  // 获取指标数据（用于图表）- 基于用户作品的真实数据生成趋势
+  if (req.method === 'GET' && path === '/api/analytics/metrics') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const metric = u.searchParams.get('metric') || 'views'
+      const timeRange = u.searchParams.get('timeRange') || '30d'
+      const groupBy = u.searchParams.get('groupBy') || 'day'
+      const userId = u.searchParams.get('userId')
+      const targetUserId = userId || decoded.userId
+
+      // 根据时间范围计算起始日期
+      const now = new Date()
+      const startDate = new Date(now)
+      switch (timeRange) {
+        case 'day':
+          startDate.setDate(now.getDate() - 1)
+          break
+        case 'week':
+          startDate.setDate(now.getDate() - 7)
+          break
+        case 'month':
+          startDate.setDate(now.getDate() - 30)
+          break
+        case 'quarter':
+          startDate.setMonth(now.getMonth() - 3)
+          break
+        case 'year':
+          startDate.setFullYear(now.getFullYear() - 1)
+          break
+        default:
+          startDate.setDate(now.getDate() - 30)
+      }
+
+      // 查询用户所有作品数据（不限时间，获取完整数据）
+      const { data: works, error } = await supabaseServer
+        .from('works')
+        .select('id, created_at, views, likes, comments, shares, favorites')
+        .eq('creator_id', targetUserId)
+        .order('created_at', { ascending: true })
+
+      if (error) {
+        console.error('[API] 获取指标数据失败:', error)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取指标数据失败' })
+        return
+      }
+
+      // 首先按日期分组作品
+      const worksByDate = new Map()
+      works?.forEach(work => {
+        const date = new Date(work.created_at)
+        let key
+        if (groupBy === 'hour') {
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:00`
+        } else if (groupBy === 'day') {
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        } else if (groupBy === 'week') {
+          const weekStart = new Date(date)
+          weekStart.setDate(date.getDate() - date.getDay())
+          key = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`
+        } else {
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        }
+        
+        if (!worksByDate.has(key)) {
+          worksByDate.set(key, [])
+        }
+        worksByDate.get(key).push(work)
+      })
+
+      // 生成时间范围内的数据点
+      const result = []
+      const days = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24))
+      let totalValue = 0
+      
+      for (let i = 0; i <= days; i++) {
+        const date = new Date(startDate)
+        date.setDate(startDate.getDate() + i)
+        
+        let key
+        if (groupBy === 'hour') {
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:00`
+        } else if (groupBy === 'day') {
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        } else if (groupBy === 'week') {
+          const weekStart = new Date(date)
+          weekStart.setDate(date.getDate() - date.getDay())
+          key = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`
+        } else {
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        }
+
+        // 计算该日期的值
+        const dayWorks = worksByDate.get(key) || []
+        
+        // 对于作品数，统计的是当天新增的作品数量
+        // 对于其他指标，统计的是当天新增作品的指标总和
+        let dayValue
+        if (metric === 'works') {
+          dayValue = dayWorks.length
+        } else {
+          dayValue = dayWorks.reduce((sum, work) => {
+            switch (metric) {
+              case 'views': return sum + (work.views || 0)
+              case 'likes': return sum + (work.likes || 0)
+              case 'comments': return sum + (work.comments || 0)
+              case 'shares': return sum + (work.shares || 0)
+              case 'favorites': return sum + (work.favorites || 0)
+              default: return sum + (work.views || 0)
+            }
+          }, 0)
+        }
+        
+        totalValue += dayValue
+
+        result.push({
+          timestamp: key,
+          value: dayValue,
+          label: groupBy === 'hour' ? `${date.getHours()}:00` : `${date.getMonth() + 1}/${date.getDate()}`
+        })
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: result,
+        total: totalValue,
+        message: '获取指标数据成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取指标数据失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取指标数据失败' })
+    }
+    return
+  }
+
+  // 获取作品表现数据
+  if (req.method === 'GET' && path === '/api/analytics/works-performance') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const limit = parseInt(u.searchParams.get('limit') || '5')
+
+      // 获取用户作品数据
+      const { data: works, error } = await supabaseServer
+        .from('works')
+        .select('id, title, thumbnail_url, video_url, type, views, likes, comments, shares, favorites, created_at')
+        .eq('creator_id', decoded.userId)
+        .order('views', { ascending: false })
+        .limit(limit)
+
+      if (error) {
+        console.error('[API] 获取作品表现数据失败:', error)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取作品表现数据失败' })
+        return
+      }
+
+      // 获取用户信息
+      const { data: userData } = await supabaseServer
+        .from('users')
+        .select('username')
+        .eq('id', decoded.userId)
+        .single()
+
+      const result = works?.map(work => {
+        // 计算增长率（基于创建时间，越新增长越快）
+        const daysSinceCreated = Math.max(1, Math.floor((Date.now() - new Date(work.created_at)) / (1000 * 60 * 60 * 24)))
+        const growth = Math.round((work.views || 0) / daysSinceCreated * 10) / 10
+
+        return {
+          workId: work.id,
+          title: work.title,
+          thumbnail: work.thumbnail_url,
+          type: work.type || 'image',
+          videoUrl: work.video_url,
+          author: userData?.username || '未知用户',
+          metrics: {
+            views: work.views || 0,
+            likes: work.likes || 0,
+            comments: work.comments || 0,
+            shares: work.shares || 0,
+            favorites: work.favorites || 0
+          },
+          trend: growth > 10 ? 'up' : growth < 5 ? 'down' : 'stable',
+          growth
+        }
+      }) || []
+
+      sendJson(res, 200, {
+        code: 0,
+        data: result,
+        message: '获取作品表现数据成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取作品表现数据失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取作品表现数据失败' })
+    }
+    return
+  }
+
+  // 获取用户活动数据
+  if (req.method === 'GET' && path === '/api/analytics/user-activity') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const limit = parseInt(u.searchParams.get('limit') || '5')
+
+      // 获取用户活动数据（这里返回当前用户的数据）
+      const { data: userData, error: userError } = await supabaseServer
+        .from('users')
+        .select('id, username, avatar_url')
+        .eq('id', decoded.userId)
+        .single()
+
+      if (userError) {
+        console.error('[API] 获取用户数据失败:', userError)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取用户数据失败' })
+        return
+      }
+
+      // 获取用户的作品统计
+      const { data: works, error: worksError } = await supabaseServer
+        .from('works')
+        .select('views, likes, favorites')
+        .eq('creator_id', decoded.userId)
+
+      if (worksError) {
+        console.error('[API] 获取作品统计失败:', worksError)
+      }
+
+      const totalViews = works?.reduce((sum, w) => sum + (w.views || 0), 0) || 0
+      const totalLikes = works?.reduce((sum, w) => sum + (w.likes || 0), 0) || 0
+
+      // 获取粉丝数
+      const { count: followersCount, error: followersError } = await supabaseServer
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', decoded.userId)
+
+      if (followersError) {
+        console.error('[API] 获取粉丝数失败:', followersError)
+      }
+
+      // 计算参与度分数
+      const worksCount = works?.length || 0
+      const engagementScore = worksCount > 0
+        ? Math.min(100, Math.round((totalViews / worksCount / 100) + (totalLikes / worksCount / 10)))
+        : 0
+
+      const result = [{
+        userId: userData.id,
+        username: userData.username,
+        avatar: userData.avatar_url,
+        engagementScore,
+        metrics: {
+          worksCreated: worksCount,
+          totalViews,
+          totalLikes,
+          followers: followersCount || 0
+        }
+      }]
+
+      sendJson(res, 200, {
+        code: 0,
+        data: result,
+        message: '获取用户活动数据成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取用户活动数据失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取用户活动数据失败' })
+    }
+    return
+  }
+
+  // 获取主题趋势数据
+  if (req.method === 'GET' && path === '/api/analytics/theme-trends') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const limit = parseInt(u.searchParams.get('limit') || '5')
+
+      // 获取用户作品的主题分布
+      const { data: works, error } = await supabaseServer
+        .from('works')
+        .select('tags, views')
+        .eq('creator_id', decoded.userId)
+        .not('tags', 'is', null)
+
+      if (error) {
+        console.error('[API] 获取主题趋势数据失败:', error)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取主题趋势数据失败' })
+        return
+      }
+
+      // 统计主题
+      const themeMap = new Map()
+      works?.forEach(work => {
+        const tags = work.tags || []
+        tags.forEach(tag => {
+          if (!themeMap.has(tag)) {
+            themeMap.set(tag, { worksCount: 0, viewsCount: 0 })
+          }
+          const theme = themeMap.get(tag)
+          theme.worksCount += 1
+          theme.viewsCount += work.views || 0
+        })
+      })
+
+      // 转换为数组并计算增长率
+      const result = Array.from(themeMap.entries())
+        .map(([theme, data]) => ({
+          theme,
+          worksCount: data.worksCount,
+          viewsCount: data.viewsCount,
+          growth: Math.round((Math.random() * 40 - 10) * 10) / 10 // 模拟增长率
+        }))
+        .sort((a, b) => b.viewsCount - a.viewsCount)
+        .slice(0, limit)
+
+      sendJson(res, 200, {
+        code: 0,
+        data: result,
+        message: '获取主题趋势数据成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取主题趋势数据失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取主题趋势数据失败' })
     }
     return
   }

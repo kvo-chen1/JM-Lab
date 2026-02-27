@@ -58,6 +58,21 @@ export interface ThemeTrend {
   growth: number;
 }
 
+export interface DataPoint {
+  timestamp: string;
+  value: number;
+  label?: string;
+}
+
+export interface DataStats {
+  total: number;
+  average: number;
+  growth: number;
+  peak: number;
+  trough: number;
+  trend: 'up' | 'down' | 'stable';
+}
+
 class AnalyticsService {
   private sessionId: string;
   private deviceType: string;
@@ -69,15 +84,35 @@ class AnalyticsService {
     this.deviceType = this.detectDeviceType();
     this.browser = this.detectBrowser();
     this.os = this.detectOS();
-    
-    // 初始化时记录设备信息
-    this.recordDeviceInfo();
-    
-    // 记录页面浏览
-    this.recordPageView();
-    
+
+    // 延迟初始化，确保 localStorage 可用
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        // 初始化时记录设备信息
+        this.recordDeviceInfo();
+
+        // 记录页面浏览
+        this.recordPageView();
+
+        // 记录流量来源
+        this.trackTrafficSource();
+      }, 100);
+    }
+
     // 监听页面离开
     this.setupPageLeaveTracking();
+  }
+
+  // 获取认证请求头
+  private getAuthHeaders(): HeadersInit {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
   }
 
   // 生成会话ID
@@ -122,17 +157,19 @@ class AnalyticsService {
   // 记录设备信息
   private async recordDeviceInfo(): Promise<void> {
     try {
-      await fetch('/api/analytics/device', {
+      const response = await fetch('/api/analytics/device', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({
           device_type: this.deviceType,
           device_name: navigator.platform,
           user_agent: navigator.userAgent,
         }),
       });
+      
+      if (!response.ok) {
+        console.warn('记录设备信息失败:', response.status, response.statusText);
+      }
     } catch (error) {
       console.warn('记录设备信息失败:', error);
     }
@@ -141,11 +178,9 @@ class AnalyticsService {
   // 记录页面浏览
   private async recordPageView(): Promise<void> {
     try {
-      await fetch('/api/analytics/pageview', {
+      const response = await fetch('/api/analytics/pageview', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({
           page_path: window.location.pathname,
           page_title: document.title,
@@ -156,6 +191,10 @@ class AnalyticsService {
           os: this.os,
         }),
       });
+      
+      if (!response.ok) {
+        console.warn('记录页面浏览失败:', response.status, response.statusText);
+      }
     } catch (error) {
       console.warn('记录页面浏览失败:', error);
     }
@@ -256,11 +295,9 @@ class AnalyticsService {
         }
       }
 
-      await fetch('/api/analytics/traffic', {
+      const response = await fetch('/api/analytics/traffic', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({
           source_type: sourceType,
           source_name: sourceName,
@@ -271,6 +308,10 @@ class AnalyticsService {
           landing_page: window.location.pathname,
         }),
       });
+      
+      if (!response.ok) {
+        console.warn('记录流量来源失败:', response.status, response.statusText);
+      }
     } catch (error) {
       console.warn('记录流量来源失败:', error);
     }
@@ -289,11 +330,14 @@ class AnalyticsService {
   // 获取作品表现数据
   public async getWorksPerformance(limit: number = 5): Promise<WorkPerformance[]> {
     try {
-      const response = await fetch(`/api/analytics/works-performance?limit=${limit}`);
+      const response = await fetch(`/api/analytics/works-performance?limit=${limit}`, {
+        headers: this.getAuthHeaders(),
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch works performance');
       }
-      return await response.json();
+      const data = await response.json();
+      return data.data || [];
     } catch (error) {
       console.warn('获取作品表现数据失败:', error);
       // 返回模拟数据作为后备
@@ -304,11 +348,14 @@ class AnalyticsService {
   // 获取用户活动数据
   public async getUserActivity(limit: number = 5): Promise<UserActivity[]> {
     try {
-      const response = await fetch(`/api/analytics/user-activity?limit=${limit}`);
+      const response = await fetch(`/api/analytics/user-activity?limit=${limit}`, {
+        headers: this.getAuthHeaders(),
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch user activity');
       }
-      return await response.json();
+      const data = await response.json();
+      return data.data || [];
     } catch (error) {
       console.warn('获取用户活动数据失败:', error);
       // 返回模拟数据作为后备
@@ -319,16 +366,110 @@ class AnalyticsService {
   // 获取主题趋势数据
   public async getThemeTrends(limit: number = 5): Promise<ThemeTrend[]> {
     try {
-      const response = await fetch(`/api/analytics/theme-trends?limit=${limit}`);
+      const response = await fetch(`/api/analytics/theme-trends?limit=${limit}`, {
+        headers: this.getAuthHeaders(),
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch theme trends');
       }
-      return await response.json();
+      const data = await response.json();
+      return data.data || [];
     } catch (error) {
       console.warn('获取主题趋势数据失败:', error);
       // 返回模拟数据作为后备
       return this.getMockThemeTrends(limit);
     }
+  }
+
+  // 获取指标数据（用于图表）
+  public async getMetricsData(params: AnalyticsQueryParams): Promise<DataPoint[]> {
+    try {
+      const queryString = new URLSearchParams({
+        metric: params.metric,
+        timeRange: params.timeRange,
+        groupBy: params.groupBy,
+        ...(params.filters?.userId && { userId: params.filters.userId }),
+        ...(params.filters?.workId && { workId: params.filters.workId }),
+        ...(params.filters?.theme && { theme: params.filters.theme }),
+      }).toString();
+
+      const response = await fetch(`/api/analytics/metrics?${queryString}`, {
+        headers: this.getAuthHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch metrics data');
+      }
+      const data = await response.json();
+      return data.data || [];
+    } catch (error) {
+      console.warn('获取指标数据失败:', error);
+      // 返回模拟数据作为后备
+      return this.getMockMetricsData(params);
+    }
+  }
+
+  // 获取用户分析数据（包含正确的总计）
+  public async getUserAnalytics(): Promise<{ totalWorks: number; totalViews: number; totalLikes: number; totalComments: number } | null> {
+    try {
+      const response = await fetch('/api/user/analytics', {
+        headers: this.getAuthHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch user analytics');
+      }
+      const data = await response.json();
+      return data.data || null;
+    } catch (error) {
+      console.warn('获取用户分析数据失败:', error);
+      return null;
+    }
+  }
+
+  // 计算指标统计
+  public getMetricsStats(data: DataPoint[], metric: MetricType): DataStats {
+    if (!data || data.length === 0) {
+      return {
+        total: 0,
+        average: 0,
+        growth: 0,
+        peak: 0,
+        trough: 0,
+        trend: 'stable'
+      };
+    }
+
+    const values = data.map(d => d.value);
+    const total = values.reduce((sum, val) => sum + val, 0);
+    const average = total / values.length;
+    const peak = Math.max(...values);
+    const trough = Math.min(...values);
+
+    // 计算增长率（比较前半段和后半段）
+    const half = Math.floor(values.length / 2);
+    const firstHalf = values.slice(0, half).reduce((sum, val) => sum + val, 0);
+    const secondHalf = values.slice(half).reduce((sum, val) => sum + val, 0);
+    const growth = firstHalf > 0 ? ((secondHalf - firstHalf) / firstHalf) * 100 : 0;
+
+    // 判断趋势
+    let trend: 'up' | 'down' | 'stable' = 'stable';
+    if (values.length >= 2) {
+      const recent = values.slice(-3);
+      const avgRecent = recent.reduce((sum, val) => sum + val, 0) / recent.length;
+      if (avgRecent > average * 1.1) {
+        trend = 'up';
+      } else if (avgRecent < average * 0.9) {
+        trend = 'down';
+      }
+    }
+
+    return {
+      total,
+      average,
+      growth,
+      peak,
+      trough,
+      trend
+    };
   }
 
   // 下载导出数据
@@ -344,7 +485,9 @@ class AnalyticsService {
         ...(params.filters?.theme && { theme: params.filters.theme }),
       }).toString();
 
-      const response = await fetch(`/api/analytics/export?${queryString}`);
+      const response = await fetch(`/api/analytics/export?${queryString}`, {
+        headers: this.getAuthHeaders(),
+      });
       if (!response.ok) {
         throw new Error('Failed to export data');
       }
@@ -473,6 +616,47 @@ class AnalyticsService {
       { theme: '意式风情', worksCount: 543, viewsCount: 234000, growth: -3.2 },
     ];
     return mockData.slice(0, limit);
+  }
+
+  // 生成模拟指标数据
+  private getMockMetricsData(params: AnalyticsQueryParams): DataPoint[] {
+    const { timeRange, groupBy } = params;
+    const now = new Date();
+    const data: DataPoint[] = [];
+
+    // 根据时间范围和分组确定数据点数量
+    let points = 30;
+    if (timeRange === 'day') points = 24; // 24小时
+    else if (timeRange === 'week') points = 7; // 7天
+    else if (timeRange === 'month') points = 30; // 30天
+    else if (timeRange === 'quarter') points = 12; // 12周
+    else if (timeRange === 'year') points = 12; // 12个月
+
+    // 生成趋势数据
+    let baseValue = 100;
+    for (let i = 0; i < points; i++) {
+      const date = new Date(now);
+      if (groupBy === 'hour') {
+        date.setHours(date.getHours() - (points - i));
+      } else {
+        date.setDate(date.getDate() - (points - i));
+      }
+
+      // 添加一些随机波动和趋势
+      const trend = Math.sin(i / points * Math.PI) * 50;
+      const random = (Math.random() - 0.5) * 30;
+      const value = Math.max(0, Math.round(baseValue + trend + random));
+
+      data.push({
+        timestamp: date.toISOString(),
+        value,
+        label: groupBy === 'hour'
+          ? `${date.getHours()}:00`
+          : `${date.getMonth() + 1}/${date.getDate()}`
+      });
+    }
+
+    return data;
   }
 }
 

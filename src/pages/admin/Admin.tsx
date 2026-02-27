@@ -1,7 +1,7 @@
 import { useState, useContext, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { toast } from 'sonner';
@@ -41,10 +41,12 @@ const BrandTaskAudit = lazy(() => import('./BrandTaskAudit'));
 const WorkSubmissionAudit = lazy(() => import('./WorkSubmissionAudit'));
 const PromotionUserManagement = lazy(() => import('./PromotionUserManagement'));
 const PromotionOrderManagement = lazy(() => import('./PromotionOrderManagement'));
+const PromotionOrderImplementation = lazy(() => import('./PromotionOrderImplementation'));
+const SearchRecordManagement = lazy(() => import('./SearchRecordManagement'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement' | 'promotionOrderImplementation' | 'searchRecords';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -75,12 +77,33 @@ export default function Admin() {
   const { isDark } = useTheme();
   const { isAuthenticated, user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  // 从 localStorage 恢复标签页状态
+  // 从 localStorage 恢复标签页状态，同时检查 URL 参数
   const [activeTab, setActiveTab] = useState<TabType>(() => {
+    // 优先从 URL 参数读取
+    const urlTab = searchParams.get('tab') as TabType;
+    if (urlTab) {
+      return urlTab;
+    }
+    // 否则从 localStorage 读取
     const savedTab = safeLocalStorage.getItem('admin_active_tab');
     return (savedTab as TabType) || 'dashboard';
   });
+
+  // 监听 URL 变化，当 tab 参数改变时更新 activeTab
+  useEffect(() => {
+    const urlTab = searchParams.get('tab') as TabType;
+    if (urlTab) {
+      setActiveTab(prevTab => {
+        if (urlTab !== prevTab) {
+          return urlTab;
+        }
+        return prevTab;
+      });
+    }
+  }, [location.search]);
 
   // 侧边栏收缩状态
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -504,6 +527,14 @@ export default function Admin() {
       markAsViewed(tabId as NavItemType);
     }
     setActiveTab(tabId as TabType);
+    
+    // 更新 URL 参数，刷新后保持当前页面
+    const newSearchParams = new URLSearchParams(location.search);
+    newSearchParams.set('tab', tabId);
+    navigate(`${location.pathname}?${newSearchParams.toString()}`, { replace: true });
+    
+    // 保存到 localStorage 作为备份
+    safeLocalStorage.setItem('admin_active_tab', tabId);
   };
 
   return (
@@ -1917,6 +1948,36 @@ export default function Admin() {
             </div>
           }>
             <PromotionOrderManagement />
+          </Suspense>
+        )}
+
+        {/* 推广订单实施页面 */}
+        {activeTab === 'promotionOrderImplementation' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-green-200 border-t-green-500 rounded-full"
+              />
+            </div>
+          }>
+            <PromotionOrderImplementation />
+          </Suspense>
+        )}
+
+        {/* 搜索记录管理页面 */}
+        {activeTab === 'searchRecords' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-cyan-200 border-t-cyan-500 rounded-full"
+              />
+            </div>
+          }>
+            <SearchRecordManagement />
           </Suspense>
         )}
 

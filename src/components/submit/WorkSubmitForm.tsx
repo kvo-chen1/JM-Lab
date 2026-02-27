@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Save, Type, FileText, Hash, Upload, AlertCircle } from 'lucide-react';
+import { Send, Save, Type, FileText, Hash, Upload, AlertCircle, Sparkles, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MediaUploadZone } from '../upload/MediaUploadZone';
 import { TagInput } from './TagInput';
@@ -34,6 +34,13 @@ interface WorkSubmitFormProps {
   isSaving?: boolean;
   isUploading?: boolean;
   uploadProgress?: Record<string, number>;
+  // AI优化相关
+  onOptimizeDescription?: () => Promise<string>;
+  isOptimizing?: boolean;
+  wizardData?: any;
+  // 导入到创作中心
+  onImportToCreate?: () => void;
+  isImporting?: boolean;
 }
 
 const MAX_TITLE_LENGTH = 100;
@@ -47,7 +54,12 @@ export function WorkSubmitForm({
   isSubmitting = false,
   isSaving = false,
   isUploading = false,
-  uploadProgress = {}
+  uploadProgress = {},
+  onOptimizeDescription,
+  isOptimizing = false,
+  wizardData,
+  onImportToCreate,
+  isImporting = false
 }: WorkSubmitFormProps) {
   const [title, setTitle] = useState(initialData?.title || '');
   const [description, setDescription] = useState(initialData?.description || '');
@@ -236,9 +248,47 @@ export function WorkSubmitForm({
             <FileText className="w-4 h-4 text-blue-500" />
             作品描述
           </label>
-          <span className={`text-xs ${description.length > MAX_DESCRIPTION_LENGTH ? 'text-red-500' : 'text-gray-400'}`}>
-            {description.length}/{MAX_DESCRIPTION_LENGTH}
-          </span>
+          <div className="flex items-center gap-3">
+            {/* AI优化按钮 */}
+            {onOptimizeDescription && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!description.trim()) {
+                    toast.error('请先输入描述内容');
+                    return;
+                  }
+                  try {
+                    const optimized = await onOptimizeDescription();
+                    if (optimized) {
+                      setDescription(optimized);
+                      setTimeout(() => syncData(), 0);
+                      toast.success('描述已优化');
+                    }
+                  } catch (error) {
+                    toast.error('优化失败，请重试');
+                  }
+                }}
+                disabled={isOptimizing || !description.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {isOptimizing ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin" />
+                    优化中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    AI优化
+                  </>
+                )}
+              </button>
+            )}
+            <span className={`text-xs ${description.length > MAX_DESCRIPTION_LENGTH ? 'text-red-500' : 'text-gray-400'}`}>
+              {description.length}/{MAX_DESCRIPTION_LENGTH}
+            </span>
+          </div>
         </div>
 
         <textarea
@@ -389,6 +439,34 @@ export function WorkSubmitForm({
                   <Save className="w-5 h-5" />
                 )}
                 <span>保存草稿</span>
+              </motion.button>
+            )}
+
+            {/* 导入到创作中心按钮 */}
+            {onImportToCreate && (
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onImportToCreate}
+                disabled={isSubmitting || isImporting}
+                className="flex-1 sm:flex-none px-6 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-lg shadow-purple-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isImporting ? (
+                  <>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                    />
+                    <span>导入中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-5 h-5" />
+                    <span>导入到创作中心</span>
+                  </>
+                )}
               </motion.button>
             )}
 

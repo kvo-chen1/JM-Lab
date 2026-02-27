@@ -56,6 +56,15 @@ const typeIconMap: Record<string, string> = {
   social_rumor: '📢',
   false_info: '❌',
   external_link: '🔗',
+  // 原创保护相关
+  portrait: '📸',
+  privacy: '🔒',
+  impersonation: '🎭',
+  reputation: '💬',
+  business_reputation: '🏢',
+  plagiarism: '📄',
+  trademark: '™️',
+  patent: '🔬',
   other: '📝'
 };
 
@@ -113,6 +122,7 @@ export default function ReportManagement() {
   const loadReports = async () => {
     setLoading(true);
     try {
+      console.log('开始加载举报数据...');
       const { reports: data, total: count } = await getReports({
         page,
         limit: 20,
@@ -121,6 +131,7 @@ export default function ReportManagement() {
         target_type: filters.target_type || undefined,
         search: filters.search || undefined
       });
+      console.log('加载到的举报数据:', data, '总数:', count);
       setReports(data);
       setTotal(count);
     } catch (error) {

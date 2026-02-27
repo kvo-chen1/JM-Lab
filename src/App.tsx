@@ -345,6 +345,13 @@ const Authenticity = createLazyComponent(() => import(/* webpackChunkName: "page
 const Wizard = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Wizard"), {
   priority: ROUTE_PRIORITIES.LOW
 });
+const OriginalProtection = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/OriginalProtection"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'original-protection'
+});
+const OriginalProtectionManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/admin/OriginalProtectionManagement"), {
+  priority: ROUTE_PRIORITIES.LOW
+});
 
 // 津小脉AI助手移动端页面 - 懒加载
 const AIAssistantMobile = createLazyComponent(() => import(/* webpackChunkName: "pages-ai" */ "@/pages/AIAssistantMobile"), {
@@ -805,8 +812,8 @@ export default function App() {
 
           <Route path="/about" element={<LazyComponent><About /></LazyComponent>} />
           <Route path="/neo" element={<Navigate to="/create/inspiration" replace />} />
-          <Route path="/square" element={<LazyComponent><PrivateRoute><Square /></PrivateRoute></LazyComponent>} />
-<Route path="/square/:id" element={<LazyComponent><PrivateRoute>{isMobile ? <MobilePostDetail /> : <Square />}</PrivateRoute></LazyComponent>} />
+          <Route path="/square" element={<LazyComponent><Square /></LazyComponent>} />
+<Route path="/square/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <Square />}</LazyComponent>} />
           <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id/:channel" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
@@ -909,6 +916,9 @@ export default function App() {
           <Route path="/creator-center" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/creator-center/:tab" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
           
+          {/* 原创保护中心路由 */}
+          <Route path="/original-protection" element={<LazyComponent><PrivateRoute><OriginalProtection /></PrivateRoute></LazyComponent>} />
+          
           {/* 管理员路由 - 懒加载 */}
         </Route>
         
@@ -916,6 +926,7 @@ export default function App() {
         <Route path="/admin" element={<LazyComponent><AdminRoute component={Admin} /></LazyComponent>} />
         <Route path="/errors" element={<LazyComponent><AdminRoute component={ErrorMonitoringDashboard} /></LazyComponent>} />
         <Route path="/admin-analytics" element={<LazyComponent><AdminRoute component={AdminAnalytics} /></LazyComponent>} />
+        <Route path="/admin/original-protection" element={<LazyComponent><AdminRoute component={OriginalProtectionManagement} /></LazyComponent>} />
         
         {/* 推广用户申请页面 */}
         <Route path="/promotion/apply" element={<LazyComponent><PromotionApplication /></LazyComponent>} />

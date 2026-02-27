@@ -6,6 +6,7 @@ import { useTheme } from '@/hooks/useTheme';
 import SmartMarkdownTable from './SmartMarkdownTable';
 import VoiceOutputButton from './VoiceOutputButton';
 import AIMessageActions from './AIMessageActions';
+import { Copy } from 'lucide-react';
 
 interface AICollaborationMessageProps {
   message: Message;
@@ -13,6 +14,17 @@ interface AICollaborationMessageProps {
   userAvatar?: string;
   onDelete?: (index: number) => void;
   hideAvatar?: boolean;
+  conversationId?: string;
+  previousMessage?: Message;
+  aiModel?: string;
+  // 兼容旧版反馈 props
+  feedbackRating?: number;
+  feedbackComment?: string;
+  isFeedbackVisible?: boolean;
+  onRating?: (index: number, rating: number) => void;
+  onFeedbackSubmit?: (index: number) => void;
+  onFeedbackCommentChange?: (index: number, value: string) => void;
+  onFeedbackToggle?: (index: number, visible: boolean) => void;
 }
 
 const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
@@ -20,7 +32,18 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
   index,
   userAvatar,
   onDelete,
-  hideAvatar = false
+  hideAvatar = false,
+  conversationId,
+  previousMessage,
+  aiModel = 'unknown',
+  // 兼容旧版反馈 props
+  feedbackRating,
+  feedbackComment,
+  isFeedbackVisible,
+  onRating,
+  onFeedbackSubmit,
+  onFeedbackCommentChange,
+  onFeedbackToggle,
 }) => {
   const { isDark } = useTheme();
 
@@ -189,15 +212,18 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
               {!isUser && !isError && (
                 <VoiceOutputButton text={message.content} />
               )}
-              {/* 消息操作栏 - 用户消息和AI消息都显示 */}
-              {!isError && (
+              {/* 消息操作栏 - AI消息显示反馈功能 */}
+              {!isError && !isUser && (
                 <div className="flex items-center">
                   <AIMessageActions
                     content={message.content}
+                    userQuery={previousMessage?.content || '未提供用户问题'}
+                    conversationId={conversationId}
+                    aiModel={aiModel}
                     onQuote={() => {
                       // 触发引用事件，可以通过自定义事件或回调传递给父组件
-                      const quoteEvent = new CustomEvent('quoteMessage', { 
-                        detail: { content: message.content, index } 
+                      const quoteEvent = new CustomEvent('quoteMessage', {
+                        detail: { content: message.content, index }
                       });
                       window.dispatchEvent(quoteEvent);
                     }}

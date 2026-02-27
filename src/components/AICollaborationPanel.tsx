@@ -2665,6 +2665,9 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                             onFeedbackCommentChange={(idx, val) => setFeedbackComments(prev => ({...prev, [idx]: val}))}
                             onFeedbackToggle={(idx, visible) => setFeedbackVisible(prev => ({...prev, [idx]: visible}))}
                             onDelete={handleDeleteMessage}
+                            conversationId={currentSession?.id}
+                            previousMessage={index > 0 ? messages[index - 1] : undefined}
+                            aiModel="qwen"
                           />
                         </div>
                         {/* 生成任务卡片 */}

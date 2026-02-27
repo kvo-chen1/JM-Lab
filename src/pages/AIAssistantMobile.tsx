@@ -1669,6 +1669,9 @@ export default function AIAssistantMobile() {
                         userAvatar={user?.avatar}
                         onDelete={handleDeleteMessage}
                         hideAvatar={true}
+                        conversationId={currentSessionId || undefined}
+                        previousMessage={index > 0 ? messages[index - 1] : undefined}
+                        aiModel="qwen"
                       />
                     )
                   }

@@ -3,6 +3,8 @@
  * 用于收集和上报用户行为数据
  */
 
+import { supabase } from '@/lib/supabaseClient';
+
 // 导出类型定义
 export type MetricType = 'views' | 'likes' | 'comments' | 'shares' | 'favorites' | 'followers' | 'engagement';
 export type TimeRange = 'day' | 'week' | 'month' | 'quarter' | 'year';
@@ -425,6 +427,24 @@ class AnalyticsService {
     }
   }
 
+  // 增加作品浏览量
+  public async incrementWorkViewCount(workId: string): Promise<number | null> {
+    try {
+      const { data, error } = await supabase
+        .rpc('increment_work_view_count', { work_id: workId });
+      
+      if (error) {
+        console.warn('增加浏览量失败:', error);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.warn('增加浏览量失败:', error);
+      return null;
+    }
+  }
+
   // 计算指标统计
   public getMetricsStats(data: DataPoint[], metric: MetricType): DataStats {
     if (!data || data.length === 0) {
@@ -662,5 +682,10 @@ class AnalyticsService {
 
 // 创建单例实例
 export const analyticsService = new AnalyticsService();
+
+// 导出独立的增加浏览量函数
+export const incrementWorkViewCount = (workId: string): Promise<number | null> => {
+  return analyticsService.incrementWorkViewCount(workId);
+};
 
 export default analyticsService;

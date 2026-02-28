@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { Event } from '@/types';
+import { AuthContext } from '@/contexts/authContext';
 import { 
   Calendar, 
   Clock, 
@@ -12,9 +13,12 @@ import {
   MapPin,
   TrendingUp,
   Star,
-  Zap
+  Zap,
+  Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { userService } from '@/services/userService';
+import { toast } from 'sonner';
 
 interface RightSidebarProps {
   events: Event[];
@@ -33,10 +37,20 @@ interface RightSidebarProps {
     likesCount: number;
   }[];
   onEventClick?: (eventId: string) => void;
+  selectedDate?: Date | null;
+  onDateSelect?: (date: Date | null) => void;
 }
 
 // 迷你日历组件
-function MiniCalendar({ events }: { events: Event[] }) {
+function MiniCalendar({ 
+  events, 
+  selectedDate, 
+  onDateSelect 
+}: { 
+  events: Event[]; 
+  selectedDate?: Date | null;
+  onDateSelect?: (date: Date | null) => void;
+}) {
   const { isDark } = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date());
   
@@ -54,11 +68,39 @@ function MiniCalendar({ events }: { events: Event[] }) {
     days.push(i);
   }
 
-  // 获取有活动的日期
-  const eventDates = events.map(e => new Date(e.startTime).getDate());
+  // 获取有活动的日期（考虑年月）
+  const eventDates = events
+    .filter(e => {
+      const eventDate = new Date(e.startTime);
+      return eventDate.getFullYear() === year && eventDate.getMonth() === month;
+    })
+    .map(e => new Date(e.startTime).getDate());
   
-  const today = new Date().getDate();
-  const isCurrentMonth = new Date().getMonth() === month;
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+  // 处理日期点击
+  const handleDateClick = (day: number | null) => {
+    if (!day || !onDateSelect) return;
+    
+    // 如果点击已选中的日期，则取消选择
+    if (selectedDate && 
+        selectedDate.getDate() === day && 
+        selectedDate.getMonth() === month && 
+        selectedDate.getFullYear() === year) {
+      onDateSelect(null);
+    } else {
+      // 选择新日期
+      onDateSelect(new Date(year, month, day));
+    }
+  };
+
+  // 清除日期筛选
+  const clearDateFilter = () => {
+    if (onDateSelect) {
+      onDateSelect(null);
+    }
+  };
 
   return (
     <div className={`rounded-2xl p-5 ${isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-100'} shadow-sm`}>
@@ -83,39 +125,67 @@ function MiniCalendar({ events }: { events: Event[] }) {
       <div className="grid grid-cols-7 gap-1">
         {days.map((day, index) => {
           const hasEvent = day && eventDates.includes(day);
-          const isToday = isCurrentMonth && day === today;
+          const isToday = isCurrentMonth && day === today.getDate();
+          const isSelected = selectedDate && 
+                            day === selectedDate.getDate() && 
+                            month === selectedDate.getMonth() && 
+                            year === selectedDate.getFullYear();
           
           return (
-            <div
+            <motion.div
               key={index}
+              onClick={() => handleDateClick(day)}
+              whileHover={day ? { scale: 1.1 } : {}}
+              whileTap={day ? { scale: 0.95 } : {}}
               className={`
-                aspect-square flex items-center justify-center text-sm rounded-lg relative
-                ${day ? 'cursor-pointer hover:bg-red-50' : ''}
-                ${isToday ? 'bg-red-500 text-white font-semibold' : ''}
-                ${hasEvent && !isToday ? 'font-semibold text-red-500' : ''}
-                ${!isToday && day ? isDark ? 'text-gray-300 hover:text-red-400' : 'text-gray-700' : ''}
+                aspect-square flex items-center justify-center text-sm rounded-lg relative cursor-pointer
+                ${isSelected ? 'bg-red-500 text-white font-semibold shadow-lg shadow-red-500/30' : ''}
+                ${isToday && !isSelected ? 'bg-red-500 text-white font-semibold' : ''}
+                ${hasEvent && !isToday && !isSelected ? 'font-semibold text-red-500' : ''}
+                ${!isToday && !isSelected && day ? isDark ? 'text-gray-300 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-700 hover:text-red-500 hover:bg-red-50' : ''}
+                ${!day ? 'cursor-default' : ''}
               `}
             >
               {day}
-              {hasEvent && !isToday && (
+              {hasEvent && !isToday && !isSelected && (
                 <div className="absolute bottom-1 w-1 h-1 rounded-full bg-red-500" />
               )}
-            </div>
+              {isSelected && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 rounded-full flex items-center justify-center">
+                  <span className="text-[8px] text-white">✓</span>
+                </div>
+              )}
+            </motion.div>
           );
         })}
       </div>
       
       <div className={`mt-4 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-            <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>有活动</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>有活动</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`} />
+              <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>今天</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-300'}`} />
-            <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>今天</span>
-          </div>
+          {selectedDate && (
+            <button
+              onClick={clearDateFilter}
+              className="text-xs text-red-500 hover:text-red-600 font-medium transition-colors"
+            >
+              清除筛选
+            </button>
+          )}
         </div>
+        {selectedDate && (
+          <div className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            已选择: {selectedDate.getMonth() + 1}月{selectedDate.getDate()}日
+          </div>
+        )}
       </div>
     </div>
   );
@@ -139,17 +209,58 @@ function UpcomingEvents({ events, onEventClick }: { events: Event[]; onEventClic
     }
   };
 
-  const getTimeLeft = (startTime: Date, endTime?: Date) => {
+  // 辅助函数：解析日期值（处理各种日期格式）
+  const parseDateValue = (dateValue: any): Date | null => {
+    if (dateValue == null) {
+      return null;
+    }
+    if (dateValue instanceof Date) {
+      return isNaN(dateValue.getTime()) ? null : dateValue;
+    }
+    if (typeof dateValue === 'string') {
+      // 检查是否是纯数字（时间戳）
+      if (/^\d+$/.test(dateValue)) {
+        const numValue = parseInt(dateValue, 10);
+        // 判断时间戳是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
+        const msValue = numValue < 1e12 ? numValue * 1000 : numValue;
+        const date = new Date(msValue);
+        return isNaN(date.getTime()) ? null : date;
+      }
+      // ISO日期字符串
+      const parsed = new Date(dateValue);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+      return null;
+    }
+    if (typeof dateValue === 'number') {
+      // 判断时间戳是秒级还是毫秒级
+      const msValue = dateValue < 1e12 ? dateValue * 1000 : dateValue;
+      const date = new Date(msValue);
+      return isNaN(date.getTime()) ? null : date;
+    }
+    // 对于其他类型，尝试解析
+    const parsed = new Date(dateValue);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const getTimeLeft = (startTime: Date | string | number, endTime?: Date | string | number) => {
     const now = new Date();
-    const start = new Date(startTime);
+    const start = parseDateValue(startTime);
+    
+    // 如果开始时间无效，返回未知状态
+    if (!start || isNaN(start.getTime())) {
+      return '时间待定';
+    }
+    
     const diff = start.getTime() - now.getTime();
     
     // 如果活动已经开始或已结束
     if (diff < 0) {
       // 如果有结束时间，检查活动是否已结束
       if (endTime) {
-        const end = new Date(endTime);
-        if (now > end) {
+        const end = parseDateValue(endTime);
+        if (end && now > end) {
           return '已结束';
         }
       }
@@ -388,6 +499,9 @@ function TrendingEvents({ events, onEventClick }: { events: Event[]; onEventClic
 function RecommendedCreators({ creators }: { creators?: { id: string; name: string; avatar: string; worksCount: number; followersCount: number; likesCount: number }[] }) {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const { user: currentUser } = useContext(AuthContext);
+  const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({});
+  const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
   
   // 格式化数字
   const formatCount = (count: number | undefined | null) => {
@@ -415,6 +529,44 @@ function RecommendedCreators({ creators }: { creators?: { id: string; name: stri
     );
   }
 
+  // 处理关注/取消关注
+  const handleFollowToggle = async (e: React.MouseEvent, creatorId: string) => {
+    e.stopPropagation();
+    
+    if (!currentUser) {
+      toast.error('请先登录');
+      navigate('/login');
+      return;
+    }
+
+    if (currentUser.id === creatorId) {
+      toast.error('不能关注自己');
+      return;
+    }
+
+    const isCurrentlyFollowing = followingMap[creatorId];
+    setLoadingMap(prev => ({ ...prev, [creatorId]: true }));
+
+    try {
+      let success: boolean;
+      if (isCurrentlyFollowing) {
+        success = await userService.unfollowUser(creatorId);
+        if (success) {
+          setFollowingMap(prev => ({ ...prev, [creatorId]: false }));
+        }
+      } else {
+        success = await userService.followUser(creatorId);
+        if (success) {
+          setFollowingMap(prev => ({ ...prev, [creatorId]: true }));
+        }
+      }
+    } catch (error) {
+      console.error('[RightSidebar] handleFollowToggle error:', error);
+    } finally {
+      setLoadingMap(prev => ({ ...prev, [creatorId]: false }));
+    }
+  };
+
   return (
     <div className={`rounded-2xl p-5 ${isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-white border border-gray-100'} shadow-sm`}>
       <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
@@ -423,47 +575,75 @@ function RecommendedCreators({ creators }: { creators?: { id: string; name: stri
       </h3>
       
       <div className="space-y-3">
-        {creators.map((creator) => (
-          <div
-            key={creator.id}
-            onClick={() => navigate(`/profile/${creator.id}`)}
-            className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer ${
-              isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'
-            }`}
-          >
-            <img
-              src={creator.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${creator.id}`}
-              alt={creator.name}
-              className="w-10 h-10 rounded-full object-cover"
-            />
-            <div className="flex-1 min-w-0">
-              <h4 className={`font-medium text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
-                {creator.name}
-              </h4>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                {formatCount(creator.followersCount)} 关注者 · {creator.worksCount} 作品
-              </p>
-            </div>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: 实现关注功能
-              }}
-              className="px-3 py-1 rounded-full text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+        {creators.map((creator) => {
+          const isFollowing = followingMap[creator.id] || false;
+          const isLoading = loadingMap[creator.id] || false;
+
+          return (
+            <div
+              key={creator.id}
+              onClick={() => navigate(`/profile/${creator.id}`)}
+              className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer ${
+                isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'
+              }`}
             >
-              关注
-            </button>
-          </div>
-        ))}
+              <img
+                src={creator.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${creator.id}`}
+                alt={creator.name}
+                className="w-10 h-10 rounded-full object-cover"
+              />
+              <div className="flex-1 min-w-0">
+                <h4 className={`font-medium text-sm ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                  {creator.name}
+                </h4>
+                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {formatCount(creator.followersCount)} 关注者 · {creator.worksCount} 作品
+                </p>
+              </div>
+              <button 
+                onClick={(e) => handleFollowToggle(e, creator.id)}
+                disabled={isLoading}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1 ${
+                  isFollowing
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600'
+                    : 'bg-red-500 text-white hover:bg-red-600'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {isLoading ? (
+                  <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : isFollowing ? (
+                  <>
+                    <Check className="w-3 h-3" />
+                    已关注
+                  </>
+                ) : (
+                  '关注'
+                )}
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-export default function RightSidebar({ events, upcomingEvents, userStats, recommendedCreators, onEventClick }: RightSidebarProps) {
+export default function RightSidebar({ 
+  events, 
+  upcomingEvents, 
+  userStats, 
+  recommendedCreators, 
+  onEventClick,
+  selectedDate,
+  onDateSelect 
+}: RightSidebarProps) {
   return (
     <aside className="w-full lg:w-[320px] flex-shrink-0 space-y-6">
-      <MiniCalendar events={events} />
+      <MiniCalendar 
+        events={events} 
+        selectedDate={selectedDate}
+        onDateSelect={onDateSelect}
+      />
       <UpcomingEvents events={upcomingEvents} onEventClick={onEventClick} />
       <MyActivityStats stats={userStats} />
       <TrendingEvents events={events} onEventClick={onEventClick} />

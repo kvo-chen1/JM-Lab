@@ -638,9 +638,9 @@ export function generateContentBasedRecommendations(userId: string, limit: numbe
       score += Math.max(0, 1 - Math.abs(daysToStart) / 30) * DIVERSITY_SETTINGS.recencyWeight;
     }
 
-    // 如果没有个性化分数但有参与度数据，给基础分数
-    if (score === 0 && ((challenge.participants || 0) + (challenge.submissionCount || 0)) > 0) {
-      score = 0.1;
+    // 如果没有个性化分数，给基础分数确保活动能被推荐
+    if (score === 0) {
+      score = 0.5; // 基础分数，确保活动能被推荐
     }
 
     // 添加所有挑战（只要有基本数据）
@@ -1174,7 +1174,11 @@ export function getTrendingContent(limit: number = 10): RecommendedItem[] {
 
   // 处理热门挑战
   challenges.forEach((challenge: any) => {
-    const score = (challenge.participants * 10) + (challenge.submissionCount * 8) + (challenge.views || 0) * 0.5;
+    let score = (challenge.participants * 10) + (challenge.submissionCount * 8) + (challenge.views || 0) * 0.5;
+    // 确保活动至少有基础分数
+    if (score === 0) {
+      score = 5;
+    }
     if (challenge.id && challenge.title) {
       trendingItems.push({
         id: challenge.id,
@@ -1182,7 +1186,7 @@ export function getTrendingContent(limit: number = 10): RecommendedItem[] {
         title: challenge.title,
         thumbnail: challenge.featuredImage,
         score,
-        reason: score > 0 ? '热门挑战' : '精选挑战',
+        reason: score > 5 ? '热门挑战' : '精选挑战',
         metadata: challenge
       });
     }

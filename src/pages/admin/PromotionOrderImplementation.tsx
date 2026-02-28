@@ -30,7 +30,8 @@ import {
   Award,
   Sparkles,
   PlayCircle,
-  StopCircle as StopIcon
+  StopCircle as StopIcon,
+  Monitor
 } from 'lucide-react';
 import { promotionService, PromotedWork } from '@/services/promotionService';
 import { supabaseAdmin } from '@/lib/supabaseClient';
@@ -45,6 +46,55 @@ interface PromotionStats {
   totalRevenue: number;
 }
 
+// 实时数据看板数据
+interface RealTimeStats {
+  viewsPerMinute: number;
+  clicksPerMinute: number;
+  activeUsers: number;
+  conversionRate: number;
+  costPerClick: number;
+  roi: number;
+}
+
+// 预算监控数据
+interface BudgetMonitoring {
+  totalBudget: number;
+  usedBudget: number;
+  remainingBudget: number;
+  usagePercentage: number;
+  dailyBudget: number;
+  dailyUsed: number;
+  projectedEndurance: number; // 预计还能维持天数
+}
+
+// 异常告警
+interface Alert {
+  id: string;
+  type: 'warning' | 'error' | 'info';
+  title: string;
+  message: string;
+  timestamp: string;
+  acknowledged: boolean;
+}
+
+// ROI 分析数据
+interface ROIAnalysis {
+  totalInvestment: number;
+  totalReturn: number;
+  roi: number;
+  roiTrend: Array<{
+    date: string;
+    roi: number;
+  }>;
+  topPerformingWorks: Array<{
+    work_id: string;
+    work_title: string;
+    investment: number;
+    return: number;
+    roi: number;
+  }>;
+}
+
 // 扩展的推广作品类型，包含关联的用户和订单信息
 interface EnrichedPromotedWork extends PromotedWork {
   workTitle?: string;
@@ -55,17 +105,7 @@ interface EnrichedPromotedWork extends PromotedWork {
   finalPrice?: number;
 }
 
-// 生成模拟历史数据用于趋势图
-const generateTrendData = (currentValue: number, points: number = 7) => {
-  const data = [];
-  for (let i = 0; i < points; i++) {
-    // 生成递增趋势的数据，最后一个是当前值
-    const ratio = (i + 1) / points;
-    const randomFactor = 0.8 + Math.random() * 0.4;
-    data.push(Math.round(currentValue * ratio * randomFactor));
-  }
-  return data;
-};
+
 
 export default function PromotionOrderImplementation() {
   const { isDark } = useTheme();
@@ -91,6 +131,51 @@ export default function PromotionOrderImplementation() {
     totalViewsAdded: number;
     totalClicksAdded: number;
   } | null>(null);
+
+  // 实时数据看板状态
+  const [realTimeStats, setRealTimeStats] = useState<RealTimeStats>({
+    viewsPerMinute: 0,
+    clicksPerMinute: 0,
+    activeUsers: 0,
+    conversionRate: 0,
+    costPerClick: 0,
+    roi: 0,
+  });
+
+  // 预算监控状态
+  const [budgetMonitoring, setBudgetMonitoring] = useState<BudgetMonitoring>({
+    totalBudget: 0,
+    usedBudget: 0,
+    remainingBudget: 0,
+    usagePercentage: 0,
+    dailyBudget: 0,
+    dailyUsed: 0,
+    projectedEndurance: 0,
+  });
+
+  // 异常告警状态
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  // ROI 分析状态
+  const [roiAnalysis, setRoiAnalysis] = useState<ROIAnalysis | null>(null);
+
+  // 趋势数据状态 - 使用真实历史数据
+  const [trendData, setTrendData] = useState<{
+    dates: string[];
+    views: number[];
+    clicks: number[];
+  }>({ dates: [], views: [], clicks: [] });
+
+  // 周环比数据状态
+  const [weekOverWeek, setWeekOverWeek] = useState({
+    viewsChange: 0,
+    clicksChange: 0,
+    ctrChange: 0,
+  });
+
+  // 实时刷新状态
+  const [realTimeRefreshEnabled, setRealTimeRefreshEnabled] = useState(true);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
   // 图表悬浮提示状态
   const [chartTooltip, setChartTooltip] = useState<{
@@ -170,15 +255,353 @@ export default function PromotionOrderImplementation() {
       console.log('========== 推广实施数据获取完成 ==========');
     } catch (error: any) {
       console.error('获取推广实施数据失败:', error);
-      toast.error('获取数据失败: ' + (error?.message || '未知错误'));
+      toast.error('获取数据失败：' + (error?.message || '未知错误'));
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // 获取实时数据看板
+  const fetchRealTimeStats = useCallback(async () => {
+    try {
+      // 从行为日志中获取最近 5 分钟的浏览和点击数据
+      const fiveMinutesAgo = new Date();
+      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+
+      const { data: recentLogs } = await supabaseAdmin
+        .from('user_behavior_logs')
+        .select('action, created_at')
+        .in('action', ['view_promoted_work', 'click_promoted_work'])
+        .gte('created_at', fiveMinutesAgo.toISOString());
+
+      // 计算每分钟数据
+      const viewLogs = recentLogs?.filter(log => log.action === 'view_promoted_work') || [];
+      const clickLogs = recentLogs?.filter(log => log.action === 'click_promoted_work') || [];
+
+      const viewsPerMinute = Math.round(viewLogs.length / 5);
+      const clicksPerMinute = Math.round(clickLogs.length / 5);
+
+      // 获取当前活跃用户数（最近 5 分钟有行为的用户）
+      const activeUsers = new Set(recentLogs?.map(log => log.user_id) || []).size;
+
+      // 计算转化率（点击/浏览）
+      const conversionRate = viewLogs.length > 0 
+        ? Number(((clickLogs.length / viewLogs.length) * 100).toFixed(2)) 
+        : 0;
+
+      // 计算平均点击成本
+      const totalCost = promotedWorks.reduce((sum, pw) => sum + (pw.finalPrice || 0), 0);
+      const totalClicks = promotedWorks.reduce((sum, pw) => sum + (pw.actualClicks || 0), 0);
+      const costPerClick = totalClicks > 0 ? Number((totalCost / totalClicks).toFixed(2)) : 0;
+
+      // 计算 ROI（简化版本）
+      const roi = totalCost > 0 ? Number(((totalClicks * 0.5 - totalCost) / totalCost * 100).toFixed(2)) : 0;
+
+      setRealTimeStats({
+        viewsPerMinute,
+        clicksPerMinute,
+        activeUsers,
+        conversionRate,
+        costPerClick,
+        roi,
+      });
+
+      setLastRefreshTime(new Date());
+    } catch (error) {
+      console.error('获取实时数据失败:', error);
+    }
+  }, [promotedWorks]);
+
+  // 获取预算监控数据
+  const fetchBudgetMonitoring = useCallback(async () => {
+    try {
+      // 获取所有推广订单的总预算
+      const { data: orders } = await supabaseAdmin
+        .from('promotion_orders')
+        .select('final_price, created_at')
+        .in('status', ['active', 'paused', 'completed']);
+
+      const totalBudget = orders?.reduce((sum, o) => sum + (o.final_price || 0), 0) || 0;
+      
+      // 估算已使用预算（根据完成度）
+      const completedOrders = orders?.filter(o => o.status === 'completed') || [];
+      const activeOrders = orders?.filter(o => o.status === 'active' || o.status === 'paused') || [];
+      
+      const usedBudget = 
+        completedOrders.reduce((sum, o) => sum + (o.final_price || 0), 0) +
+        activeOrders.reduce((sum, o) => sum + (o.final_price || 0) * 0.5, 0);
+
+      const remainingBudget = totalBudget - usedBudget;
+      const usagePercentage = totalBudget > 0 ? Number((usedBudget / totalBudget * 100).toFixed(2)) : 0;
+
+      // 计算每日预算（假设按 30 天周期）
+      const dailyBudget = totalBudget / 30;
+      
+      // 计算今日已使用（简化版本）
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const todayOrders = orders?.filter(o => new Date(o.created_at) >= today) || [];
+      const dailyUsed = todayOrders.reduce((sum, o) => sum + (o.final_price || 0), 0);
+
+      // 预计还能维持的天数
+      const projectedEndurance = dailyUsed > 0 
+        ? Math.round(remainingBudget / (dailyUsed / 30)) 
+        : 999;
+
+      setBudgetMonitoring({
+        totalBudget,
+        usedBudget,
+        remainingBudget,
+        usagePercentage,
+        dailyBudget,
+        dailyUsed,
+        projectedEndurance,
+      });
+    } catch (error) {
+      console.error('获取预算监控数据失败:', error);
+    }
+  }, []);
+
+  // 检查异常数据并生成告警
+  const checkAlerts = useCallback(() => {
+    const newAlerts: Alert[] = [];
+
+    // 检查 CTR 过低
+    if (stats.avgCtr < 1 && stats.totalImpressions > 100) {
+      newAlerts.push({
+        id: 'low-ctr',
+        type: 'warning',
+        title: 'CTR 过低',
+        message: `当前平均 CTR 为${stats.avgCtr}%，低于行业平均水平（1%）`,
+        timestamp: new Date().toISOString(),
+        acknowledged: false,
+      });
+    }
+
+    // 检查预算使用过高
+    if (budgetMonitoring.usagePercentage > 80) {
+      newAlerts.push({
+        id: 'high-budget-usage',
+        type: 'warning',
+        title: '预算使用过高',
+        message: `预算已使用${budgetMonitoring.usagePercentage}%，剩余${budgetMonitoring.remainingBudget.toFixed(2)}元`,
+        timestamp: new Date().toISOString(),
+        acknowledged: false,
+      });
+    }
+
+    // 检查 ROI 为负
+    if (realTimeStats.roi < -20) {
+      newAlerts.push({
+        id: 'negative-roi',
+        type: 'error',
+        title: 'ROI 为负',
+        message: `当前 ROI 为${realTimeStats.roi}%，投资回报率为负`,
+        timestamp: new Date().toISOString(),
+        acknowledged: false,
+      });
+    }
+
+    setAlerts(newAlerts);
+  }, [stats, budgetMonitoring, realTimeStats]);
+
+  // 获取 ROI 分析数据
+  const fetchROIAnalysis = useCallback(async () => {
+    try {
+      // 获取所有推广订单
+      const { data: orders } = await supabaseAdmin
+        .from('promotion_orders')
+        .select('id, work_id, work_title, final_price, created_at, actual_views, actual_clicks')
+        .in('status', ['active', 'paused', 'completed']);
+
+      if (!orders || orders.length === 0) {
+        setRoiAnalysis(null);
+        return;
+      }
+
+      // 获取每个作品的点击数据
+      const workIds = orders.map(o => o.work_id);
+      const { data: works } = await supabaseAdmin
+        .from('works')
+        .select('id, views, likes')
+        .in('id', workIds);
+
+      const workMap = new Map(works?.map(w => [w.id, w]) || []);
+
+      // 计算每个作品的 ROI - 使用真实点击和曝光数据
+      const topPerformingWorks = orders.map(order => {
+        const work = workMap.get(order.work_id);
+        const investment = order.final_price || 0;
+        // 使用真实的推广数据计算回报
+        const actualViews = order.actual_views || 0;
+        const actualClicks = order.actual_clicks || 0;
+        // 计算回报：基于实际点击和作品互动数据
+        const estimatedReturn = actualClicks * 0.5 + (work?.likes || 0) * 0.1;
+        const roi = investment > 0 ? Number(((estimatedReturn - investment) / investment * 100).toFixed(2)) : 0;
+
+        return {
+          work_id: order.work_id,
+          work_title: order.work_title,
+          investment,
+          return: Number(estimatedReturn.toFixed(2)),
+          roi,
+        };
+      });
+
+      // 按 ROI 排序
+      topPerformingWorks.sort((a, b) => b.roi - a.roi);
+
+      // 计算总体 ROI
+      const totalInvestment = orders.reduce((sum, o) => sum + (o.final_price || 0), 0);
+      const totalReturn = topPerformingWorks.reduce((sum, w) => sum + w.return, 0);
+      const roi = totalInvestment > 0 ? Number(((totalReturn - totalInvestment) / totalInvestment * 100).toFixed(2)) : 0;
+
+      // 生成 ROI 趋势 - 基于历史订单数据计算真实趋势
+      const roiTrend = [];
+      const now = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // 获取当天的订单数据
+        const dayOrders = orders.filter(o => {
+          const orderDate = new Date(o.created_at).toISOString().split('T')[0];
+          return orderDate === dateStr;
+        });
+        
+        const dayInvestment = dayOrders.reduce((sum, o) => sum + (o.final_price || 0), 0);
+        const dayClicks = dayOrders.reduce((sum, o) => sum + (o.actual_clicks || 0), 0);
+        const dayReturn = dayClicks * 0.5;
+        const dayRoi = dayInvestment > 0 ? Number(((dayReturn - dayInvestment) / dayInvestment * 100).toFixed(2)) : 0;
+        
+        roiTrend.push({ date: dateStr, roi: dayRoi });
+      }
+
+      setRoiAnalysis({
+        totalInvestment,
+        totalReturn,
+        roi,
+        roiTrend,
+        topPerformingWorks: topPerformingWorks.slice(0, 5),
+      });
+    } catch (error) {
+      console.error('获取 ROI 分析失败:', error);
+    }
+  }, []);
+
+  // 确认告警
+  const handleAcknowledgeAlert = (alertId: string) => {
+    setAlerts(prev => prev.map(alert => 
+      alert.id === alertId ? { ...alert, acknowledged: true } : alert
+    ));
+  };
+
+  // 获取真实趋势数据（最近7天）
+  const fetchTrendData = useCallback(async () => {
+    try {
+      const days = 7;
+      const dates: string[] = [];
+      const views: number[] = [];
+      const clicks: number[] = [];
+
+      // 获取所有推广作品的每日统计数据
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+        dates.push(dateStr);
+
+        const dayStart = new Date(date);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(date);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        // 从 promoted_works 表获取当天的实际曝光和点击数据
+        const { data: dailyStats } = await supabaseAdmin
+          .from('promoted_works')
+          .select('actual_views, actual_clicks, created_at')
+          .gte('created_at', dayStart.toISOString())
+          .lte('created_at', dayEnd.toISOString());
+
+        // 计算当天的总曝光和点击
+        const dayViews = dailyStats?.reduce((sum, item) => sum + (item.actual_views || 0), 0) || 0;
+        const dayClicks = dailyStats?.reduce((sum, item) => sum + (item.actual_clicks || 0), 0) || 0;
+
+        views.push(dayViews);
+        clicks.push(dayClicks);
+      }
+
+      setTrendData({ dates, views, clicks });
+    } catch (error) {
+      console.error('获取趋势数据失败:', error);
+    }
+  }, []);
+
+  // 计算周环比数据
+  const calculateWeekOverWeek = useCallback(async () => {
+    try {
+      const now = new Date();
+      
+      // 本周数据
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - 7);
+      const { data: thisWeekData } = await supabaseAdmin
+        .from('promoted_works')
+        .select('actual_views, actual_clicks')
+        .gte('created_at', weekStart.toISOString());
+
+      // 上周数据
+      const lastWeekStart = new Date(now);
+      lastWeekStart.setDate(now.getDate() - 14);
+      const lastWeekEnd = new Date(now);
+      lastWeekEnd.setDate(now.getDate() - 7);
+      const { data: lastWeekData } = await supabaseAdmin
+        .from('promoted_works')
+        .select('actual_views, actual_clicks')
+        .gte('created_at', lastWeekStart.toISOString())
+        .lt('created_at', lastWeekEnd.toISOString());
+
+      const thisWeekViews = thisWeekData?.reduce((sum, item) => sum + (item.actual_views || 0), 0) || 0;
+      const thisWeekClicks = thisWeekData?.reduce((sum, item) => sum + (item.actual_clicks || 0), 0) || 0;
+      const lastWeekViews = lastWeekData?.reduce((sum, item) => sum + (item.actual_views || 0), 0) || 0;
+      const lastWeekClicks = lastWeekData?.reduce((sum, item) => sum + (item.actual_clicks || 0), 0) || 0;
+
+      const viewsChange = lastWeekViews > 0 ? Number(((thisWeekViews - lastWeekViews) / lastWeekViews * 100).toFixed(1)) : 0;
+      const clicksChange = lastWeekClicks > 0 ? Number(((thisWeekClicks - lastWeekClicks) / lastWeekClicks * 100).toFixed(1)) : 0;
+      
+      const thisWeekCtr = thisWeekViews > 0 ? (thisWeekClicks / thisWeekViews) : 0;
+      const lastWeekCtr = lastWeekViews > 0 ? (lastWeekClicks / lastWeekViews) : 0;
+      const ctrChange = lastWeekCtr > 0 ? Number(((thisWeekCtr - lastWeekCtr) / lastWeekCtr * 100).toFixed(1)) : 0;
+
+      setWeekOverWeek({ viewsChange, clicksChange, ctrChange });
+    } catch (error) {
+      console.error('计算周环比失败:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchImplementationData();
-  }, [fetchImplementationData]);
+    fetchTrendData();
+    calculateWeekOverWeek();
+  }, [fetchImplementationData, fetchTrendData, calculateWeekOverWeek]);
+
+  // 实时数据刷新（每 5 秒）
+  useEffect(() => {
+    if (!realTimeRefreshEnabled) return;
+
+    fetchRealTimeStats();
+    fetchBudgetMonitoring();
+    fetchROIAnalysis();
+
+    const interval = setInterval(() => {
+      fetchRealTimeStats();
+      checkAlerts();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [realTimeRefreshEnabled, fetchRealTimeStats, fetchBudgetMonitoring, fetchROIAnalysis, checkAlerts]);
 
   // 返回推广订单管理页面
   const handleBack = () => {
@@ -304,9 +727,7 @@ export default function PromotionOrderImplementation() {
     };
   }, [exposureInterval]);
 
-  // 生成趋势数据 - 使用 useMemo 缓存，避免不必要的重新生成
-  const viewsTrend = useMemo(() => generateTrendData(stats.totalImpressions), [stats.totalImpressions]);
-  const clicksTrend = useMemo(() => generateTrendData(stats.totalClicks), [stats.totalClicks]);
+
 
   return (
     <div className="space-y-6">
@@ -355,6 +776,16 @@ export default function PromotionOrderImplementation() {
             <ArrowRight className="w-4 h-4" />
           </button>
           <button
+            onClick={() => navigate('/admin?tab=promotionAnalytics')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              isDark ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            推广分析
+            <ArrowRight className="w-4 h-4" />
+          </button>
+          <button
             onClick={handleRefresh}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
               isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -387,6 +818,207 @@ export default function PromotionOrderImplementation() {
           </button>
         </div>
       </div>
+
+      {/* 实时数据看板 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                <Activity className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                <h3 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  实时流量
+                </h3>
+                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  每分钟数据
+                </p>
+              </div>
+            </div>
+            {realTimeRefreshEnabled && (
+              <span className="flex items-center gap-1 text-xs text-green-500">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                实时
+              </span>
+            )}
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>浏览量</span>
+              <span className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {realTimeStats.viewsPerMinute}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>点击量</span>
+              <span className={`text-lg font-bold text-green-500`}>
+                {realTimeStats.clicksPerMinute}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>活跃用户</span>
+              <span className={`text-lg font-bold text-purple-500`}>
+                {realTimeStats.activeUsers}
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
+                <Percent className="w-5 h-5 text-green-500" />
+              </div>
+              <div>
+                <h3 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  转化与成本
+                </h3>
+                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  效果分析
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>转化率</span>
+              <span className={`text-lg font-bold ${realTimeStats.conversionRate > 2 ? 'text-green-500' : 'text-yellow-500'}`}>
+                {realTimeStats.conversionRate}%
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>点击成本</span>
+              <span className={`text-lg font-bold text-blue-500`}>
+                ¥{realTimeStats.costPerClick.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>ROI</span>
+              <span className={`text-lg font-bold ${realTimeStats.roi > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {realTimeStats.roi}%
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                <Target className="w-5 h-5 text-purple-500" />
+              </div>
+              <div>
+                <h3 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  预算监控
+                </h3>
+                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  预算使用情况
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>使用率</span>
+                <span className={`text-sm font-bold ${budgetMonitoring.usagePercentage > 80 ? 'text-red-500' : 'text-green-500'}`}>
+                  {budgetMonitoring.usagePercentage}%
+                </span>
+              </div>
+              <div className="relative h-2 rounded-full bg-gray-200 dark:bg-gray-700">
+                <div
+                  className={`absolute inset-0 rounded-full ${budgetMonitoring.usagePercentage > 80 ? 'bg-red-500' : 'bg-green-500'}`}
+                  style={{ width: `${budgetMonitoring.usagePercentage}%` }}
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>已使用</span>
+              <span className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                ¥{budgetMonitoring.usedBudget.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>剩余</span>
+              <span className={`text-lg font-bold text-blue-500`}>
+                ¥{budgetMonitoring.remainingBudget.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>预计维持</span>
+              <span className={`text-lg font-bold text-purple-500`}>
+                {budgetMonitoring.projectedEndurance > 999 ? '∞' : `${budgetMonitoring.projectedEndurance}天`}
+              </span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* 异常告警 */}
+      {alerts.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-2"
+        >
+          {alerts.filter(a => !a.acknowledged).map(alert => (
+            <div
+              key={alert.id}
+              className={`p-4 rounded-lg flex items-center justify-between ${
+                alert.type === 'error' 
+                  ? isDark ? 'bg-red-900/30 border border-red-700' : 'bg-red-50 border border-red-200'
+                  : isDark ? 'bg-yellow-900/30 border border-yellow-700' : 'bg-yellow-50 border border-yellow-200'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {alert.type === 'error' ? (
+                  <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
+                    <div className="w-5 h-5 text-red-500">!</div>
+                  </div>
+                ) : (
+                  <div className="p-2 rounded-full bg-yellow-100 dark:bg-yellow-900/30">
+                    <div className="w-5 h-5 text-yellow-500">!</div>
+                  </div>
+                )}
+                <div>
+                  <h4 className={`font-medium ${alert.type === 'error' ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                    {alert.title}
+                  </h4>
+                  <p className={`text-sm mt-1 ${alert.type === 'error' ? 'text-red-600 dark:text-red-500' : 'text-yellow-600 dark:text-yellow-500'}`}>
+                    {alert.message}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => handleAcknowledgeAlert(alert.id)}
+                className={`px-3 py-1 rounded text-sm ${
+                  alert.type === 'error'
+                    ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-400'
+                    : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-400'
+                }`}
+              >
+                我知道了
+              </button>
+            </div>
+          ))}
+        </motion.div>
+      )}
 
       {/* 自动曝光状态提示 */}
       {autoExposureEnabled && (
@@ -770,23 +1402,23 @@ export default function PromotionOrderImplementation() {
                   
                   {/* Y轴标签 */}
                   <text x="40" y="15" textAnchor="end" fontSize="10" fill={isDark ? '#9ca3af' : '#6b7280'}>
-                    {Math.max(...viewsTrend, 1)}
+                    {Math.max(...trendData.views, 1)}
                   </text>
                   <text x="40" y="105" textAnchor="end" fontSize="10" fill={isDark ? '#9ca3af' : '#6b7280'}>
-                    {Math.round(Math.max(...viewsTrend, 1) / 2)}
+                    {Math.round(Math.max(...trendData.views, 1) / 2)}
                   </text>
                   <text x="40" y="195" textAnchor="end" fontSize="10" fill={isDark ? '#9ca3af' : '#6b7280'}>
                     0
                   </text>
                   
                   {/* 曝光量趋势区域填充 */}
-                  {viewsTrend.length > 0 && (
+                  {trendData.views.length > 0 && (
                     <polygon
                       fill="rgba(59, 130, 246, 0.1)"
                       stroke="none"
-                      points={`50,200 ${viewsTrend.map((v, i) => {
-                        const maxVal = Math.max(...viewsTrend, 1);
-                        const x = 50 + (i / (viewsTrend.length - 1)) * 600;
+                      points={`50,200 ${trendData.views.map((v, i) => {
+                        const maxVal = Math.max(...trendData.views, 1);
+                        const x = 50 + (i / (trendData.views.length - 1 || 1)) * 600;
                         const y = 200 - (v / maxVal) * 180 - 10;
                         return `${x},${y}`;
                       }).join(' ')} 650,200`}
@@ -794,16 +1426,16 @@ export default function PromotionOrderImplementation() {
                   )}
                   
                   {/* 曝光量折线 (蓝色) */}
-                  {viewsTrend.length > 0 && (
+                  {trendData.views.length > 0 && (
                     <polyline
                       fill="none"
                       stroke="#3b82f6"
                       strokeWidth="3"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      points={viewsTrend.map((v, i) => {
-                        const maxVal = Math.max(...viewsTrend, 1);
-                        const x = 50 + (i / (viewsTrend.length - 1)) * 600;
+                      points={trendData.views.map((v, i) => {
+                        const maxVal = Math.max(...trendData.views, 1);
+                        const x = 50 + (i / (trendData.views.length - 1 || 1)) * 600;
                         const y = 200 - (v / maxVal) * 180 - 10;
                         return `${x},${y}`;
                       }).join(' ')}
@@ -811,16 +1443,16 @@ export default function PromotionOrderImplementation() {
                   )}
                   
                   {/* 点击量折线 (绿色) - 使用右侧Y轴 */}
-                  {clicksTrend.length > 0 && (
+                  {trendData.clicks.length > 0 && (
                     <polyline
                       fill="none"
                       stroke="#22c55e"
                       strokeWidth="3"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      points={clicksTrend.map((v, i) => {
-                        const maxVal = Math.max(...clicksTrend, 1);
-                        const x = 50 + (i / (clicksTrend.length - 1)) * 600;
+                      points={trendData.clicks.map((v, i) => {
+                        const maxVal = Math.max(...trendData.clicks, 1);
+                        const x = 50 + (i / (trendData.clicks.length - 1 || 1)) * 600;
                         const y = 200 - (v / maxVal) * 180 - 10;
                         return `${x},${y}`;
                       }).join(' ')}
@@ -829,11 +1461,10 @@ export default function PromotionOrderImplementation() {
                 </svg>
                 
                 {/* 数据点 - 使用HTML元素实现悬浮提示 */}
-                {viewsTrend.map((v, i) => {
-                  const maxVal = Math.max(...viewsTrend, 1);
-                  const left = 50 + (i / (viewsTrend.length - 1)) * 600;
+                {trendData.views.map((v, i) => {
+                  const maxVal = Math.max(...trendData.views, 1);
+                  const left = 50 + (i / (trendData.views.length - 1 || 1)) * 600;
                   const top = 200 - (v / maxVal) * 180 - 10;
-                  const dayLabels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
                   return (
                     <div
                       key={`view-point-${i}`}
@@ -851,7 +1482,7 @@ export default function PromotionOrderImplementation() {
                           visible: true,
                           x: rect.left + rect.width / 2,
                           y: rect.top - 40,
-                          title: dayLabels[i],
+                          title: trendData.dates[i] || '',
                           value: v,
                           type: 'views'
                         });
@@ -861,11 +1492,10 @@ export default function PromotionOrderImplementation() {
                   );
                 })}
                 
-                {clicksTrend.map((v, i) => {
-                  const maxVal = Math.max(...clicksTrend, 1);
-                  const left = 50 + (i / (clicksTrend.length - 1)) * 600;
+                {trendData.clicks.map((v, i) => {
+                  const maxVal = Math.max(...trendData.clicks, 1);
+                  const left = 50 + (i / (trendData.clicks.length - 1 || 1)) * 600;
                   const top = 200 - (v / maxVal) * 180 - 10;
-                  const dayLabels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
                   return (
                     <div
                       key={`click-point-${i}`}
@@ -883,7 +1513,7 @@ export default function PromotionOrderImplementation() {
                           visible: true,
                           x: rect.left + rect.width / 2,
                           y: rect.top - 40,
-                          title: dayLabels[i],
+                          title: trendData.dates[i] || '',
                           value: v,
                           type: 'clicks'
                         });
@@ -896,8 +1526,8 @@ export default function PromotionOrderImplementation() {
               
               {/* X轴标签 */}
               <div className="flex justify-between mt-2 px-12 text-xs text-gray-400">
-                {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day, i) => (
-                  <span key={i} className="text-center" style={{ width: '14.28%' }}>{day}</span>
+                {trendData.dates.map((date, i) => (
+                  <span key={i} className="text-center" style={{ width: '14.28%' }}>{date}</span>
                 ))}
               </div>
             </div>
@@ -947,9 +1577,9 @@ export default function PromotionOrderImplementation() {
               <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {stats.totalImpressions.toLocaleString()}
               </p>
-              <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+              <p className={`text-xs mt-1 flex items-center gap-1 ${weekOverWeek.viewsChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 <TrendingUp className="w-3 h-3" />
-                +12.5% 较上周
+                {weekOverWeek.viewsChange >= 0 ? '+' : ''}{weekOverWeek.viewsChange}% 较上周
               </p>
             </motion.div>
             
@@ -966,9 +1596,9 @@ export default function PromotionOrderImplementation() {
               <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {stats.totalClicks.toLocaleString()}
               </p>
-              <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+              <p className={`text-xs mt-1 flex items-center gap-1 ${weekOverWeek.clicksChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 <TrendingUp className="w-3 h-3" />
-                +8.3% 较上周
+                {weekOverWeek.clicksChange >= 0 ? '+' : ''}{weekOverWeek.clicksChange}% 较上周
               </p>
             </motion.div>
             
@@ -985,9 +1615,9 @@ export default function PromotionOrderImplementation() {
               <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {stats.avgCtr}%
               </p>
-              <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                <TrendingDown className="w-3 h-3" />
-                -2.1% 较上周
+              <p className={`text-xs mt-1 flex items-center gap-1 ${weekOverWeek.ctrChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {weekOverWeek.ctrChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {weekOverWeek.ctrChange >= 0 ? '+' : ''}{weekOverWeek.ctrChange}% 较上周
               </p>
             </motion.div>
           </div>

@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 // import PostDetailModal from '@/components/PostDetailModal';
 import postsApi, { Post } from '@/services/postService';
 import { workService } from '@/services/apiService';
+import { eventService } from '@/services/eventService';
 
 // 视频卡片组件 - 直接自动播放
 const VideoCard: React.FC<{
@@ -54,7 +55,7 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
   
   const [recommendations, setRecommendations] = useState<RecommendedItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'all' | 'posts' | 'challenges' | 'templates'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'posts' | 'challenges'>('all');
   const [feedbackStatus, setFeedbackStatus] = useState<Record<string, RecommendationFeedbackType>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
@@ -88,7 +89,7 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
         console.log('🔄 从服务器获取最新作品数据...');
         const freshWorks = await workService.getWorks({ limit: 50 });
         console.log('✅ 获取到最新作品:', freshWorks.length, '个');
-        
+
         if (Array.isArray(freshWorks) && freshWorks.length > 0) {
           // 更新 localStorage 中的作品数据
           localStorage.setItem('works', JSON.stringify(freshWorks));
@@ -98,15 +99,58 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
       } catch (apiError) {
         console.warn('⚠️ 从服务器获取作品失败，使用缓存数据:', apiError);
       }
-      
+
+      // 尝试从服务器获取最新活动数据
+      let hasNewData = false;
+      try {
+        console.log('🔄 从服务器获取最新活动数据...');
+        const freshEvents = await eventService.getPublishedEvents();
+        console.log('✅ 获取到最新活动:', freshEvents.length, '个');
+
+        if (Array.isArray(freshEvents) && freshEvents.length > 0) {
+          // 将 Event 数据转换为 Challenge 格式存储
+          const challengesData = freshEvents.map(event => ({
+            id: event.id,
+            title: event.title,
+            featuredImage: event.imageUrl,
+            participants: 0, // 可以从 event 的其他字段获取
+            submissionCount: 0,
+            views: 0,
+            startDate: event.startTime,
+            endDate: event.endTime,
+            description: event.description,
+            category: event.category,
+            tags: event.tags,
+            status: event.status,
+            location: event.location
+          }));
+          // 更新 localStorage 中的活动数据
+          localStorage.setItem('challenges', JSON.stringify(challengesData));
+          localStorage.setItem('jmzf_challenges', JSON.stringify(challengesData));
+          hasNewData = true;
+        }
+      } catch (apiError) {
+        console.warn('⚠️ 从服务器获取活动失败，使用缓存数据:', apiError);
+      }
+
+      // 如果有新数据，清除推荐缓存以强制重新生成
+      if (hasNewData) {
+        const cacheKey = `jmzf_recommendations_${userId}_hybrid_12_diverse`;
+        localStorage.removeItem(cacheKey);
+        console.log('🗑️ 已清除推荐缓存，将重新生成推荐');
+      }
+
       // 调试：检查数据源
       const homePageData = localStorage.getItem('homePageData');
       const works = localStorage.getItem('works');
+      const challenges = localStorage.getItem('challenges');
       console.log('推荐系统调试:', {
         userId,
         hasHomePageData: !!homePageData,
         hasWorks: !!works,
-        worksLength: works ? JSON.parse(works).length : 0
+        worksLength: works ? JSON.parse(works).length : 0,
+        hasChallenges: !!challenges,
+        challengesLength: challenges ? JSON.parse(challenges).length : 0
       });
       
       const items = recommendationService.getRecommendations(userId, {
@@ -160,11 +204,11 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
   }, [loadRecommendations]);
 
   // 筛选推荐内容
-  const filteredRecommendations = activeTab === 'all' 
-    ? recommendations.slice(0, 8)
+  const filteredRecommendations = activeTab === 'all'
+    ? recommendations.slice(0, 12)
     : recommendations
-        .filter(item => item.type === activeTab.slice(0, -1) as 'post' | 'challenge' | 'template')
-        .slice(0, 8);
+        .filter(item => item.type === activeTab.slice(0, -1) as 'post' | 'challenge')
+        .slice(0, 12);
 
   // 处理推荐项点击
   const handleItemClick = (item: RecommendedItem) => {
@@ -262,7 +306,7 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
   const getTypeName = (type: string): string => {
     switch (type) {
       case 'post': return '作品';
-      case 'challenge': return '挑战';
+      case 'challenge': return '津脉活动';
       case 'template': return '模板';
       default: return '内容';
     }
@@ -352,8 +396,7 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
             {[
               { value: 'all', label: '全部', icon: 'fa-table-cells' },
               { value: 'posts', label: '作品', icon: 'fa-image' },
-              { value: 'challenges', label: '挑战', icon: 'fa-trophy' },
-              { value: 'templates', label: '模板', icon: 'fa-layer-group' }
+              { value: 'challenges', label: '活动', icon: 'fa-trophy' }
             ].map(tab => (
               <motion.button
                 key={tab.value}

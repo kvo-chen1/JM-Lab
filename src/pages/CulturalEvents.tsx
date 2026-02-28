@@ -18,12 +18,12 @@ import { eventParticipationService, ParticipationStats } from '@/services/eventP
 import { userService } from '@/services/userService';
 
 // 辅助函数：解析日期值（处理各种日期格式）
-const parseEventDate = (dateValue: any): Date => {
+const parseEventDate = (dateValue: any): Date | null => {
   if (dateValue == null) {
-    return new Date(); // 如果日期为空，返回当前时间作为默认值
+    return null;
   }
   if (dateValue instanceof Date) {
-    return dateValue;
+    return isNaN(dateValue.getTime()) ? null : dateValue;
   }
   if (typeof dateValue === 'string') {
     // 检查是否是纯数字（时间戳）
@@ -31,23 +31,36 @@ const parseEventDate = (dateValue: any): Date => {
       const numValue = parseInt(dateValue, 10);
       // 判断时间戳是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
       const msValue = numValue < 1e12 ? numValue * 1000 : numValue;
-      return new Date(msValue);
+      const date = new Date(msValue);
+      return isNaN(date.getTime()) ? null : date;
     }
     // ISO日期字符串
     const parsed = new Date(dateValue);
     if (!isNaN(parsed.getTime())) {
       return parsed;
     }
-    return new Date(); // 如果解析失败，返回当前时间
+    return null;
   }
   if (typeof dateValue === 'number') {
     // 判断时间戳是秒级还是毫秒级
     const msValue = dateValue < 1e12 ? dateValue * 1000 : dateValue;
-    return new Date(msValue);
+    const date = new Date(msValue);
+    return isNaN(date.getTime()) ? null : date;
   }
-  // 对于其他类型，尝试解析，如果失败则返回当前时间
+  // 对于其他类型，尝试解析
   const parsed = new Date(dateValue);
-  return isNaN(parsed.getTime()) ? new Date() : parsed;
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
+
+// 检查日期是否在合理范围内（过去1年到未来5年）
+const isDateReasonable = (date: Date | null): boolean => {
+  if (!date || isNaN(date.getTime())) {
+    return false;
+  }
+  const now = new Date();
+  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+  const fiveYearsLater = new Date(now.getFullYear() + 5, now.getMonth(), now.getDate());
+  return date >= oneYearAgo && date <= fiveYearsLater;
 };
 
 // 移动端筛选抽屉
@@ -112,6 +125,7 @@ export default function CulturalEvents() {
   const [submissionCount, setSubmissionCount] = useState(0);
   const [userActivityStats, setUserActivityStats] = useState<ParticipationStats | null>(null);
   const [recommendedCreators, setRecommendedCreators] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   // 从 URL 参数中获取 eventId 和 openModal
   const eventIdFromUrl = searchParams.get('eventId');
@@ -163,24 +177,38 @@ export default function CulturalEvents() {
         const timeFields = ['startTime', 'endTime', 'createdAt', 'updatedAt', 'publishedAt', 'registrationDeadline', 'reviewStartDate', 'resultDate'];
         if (timeFields.includes(camelKey) && value !== null && value !== undefined) {
           const originalValue = value;
+          let parsedDate: Date | null = null;
+          
           if (typeof value === 'number') {
             // 判断时间戳是秒级还是毫秒级：如果数值小于 1e12，认为是秒级
             const msValue = value < 1e12 ? value * 1000 : value;
-            value = new Date(msValue);
+            const date = new Date(msValue);
+            if (!isNaN(date.getTime())) {
+              parsedDate = date;
+            }
           } else if (typeof value === 'string') {
             if (/^\d+$/.test(value)) {
               // 纯数字字符串，认为是时间戳
               const numValue = parseInt(value, 10);
               const msValue = numValue < 1e12 ? numValue * 1000 : numValue;
-              value = new Date(msValue);
+              const date = new Date(msValue);
+              if (!isNaN(date.getTime())) {
+                parsedDate = date;
+              }
             } else {
               // 非纯数字字符串，尝试作为 ISO 日期字符串解析
-              const parsedDate = new Date(value);
-              if (!isNaN(parsedDate.getTime())) {
-                value = parsedDate;
+              const date = new Date(value);
+              if (!isNaN(date.getTime())) {
+                parsedDate = date;
               }
             }
           }
+          
+          // 只使用有效且在合理范围内的日期
+          if (parsedDate && isDateReasonable(parsedDate)) {
+            value = parsedDate;
+          }
+          
           // 调试日志：检查时间字段转换
           if (camelKey === 'startTime' || camelKey === 'endTime') {
             console.log(`[toCamelCase] ${camelKey}: ${originalValue} -> ${value instanceof Date ? value.toISOString() : value}`);
@@ -283,11 +311,36 @@ export default function CulturalEvents() {
     loadRecommendedCreators();
   }, []);
 
+  // 根据选中的日期筛选活动
+  const dateFilteredEvents = useMemo(() => {
+    if (!selectedDate) return events;
+    
+    return events.filter(event => {
+      const eventStart = parseEventDate(event.startTime);
+      const eventEnd = parseEventDate(event.endTime);
+      
+      // 检查活动是否在选中的日期范围内
+      // 选中日期在活动开始和结束之间，或者就是活动开始/结束的日期
+      if (!eventStart) return false;
+      
+      const selectedDateStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      const selectedDateEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 23, 59, 59);
+      
+      // 活动开始时间在选中日期当天，或者
+      // 活动跨越选中日期（开始时间 <= 选中日期 <= 结束时间）
+      const eventStartDay = new Date(eventStart.getFullYear(), eventStart.getMonth(), eventStart.getDate());
+      const eventEndDay = eventEnd ? new Date(eventEnd.getFullYear(), eventEnd.getMonth(), eventEnd.getDate()) : eventStartDay;
+      const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      
+      return eventStartDay <= selectedDay && eventEndDay >= selectedDay;
+    });
+  }, [events, selectedDate]);
+
   // 筛选和排序后的活动
   const filteredAndSortedEvents = useMemo(() => {
-    const filtered = filterEvents(events);
+    const filtered = filterEvents(dateFilteredEvents);
     return sortEvents(filtered);
-  }, [events, filterEvents, sortEvents]);
+  }, [dateFilteredEvents, filterEvents, sortEvents]);
 
   // 即将开始的活动（用于右侧栏）- 只显示尚未开始的活动
   const upcomingEvents = useMemo(() => {
@@ -295,10 +348,19 @@ export default function CulturalEvents() {
     return events
       .filter((event) => {
         const startTime = parseEventDate(event.startTime);
+        // 检查日期是否有效且在合理范围内
+        if (!startTime || !isDateReasonable(startTime)) {
+          return false;
+        }
         // 只显示开始时间大于当前时间的活动（严格意义上的即将开始）
         return startTime > now;
       })
-      .sort((a, b) => parseEventDate(a.startTime).getTime() - parseEventDate(b.startTime).getTime())
+      .sort((a, b) => {
+        const aTime = parseEventDate(a.startTime);
+        const bTime = parseEventDate(b.startTime);
+        if (!aTime || !bTime) return 0;
+        return aTime.getTime() - bTime.getTime();
+      })
       .slice(0, 5);
   }, [events]);
 
@@ -478,6 +540,8 @@ export default function CulturalEvents() {
                 sortBy={filters.sortBy}
                 setSortBy={setSortBy}
                 onEventClick={handleEventClick}
+                selectedDate={selectedDate}
+                onClearDateFilter={() => setSelectedDate(null)}
               />
             </div>
             {/* 移动端使用两列布局 */}
@@ -507,6 +571,8 @@ export default function CulturalEvents() {
                 } : undefined}
                 recommendedCreators={recommendedCreators}
                 onEventClick={handleEventClickById}
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
               />
             </div>
           </div>

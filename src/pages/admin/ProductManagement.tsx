@@ -1374,7 +1374,7 @@ const ProductManagement: React.FC = () => {
       <div className="container mx-auto px-4 py-8">
         {/* 顶部导航 */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <h1 className="text-2xl font-bold">商品管理</h1>
+          <h1 className="text-2xl font-bold">积分商城管理</h1>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setCurrentView('products')}

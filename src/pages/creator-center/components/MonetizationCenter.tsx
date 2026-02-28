@@ -28,7 +28,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreatorCenter, RevenueRecord } from '@/hooks/useCreatorCenter';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import BrandTaskParticipation from '@/pages/creator/BrandTaskParticipation';
+
 import {
   LineChart,
   Line,
@@ -310,7 +310,7 @@ const RevenueChart: React.FC<{ data: { date: string; amount: number }[] }> = ({ 
 const MonetizationCenter: React.FC = () => {
   const { isDark } = useTheme();
   const { revenue, stats, businessTasks, taskApplications, revenueRecords, loading, applyForTask, createWithdrawal } = useCreatorCenter();
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'history' | 'brand-tasks'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [taskFilter, setTaskFilter] = useState('all');
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -578,8 +578,6 @@ const MonetizationCenter: React.FC = () => {
         <div className={`flex border-b ${isDark ? 'border-gray-700/50' : 'border-gray-100'}`}>
           {[
             { id: 'overview', label: '变现渠道', icon: Sparkles },
-            { id: 'brand-tasks', label: '品牌任务', icon: Target },
-            { id: 'orders', label: '商单广场', icon: Briefcase },
             { id: 'history', label: '收入明细', icon: FileText },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -679,221 +677,6 @@ const MonetizationCenter: React.FC = () => {
               </motion.div>
             )}
 
-            {activeTab === 'brand-tasks' && (
-              <motion.div
-                key="brand-tasks"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <BrandTaskParticipation />
-              </motion.div>
-            )}
-
-            {activeTab === 'orders' && (
-              <motion.div
-                key="orders"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-4"
-              >
-                {/* 粉丝数不足提示 */}
-                {!hasEnoughFollowers && (
-                  <div className={`p-5 rounded-2xl ${isDark ? 'bg-gradient-to-r from-amber-900/40 to-orange-900/40' : 'bg-gradient-to-r from-amber-50 to-orange-50'} border ${
-                    isDark ? 'border-amber-800/50' : 'border-amber-200/50'
-                  }`}>
-                    <div className="flex items-center gap-4">
-                      <div className={`w-14 h-14 rounded-xl ${isDark ? 'bg-amber-500/20' : 'bg-amber-500/10'} flex items-center justify-center flex-shrink-0`}>
-                        <Users className="w-7 h-7 text-amber-500" />
-                      </div>
-                      <div className="flex-1">
-                        <p className={`font-bold text-lg ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
-                          粉丝数不足，暂时无法接单
-                        </p>
-                        <p className={`text-sm mt-1 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-                          需要至少 {MIN_FOLLOWERS_FOR_TASKS} 粉丝才能接商单，你当前有 {followersCount} 粉丝
-                        </p>
-                        <div className="mt-3 flex items-center gap-2">
-                          <div className={`flex-1 h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                            <div 
-                              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all"
-                              style={{ width: `${Math.min((followersCount / MIN_FOLLOWERS_FOR_TASKS) * 100, 100)}%` }}
-                            />
-                          </div>
-                          <span className={`text-sm font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-                            {Math.round((followersCount / MIN_FOLLOWERS_FOR_TASKS) * 100)}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 入驻星图计划提示 */}
-                {hasEnoughFollowers && (
-                  <div className={`p-4 rounded-xl ${isDark ? 'bg-gradient-to-r from-blue-900/40 to-purple-900/40' : 'bg-gradient-to-r from-blue-50 to-indigo-50'} border ${
-                    isDark ? 'border-blue-800/50' : 'border-blue-200/50'
-                  } flex items-center gap-4`}>
-                    <div className={`w-10 h-10 rounded-lg ${isDark ? 'bg-blue-500/20' : 'bg-blue-500/10'} flex items-center justify-center flex-shrink-0`}>
-                      <Sparkles className="w-5 h-5 text-blue-500" />
-                    </div>
-                    <div className="flex-1">
-                      <p className={`font-semibold text-sm ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
-                        入驻星图计划，获取更多商单机会
-                      </p>
-                      <p className={`text-xs mt-0.5 ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
-                        完成实名认证并达到 Lv.3 等级即可申请入驻
-                      </p>
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg shadow-lg shadow-blue-500/25"
-                    >
-                      立即入驻
-                    </motion.button>
-                  </div>
-                )}
-
-                {/* 任务筛选标签 */}
-                {hasEnoughFollowers && (
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                    {taskFilters.map((filter) => (
-                      <button
-                        key={filter.id}
-                        onClick={() => setTaskFilter(filter.id)}
-                        className={`px-4 py-2 text-sm font-medium rounded-xl whitespace-nowrap transition-all ${
-                          taskFilter === filter.id
-                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-lg'
-                            : isDark
-                            ? 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {filter.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* 任务列表 */}
-                {hasEnoughFollowers && filteredTasks.length > 0 ? (
-                  <div className="space-y-3">
-                    {filteredTasks.map((task, index) => {
-                      const status = getStatusBadge(task.applied ? 'applied' : task.status);
-                      const daysLeft = Math.ceil((new Date(task.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                      return (
-                        <motion.div
-                          key={task.id}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className={`p-4 rounded-xl border ${
-                            isDark 
-                              ? 'bg-gray-700/30 border-gray-600/50 hover:border-gray-500' 
-                              : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-md'
-                          } transition-all`}
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className={`w-12 h-12 rounded-xl ${isDark ? 'bg-gray-600/50' : 'bg-gradient-to-br from-blue-100 to-indigo-100'} flex items-center justify-center flex-shrink-0`}>
-                              <Building2 className={`w-6 h-6 ${isDark ? 'text-gray-400' : 'text-blue-600'}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-2">
-                                <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${
-                                  isDark ? 'bg-gray-600/50 text-gray-300' : 'bg-gray-100 text-gray-600'
-                                }`}>
-                                  {task.type === 'design' && '设计创作'}
-                                  {task.type === 'illustration' && '插画创作'}
-                                  {task.type === 'video' && '视频创作'}
-                                  {task.type === 'writing' && '文案创作'}
-                                  {task.type === 'photography' && '摄影创作'}
-                                  {task.type === 'other' && '其他'}
-                                </span>
-                                <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${status.style}`}>
-                                  {task.applied ? '已申请' : status.label}
-                                </span>
-                              </div>
-                              <h3 className={`font-bold text-lg mb-1 truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {task.title}
-                              </h3>
-                              <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                品牌方: {task.brandName}
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {task.requirements.slice(0, 3).map((req, i) => (
-                                  <span
-                                    key={i}
-                                    className={`text-xs px-2.5 py-1 rounded-lg ${
-                                      isDark ? 'bg-gray-600/30 text-gray-400' : 'bg-gray-50 text-gray-500'
-                                    }`}
-                                  >
-                                    {req}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <p className="text-xl font-bold text-emerald-500">
-                                ¥{formatNumber(task.budgetMin)}-{formatNumber(task.budgetMax)}
-                              </p>
-                              <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {daysLeft > 0 ? `剩余 ${daysLeft} 天` : '已截止'}
-                              </p>
-                              {!task.applied && task.status === 'open' && daysLeft > 0 ? (
-                                <motion.button
-                                  whileHover={{ scale: 1.02 }}
-                                  whileTap={{ scale: 0.98 }}
-                                  onClick={() => handleApplyTask(task.id)}
-                                  className="mt-2 px-4 py-1.5 text-sm font-medium bg-blue-500 text-white rounded-lg shadow-lg shadow-blue-500/25"
-                                >
-                                  立即接单
-                                </motion.button>
-                              ) : task.applied ? (
-                                <span className="mt-2 inline-block px-4 py-1.5 text-sm font-medium text-violet-500">
-                                  <CheckCircle2 className="w-4 h-4 inline mr-1" />
-                                  已申请
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                ) : hasEnoughFollowers ? (
-                  <div className={`text-center py-12 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    <div className="flex justify-center gap-8 mb-8">
-                      <Link to="/creator-center/submit" className="flex flex-col items-center group">
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 transition-all group-hover:scale-110 ${
-                          isDark ? 'bg-blue-500/10 group-hover:bg-blue-500/20' : 'bg-blue-50 group-hover:bg-blue-100'
-                        }`}>
-                          <Send className="w-8 h-8 text-blue-500" />
-                        </div>
-                        <span className={`font-medium text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          发布新作品
-                        </span>
-                        <span className="text-xs mt-1 text-blue-500">去发布 →</span>
-                      </Link>
-                      <div className="flex flex-col items-center group cursor-pointer">
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-3 transition-all group-hover:scale-110 ${
-                          isDark ? 'bg-orange-500/10 group-hover:bg-orange-500/20' : 'bg-orange-50 group-hover:bg-orange-100'
-                        }`}>
-                          <BookOpen className="w-8 h-8 text-orange-500" />
-                        </div>
-                        <span className={`font-medium text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          学习涨粉课程
-                        </span>
-                        <span className="text-xs mt-1 text-orange-500">去学习 →</span>
-                      </div>
-                    </div>
-                    <p className="text-sm">暂无商单，你可通过以下方式涨粉后，解锁新商单</p>
-                  </div>
-                ) : null}
-              </motion.div>
-            )}
-
             {activeTab === 'history' && (
               <motion.div
                 key="history"
@@ -931,7 +714,7 @@ const MonetizationCenter: React.FC = () => {
                                   sponsorship: '品牌合作',
                                   tipping: '粉丝打赏',
                                   membership: '会员订阅',
-                                  task: '商单任务',
+                                  task: '品牌任务',
                                   withdrawal: '提现'
                                 }[record.type]}
                               </p>

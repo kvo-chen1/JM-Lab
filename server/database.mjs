@@ -3304,6 +3304,11 @@ export const workDB = {
             COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
           FROM works w 
           LEFT JOIN users u ON w.creator_id = u.id 
+          WHERE (w.source = '津脉广场' OR w.source IS NULL)
+            AND LENGTH(COALESCE(w.title, '')) >= 3
+            AND COALESCE(w.thumbnail, w.cover_url, '') <> ''
+            AND COALESCE(w.thumbnail, w.cover_url, '') <> 'EMPTY'
+            AND LOWER(COALESCE(w.thumbnail, w.cover_url, '')) NOT LIKE '%empty%'
           ORDER BY w.created_at DESC 
           LIMIT $1 OFFSET $2
         `, [limit, offset])).rows
@@ -3390,7 +3395,11 @@ export const workDB = {
             COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
           FROM works w
           LEFT JOIN users u ON w.creator_id = u.id
-          WHERE w.creator_id = $1
+          WHERE w.creator_id = $1 AND (w.source = '津脉广场' OR w.source IS NULL)
+            AND LENGTH(COALESCE(w.title, '')) >= 3
+            AND COALESCE(w.thumbnail, w.cover_url, '') <> ''
+            AND COALESCE(w.thumbnail, w.cover_url, '') <> 'EMPTY'
+            AND LOWER(COALESCE(w.thumbnail, w.cover_url, '')) NOT LIKE '%empty%'
           ORDER BY w.created_at DESC
           LIMIT $2 OFFSET $3
         `, [userId, limit, offset])).rows
@@ -3409,7 +3418,7 @@ export const workDB = {
             COALESCE(SUM(likes), 0) as total_likes,
             COALESCE(SUM(views), 0) as total_views,
             COALESCE(SUM(comments), 0) as total_comments
-          FROM works WHERE creator_id = $1
+          FROM works WHERE creator_id = $1 AND (source = '津脉广场' OR source IS NULL)
         `, [userId])
         return rows[0] || { works_count: 0, total_likes: 0, total_views: 0, total_comments: 0 }
       default: return { works_count: 0, total_likes: 0, total_views: 0, total_comments: 0 }
@@ -3423,7 +3432,8 @@ export const workDB = {
       case DB_TYPE.MEMORY:
         return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at)
       case DB_TYPE.POSTGRESQL: {
-        // 首先尝试从 works 表查询，使用子查询计算真实点赞数
+        // 首先尝试从 works 表查询，只获取津脉广场的作品，使用子查询计算真实点赞数
+        // 同时过滤掉没有有效缩略图或标题太短的作品
         const { rows: worksRows } = await db.query(`
           SELECT
             w.*,
@@ -3432,6 +3442,11 @@ export const workDB = {
             COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
           FROM works w
           LEFT JOIN users u ON w.creator_id = u.id
+          WHERE (w.source = '津脉广场' OR w.source IS NULL)
+            AND LENGTH(COALESCE(w.title, '')) >= 3
+            AND COALESCE(w.thumbnail, w.cover_url, '') <> ''
+            AND COALESCE(w.thumbnail, w.cover_url, '') <> 'EMPTY'
+            AND LOWER(COALESCE(w.thumbnail, w.cover_url, '')) NOT LIKE '%empty%'
           ORDER BY w.created_at DESC
         `)
         console.log('[workDB.getAllWorks] Works count:', worksRows.length)

@@ -517,7 +517,7 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
               tags: tags,
               work_id: post.id
             }, user);
-            toast.success(`作品已成功提交到品牌任务「${selectedTask.title}」`);
+            toast.success(`作品已成功提交到商单任务「${selectedTask.title}」`);
           } catch (taskError: any) {
             console.error('[PublishModal] Failed to submit to brand task:', taskError);
             const errorMessage = taskError?.message || '未知错误';

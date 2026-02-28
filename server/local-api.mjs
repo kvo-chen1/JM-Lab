@@ -404,7 +404,7 @@ async function uploadLocalImageToSupabase(localUrl) {
 }
 
 async function dashscopeVideoGenerate(params) {
-  const { prompt, imageUrl, authKey, model } = params;
+  const { prompt, imageUrl, authKey, model, aspectRatio } = params;
   const endpoint = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis';
   
   try {
@@ -447,11 +447,17 @@ async function dashscopeVideoGenerate(params) {
       }
     };
     
+    // 添加视频比例参数（如果提供）
+    if (aspectRatio) {
+      payload.parameters.aspect_ratio = aspectRatio;
+      console.log('[DashScope] Using aspect ratio:', aspectRatio);
+    }
+    
     // Remove img_url if not provided (text-to-video)
     if (!imageUrl) {
         delete payload.input.img_url;
-        // Default to verified model for T2V as well if no specific model requested
-        if (!model || model === 'wan2.6-i2v-flash') payload.model = 'wanx2.1-t2v-turbo'; 
+        // Default to wan2.6-t2v for text-to-video (has free quota)
+        if (!model || model === 'wan2.6-i2v-flash') payload.model = 'wan2.6-t2v'; 
     }
 
     console.log('[DashScope] Starting video generation task:', JSON.stringify(payload, null, 2));
@@ -531,9 +537,9 @@ async function dashscopeImageGenerate(params) {
   try {
     console.log('[DashScope] Starting async image generation...', refImage ? '(with ref image)' : '(text only)');
     
-    // 构建请求体 - 使用 wanx-v1 模型支持参考图片
+    // 构建请求体 - 优先使用传入的 model 参数，参考图片时使用 wanx-v1
     const requestBody = {
-      model: 'wanx-v1',  // 使用支持参考图片的 wanx-v1 模型
+      model: refImage ? 'wanx-v1' : (model || 'wanx2.1-t2i-turbo'),
       input: { prompt },
       parameters: { 
         size: normalizedSize, 
@@ -4546,7 +4552,8 @@ async function route(req, res, u, path) {
         prompt: prompt,
         imageUrl: imageUrl, // Support image-to-video if provided
         authKey,
-        model: b.model
+        model: b.model,
+        aspectRatio: b.aspect_ratio
       })
       
       if (!r.ok) {
@@ -6304,12 +6311,12 @@ async function route(req, res, u, path) {
       const { rows: userCountRows } = await db.query('SELECT COUNT(*) as count FROM users')
       const totalUsers = parseInt(userCountRows[0]?.count || '0')
 
-      // 获取作品总数
-      const { rows: worksCountRows } = await db.query('SELECT COUNT(*) as count FROM works')
+      // 获取作品总数（只统计津脉广场的作品）
+      const { rows: worksCountRows } = await db.query("SELECT COUNT(*) as count FROM works WHERE source = '津脉广场' OR source IS NULL")
       const totalWorks = parseInt(worksCountRows[0]?.count || '0')
 
-      // 获取待审核数量
-      const { rows: pendingRows } = await db.query("SELECT COUNT(*) as count FROM works WHERE status = 'pending'")
+      // 获取待审核数量（只统计津脉广场的作品）
+      const { rows: pendingRows } = await db.query("SELECT COUNT(*) as count FROM works WHERE status = 'pending' AND (source = '津脉广场' OR source IS NULL)")
       const pendingAudit = parseInt(pendingRows[0]?.count || '0')
 
       // 获取已采纳的活动数量
@@ -6328,9 +6335,9 @@ async function route(req, res, u, path) {
       )
       const lastMonthUsers = parseInt(lastMonthUserRows[0]?.count || '0')
 
-      // 获取上月作品数
+      // 获取上月作品数（只统计津脉广场的作品）
       const { rows: lastMonthWorksRows } = await db.query(
-        'SELECT COUNT(*) as count FROM works WHERE created_at < $1',
+        "SELECT COUNT(*) as count FROM works WHERE created_at < $1 AND (source = '津脉广场' OR source IS NULL)",
         [lastMonthStr]
       )
       const lastMonthWorks = parseInt(lastMonthWorksRows[0]?.count || '0')
@@ -6342,11 +6349,11 @@ async function route(req, res, u, path) {
       )
       const lastMonthAdopted = parseInt(lastMonthAdoptedRows[0]?.count || '0')
 
-      // 获取昨日待审核数
+      // 获取昨日待审核数（只统计津脉广场的作品）
       const yesterday = new Date()
       yesterday.setDate(yesterday.getDate() - 1)
       const { rows: yesterdayPendingRows } = await db.query(
-        "SELECT COUNT(*) as count FROM works WHERE status = 'pending' AND created_at < $1",
+        "SELECT COUNT(*) as count FROM works WHERE status = 'pending' AND created_at < $1 AND (source = '津脉广场' OR source IS NULL)",
         [yesterday.toISOString()]
       )
       const yesterdayPending = parseInt(yesterdayPendingRows[0]?.count || '0')
@@ -7975,6 +7982,481 @@ async function route(req, res, u, path) {
     } catch (error) {
       console.error('[API] 获取主题趋势数据失败:', error)
       sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取主题趋势数据失败' })
+    }
+    return
+  }
+
+  // 获取高级分析数据 - 实时统计
+  if (req.method === 'GET' && path === '/api/admin/analytics/realtime-stats') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayStr = today.toISOString()
+
+      // 获取今日活跃用户（使用 metadata->>'last_active' 或返回总用户数）
+      const { rows: activeUsersRows } = await db.query(
+        "SELECT COUNT(*) as count FROM users WHERE metadata->>'last_active' >= $1",
+        [todayStr]
+      )
+      const activeUsers = parseInt(activeUsersRows[0]?.count || '0')
+
+      // 获取今日新增用户
+      const { rows: newUsersRows } = await db.query(
+        'SELECT COUNT(*) as count FROM users WHERE created_at >= $1',
+        [todayStr]
+      )
+      const newUsers = parseInt(newUsersRows[0]?.count || '0')
+
+      // 获取今日新增作品
+      const { rows: newWorksRows } = await db.query(
+        'SELECT COUNT(*) as count FROM works WHERE created_at >= $1',
+        [todayStr]
+      )
+      const newWorks = parseInt(newWorksRows[0]?.count || '0')
+
+      // 获取今日订单数和收入
+      const { rows: ordersRows } = await db.query(
+        'SELECT COUNT(*) as count, COALESCE(SUM(final_price), 0) as revenue FROM promotion_orders WHERE created_at >= $1 AND status = $2',
+        [todayStr, 'paid']
+      )
+      const newOrders = parseInt(ordersRows[0]?.count || '0')
+      const revenue = parseFloat(ordersRows[0]?.revenue || '0')
+
+      // 计算每分钟浏览量（基于今日活跃用户估算）
+      const viewsPerMinute = Math.floor(activeUsers * 0.3)
+
+      sendJson(res, 200, {
+        code: 0,
+        data: {
+          activeUsers,
+          viewsPerMinute,
+          newUsers,
+          newWorks,
+          newOrders,
+          revenue
+        },
+        message: '获取实时统计数据成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取实时统计数据失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取实时统计数据失败' })
+    }
+    return
+  }
+
+  // 获取高级分析数据 - 转化漏斗
+  if (req.method === 'GET' && path === '/api/admin/analytics/conversion-funnel') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+
+      // 获取总用户数
+      const { rows: totalUsersRows } = await db.query('SELECT COUNT(*) as count FROM users')
+      const totalUsers = parseInt(totalUsersRows[0]?.count || '0')
+
+      // 获取有作品的用户数（创作用户）
+      const { rows: creatorsRows } = await db.query(
+        'SELECT COUNT(DISTINCT creator_id) as count FROM works'
+      )
+      const creatorCount = parseInt(creatorsRows[0]?.count || '0')
+
+      // 获取发布过作品的用户数（已审核通过）
+      const { rows: publishedRows } = await db.query(
+        "SELECT COUNT(DISTINCT creator_id) as count FROM works WHERE status = 'approved'"
+      )
+      const publishingCount = parseInt(publishedRows[0]?.count || '0')
+
+      // 获取有互动的用户数
+      const { rows: interactionsRows } = await db.query(
+        `SELECT COUNT(DISTINCT user_id) as count FROM user_behavior_logs 
+         WHERE action IN ('like_work', 'comment_work', 'share_work')`
+      )
+      const interactionCount = parseInt(interactionsRows[0]?.count || '0')
+
+      sendJson(res, 200, {
+        code: 0,
+        data: [
+          { stage: '注册用户', count: totalUsers, conversion_rate: 1 },
+          { stage: '创作用户', count: creatorCount, conversion_rate: totalUsers > 0 ? creatorCount / totalUsers : 0 },
+          { stage: '发布用户', count: publishingCount, conversion_rate: totalUsers > 0 ? publishingCount / totalUsers : 0 },
+          { stage: '互动用户', count: interactionCount, conversion_rate: totalUsers > 0 ? interactionCount / totalUsers : 0 }
+        ],
+        message: '获取转化漏斗数据成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取转化漏斗数据失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取转化漏斗数据失败' })
+    }
+    return
+  }
+
+  // 获取高级分析数据 - 留存率
+  if (req.method === 'GET' && path === '/api/admin/analytics/retention') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+
+      const months = 6
+      const retentions = []
+      const now = new Date()
+
+      for (let i = months - 1; i >= 0; i--) {
+        const cohortDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const nextMonth = new Date(cohortDate)
+        nextMonth.setMonth(nextMonth.getMonth() + 1)
+
+        // 获取该月新增用户
+        const { rows: newUsersRows } = await db.query(
+          'SELECT id FROM users WHERE created_at >= $1 AND created_at < $2',
+          [cohortDate.toISOString(), nextMonth.toISOString()]
+        )
+
+        if (!newUsersRows || newUsersRows.length === 0) {
+          continue
+        }
+
+        const userIds = newUsersRows.map(u => u.id)
+        const totalUsers = newUsersRows.length
+
+        // 计算留存率（使用 metadata->>'last_active' 字段）
+        // 由于 last_login 列不存在，我们使用 metadata 中的 last_active
+        const day1Date = new Date(cohortDate)
+        day1Date.setDate(day1Date.getDate() + 1)
+        const { rows: day1Rows } = await db.query(
+          "SELECT COUNT(*) as count FROM users WHERE id = ANY($1) AND metadata->>'last_active' >= $2 AND metadata->>'last_active' < $3",
+          [userIds, day1Date.toISOString(), new Date(day1Date.getTime() + 24 * 60 * 60 * 1000).toISOString()]
+        )
+        const day1Retention = totalUsers > 0 ? parseInt(day1Rows[0]?.count || '0') / totalUsers : 0
+
+        // 计算 7 日留存率
+        const day7Date = new Date(cohortDate)
+        day7Date.setDate(day7Date.getDate() + 7)
+        const { rows: day7Rows } = await db.query(
+          "SELECT COUNT(*) as count FROM users WHERE id = ANY($1) AND metadata->>'last_active' >= $2 AND metadata->>'last_active' < $3",
+          [userIds, day7Date.toISOString(), new Date(day7Date.getTime() + 24 * 60 * 60 * 1000).toISOString()]
+        )
+        const day7Retention = totalUsers > 0 ? parseInt(day7Rows[0]?.count || '0') / totalUsers : 0
+
+        // 计算 14 日留存率
+        const day14Date = new Date(cohortDate)
+        day14Date.setDate(day14Date.getDate() + 14)
+        const { rows: day14Rows } = await db.query(
+          "SELECT COUNT(*) as count FROM users WHERE id = ANY($1) AND metadata->>'last_active' >= $2 AND metadata->>'last_active' < $3",
+          [userIds, day14Date.toISOString(), new Date(day14Date.getTime() + 24 * 60 * 60 * 1000).toISOString()]
+        )
+        const day14Retention = totalUsers > 0 ? parseInt(day14Rows[0]?.count || '0') / totalUsers : 0
+
+        // 计算 30 日留存率
+        const day30Date = new Date(cohortDate)
+        day30Date.setDate(day30Date.getDate() + 30)
+        const { rows: day30Rows } = await db.query(
+          "SELECT COUNT(*) as count FROM users WHERE id = ANY($1) AND metadata->>'last_active' >= $2 AND metadata->>'last_active' < $3",
+          [userIds, day30Date.toISOString(), new Date(day30Date.getTime() + 24 * 60 * 60 * 1000).toISOString()]
+        )
+        const day30Retention = totalUsers > 0 ? parseInt(day30Rows[0]?.count || '0') / totalUsers : 0
+
+        retentions.push({
+          period: cohortDate.toISOString().split('T')[0].slice(0, 7),
+          total_users: totalUsers,
+          day1_retention: day1Retention,
+          day7_retention: day7Retention,
+          day14_retention: day14Retention,
+          day30_retention: day30Retention
+        })
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: retentions,
+        message: '获取留存率数据成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取留存率数据失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取留存率数据失败' })
+    }
+    return
+  }
+
+  // 获取高级分析数据 - 收入分析
+  if (req.method === 'GET' && path === '/api/admin/analytics/revenue') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+
+      // 获取推广收入
+      const { rows: promotionRows } = await db.query(
+        "SELECT COALESCE(SUM(final_price), 0) as revenue FROM promotion_orders WHERE status = 'paid'"
+      )
+      const promotionRevenue = parseFloat(promotionRows[0]?.revenue || '0')
+
+      // 获取会员收入
+      const { rows: membershipRows } = await db.query(
+        "SELECT COALESCE(SUM(amount), 0) as revenue FROM memberships WHERE status = 'active'"
+      )
+      const membershipRevenue = parseFloat(membershipRows[0]?.revenue || '0')
+
+      // 获取盲盒收入
+      const { rows: blindBoxRows } = await db.query(
+        "SELECT COALESCE(SUM(price), 0) as revenue FROM blind_box_sales WHERE status = 'completed'"
+      )
+      const blindBoxRevenue = parseFloat(blindBoxRows[0]?.revenue || '0')
+
+      const totalRevenue = promotionRevenue + membershipRevenue + blindBoxRevenue
+
+      sendJson(res, 200, {
+        code: 0,
+        data: {
+          promotionRevenue,
+          membershipRevenue,
+          blindBoxRevenue,
+          totalRevenue,
+          breakdown: [
+            { source: '推广订单', amount: promotionRevenue, percentage: totalRevenue > 0 ? promotionRevenue / totalRevenue : 0 },
+            { source: '会员订阅', amount: membershipRevenue, percentage: totalRevenue > 0 ? membershipRevenue / totalRevenue : 0 },
+            { source: '盲盒销售', amount: blindBoxRevenue, percentage: totalRevenue > 0 ? blindBoxRevenue / totalRevenue : 0 }
+          ]
+        },
+        message: '获取收入数据成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取收入数据失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取收入数据失败' })
+    }
+    return
+  }
+
+  // 获取高级分析数据 - 用户画像
+  if (req.method === 'GET' && path === '/api/admin/analytics/demographics') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+
+      // 获取所有用户（从 metadata 中获取年龄、性别、城市信息）
+      const { rows: users } = await db.query("SELECT metadata FROM users")
+
+      if (!users || users.length === 0) {
+        sendJson(res, 200, {
+          code: 0,
+          data: { age_groups: [], gender_distribution: [], top_cities: [], active_hours: [] },
+          message: '获取用户画像成功'
+        })
+        return
+      }
+
+      const totalUsers = users.length
+
+      // 年龄分组（从 metadata 中获取）
+      const ageMap = new Map()
+      users.forEach(user => {
+        const metadata = user.metadata || {}
+        const age = metadata.age
+        let group = '未知'
+        if (age) {
+          if (age < 18) group = '18岁以下'
+          else if (age < 25) group = '18-24岁'
+          else if (age < 31) group = '25-30岁'
+          else if (age < 41) group = '31-40岁'
+          else if (age < 51) group = '41-50岁'
+          else group = '50岁以上'
+        }
+        ageMap.set(group, (ageMap.get(group) || 0) + 1)
+      })
+
+      const age_groups = Array.from(ageMap.entries()).map(([group, count]) => ({
+        group,
+        percentage: count / totalUsers
+      })).sort((a, b) => b.percentage - a.percentage)
+
+      // 性别分布（从 metadata 中获取）
+      const genderMap = new Map()
+      users.forEach(user => {
+        const metadata = user.metadata || {}
+        const gender = metadata.gender || '未知'
+        genderMap.set(gender, (genderMap.get(gender) || 0) + 1)
+      })
+
+      const gender_distribution = Array.from(genderMap.entries()).map(([type, count]) => ({
+        type,
+        percentage: count / totalUsers
+      })).sort((a, b) => b.percentage - a.percentage)
+
+      // 城市分布 - 取前5（从 metadata 中获取）
+      const cityMap = new Map()
+      users.forEach(user => {
+        const metadata = user.metadata || {}
+        const city = metadata.city
+        if (city) {
+          cityMap.set(city, (cityMap.get(city) || 0) + 1)
+        }
+      })
+
+      const top_cities = Array.from(cityMap.entries())
+        .map(([city, count]) => ({ city, percentage: count / totalUsers }))
+        .sort((a, b) => b.percentage - a.percentage)
+        .slice(0, 5)
+
+      // 活跃时段分析（从 metadata 中的 last_active 获取）
+      const hourMap = new Map()
+      users.forEach(user => {
+        const metadata = user.metadata || {}
+        const lastActive = metadata.last_active
+        if (lastActive) {
+          const hour = new Date(lastActive).getHours()
+          hourMap.set(hour, (hourMap.get(hour) || 0) + 1)
+        }
+      })
+
+      const active_hours = Array.from(hourMap.entries())
+        .map(([hour, count]) => ({ hour, percentage: count / totalUsers }))
+        .sort((a, b) => a.hour - b.hour)
+
+      sendJson(res, 200, {
+        code: 0,
+        data: { age_groups, gender_distribution, top_cities, active_hours },
+        message: '获取用户画像成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取用户画像失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取用户画像失败' })
+    }
+    return
+  }
+
+  // 获取高级分析数据 - 热点话题
+  if (req.method === 'GET' && path === '/api/admin/analytics/hot-topics') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+
+      // 获取作品的标签和浏览量
+      const { rows: works } = await db.query(
+        'SELECT tags, views, created_at FROM works ORDER BY created_at DESC LIMIT 1000'
+      )
+
+      if (!works || works.length === 0) {
+        sendJson(res, 200, { code: 0, data: [], message: '获取热点话题成功' })
+        return
+      }
+
+      // 统计标签热度
+      const tagMap = new Map()
+      const now = Date.now()
+      const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000
+
+      works.forEach(work => {
+        const tags = work.tags || []
+        const isRecent = new Date(work.created_at).getTime() > sevenDaysAgo
+
+        tags.forEach(tag => {
+          const existing = tagMap.get(tag) || { count: 0, views: 0, recentCount: 0 }
+          existing.count++
+          existing.views += work.views || 0
+          if (isRecent) {
+            existing.recentCount++
+          }
+          tagMap.set(tag, existing)
+        })
+      })
+
+      // 计算热度分数
+      const topics = Array.from(tagMap.entries())
+        .map(([tag, data]) => {
+          const heat_score = Math.min(100, Math.round(
+            data.count * 0.4 +
+            (data.views / 100) * 0.4 +
+            data.recentCount * 0.2
+          ))
+
+          const growth_rate = data.count > 0
+            ? ((data.recentCount / data.count) * 7 - 1) * 100
+            : 0
+
+          let trend = 'stable'
+          if (growth_rate > 20) trend = 'rising'
+          else if (growth_rate < -20) trend = 'falling'
+
+          return {
+            tag,
+            heat_score,
+            trend,
+            growth_rate: Math.round(growth_rate),
+            work_count: data.count
+          }
+        })
+        .sort((a, b) => b.heat_score - a.heat_score)
+        .slice(0, 10)
+
+      sendJson(res, 200, {
+        code: 0,
+        data: topics,
+        message: '获取热点话题成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取热点话题失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取热点话题失败' })
     }
     return
   }

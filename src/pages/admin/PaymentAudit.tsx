@@ -108,6 +108,10 @@ const PaymentAudit: React.FC = () => {
   // 审核备注
   const [auditNote, setAuditNote] = useState('');
   const [processingAction, setProcessingAction] = useState<'approve' | 'reject' | null>(null);
+  
+  // 凭证图片弹窗
+  const [showProofModal, setShowProofModal] = useState(false);
+  const [proofModalUrl, setProofModalUrl] = useState('');
 
   // 获取订单列表
   const fetchOrders = useCallback(async () => {
@@ -388,7 +392,7 @@ const PaymentAudit: React.FC = () => {
       {/* 页面标题 */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold">支付审核</h2>
+          <h2 className="text-2xl font-bold">会员支付审核</h2>
           <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             审核会员支付凭证，管理订单状态
           </p>
@@ -531,6 +535,7 @@ const PaymentAudit: React.FC = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">支付方式</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">状态</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">支付识别码</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">支付凭证</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">创建时间</th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">操作</th>
               </tr>
@@ -576,7 +581,16 @@ const PaymentAudit: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm font-medium">{order.membership_name}</span>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{order.membership_name}</span>
+                          <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {order.membership_type === 'premium' && '高级会员'}
+                            {order.membership_type === 'basic' && '基础会员'}
+                            {order.membership_type === 'vip' && 'VIP会员'}
+                            {order.membership_type === 'svip' && 'SVIP会员'}
+                            {!['premium', 'basic', 'vip', 'svip'].includes(order.membership_type) && order.membership_type}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-sm font-bold text-red-600">¥{order.amount}</span>
@@ -603,24 +617,86 @@ const PaymentAudit: React.FC = () => {
                         </code>
                       </td>
                       <td className="px-4 py-3">
+                        {order.payment_proof?.image_url ? (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => {
+                              setProofModalUrl(order.payment_proof!.image_url);
+                              setShowProofModal(true);
+                            }}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                          >
+                            <ImageIcon className="w-3 h-3" />
+                            查看凭证
+                          </motion.button>
+                        ) : (
+                          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
                         <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           {new Date(order.created_at).toLocaleString('zh-CN')}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => {
-                            setSelectedOrder(order);
-                            setShowDetailModal(true);
-                            setAuditNote('');
-                          }}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
-                        >
-                          <Eye className="w-3 h-3" />
-                          查看
-                        </motion.button>
+                        <div className="flex items-center gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setShowDetailModal(true);
+                              setAuditNote('');
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+                          >
+                            <Eye className="w-3 h-3" />
+                            查看
+                          </motion.button>
+                          {order.status === 'verifying' && (
+                            <>
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setShowDetailModal(true);
+                                  setAuditNote('');
+                                  // 延迟执行审核通过，等待弹窗打开
+                                  setTimeout(() => {
+                                    if (confirm('确认审核通过该订单？')) {
+                                      handleApprove();
+                                    }
+                                  }, 300);
+                                }}
+                                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                                通过
+                              </motion.button>
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setShowDetailModal(true);
+                                  setAuditNote('');
+                                  // 延迟执行审核拒绝，等待弹窗打开
+                                  setTimeout(() => {
+                                    if (confirm('确认拒绝该订单？')) {
+                                      handleReject();
+                                    }
+                                  }, 300);
+                                }}
+                                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                              >
+                                <XCircle className="w-3 h-3" />
+                                拒绝
+                              </motion.button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </motion.tr>
                   );
@@ -661,6 +737,39 @@ const PaymentAudit: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 凭证图片弹窗 */}
+      <AnimatePresence>
+        {showProofModal && proofModalUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80"
+            onClick={() => setShowProofModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-4xl max-h-[90vh]"
+            >
+              <button
+                onClick={() => setShowProofModal(false)}
+                className="absolute -top-10 right-0 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                <XCircle className="w-6 h-6 text-white" />
+              </button>
+              <img
+                src={proofModalUrl}
+                alt="支付凭证"
+                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 详情弹窗 */}
       <AnimatePresence>
@@ -725,6 +834,13 @@ const PaymentAudit: React.FC = () => {
                     <div>
                       <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>会员类型</p>
                       <p className="font-medium">{selectedOrder.membership_name}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {selectedOrder.membership_type === 'premium' && '高级会员'}
+                        {selectedOrder.membership_type === 'basic' && '基础会员'}
+                        {selectedOrder.membership_type === 'vip' && 'VIP会员'}
+                        {selectedOrder.membership_type === 'svip' && 'SVIP会员'}
+                        {!['premium', 'basic', 'vip', 'svip'].includes(selectedOrder.membership_type) && selectedOrder.membership_type}
+                      </p>
                     </div>
                     <div>
                       <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>支付金额</p>
@@ -794,11 +910,12 @@ const PaymentAudit: React.FC = () => {
                       支付凭证
                     </h4>
                     <div className="space-y-3">
-                      <a
-                        href={selectedOrder.payment_proof.image_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block relative group"
+                      <button
+                        onClick={() => {
+                          setProofModalUrl(selectedOrder.payment_proof!.image_url);
+                          setShowProofModal(true);
+                        }}
+                        className="block relative group w-full"
                       >
                         <img
                           src={selectedOrder.payment_proof.image_url}
@@ -806,9 +923,12 @@ const PaymentAudit: React.FC = () => {
                           className="w-full max-h-96 object-contain rounded-lg border-2 border-transparent group-hover:border-red-500 transition-colors"
                         />
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
-                          <ExternalLink className="w-8 h-8 text-white" />
+                          <span className="text-white text-sm font-medium flex items-center gap-2">
+                            <Eye className="w-5 h-5" />
+                            点击查看大图
+                          </span>
                         </div>
-                      </a>
+                      </button>
                       {selectedOrder.payment_proof.description && (
                         <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           用户备注: {selectedOrder.payment_proof.description}
@@ -845,10 +965,10 @@ const PaymentAudit: React.FC = () => {
                 )}
 
                 {/* 审核操作区 */}
-                {selectedOrder.status === 'verifying' && (
-                  <div className={`p-4 rounded-xl border-2 ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
-                    <h4 className="font-medium mb-3 flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-red-600" />
+                {selectedOrder.status === 'verifying' ? (
+                  <div className={`p-4 rounded-xl border-2 border-red-500 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                    <h4 className="font-medium mb-3 flex items-center gap-2 text-red-600">
+                      <AlertCircle className="w-4 h-4" />
                       审核操作
                     </h4>
                     <div className="space-y-4">
@@ -876,7 +996,7 @@ const PaymentAudit: React.FC = () => {
                           ) : (
                             <CheckCircle className="w-4 h-4" />
                           )}
-                          审核通过
+                          审核通过并开通会员
                         </motion.button>
                         <motion.button
                           whileHover={{ scale: 1.02 }}
@@ -895,7 +1015,37 @@ const PaymentAudit: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                )}
+                ) : selectedOrder.status === 'pending' ? (
+                  <div className={`p-4 rounded-xl border-2 border-yellow-500 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                    <h4 className="font-medium mb-2 flex items-center gap-2 text-yellow-600">
+                      <Clock className="w-4 h-4" />
+                      等待用户支付
+                    </h4>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      该订单尚未收到支付凭证，等待用户上传支付截图后才能进行审核。
+                    </p>
+                  </div>
+                ) : selectedOrder.status === 'completed' ? (
+                  <div className={`p-4 rounded-xl border-2 border-green-500 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                    <h4 className="font-medium mb-2 flex items-center gap-2 text-green-600">
+                      <CheckCircle className="w-4 h-4" />
+                      审核已完成
+                    </h4>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      该订单已审核通过，会员已开通。
+                    </p>
+                  </div>
+                ) : selectedOrder.status === 'failed' ? (
+                  <div className={`p-4 rounded-xl border-2 border-red-500 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                    <h4 className="font-medium mb-2 flex items-center gap-2 text-red-600">
+                      <XCircle className="w-4 h-4" />
+                      已拒绝
+                    </h4>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      该订单已被拒绝。
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </motion.div>
           </motion.div>

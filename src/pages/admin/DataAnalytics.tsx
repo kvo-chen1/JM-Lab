@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { adminService } from '@/services/adminService';
 import { supabase } from '@/lib/supabaseClient';
+import AdvancedAnalytics from './AdvancedAnalytics';
 import {
   LineChart,
   Line,
@@ -131,11 +132,27 @@ export default function DataAnalytics() {
   const [data, setData] = useState<TrendData[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isRealtimeEnabled, setIsRealtimeEnabled] = useState(true);
+  const [isAdvancedView, setIsAdvancedView] = useState(false);
 
   // 业务维度筛选
   const [businessFilter, setBusinessFilter] = useState<BusinessFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // 表格分页状态
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(10);
+
+  // 详细数据图表状态
+  const [detailChartMetric, setDetailChartMetric] = useState<string>('users');
+  const detailChartColors: Record<string, string> = {
+    users: '#ef4444',
+    works: '#8b5cf6',
+    views: '#3b82f6',
+    likes: '#10b981',
+    cumulativeUsers: '#f59e0b',
+    cumulativeWorks: '#ec4899',
+  };
 
   // 预警相关状态
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -285,6 +302,8 @@ export default function DataAnalytics() {
 
       // 合并趋势数据并计算累计值
       const [usersTrend, worksTrend, viewsTrend, likesTrend] = trendData;
+      console.log('[DataAnalytics] usersTrend 前5条:', usersTrend.slice(0, 5));
+      console.log('[DataAnalytics] worksTrend 前5条:', worksTrend.slice(0, 5));
       let cumulativeUsers = 0;
       let cumulativeWorks = 0;
 
@@ -302,6 +321,7 @@ export default function DataAnalytics() {
           cumulativeWorks,
         };
       });
+      console.log('[DataAnalytics] mergedData 前10条:', mergedData.slice(0, 10));
       setData(mergedData);
 
       // 更新设备和来源数据
@@ -649,6 +669,15 @@ export default function DataAnalytics() {
     </motion.div>
   );
 
+  // 如果是高级视图模式，直接渲染高级大屏组件
+  if (isAdvancedView) {
+    return (
+      <div className="h-full">
+        <AdvancedAnalytics onExitAdvancedView={() => setIsAdvancedView(false)} />
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -721,7 +750,10 @@ export default function DataAnalytics() {
             <Calendar className="w-4 h-4 text-gray-400" />
             <select
               value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+              onChange={(e) => {
+                setTimeRange(e.target.value as TimeRange);
+                setTablePage(1); // 切换时间范围时重置分页
+              }}
               className={`bg-transparent border-none outline-none text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}
             >
               <option value="7d">最近7天</option>
@@ -740,6 +772,21 @@ export default function DataAnalytics() {
             className={`p-2 rounded-xl ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} shadow-sm transition-colors`}
           >
             <RefreshCw className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
+          </motion.button>
+
+          {/* 高级大屏切换按钮 */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setIsAdvancedView(!isAdvancedView)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-lg ${
+              isAdvancedView
+                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 shadow-blue-500/30 text-white'
+                : isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            {isAdvancedView ? '退出高级大屏' : '高级大屏'}
           </motion.button>
 
           {/* 导出按钮 */}
@@ -1213,11 +1260,183 @@ export default function DataAnalytics() {
         </motion.div>
       </div>
 
-      {/* 详细数据表格 */}
+      {/* 详细数据趋势图表 */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
+        className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md overflow-hidden`}
+      >
+        <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h3 className="font-semibold text-lg">详细数据趋势</h3>
+              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                查看各项指标的详细趋势变化
+              </p>
+            </div>
+
+            {/* 数据指标切换按钮 */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { key: 'users', label: '新用户', color: '#ef4444', icon: Users },
+                { key: 'works', label: '新作品', color: '#8b5cf6', icon: Image },
+                { key: 'views', label: '浏览量', color: '#3b82f6', icon: Eye },
+                { key: 'likes', label: '点赞数', color: '#10b981', icon: Heart },
+                { key: 'cumulativeUsers', label: '累计用户', color: '#f59e0b', icon: Users },
+                { key: 'cumulativeWorks', label: '累计作品', color: '#ec4899', icon: Image },
+              ].map(({ key, label, color, icon: Icon }) => (
+                <motion.button
+                  key={key}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setDetailChartMetric(key as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                    detailChartMetric === key
+                      ? 'text-white'
+                      : isDark
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  style={{
+                    backgroundColor: detailChartMetric === key ? color : undefined,
+                  }}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 折线图表 */}
+        <div className="p-6">
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart
+              data={data}
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="detailChartGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor={detailChartColors[detailChartMetric]}
+                    stopOpacity={0.3}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor={detailChartColors[detailChartMetric]}
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke={isDark ? '#334155' : '#e2e8f0'}
+                vertical={false}
+              />
+              <XAxis
+                dataKey="date"
+                stroke={isDark ? '#64748b' : '#64748b'}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
+                angle={data.length > 20 ? -45 : 0}
+                textAnchor={data.length > 20 ? 'end' : 'middle'}
+                height={data.length > 20 ? 60 : 30}
+              />
+              <YAxis
+                stroke={isDark ? '#64748b' : '#64748b'}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const value = payload[0].value as number;
+                    const metricLabels: Record<string, string> = {
+                      users: '新用户',
+                      works: '新作品',
+                      views: '浏览量',
+                      likes: '点赞数',
+                      cumulativeUsers: '累计用户',
+                      cumulativeWorks: '累计作品',
+                    };
+                    return (
+                      <div
+                        className={`p-3 rounded-lg shadow-lg border ${
+                          isDark
+                            ? 'bg-gray-800 border-gray-700 text-gray-100'
+                            : 'bg-white border-gray-200 text-gray-900'
+                        }`}
+                      >
+                        <p className="text-xs text-gray-500 mb-1">{label}</p>
+                        <p className="text-lg font-bold" style={{ color: detailChartColors[detailChartMetric] }}>
+                          {value?.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {metricLabels[detailChartMetric]}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey={detailChartMetric}
+                stroke={detailChartColors[detailChartMetric]}
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#detailChartGradient)"
+              />
+              <Line
+                type="monotone"
+                dataKey={detailChartMetric}
+                stroke={detailChartColors[detailChartMetric]}
+                strokeWidth={3}
+                dot={{ r: 3, fill: detailChartColors[detailChartMetric], strokeWidth: 2, stroke: isDark ? '#1e293b' : '#ffffff' }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* 图表数据摘要 */}
+        <div className={`px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} grid grid-cols-2 md:grid-cols-4 gap-4`}>
+          {(() => {
+            const values = data.map(d => (d as any)[detailChartMetric] || 0);
+            const total = values.reduce((a, b) => a + b, 0);
+            const avg = values.length > 0 ? Math.round(total / values.length) : 0;
+            const max = values.length > 0 ? Math.max(...values) : 0;
+            const min = values.length > 0 ? Math.min(...values) : 0;
+            return [
+              { label: '总计', value: total.toLocaleString() },
+              { label: '平均值', value: avg.toLocaleString() },
+              { label: '最高值', value: max.toLocaleString() },
+              { label: '最低值', value: min.toLocaleString() },
+            ].map((stat, index) => (
+              <div key={index} className="text-center">
+                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.label}</p>
+                <p className="text-lg font-bold" style={{ color: detailChartColors[detailChartMetric] }}>
+                  {stat.value}
+                </p>
+              </div>
+            ));
+          })()}
+        </div>
+      </motion.div>
+
+      {/* 详细数据表格 */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
         className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md overflow-hidden`}
       >
         <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
@@ -1273,31 +1492,87 @@ export default function DataAnalytics() {
                   </td>
                 </tr>
               ) : (
-                data.slice(0, 10).map((item, index) => (
-                  <motion.tr
-                    key={index}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: index * 0.05 }}
-                    className={`${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'} transition-colors`}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">{item.date}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">{item.users}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">{item.works}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">{item.views.toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">{item.likes}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400">
-                      {item.cumulativeUsers?.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-purple-600 dark:text-purple-400">
-                      {item.cumulativeWorks?.toLocaleString()}
-                    </td>
-                  </motion.tr>
-                ))
+                data
+                  .slice((tablePage - 1) * tablePageSize, tablePage * tablePageSize)
+                  .map((item, index) => (
+                    <motion.tr
+                      key={index}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: index * 0.05 }}
+                      className={`${isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'} transition-colors`}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{item.date}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{item.users}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{item.works}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{item.views.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{item.likes}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400">
+                        {item.cumulativeUsers?.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-purple-600 dark:text-purple-400">
+                        {item.cumulativeWorks?.toLocaleString()}
+                      </td>
+                    </motion.tr>
+                  ))
               )}
             </tbody>
           </table>
         </div>
+
+        {/* 分页控制 */}
+        {data.length > 0 && (
+          <div className={`px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              共 {data.length} 条数据，每页
+              <select
+                value={tablePageSize}
+                onChange={(e) => {
+                  setTablePageSize(Number(e.target.value));
+                  setTablePage(1);
+                }}
+                className={`mx-2 px-2 py-1 rounded text-sm ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'} border`}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={data.length}>全部</option>
+              </select>
+              条
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTablePage(p => Math.max(1, p - 1))}
+                disabled={tablePage === 1}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  tablePage === 1
+                    ? isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                上一页
+              </button>
+
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                第 {tablePage} / {Math.ceil(data.length / tablePageSize)} 页
+              </span>
+
+              <button
+                onClick={() => setTablePage(p => Math.min(Math.ceil(data.length / tablePageSize), p + 1))}
+                disabled={tablePage >= Math.ceil(data.length / tablePageSize)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  tablePage >= Math.ceil(data.length / tablePageSize)
+                    ? isDark ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );

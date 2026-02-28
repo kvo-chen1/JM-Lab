@@ -11,6 +11,9 @@ export interface Work {
   description: string;
   category: string;
   thumbnail?: string;
+  video_url?: string;
+  content?: any;
+  metadata?: any;
   status: 'draft' | 'published' | 'archived';
   createdAt: string;
   updatedAt: string;
@@ -18,8 +21,52 @@ export interface Work {
 
 class WorkService {
   /**
+   * 获取所有已发布的作品（用于推荐位管理）
+   */
+  async getAllPublishedWorks(limit: number = 100): Promise<Work[]> {
+    try {
+      // 首先尝试查询公开且已发布的作品
+      const { data, error } = await supabase
+        .from('works')
+        .select('*')
+        .eq('is_public', true)
+        .in('status', ['published', 'active', 'approved'])
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.warn('获取公开作品失败:', error);
+      }
+
+      if (data && data.length > 0) {
+        console.log('[WorkService] 获取到公开作品数量:', data.length);
+        return data.map(this.transformWorkData);
+      }
+
+      // 如果没有公开作品，查询所有状态的作品（不限制 is_public）
+      console.log('[WorkService] 尝试查询所有作品...');
+      const { data: allData, error: allError } = await supabase
+        .from('works')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (allError) {
+        console.warn('获取所有作品失败:', allError);
+        return this.getMockWorks();
+      }
+
+      console.log('[WorkService] 获取到所有作品数量:', allData?.length || 0);
+      return (allData || []).map(this.transformWorkData);
+    } catch (error) {
+      console.error('获取作品失败:', error);
+      return this.getMockWorks();
+    }
+  }
+
+  /**
    * 获取当前用户的作品列表
-   * @param userId 可选的用户ID，如果不提供则尝试从 Supabase auth 获取
+   * @param userId 可选的用户 ID，如果不提供则尝试从 Supabase auth 获取
    */
   async getUserWorks(userId?: string): Promise<Work[]> {
     try {
@@ -82,16 +129,92 @@ class WorkService {
    * 转换作品数据格式
    */
   private transformWorkData(data: any): Work {
+    // 尝试多个可能的缩略图字段 - 按照数据库实际字段名
+    const thumbnail = data.thumbnail_url || data.thumbnail || data.cover_image || data.image_url || 
+                     data.poster || data.video_thumbnail ||
+                     (data.metadata?.thumbnail) || (data.content?.thumbnail);
+    
+    // 尝试多个可能的视频 URL 字段 - 按照津脉广场的实现方式
+    const videoUrl = data.videoUrl || data.video_url || data.video || 
+                    (typeof data.content === 'object' && data.content?.videoUrl) ||
+                    (typeof data.content === 'object' && data.content?.video_url) ||
+                    (typeof data.content === 'object' && data.content?.video) ||
+                    (typeof data.metadata === 'object' && data.metadata?.videoUrl) ||
+                    (typeof data.metadata === 'object' && data.metadata?.video_url) ||
+                    (typeof data.metadata === 'object' && data.metadata?.video) ||
+                    (typeof data.content === 'string' && this.extractVideoFromContent(data.content)) ||
+                    (typeof data.metadata === 'string' && this.extractVideoFromMetadata(data.metadata)) ||
+                    // 检查缩略图是否是视频格式
+                    (thumbnail && this.isVideoFormat(thumbnail) ? thumbnail : null);
+    
+    // 检查是否为视频类型
+    const isVideoType = data.type === 'video' || data.category === 'video' || 
+                       data.type === 'Video' || data.category === 'Video';
+    
+    // 如果是视频类型但没有单独的视频 URL，尝试使用缩略图作为视频源
+    const effectiveVideoUrl = videoUrl || (isVideoType && thumbnail ? thumbnail : null);
+    
     return {
       id: data.id,
       title: data.title || data.name || '未命名作品',
       description: data.description || '',
       category: data.category || data.type || '其他',
-      thumbnail: data.thumbnail || data.cover_image || data.image_url,
+      thumbnail: thumbnail,
+      video_url: effectiveVideoUrl,
+      content: typeof data.content === 'string' ? JSON.parse(data.content) : data.content,
+      metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata,
       status: data.status || 'published',
       createdAt: data.created_at || data.createdAt,
       updatedAt: data.updated_at || data.updatedAt,
     };
+  }
+
+  /**
+   * 检查 URL 是否为视频格式
+   */
+  private isVideoFormat(url: string): boolean {
+    if (!url) return false;
+    const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.avi', '.wmv', '.flv', '.mkv'];
+    return videoExtensions.some(ext => url.toLowerCase().endsWith(ext));
+  }
+
+  /**
+   * 从 content 字符串中提取视频 URL
+   */
+  private extractVideoFromContent(contentStr: string): string | null {
+    try {
+      const contentObj = JSON.parse(contentStr);
+      if (typeof contentObj === 'object') {
+        return contentObj.video_url || contentObj.video || contentObj.url || null;
+      }
+    } catch (e) {
+      // 如果不是有效的 JSON，尝试查找 URL 模式
+      const videoPattern = /\.(mp4|webm|ogg|mov|avi|wmv|flv|mkv)(\?.*)?$/i;
+      const urlMatch = contentStr.match(/https?:\/\/[^\s"'<>]+/g);
+      if (urlMatch) {
+        for (const url of urlMatch) {
+          if (videoPattern.test(url)) {
+            return url;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 从 metadata 字符串中提取视频 URL
+   */
+  private extractVideoFromMetadata(metadataStr: string): string | null {
+    try {
+      const metadataObj = JSON.parse(metadataStr);
+      if (typeof metadataObj === 'object') {
+        return metadataObj.video_url || metadataObj.video || metadataObj.file_url || null;
+      }
+    } catch (e) {
+      // metadata 通常应该是对象格式，如果不是 JSON，可能没有视频信息
+    }
+    return null;
   }
 
   /**

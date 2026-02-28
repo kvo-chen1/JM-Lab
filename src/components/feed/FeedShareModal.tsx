@@ -136,19 +136,53 @@ export function FeedShareModal({ isOpen, onClose, feed, onShareSuccess }: FeedSh
     setSendStatus('sending');
     setCurrentStep('sending');
 
-    // 模拟发送延迟
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      
+      // 调用后端 API 发送私信分享
+      const response = await fetch('/api/messages/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          recipientId: selectedUser.id,
+          content: message || `分享一个作品：${feed.title || '动态'}`,
+          feedId: feed.id,
+          feedType: 'share'
+        })
+      });
 
-    setSendStatus('success');
-    setCurrentStep('success');
-    toast.success('分享成功！');
-    onShareSuccess?.();
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          setSendStatus('success');
+          setCurrentStep('success');
+          toast.success('分享成功！');
+          onShareSuccess?.();
 
-    // 3秒后自动关闭
-    setTimeout(() => {
-      handleClose();
-    }, 3000);
-  }, [currentUser, selectedUser, feed, onShareSuccess, handleClose]);
+          // 3 秒后自动关闭
+          setTimeout(() => {
+            handleClose();
+          }, 3000);
+          return;
+        }
+      }
+      
+      throw new Error('发送失败');
+    } catch (error: any) {
+      console.error('[FeedShareModal] handleSend error:', error);
+      setSendStatus('error');
+      toast.error(error.message || '发送失败，请重试');
+      
+      // 错误时 2 秒后允许重新发送
+      setTimeout(() => {
+        setSendStatus('idle');
+        setCurrentStep('compose');
+      }, 2000);
+    }
+  }, [currentUser, selectedUser, feed, message, onShareSuccess, handleClose]);
 
   // 获取预览图片
   const getPreviewImage = () => {
@@ -285,9 +319,45 @@ export function FeedShareModal({ isOpen, onClose, feed, onShareSuccess }: FeedSh
           filteredCommunities.map((community) => (
             <button
               key={community.id}
-              onClick={() => {
-                // TODO: 实现分享到社群的逻辑
-                toast.info(`分享到 ${community.name} 功能开发中`);
+              onClick={async () => {
+                try {
+                  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+                  
+                  // 调用后端 API 分享到社群
+                  const response = await fetch('/api/share/community', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                      communityId: community.id,
+                      title: feed.title || feed.shareTarget?.title || '作品分享',
+                      description: feed.content || feed.shareTarget?.description || '',
+                      imageUrl: feed.media?.[0]?.url || feed.media?.[0]?.thumbnailUrl || '',
+                      type: feed.media?.[0]?.type === 'video' ? 'video' : 'image',
+                      feedId: feed.id,
+                      shareType: 'feed'
+                    })
+                  });
+
+                  if (response.ok) {
+                    const result = await response.json();
+                    if (result.code === 0) {
+                      toast.success(`已分享到 ${community.name}`);
+                      onShareSuccess?.();
+                      setTimeout(() => {
+                        handleClose();
+                      }, 2000);
+                      return;
+                    }
+                  }
+                  
+                  throw new Error('分享失败');
+                } catch (error: any) {
+                  console.error('[FeedShareModal] handleShareToCommunity error:', error);
+                  toast.error(error.message || '分享失败，请重试');
+                }
               }}
               className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
                 isDark

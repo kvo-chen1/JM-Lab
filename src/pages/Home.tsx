@@ -14,6 +14,7 @@ import PromptInput from '@/components/PromptInput'
 import eventBus from '@/lib/eventBus' // 导入事件总线
 import HomeRecommendationSection from '@/components/HomeRecommendationSection'
 import JinMaiTemplatesSection from '@/components/JinMaiTemplatesSection'
+import HotSearchSection from '@/components/HotSearchSection'
 import PartnerBrandsSection from '@/components/PartnerBrandsSection'
 import { recordUserAction } from '@/services/recommendationService'
 import pendingMessageService from '@/services/pendingMessageService'
@@ -780,7 +781,12 @@ export default function Home() {
           <JinMaiTemplatesSection />
         </div>
 
-        {/* 3. 已入驻品牌方 - 合作伙伴展示 */}
+        {/* 3. 热搜榜 - 热门搜索展示 */}
+        <div className="pt-16">
+          <HotSearchSection />
+        </div>
+
+        {/* 4. 已入驻品牌方 - 合作伙伴展示 */}
         <div className="pt-16">
           <PartnerBrandsSection />
         </div>

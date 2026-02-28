@@ -22,6 +22,7 @@ import MessageSearch from './MessageSearch'
 import AISettingsPanel from './AISettingsPanel'
 import { useCreateStore } from '@/pages/create/hooks/useCreateStore'
 import { downloadAndUploadImage, downloadAndUploadVideo } from '@/services/imageService'
+import { createDraftService } from '@/services/createDraftService'
 
 interface AICollaborationPanelProps {
   isOpen: boolean
@@ -447,19 +448,19 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       if (task.status === 'completed' && task.result?.urls?.[0]) {
         const originalUrl = task.result.urls[0];
         // 检查是否已经是永久URL（不是临时URL）
-        const isPermanentUrl = !originalUrl.includes('openai') && 
-                               !originalUrl.includes('replicate') && 
+        const isPermanentUrl = !originalUrl.includes('openai') &&
+                               !originalUrl.includes('replicate') &&
                                !originalUrl.includes('runway') &&
                                (originalUrl.includes('supabase') || originalUrl.includes('works/'));
-        
+
         if (!isPermanentUrl) {
           console.log('[TaskListener] 开始自动保存到永久存储:', task.type, task.id);
-          
+
           // 异步保存，不阻塞UI
           setTimeout(async () => {
             try {
               let permanentUrl: string;
-              
+
               if (task.type === 'image') {
                 permanentUrl = await downloadAndUploadImage(originalUrl, 'ai-generated');
               } else if (task.type === 'video') {
@@ -467,9 +468,9 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
               } else {
                 return; // 不支持的类型
               }
-              
+
               console.log('[TaskListener] 已保存到永久存储:', permanentUrl);
-              
+
               // 更新任务结果中的URL为永久URL
               const updatedTask = {
                 ...task,
@@ -480,7 +481,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                 },
                 updatedAt: Date.now()
               };
-              
+
               // 更新消息中的任务状态
               setMessages(prev => prev.map(msg => {
                 if ((msg as any).generationTask && (msg as any).generationTask.id === task.id) {
@@ -491,7 +492,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                 }
                 return msg;
               }));
-              
+
               toast.success(`${task.type === 'image' ? '图片' : '视频'}已自动保存到云端`);
             } catch (saveError) {
               console.error('[TaskListener] 自动保存到永久存储失败:', saveError);
@@ -499,6 +500,56 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
             }
           }, 1000); // 延迟1秒执行，让UI先更新
         }
+
+        // 自动保存到创作中心草稿箱
+        setTimeout(async () => {
+          try {
+            const drafts = JSON.parse(localStorage.getItem('CREATE_DRAFTS') || '[]');
+            const url = task.result?.urls?.[0] || '';
+
+            const newDraft = {
+              id: `draft-${Date.now()}`,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              name: `津小脉AI作品 ${drafts.length + 1}`,
+              description: 'AI小助手津小脉自动保存的AI生成作品',
+              prompt: task.params?.prompt || 'AI生成作品',
+              selectedResult: `result-${Date.now()}`,
+              generatedResults: [{
+                id: `result-${Date.now()}`,
+                type: task.type === 'video' ? 'video' : 'image',
+                thumbnail: url,
+                video: task.type === 'video' ? url : undefined,
+                prompt: task.params?.prompt || '',
+                timestamp: Date.now(),
+              }],
+              activeTool: 'sketch',
+              stylePreset: task.params?.style || '',
+              currentStep: 2,
+              aiExplanation: '',
+              selectedPatternId: null,
+              patternOpacity: 50,
+              patternScale: 100,
+              patternRotation: 0,
+              patternBlendMode: 'normal',
+              patternTileMode: 'repeat',
+              patternPositionX: 50,
+              patternPositionY: 50,
+            };
+
+            const updatedDrafts = [newDraft, ...drafts];
+            localStorage.setItem('CREATE_DRAFTS', JSON.stringify(updatedDrafts));
+            console.log('[TaskListener] Auto-saved AI assistant work to drafts:', newDraft.id);
+
+            // 异步保存到数据库
+            await createDraftService.saveDraft(newDraft);
+            console.log('[TaskListener] Auto-saved AI assistant work to database drafts');
+
+            toast.success('作品已自动保存到草稿箱');
+          } catch (error) {
+            console.error('[TaskListener] Failed to auto-save AI assistant work to drafts:', error);
+          }
+        }, 1500); // 延迟1.5秒执行，在云端保存之后
       }
     })
     

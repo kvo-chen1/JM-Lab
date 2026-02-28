@@ -48,7 +48,7 @@ export interface CreatorRevenue {
   totalWithdrawn: number;
 }
 
-// 商单任务接口
+// 品牌任务接口
 export interface BusinessTask {
   id: string;
   title: string;
@@ -178,8 +178,8 @@ export function useCreatorCenter() {
       const totalComments = commentsData?.length || 0;
       const totalShares = sharesData?.length || 0;
       
-      // 获取用户粉丝数（从 follows 表查询）
-      const { count: followersCount, error: followersError } = await supabase
+      // 获取用户粉丝数（从 follows 表查询）- 使用 supabaseAdmin 绕过 RLS
+      const { count: followersCount, error: followersError } = await supabaseAdmin
         .from('follows')
         .select('*', { count: 'exact', head: true })
         .eq('following_id', userId);
@@ -421,7 +421,7 @@ export function useCreatorCenter() {
       setBusinessTasks(formattedTasks);
       setTaskApplications(applications?.map(a => ({ taskId: a.task_id, status: a.status })) || []);
     } catch (err) {
-      console.error('获取商单任务失败:', err);
+      console.error('获取品牌任务失败:', err);
       setBusinessTasks([]);
     }
   }, [userId]);
@@ -461,7 +461,7 @@ export function useCreatorCenter() {
     }
   }, [userId]);
 
-  // 申请商单任务
+  // 申请品牌任务
   const applyForTask = useCallback(async (taskId: string) => {
     if (!userId) return false;
 

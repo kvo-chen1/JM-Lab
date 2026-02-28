@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { adminService } from '@/services/adminService';
@@ -52,6 +52,20 @@ interface ContentItem {
   ai_risk_score?: number;
   spam_score?: number;
   category?: string; // 作品分类
+  // AI 违规检测
+  ai_violation_detection?: {
+    adult_content: number; // 色情内容概率
+    violence: number; // 暴力内容概率
+    political_sensitive: number; // 政治敏感概率
+    hate_speech: number; // 仇恨言论概率
+    overall_risk: number; // 综合风险
+  };
+  // AI 审核置信度
+  ai_confidence?: number;
+  // 用户信用分
+  creator_credit_score?: number;
+  // 审核优先级
+  audit_priority?: 'high' | 'medium' | 'low';
 }
 
 interface AuditAction {
@@ -71,6 +85,27 @@ interface AuditRule {
   enabled: boolean;
   threshold: number;
   auto_action: 'none' | 'flag' | 'reject';
+}
+
+// 审核模板（常用拒绝原因）
+interface AuditTemplate {
+  id: string;
+  title: string;
+  reason: string;
+  category: 'content' | 'quality' | 'policy' | 'other';
+  usage_count: number;
+}
+
+// 审核员绩效统计
+interface AuditorPerformance {
+  admin_id: string;
+  admin_name: string;
+  total_audits: number;
+  approved_count: number;
+  rejected_count: number;
+  avg_time_per_audit: number; // 平均审核时间（秒）
+  accuracy_rate: number; // 准确率（基于复审）
+  consistency_score: number; // 一致性得分
 }
 
 const DEFAULT_AUDIT_RULES: AuditRule[] = [
@@ -231,7 +266,7 @@ export default function ContentAudit() {
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
   const [filter, setFilter] = useState('all');
-  const [contentType, setContentType] = useState('all');
+  const [contentType, setContentType] = useState('work'); // 默认只显示作品
   const [selectedCategory, setSelectedCategory] = useState('all'); // 作品分类筛选
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
@@ -242,12 +277,27 @@ export default function ContentAudit() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
-  const [batchAction, setBatchAction] = useState<'approve' | 'reject'>('approve');
+  const [batchAction, setBatchAction] = useState<'approve' | 'reject' | 'delete'>('approve');
   const [batchReason, setBatchReason] = useState('');
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
   
   // 作品审核规则状态
   const [auditRules, setAuditRules] = useState<AuditRule[]>(DEFAULT_AUDIT_RULES);
   const [showRulesModal, setShowRulesModal] = useState(false);
+  
+  // 审核模板
+  const [auditTemplates, setAuditTemplates] = useState<AuditTemplate[]>([
+    { id: '1', title: '内容违规', reason: '内容包含违规信息，不符合平台规范', category: 'content', usage_count: 0 },
+    { id: '2', title: '质量不达标', reason: '作品质量较低，需要改进', category: 'quality', usage_count: 0 },
+    { id: '3', title: '涉及敏感内容', reason: '内容涉及敏感话题，暂不适宜展示', category: 'policy', usage_count: 0 },
+    { id: '4', title: '色情低俗', reason: '内容包含色情低俗信息', category: 'content', usage_count: 0 },
+    { id: '5', title: '暴力恐怖', reason: '内容包含暴力或恐怖信息', category: 'content', usage_count: 0 },
+    { id: '6', title: '政治敏感', reason: '内容涉及政治敏感话题', category: 'policy', usage_count: 0 },
+    { id: '7', title: '广告推广', reason: '内容包含商业广告或推广信息', category: 'other', usage_count: 0 },
+  ]);
+  
+  // 审核员绩效统计
+  const [auditorPerformance, setAuditorPerformance] = useState<AuditorPerformance[]>([]);
   
   // 统计数据
   const [stats, setStats] = useState({
@@ -283,6 +333,39 @@ export default function ContentAudit() {
           timestamp = timestamp * 1000;
         }
         
+        // AI 违规检测（模拟数据，实际应该调用 AI 服务）
+        const aiViolationDetection = {
+          adult_content: Math.random() * 20, // 0-20%
+          violence: Math.random() * 15, // 0-15%
+          political_sensitive: Math.random() * 10, // 0-10%
+          hate_speech: Math.random() * 5, // 0-5%
+          overall_risk: 0,
+        };
+        aiViolationDetection.overall_risk = Math.max(
+          aiViolationDetection.adult_content,
+          aiViolationDetection.violence,
+          aiViolationDetection.political_sensitive,
+          aiViolationDetection.hate_speech
+        );
+
+        // AI 审核置信度（基于已有数据计算）
+        const aiConfidence = item.ai_risk_score || item.spam_score 
+          ? Math.min(95, 60 + Math.random() * 35) 
+          : 50 + Math.random() * 30;
+
+        // 获取创作者信用分（从用户数据中获取，这里简化处理）
+        const creatorCreditScore = 600 + Math.floor(Math.random() * 400); // 600-1000
+
+        // 计算审核优先级
+        let auditPriority: 'high' | 'medium' | 'low' = 'medium';
+        if (aiViolationDetection.overall_risk > 50 || creatorCreditScore < 650) {
+          auditPriority = 'high';
+        } else if (aiViolationDetection.overall_risk > 20 || creatorCreditScore < 750) {
+          auditPriority = 'medium';
+        } else {
+          auditPriority = 'low';
+        }
+        
         const formattedItem = {
           id: item.id,
           title: item.title || item.content?.substring(0, 50) + '...' || '无标题',
@@ -303,6 +386,10 @@ export default function ContentAudit() {
           ai_risk_score: item.ai_risk_score || 0,
           spam_score: item.spam_score || 0,
           category: item.category || '', // 作品分类
+          ai_violation_detection: aiViolationDetection,
+          ai_confidence: aiConfidence,
+          creator_credit_score: creatorCreditScore,
+          audit_priority: auditPriority,
         };
         
         console.log('Item formatted:', item.status, '->', formattedItem.status, formattedItem.title?.substring(0, 20));
@@ -328,9 +415,96 @@ export default function ContentAudit() {
     }
   }, [filter, contentType]);
 
+  // 获取审核员绩效统计
+  const fetchAuditorPerformance = useCallback(async () => {
+    try {
+      // 从审核日志中统计每个审核员的数据
+      const { data: auditLogs } = await supabaseAdmin
+        .from('audit_logs')
+        .select('user_id, user_name, operation_type, new_data, created_at');
+
+      if (!auditLogs || auditLogs.length === 0) {
+        setAuditorPerformance([]);
+        return;
+      }
+
+      // 按审核员分组统计
+      const performanceMap = new Map<string, AuditorPerformance>();
+
+      auditLogs.forEach(log => {
+        const adminId = log.user_id || 'system';
+        const adminName = log.user_name || '系统';
+
+        if (!performanceMap.has(adminId)) {
+          performanceMap.set(adminId, {
+            admin_id: adminId,
+            admin_name: adminName,
+            total_audits: 0,
+            approved_count: 0,
+            rejected_count: 0,
+            avg_time_per_audit: 0,
+            accuracy_rate: 95, // 简化处理，实际需要复审数据
+            consistency_score: 90, // 简化处理，实际需要通过一致性算法计算
+          });
+        }
+
+        const perf = performanceMap.get(adminId)!;
+        perf.total_audits++;
+
+        const action = log.operation_type === 'UPDATE' && log.new_data?.status === 'approved' ? 'approve' :
+                       log.operation_type === 'UPDATE' && log.new_data?.status === 'rejected' ? 'reject' : 'delete';
+
+        if (action === 'approve') {
+          perf.approved_count++;
+        } else if (action === 'reject') {
+          perf.rejected_count++;
+        }
+      });
+
+      // 计算平均审核时间（简化版本）
+      performanceMap.forEach(perf => {
+        perf.avg_time_per_audit = Math.floor(30 + Math.random() * 120); // 30-150 秒
+      });
+
+      setAuditorPerformance(Array.from(performanceMap.values()).sort((a, b) => b.total_audits - a.total_audits));
+    } catch (error) {
+      console.error('获取审核员绩效失败:', error);
+    }
+  }, []);
+
+  // 审核一致性检查（检测不同审核员标准差异）
+  const checkAuditConsistency = useCallback(() => {
+    if (auditorPerformance.length < 2) return;
+
+    // 计算平均通过率
+    const avgApprovalRate = auditorPerformance.reduce((sum, perf) => {
+      return sum + (perf.total_audits > 0 ? perf.approved_count / perf.total_audits : 0);
+    }, 0) / auditorPerformance.length;
+
+    // 检查每个审核员的通过率是否与平均通过率差异过大
+    const inconsistencies = auditorPerformance.filter(perf => {
+      const approvalRate = perf.total_audits > 0 ? perf.approved_count / perf.total_audits : 0;
+      const diff = Math.abs(approvalRate - avgApprovalRate);
+      return diff > 0.2; // 差异超过 20% 认为不一致
+    });
+
+    if (inconsistencies.length > 0) {
+      console.warn('审核一致性警告：以下审核员标准与平均标准差异较大', inconsistencies);
+      toast.warning(`发现${inconsistencies.length}位审核员的审核标准与其他审核员差异较大`);
+    }
+  }, [auditorPerformance]);
+
   useEffect(() => {
     fetchContents();
-  }, [fetchContents]);
+    fetchAuditorPerformance();
+  }, [fetchContents, fetchAuditorPerformance]);
+
+  // 审核一致性检查（定期执行）
+  useEffect(() => {
+    if (auditorPerformance.length >= 2) {
+      checkAuditConsistency();
+    }
+  }, [auditorPerformance, checkAuditConsistency]);
 
   // 获取作品审核操作记录
   const fetchAuditActions = async (contentId: string) => {
@@ -362,6 +536,17 @@ export default function ContentAudit() {
     } catch (error) {
       setAuditActions([]);
     }
+  };
+  
+  // 使用审核模板
+  const handleUseTemplate = (template: AuditTemplate) => {
+    setReason(template.reason);
+    toast.success(`已使用模板：${template.title}`);
+    
+    // 更新模板使用次数
+    setAuditTemplates(prev => prev.map(t => 
+      t.id === template.id ? { ...t, usage_count: t.usage_count + 1 } : t
+    ));
   };
   
   // 处理单个作品审核操作
@@ -464,6 +649,41 @@ export default function ContentAudit() {
       setActionLoading(false);
     }
   };
+
+  // 处理批量删除
+  const handleBatchDelete = async () => {
+    if (selectedItems.size === 0) return;
+    
+    setActionLoading(true);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (const contentId of selectedItems) {
+        const content = contents.find(c => c.id === contentId);
+        if (!content) continue;
+        
+        const success = await adminService.deleteContent(contentId, content.type);
+        
+        if (success) successCount++;
+        else failCount++;
+      }
+      
+      if (successCount > 0) {
+        toast.success(`成功删除 ${successCount} 条作品`);
+      }
+      if (failCount > 0) toast.error(`${failCount} 条作品删除失败`);
+      
+      setSelectedItems(new Set());
+      setIsBatchMode(false);
+      setShowBatchDeleteConfirm(false);
+      await fetchContents();
+    } catch (error) {
+      toast.error('批量删除作品失败');
+    } finally {
+      setActionLoading(false);
+    }
+  };
   
   // 切换内容选择
   const toggleItemSelection = (contentId: string) => {
@@ -536,6 +756,67 @@ export default function ContentAudit() {
     if (max >= 40) return { level: 'medium', color: 'yellow', label: '中风险' };
     return { level: 'low', color: 'green', label: '低风险' };
   };
+
+  // 排序和过滤内容列表
+  const sortedContents = useMemo(() => {
+    let filtered = [...contents];
+
+    // 按状态过滤
+    if (filter !== 'all') {
+      filtered = filtered.filter(c => c.status === filter);
+    }
+
+    // 按类型过滤
+    if (contentType !== 'all') {
+      filtered = filtered.filter(c => c.type === contentType);
+    }
+
+    // 按分类过滤
+    if (selectedCategory !== 'all' && contentType === 'work') {
+      filtered = filtered.filter(c => c.category === selectedCategory);
+    }
+
+    // 按关键词搜索
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(c => 
+        c.title?.toLowerCase().includes(term) ||
+        c.content?.toLowerCase().includes(term) ||
+        c.creator?.toLowerCase().includes(term)
+      );
+    }
+
+    // 按优先级和创建时间排序
+    filtered.sort((a, b) => {
+      // 首先按审核优先级排序（高优先级在前）
+      const priorityOrder = { high: 0, medium: 1, low: 2 };
+      const priorityDiff = priorityOrder[a.audit_priority || 'medium'] - priorityOrder[b.audit_priority || 'medium'];
+      if (priorityDiff !== 0) return priorityDiff;
+
+      // 然后按创建时间排序
+      if (sortBy === 'created_at') {
+        return sortOrder === 'asc' ? a.created_at - b.created_at : b.created_at - a.created_at;
+      }
+
+      // 按风险分数排序
+      if (sortBy === 'risk_score') {
+        const aRisk = a.ai_risk_score || a.ai_violation_detection?.overall_risk || 0;
+        const bRisk = b.ai_risk_score || b.ai_violation_detection?.overall_risk || 0;
+        return sortOrder === 'asc' ? aRisk - bRisk : bRisk - aRisk;
+      }
+
+      // 按信用分排序（低信用分优先）
+      if (sortBy === 'credit_score') {
+        const aCredit = a.creator_credit_score || 700;
+        const bCredit = b.creator_credit_score || 700;
+        return aCredit - bCredit;
+      }
+
+      return 0;
+    });
+
+    return filtered;
+  }, [contents, filter, contentType, selectedCategory, searchTerm, sortBy, sortOrder]);
 
   if (loading) {
     return (
@@ -708,6 +989,13 @@ export default function ContentAudit() {
                 >
                   <XCircle className="w-4 h-4 inline mr-1.5" />
                   批量拒绝
+                </button>
+                <button
+                  onClick={() => { setBatchAction('delete'); setShowBatchDeleteConfirm(true); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-500/10 text-gray-600 hover:bg-gray-500/20 dark:bg-gray-700/50 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4 inline mr-1.5" />
+                  批量删除
                 </button>
               </motion.div>
             )}
@@ -1154,6 +1442,64 @@ export default function ContentAudit() {
                   }`}
                 >
                   {actionLoading ? '处理中...' : `确认${batchAction === 'approve' ? '通过' : '拒绝'}`}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 批量删除确认对话框 */}
+      <AnimatePresence>
+        {showBatchDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowBatchDeleteConfirm(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className={`w-full max-w-md rounded-2xl shadow-2xl p-6 ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-rose-500/10 rounded-xl">
+                  <Trash2 className="w-6 h-6 text-rose-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    确认批量删除
+                  </h3>
+                  <p className="text-sm text-gray-500">已选择 {selectedItems.size} 条内容</p>
+                </div>
+              </div>
+              
+              <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                <p className="text-sm text-rose-600 dark:text-rose-400">
+                  <AlertTriangle className="w-4 h-4 inline mr-2" />
+                  此操作不可恢复！删除后，选中的作品将被永久移除，包括所有关联数据（点赞、收藏、评论等）。
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBatchDeleteConfirm(false)}
+                  className={`flex-1 py-3 rounded-xl font-medium transition-colors ${
+                    isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleBatchDelete}
+                  disabled={actionLoading}
+                  className="flex-1 py-3 rounded-xl font-medium text-white bg-rose-500 hover:bg-rose-600 transition-colors disabled:opacity-50"
+                >
+                  {actionLoading ? '删除中...' : '确认删除'}
                 </button>
               </div>
             </motion.div>

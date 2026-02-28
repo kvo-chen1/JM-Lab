@@ -29,6 +29,8 @@ interface EventGridProps {
   hasMore?: boolean;
   onLoadMore?: () => void;
   totalCount?: number;
+  selectedDate?: Date | null;
+  onClearDateFilter?: () => void;
 }
 
 const sortOptions: { value: SortOption; label: string; icon: React.ElementType }[] = [
@@ -49,6 +51,8 @@ export default function EventGrid({
   hasMore = false,
   onLoadMore,
   totalCount = 0,
+  selectedDate,
+  onClearDateFilter,
 }: EventGridProps) {
   const { isDark } = useTheme();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -237,6 +241,30 @@ export default function EventGrid({
               </span>
             )}
           </div>
+          
+          {/* 日期筛选提示 */}
+          {selectedDate && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs ${
+                isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600'
+              }`}
+            >
+              <Calendar className="w-3 h-3" />
+              <span>{selectedDate.getMonth() + 1}月{selectedDate.getDate()}日</span>
+              {onClearDateFilter && (
+                <button
+                  onClick={onClearDateFilter}
+                  className="ml-1 hover:text-red-700 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </motion.div>
+          )}
         </div>
       </div>
 

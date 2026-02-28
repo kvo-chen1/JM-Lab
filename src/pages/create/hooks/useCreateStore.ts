@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CreateState, ToolType, GeneratedResult, SmartLayoutConfig, LayoutRecommendation } from '../types';
-import { aiGeneratedResults, traditionalPatterns } from '../data';
+import { traditionalPatterns } from '../data';
 import { workService, communityService, eventService } from '@/services/apiService';
 import postsApi from '@/services/postService';
 import { eventSubmissionService } from '@/services/eventSubmissionService';
@@ -117,79 +117,23 @@ interface CreateActions {
   resetLayout: () => void;
 }
 
-// 从 localStorage 读取保存的工具状态
-const getSavedTool = (): ToolType => {
-  if (typeof localStorage === 'undefined') return 'sketch';
-  try {
-    const saved = localStorage.getItem('CREATE_ACTIVE_TOOL');
-    return (saved as ToolType) || 'sketch';
-  } catch {
-    return 'sketch';
-  }
-};
+// 注意：之前用于从 localStorage 读取保存状态的函数已被移除
+// 现在使用 zustand persist 中间件自动处理状态持久化
 
-// 从 localStorage 读取保存的生成结果
-const getSavedGeneratedResults = (): GeneratedResult[] | null => {
-  if (typeof localStorage === 'undefined') return null;
-  try {
-    const saved = localStorage.getItem('CREATE_GENERATED_RESULTS');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // 验证数据有效性
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-};
-
-// 从 localStorage 读取保存的当前步骤
-const getSavedCurrentStep = (): number => {
-  if (typeof localStorage === 'undefined') return 1;
-  try {
-    const saved = localStorage.getItem('CREATE_CURRENT_STEP');
-    return saved ? parseInt(saved, 10) || 1 : 1;
-  } catch {
-    return 1;
-  }
-};
-
-// 从 localStorage 读取保存的提示词
-const getSavedPrompt = (): string => {
-  if (typeof localStorage === 'undefined') return '';
-  try {
-    return localStorage.getItem('CREATE_PROMPT') || '';
-  } catch {
-    return '';
-  }
-};
-
-// 获取保存的生成结果，如果没有则使用默认值
+// 获取保存的生成结果，如果没有则使用空数组（zustand persist 会恢复持久化数据）
 const getInitialState = (): CreateState => {
-  const savedResults = getSavedGeneratedResults();
-  const savedStep = getSavedCurrentStep();
-  const savedPrompt = getSavedPrompt();
-  
-  console.log('[CreateStore] Initializing state:', {
-    hasSavedResults: !!savedResults,
-    savedResultsCount: savedResults?.length || 0,
-    savedStep,
-    hasSavedPrompt: !!savedPrompt
-  });
+  // 注意：zustand persist 会在初始化后自动恢复持久化的状态
+  // 这里返回的是初始默认值，用户之前的创作数据会通过 persist 中间件自动恢复
+  console.log('[CreateStore] Initializing state with defaults');
   
   return {
-    activeTool: getSavedTool(),
-    prompt: savedPrompt,
-    generatedResults: savedResults || aiGeneratedResults,
-    selectedResult: savedResults && savedResults.length > 0 
-      ? savedResults[0].id 
-      : aiGeneratedResults.length > 0 ? aiGeneratedResults[0].id : null,
+    activeTool: 'sketch',
+    prompt: '',
+    generatedResults: [],
+    selectedResult: null,
     isGenerating: false,
     showCulturalInfo: false,
-    currentStep: savedResults && savedResults.length > 0 ? savedStep : 1,
+    currentStep: 1,
   isLoading: false,
   showAIReview: false,
   showModelSelector: false,
@@ -278,30 +222,16 @@ const getInitialState = (): CreateState => {
 
 export const useCreateStore = create<CreateState & CreateActions>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...getInitialState(),
 
       setActiveTool: (tool) => {
-    // 保存到 localStorage
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem('CREATE_ACTIVE_TOOL', tool);
-      } catch (error) {
-        console.error('Failed to save active tool:', error);
-      }
-    }
-    set({ activeTool: tool });
-  },
+        // 注意：zustand persist 会自动持久化 activeTool，不需要手动保存到 localStorage
+        set({ activeTool: tool });
+      },
   setAutoGenerate: (value) => set({ autoGenerate: value }),
   setPrompt: (prompt) => {
-    // 保存到 localStorage
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem('CREATE_PROMPT', prompt);
-      } catch (error) {
-        console.error('Failed to save prompt:', error);
-      }
-    }
+    // 注意：zustand persist 会自动持久化 prompt，不需要手动保存到 localStorage
     set({ prompt });
   },
   setGeneratedResults: (results) => set((state) => {
@@ -309,10 +239,7 @@ export const useCreateStore = create<CreateState & CreateActions>()(
       // 只处理有效的生成结果（有缩略图且不是空数组）
       if (!results || results.length === 0) {
         console.log('[History] No results to save, skipping history update');
-        // 清除 localStorage 中的结果
-        if (typeof localStorage !== 'undefined') {
-          localStorage.removeItem('CREATE_GENERATED_RESULTS');
-        }
+        // 注意：zustand persist 会自动处理状态持久化，不需要手动清除 localStorage
         return { generatedResults: results };
       }
 
@@ -354,9 +281,8 @@ export const useCreateStore = create<CreateState & CreateActions>()(
       localStorage.setItem('CREATE_HISTORY', JSON.stringify(updatedHistory));
       console.log('[History] Saved', newHistoryItems.length, 'items. Total history:', updatedHistory.length);
 
-      // 保存到 CREATE_GENERATED_RESULTS 用于页面刷新后恢复当前作品
-      localStorage.setItem('CREATE_GENERATED_RESULTS', JSON.stringify(validResults));
-      console.log('[CreateStore] Saved generatedResults to localStorage:', validResults.length, 'items');
+      // 注意：zustand persist 会自动持久化 generatedResults，不需要手动保存到 localStorage
+      console.log('[CreateStore] Results will be persisted by zustand:', validResults.length, 'items');
 
       // 同步到津脉脉络
       (async () => {
@@ -465,19 +391,7 @@ export const useCreateStore = create<CreateState & CreateActions>()(
       console.error('[History] Failed to save to history:', e);
     }
 
-    // 保存生成结果到 localStorage，用于页面跳转后恢复
-    try {
-      if (typeof localStorage !== 'undefined') {
-        if (results && results.length > 0) {
-          localStorage.setItem('CREATE_GENERATED_RESULTS', JSON.stringify(results));
-        } else {
-          // 如果结果为空，清除保存的结果
-          localStorage.removeItem('CREATE_GENERATED_RESULTS');
-        }
-      }
-    } catch (e) {
-      console.error('[GeneratedResults] Failed to save to localStorage:', e);
-    }
+    // 注意：zustand persist 会自动持久化 generatedResults，不需要手动保存到 localStorage
 
     // 异步批量保存到数据库（不阻塞UI）
     if (typeof window !== 'undefined' && results && results.length > 0) {
@@ -510,19 +424,52 @@ export const useCreateStore = create<CreateState & CreateActions>()(
       }, 0);
     }
 
+    // 自动保存到草稿箱
+    if (typeof window !== 'undefined' && results && results.length > 0) {
+      setTimeout(async () => {
+        try {
+          const drafts = JSON.parse(localStorage.getItem('CREATE_DRAFTS') || '[]');
+          const newDraft = {
+            id: `draft-${Date.now()}`,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            name: `AI作品 ${drafts.length + 1}`,
+            description: '自动保存的AI生成作品',
+            prompt: state.prompt || '',
+            selectedResult: results[0]?.id || null,
+            generatedResults: results,
+            activeTool: state.activeTool,
+            stylePreset: state.stylePreset,
+            currentStep: state.currentStep,
+            aiExplanation: state.aiExplanation,
+            selectedPatternId: state.selectedPatternId,
+            patternOpacity: state.patternOpacity,
+            patternScale: state.patternScale,
+            patternRotation: state.patternRotation,
+            patternBlendMode: state.patternBlendMode,
+            patternTileMode: state.patternTileMode,
+            patternPositionX: state.patternPositionX,
+            patternPositionY: state.patternPositionY,
+          };
+          const updatedDrafts = [newDraft, ...drafts].slice(0, 10);
+          localStorage.setItem('CREATE_DRAFTS', JSON.stringify(updatedDrafts));
+          console.log('[setGeneratedResults] Auto-saved to drafts:', newDraft.id);
+
+          // 异步保存到数据库
+          await createDraftService.saveDraft(newDraft);
+          console.log('[setGeneratedResults] Auto-saved to database drafts');
+        } catch (error) {
+          console.error('[setGeneratedResults] Failed to auto-save to drafts:', error);
+        }
+      }, 0);
+    }
+
     return { generatedResults: results };
   }),
   addGeneratedResult: (result) => set((state) => {
     const newResults = [result, ...state.generatedResults];
-    // 保存到 localStorage
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem('CREATE_GENERATED_RESULTS', JSON.stringify(newResults));
-      } catch (error) {
-        console.error('Failed to save to localStorage:', error);
-      }
-    }
-    
+    // 注意：zustand persist 会自动持久化状态，不需要手动保存到 localStorage
+
     // 异步保存到数据库（不阻塞UI）
     if (typeof window !== 'undefined') {
       setTimeout(async () => {
@@ -548,8 +495,48 @@ export const useCreateStore = create<CreateState & CreateActions>()(
         }
       }, 0);
     }
-    
-    return { 
+
+    // 自动保存到草稿箱
+    if (typeof window !== 'undefined') {
+      setTimeout(async () => {
+        try {
+          const drafts = JSON.parse(localStorage.getItem('CREATE_DRAFTS') || '[]');
+          const newDraft = {
+            id: `draft-${Date.now()}`,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            name: `AI作品 ${drafts.length + 1}`,
+            description: '自动保存的AI生成作品',
+            prompt: result.prompt || state.prompt || '',
+            selectedResult: result.id,
+            generatedResults: [result],
+            activeTool: state.activeTool,
+            stylePreset: state.stylePreset,
+            currentStep: state.currentStep,
+            aiExplanation: state.aiExplanation,
+            selectedPatternId: state.selectedPatternId,
+            patternOpacity: state.patternOpacity,
+            patternScale: state.patternScale,
+            patternRotation: state.patternRotation,
+            patternBlendMode: state.patternBlendMode,
+            patternTileMode: state.patternTileMode,
+            patternPositionX: state.patternPositionX,
+            patternPositionY: state.patternPositionY,
+          };
+          const updatedDrafts = [newDraft, ...drafts];
+          localStorage.setItem('CREATE_DRAFTS', JSON.stringify(updatedDrafts));
+          console.log('[addGeneratedResult] Auto-saved to drafts:', newDraft.id);
+
+          // 异步保存到数据库
+          await createDraftService.saveDraft(newDraft);
+          console.log('[addGeneratedResult] Auto-saved to database drafts');
+        } catch (error) {
+          console.error('[addGeneratedResult] Failed to auto-save to drafts:', error);
+        }
+      }, 0);
+    }
+
+    return {
       generatedResults: newResults,
       selectedResult: result.id
     };
@@ -557,18 +544,7 @@ export const useCreateStore = create<CreateState & CreateActions>()(
   setSelectedResult: (id) => set({ selectedResult: id }),
   deleteGeneratedResult: (id) => set((state) => {
     const newResults = state.generatedResults.filter(r => r.id !== id);
-    // 更新 localStorage
-    if (typeof localStorage !== 'undefined') {
-      try {
-        if (newResults.length === 0) {
-          localStorage.removeItem('CREATE_GENERATED_RESULTS');
-        } else {
-          localStorage.setItem('CREATE_GENERATED_RESULTS', JSON.stringify(newResults));
-        }
-      } catch (error) {
-        console.error('Failed to update localStorage after delete:', error);
-      }
-    }
+    // 注意：zustand persist 会自动持久化状态，不需要手动更新 localStorage
     // 如果删除的是当前选中的，则选中第一个或设为null
     const newSelectedResult = state.selectedResult === id 
       ? (newResults.length > 0 ? newResults[0].id : null)
@@ -581,14 +557,7 @@ export const useCreateStore = create<CreateState & CreateActions>()(
   setIsGenerating: (isGenerating) => set({ isGenerating }),
   setShowCulturalInfo: (show) => set({ showCulturalInfo: show }),
   setCurrentStep: (step) => {
-    // 保存到 localStorage
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem('CREATE_CURRENT_STEP', String(step));
-      } catch (error) {
-        console.error('Failed to save current step:', error);
-      }
-    }
+    // 注意：zustand persist 会自动持久化 currentStep，不需要手动保存到 localStorage
     set({ currentStep: step });
   },
   setIsLoading: (isLoading) => set({ isLoading }),
@@ -603,16 +572,8 @@ export const useCreateStore = create<CreateState & CreateActions>()(
   }),
 
   resetState: () => {
-    // 清除 localStorage 中保存的创作状态
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.removeItem('CREATE_GENERATED_RESULTS');
-        localStorage.removeItem('CREATE_CURRENT_STEP');
-        localStorage.removeItem('CREATE_PROMPT');
-      } catch (error) {
-        console.error('Failed to clear saved state:', error);
-      }
-    }
+    // 重置为初始状态
+    // 注意：zustand persist 会自动处理状态持久化
     set(getInitialState());
   },
   
@@ -804,7 +765,7 @@ export const useCreateStore = create<CreateState & CreateActions>()(
         patternPositionX: state.patternPositionX,
         patternPositionY: state.patternPositionY,
       };
-      const updatedDrafts = [newDraft, ...drafts].slice(0, 10);
+      const updatedDrafts = [newDraft, ...drafts];
       localStorage.setItem('CREATE_DRAFTS', JSON.stringify(updatedDrafts));
       console.log('Design saved to drafts');
 
@@ -1424,8 +1385,24 @@ export const useCreateStore = create<CreateState & CreateActions>()(
 }),
     {
       name: 'create-store',
-      partialize: (state) => ({ 
-        promptHistory: state.promptHistory 
+      partialize: (state) => ({
+        promptHistory: state.promptHistory,
+        // 持久化生成结果，确保页面刷新后作品不会丢失
+        generatedResults: state.generatedResults,
+        selectedResult: state.selectedResult,
+        prompt: state.prompt,
+        currentStep: state.currentStep,
+        activeTool: state.activeTool,
+        stylePreset: state.stylePreset,
+        // 持久化纹样相关状态
+        selectedPatternId: state.selectedPatternId,
+        patternOpacity: state.patternOpacity,
+        patternScale: state.patternScale,
+        patternRotation: state.patternRotation,
+        patternBlendMode: state.patternBlendMode,
+        patternTileMode: state.patternTileMode,
+        patternPositionX: state.patternPositionX,
+        patternPositionY: state.patternPositionY,
       }),
     }
   )

@@ -342,8 +342,19 @@ const JinMaiTemplatesSection: React.FC<JinMaiTemplatesSectionProps> = ({ classNa
                 </motion.span>
               </div>
 
-              {/* 悬停显示的使用按钮 */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500">
+              {/* 悬停显示的使用按钮和描述 */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 bg-black/60 backdrop-blur-sm p-4">
+                {/* 模板描述 */}
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-center mb-4"
+                >
+                  <p className="text-white/90 text-sm leading-relaxed line-clamp-4">
+                    {template.prompt}
+                  </p>
+                </motion.div>
                 <motion.button
                   initial={{ scale: 0.8, opacity: 0 }}
                   whileHover={{ scale: 1.05 }}

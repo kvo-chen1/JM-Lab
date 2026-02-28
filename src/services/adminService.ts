@@ -64,31 +64,105 @@ interface PointsRule {
 }
 
 class AdminService {
-  // 获取控制台统计数据
+  // 获取控制台统计数据 - 直接从 Supabase 获取，确保数据一致性
   async getDashboardStats(): Promise<DashboardStats> {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.warn('获取统计数据失败: 未登录');
-        return this.getDefaultDashboardStats();
+      // 获取总用户数
+      const { count: totalUsers, error: userError } = await supabaseAdmin
+        .from('users')
+        .select('*', { count: 'exact', head: true });
+      
+      if (userError) {
+        console.warn('获取总用户数失败:', userError);
       }
 
-      const response = await fetch('/api/admin/dashboard/stats', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || result.code !== 0) {
-        console.error('获取统计数据失败:', result.message);
-        return this.getDefaultDashboardStats();
+      // 获取作品总数
+      const { count: totalWorks, error: worksError } = await supabaseAdmin
+        .from('works')
+        .select('*', { count: 'exact', head: true });
+      
+      if (worksError) {
+        console.warn('获取作品总数失败:', worksError);
       }
 
-      return result.data;
+      // 获取待审核数量
+      const { count: pendingAudit, error: pendingError } = await supabaseAdmin
+        .from('works')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      
+      if (pendingError) {
+        console.warn('获取待审核数失败:', pendingError);
+      }
+
+      // 获取已采纳的活动数量（已发布的活动）
+      const { count: adopted, error: adoptedError } = await supabaseAdmin
+        .from('events')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'published');
+      
+      if (adoptedError) {
+        console.warn('获取已采纳数失败:', adoptedError);
+      }
+
+      // 计算趋势（与上月比较）
+      const lastMonth = new Date();
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+      const lastMonthStr = lastMonth.toISOString();
+
+      // 获取上月用户数
+      const { count: lastMonthUsers } = await supabaseAdmin
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .lt('created_at', lastMonthStr);
+
+      // 获取上月作品数
+      const { count: lastMonthWorks } = await supabaseAdmin
+        .from('works')
+        .select('*', { count: 'exact', head: true })
+        .lt('created_at', lastMonthStr);
+
+      // 获取上月已采纳活动数
+      const { count: lastMonthAdopted } = await supabaseAdmin
+        .from('events')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'published')
+        .lt('created_at', lastMonthStr);
+
+      // 获取昨日待审核数
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const { count: yesterdayPending } = await supabaseAdmin
+        .from('works')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .lt('created_at', yesterday.toISOString());
+
+      // 计算各项趋势
+      const userTrend = (lastMonthUsers || 0) > 0
+        ? Math.round(((totalUsers || 0) - (lastMonthUsers || 0)) / (lastMonthUsers || 1) * 100)
+        : 0;
+
+      const worksTrend = (lastMonthWorks || 0) > 0
+        ? Math.round(((totalWorks || 0) - (lastMonthWorks || 0)) / (lastMonthWorks || 1) * 100)
+        : 0;
+
+      const adoptedTrend = (lastMonthAdopted || 0) > 0
+        ? Math.round(((adopted || 0) - (lastMonthAdopted || 0)) / (lastMonthAdopted || 1) * 100)
+        : 0;
+
+      const pendingTrend = (pendingAudit || 0) - (yesterdayPending || 0);
+
+      return {
+        totalUsers: totalUsers || 0,
+        totalWorks: totalWorks || 0,
+        pendingAudit: pendingAudit || 0,
+        adopted: adopted || 0,
+        userTrend,
+        worksTrend,
+        pendingTrend,
+        adoptedTrend
+      };
     } catch (error) {
       console.error('获取统计数据失败:', error);
       return this.getDefaultDashboardStats();
@@ -109,15 +183,39 @@ class AdminService {
     };
   }
 
-  // 获取用户活跃度数据（最近7天）
-  async getUserActivityData(): Promise<ActivityData[]> {
+  // 获取用户活跃度数据（支持周/月/年）
+  async getUserActivityData(period: 'week' | 'month' | 'year' = 'week'): Promise<ActivityData[]> {
     try {
-      const days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
       const data: ActivityData[] = [];
+      const now = new Date();
+      
+      // 根据周期确定数据点数量和标签
+      let dataPoints: number;
+      let labels: string[];
+      let dateInterval: number; // 每个数据点之间的天数
+      
+      switch (period) {
+        case 'month':
+          dataPoints = 30;
+          dateInterval = 1;
+          labels = Array.from({ length: 30 }, (_, i) => `${i + 1}日`);
+          break;
+        case 'year':
+          dataPoints = 12;
+          dateInterval = 30;
+          labels = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+          break;
+        case 'week':
+        default:
+          dataPoints = 7;
+          dateInterval = 1;
+          labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+          break;
+      }
 
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
+      for (let i = dataPoints - 1; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i * dateInterval);
         const startOfDay = new Date(date.setHours(0, 0, 0, 0));
         const endOfDay = new Date(date.setHours(23, 59, 59, 999));
 
@@ -134,22 +232,16 @@ class AdminService {
           console.warn('获取当日新增用户失败:', e);
         }
 
-        // 获取当日活跃用户
+        // 获取当日活跃用户（通过 user_behavior_logs 表统计）
         let activeUsers = 0;
         try {
-          const token = localStorage.getItem('token');
-          if (token) {
-            const response = await fetch('/api/admin/analytics/active-users', {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            });
-            const result = await response.json();
-            if (response.ok && result.code === 0) {
-              activeUsers = result.data?.activeUsers || 0;
-            }
-          }
+          const { count } = await supabaseAdmin
+            .from('user_behavior_logs')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', startOfDay.toISOString())
+            .lte('created_at', endOfDay.toISOString());
+          // 估算活跃用户数为行为日志记录数的 1/10（去重）
+          activeUsers = Math.round((count || 0) / 10);
         } catch (e) {
           console.warn('获取当日活跃用户失败:', e);
         }
@@ -168,7 +260,7 @@ class AdminService {
         }
 
         data.push({
-          name: days[6 - i],
+          name: labels[dataPoints - 1 - i],
           新增用户: newUsers,
           活跃用户: activeUsers || Math.round(newUsers * 1.5),
           创作数量: worksCount
@@ -455,7 +547,7 @@ class AdminService {
     try {
       const now = new Date();
       let days = 30;
-      
+
       switch (timeRange) {
         case '7d': days = 7; break;
         case '30d': days = 30; break;
@@ -468,9 +560,31 @@ class AdminService {
       startDate.setDate(startDate.getDate() - days + 1);
       startDate.setHours(0, 0, 0, 0);
 
-      // 批量获取数据（不过滤日期，在内存中过滤以处理数字时间戳）
+      // 生成日期数组（使用统一的格式）
+      const dateArray: string[] = [];
+      const dateKeyMap = new Map<string, string>(); // 用于存储 ISO 日期到显示日期的映射
+
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        // 使用统一的格式：M月D日
+        const displayDate = `${date.getMonth() + 1}月${date.getDate()}日`;
+        const isoDate = date.toISOString().split('T')[0]; // YYYY-MM-DD
+        dateArray.push(displayDate);
+        dateKeyMap.set(isoDate, displayDate);
+      }
+
+      // 按日期分组统计
+      const dateMap = new Map<string, number>();
+
+      // 初始化所有日期为0
+      dateArray.forEach(dateStr => {
+        dateMap.set(dateStr, 0);
+      });
+
+      // 批量获取数据
       let rawData: any[] = [];
-      
+
       if (metric === 'users') {
         const { data } = await supabaseAdmin
           .from('users')
@@ -484,81 +598,96 @@ class AdminService {
           .order('created_at', { ascending: true });
         rawData = data || [];
       } else if (metric === 'views' || metric === 'likes') {
+        // 对于 views 和 likes，查询 analytics_daily_stats 每日统计表
         const { data } = await supabaseAdmin
+          .from('analytics_daily_stats')
+          .select('stat_date, page_views, total_likes')
+          .gte('stat_date', startDate.toISOString().split('T')[0])
+          .order('stat_date', { ascending: true });
+
+        if (data && data.length > 0) {
+          // 使用每日统计数据
+          data.forEach(item => {
+            const dateStr = item.stat_date as string;
+            const displayDate = dateKeyMap.get(dateStr);
+            if (displayDate) {
+              const value = metric === 'views' ? (item.page_views || 0) : (item.total_likes || 0);
+              dateMap.set(displayDate, value);
+            }
+          });
+
+          // 转换为数组格式并返回
+          const result: { date: string; value: number }[] = [];
+          dateArray.forEach(dateStr => {
+            result.push({ date: dateStr, value: dateMap.get(dateStr) || 0 });
+          });
+          return result;
+        }
+
+        // 如果没有每日统计数据，尝试从 works 表估算
+        // 注意：这里统计的是每日新增作品的 views/likes 总和，不是真实的每日浏览/点赞数
+        const { data: worksData } = await supabaseAdmin
           .from('works')
           .select('created_at, views, likes')
           .order('created_at', { ascending: true });
-        rawData = data || [];
+        rawData = worksData || [];
       }
 
-      // 按日期分组统计
-      const dateMap = new Map<string, number>();
-      
-      // 初始化所有日期为0
-      for (let i = days - 1; i >= 0; i--) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-        dateMap.set(dateStr, 0);
-      }
-
-      // 调试日志
-      console.log(`[getTrendData] ${metric} - 原始数据条数:`, rawData.length);
-      console.log(`[getTrendData] ${metric} - 日期范围:`, startDate.toISOString(), '到', now.toISOString());
-      console.log(`[getTrendData] ${metric} - dateMap中的日期:`, Array.from(dateMap.keys()));
-      
-      // 统计每天的数据（在内存中过滤日期范围）
+      // 统计每天的数据
       let matchedCount = 0;
       rawData.forEach((item, index) => {
         // 处理数字时间戳（毫秒或秒）
         let createdAt = item.created_at;
         if (typeof createdAt === 'number') {
-          // 如果是秒级时间戳（小于 1e12），转换为毫秒
           if (createdAt < 1e12) {
             createdAt = createdAt * 1000;
           }
         }
-        
+
         const itemDate = new Date(createdAt);
-        
+
         // 只统计在日期范围内的数据
         if (itemDate >= startDate && itemDate <= now) {
           matchedCount++;
-          const dateStr = itemDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-          
-          if (dateMap.has(dateStr)) {
+          const isoDate = itemDate.toISOString().split('T')[0];
+          const displayDate = dateKeyMap.get(isoDate);
+
+          if (displayDate) {
             if (metric === 'users' || metric === 'works') {
-              dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + 1);
+              dateMap.set(displayDate, (dateMap.get(displayDate) || 0) + 1);
             } else if (metric === 'views') {
-              dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + (item.views || 0));
+              // 对于 views，使用作品的 views 字段（累积值）
+              // 这里简单处理：将作品的 views 分配到创建日期
+              dateMap.set(displayDate, (dateMap.get(displayDate) || 0) + (item.views || 0));
             } else if (metric === 'likes') {
-              dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + (item.likes || 0));
+              dateMap.set(displayDate, (dateMap.get(displayDate) || 0) + (item.likes || 0));
             }
           }
         }
-        
-        // 打印前几条数据的处理情况
+
+        // 打印前3条数据的处理情况用于调试
         if (index < 3) {
           console.log(`[getTrendData] ${metric} - 数据${index}:`, {
             created_at: item.created_at,
             parsedDate: itemDate.toISOString(),
             inRange: itemDate >= startDate && itemDate <= now,
-            dateStr: itemDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+            isoDate: itemDate.toISOString().split('T')[0],
+            displayDate: dateKeyMap.get(itemDate.toISOString().split('T')[0]),
+            views: item.views,
+            likes: item.likes
           });
         }
       });
-      
+
+      console.log(`[getTrendData] ${metric} - 原始数据条数:`, rawData.length);
       console.log(`[getTrendData] ${metric} - 匹配日期范围的数据:`, matchedCount);
-      console.log(`[getTrendData] ${metric} - 统计后的dateMap:`, Array.from(dateMap.entries()));
+      console.log(`[getTrendData] ${metric} - 统计结果:`, Array.from(dateMap.entries()));
 
       // 转换为数组格式
       const data: { date: string; value: number }[] = [];
-      for (let i = days - 1; i >= 0; i--) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+      dateArray.forEach(dateStr => {
         data.push({ date: dateStr, value: dateMap.get(dateStr) || 0 });
-      }
+      });
 
       return data;
     } catch (error) {
@@ -1453,14 +1582,52 @@ class AdminService {
         let worksQuery = supabaseAdmin
           .from('works')
           .select('*', { count: 'exact' })
-          .eq('source', '津脉广场'); // 只获取津脉广场的作品
+          .eq('source', '津脉广场') // 只获取津脉广场的作品
+          .is('event_id', null); // 排除活动作品
 
         const { data: works } = await worksQuery
           .order('created_at', { ascending: false });
 
+        console.log(`[adminService.getContents] Raw works from DB:`, works?.length || 0);
+        if (works && works.length > 0) {
+          console.log(`[adminService.getContents] First work source:`, works[0].source, 'event_id:', works[0].event_id);
+        }
+
         if (works) {
+          // 过滤掉可疑的作品（标题太短、没有有效缩略图的）
+          const validWorks = works.filter(work => {
+            const thumbnail = work.thumbnail || work.cover_url || '';
+            const hasValidThumbnail = thumbnail &&
+                                     thumbnail.length > 0 &&
+                                     thumbnail !== 'EMPTY' &&
+                                     !thumbnail.toLowerCase().includes('empty');
+            const hasValidTitle = work.title && work.title.length >= 3;
+            return hasValidThumbnail && hasValidTitle;
+          });
+
+          console.log(`[adminService.getContents] Filtered ${works.length} works to ${validWorks.length} valid works`);
+          
+          // 调试：显示被过滤掉的作品
+          const filteredOutWorks = works.filter(work => {
+            const thumbnail = work.thumbnail || work.cover_url || '';
+            const hasValidThumbnail = thumbnail &&
+                                     thumbnail.length > 0 &&
+                                     thumbnail !== 'EMPTY' &&
+                                     !thumbnail.toLowerCase().includes('empty');
+            const hasValidTitle = work.title && work.title.length >= 3;
+            return !(hasValidThumbnail && hasValidTitle);
+          });
+          if (filteredOutWorks.length > 0) {
+            console.log('[adminService.getContents] Filtered out works:', filteredOutWorks.map(w => ({
+              id: w.id,
+              title: w.title,
+              source: w.source,
+              thumbnail: w.thumbnail?.substring(0, 30)
+            })));
+          }
+
           // 获取创作者信息
-          const creatorIds = works.map(w => w.creator_id).filter(Boolean);
+          const creatorIds = validWorks.map(w => w.creator_id).filter(Boolean);
           const { data: users } = await supabaseAdmin
             .from('users')
             .select('id, username, avatar_url')
@@ -1468,7 +1635,7 @@ class AdminService {
 
           const userMap = new Map(users?.map(u => [u.id, u]) || []);
 
-          const formattedWorks = works.map(work => {
+          const formattedWorks = validWorks.map(work => {
             const formattedWork = {
               ...work,
               type: 'work',
@@ -1498,8 +1665,16 @@ class AdminService {
           .order('created_at', { ascending: false });
 
         if (comments) {
+          // 过滤掉可疑的评论（内容太短）
+          const validComments = comments.filter(comment => {
+            const hasValidContent = comment.content && comment.content.length >= 3;
+            return hasValidContent;
+          });
+
+          console.log(`[adminService.getContents] Filtered ${comments.length} comments to ${validComments.length} valid comments`);
+
           // 获取评论者信息
-          const authorIds = comments.map(c => c.author_id).filter(Boolean);
+          const authorIds = validComments.map(c => c.author_id).filter(Boolean);
           const { data: users } = await supabaseAdmin
             .from('users')
             .select('id, username, avatar_url')
@@ -1507,7 +1682,7 @@ class AdminService {
 
           const userMap = new Map(users?.map(u => [u.id, u]) || []);
 
-          const formattedComments = comments.map(comment => ({
+          const formattedComments = validComments.map(comment => ({
             ...comment,
             type: 'comment',
             title: comment.content?.substring(0, 50) + '...',

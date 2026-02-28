@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, lazy, Suspense } from 'react';
+import { useState, useContext, useEffect, useCallback, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -42,11 +42,16 @@ const WorkSubmissionAudit = lazy(() => import('./WorkSubmissionAudit'));
 const PromotionUserManagement = lazy(() => import('./PromotionUserManagement'));
 const PromotionOrderManagement = lazy(() => import('./PromotionOrderManagement'));
 const PromotionOrderImplementation = lazy(() => import('./PromotionOrderImplementation'));
+const PromotionAnalytics = lazy(() => import('./PromotionAnalytics'));
+const AdvancedAnalytics = lazy(() => import('./AdvancedAnalytics'));
 const SearchRecordManagement = lazy(() => import('./SearchRecordManagement'));
+const OrderAudit = lazy(() => import('./OrderAudit'));
+const BrandOrderExecution = lazy(() => import('./BrandOrderExecution'));
+const HomeRecommendationManagement = lazy(() => import('./HomeRecommendationManagement'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement' | 'promotionOrderImplementation' | 'searchRecords';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement' | 'promotionOrderImplementation' | 'promotionAnalytics' | 'advancedAnalytics' | 'searchRecords' | 'orderAudit' | 'brandOrderExecution' | 'homeRecommendation';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -145,6 +150,19 @@ export default function Admin() {
   const [pendingWorks, setPendingWorks] = useState<PendingWork[]>([]);
   const [commercialApplications, setCommercialApplications] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
+  const [activityPeriod, setActivityPeriod] = useState<'week' | 'month' | 'year'>('week');
+  
+  // 扩展统计数据
+  const [extendedStats, setExtendedStats] = useState({
+    promotionOrders: 0,
+    activePromotions: 0,
+    brandTasks: 0,
+    pendingBrandTasks: 0,
+    ipAssets: 0,
+    knowledgeBaseItems: 0,
+  });
 
   // 用户管理页面统计数据
   const [userStats, setUserStats] = useState({
@@ -218,45 +236,128 @@ export default function Admin() {
     }
   };
 
-  // 获取控制台数据
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (isLoading) return;
+  // 获取扩展统计数据
+  const fetchExtendedStats = async () => {
+    try {
+      // 获取推广订单数据
+      const { count: promotionOrders } = await supabaseAdmin
+        .from('promotion_orders')
+        .select('*', { count: 'exact', head: true });
       
-      setDataLoading(true);
-      try {
-        // 并行获取所有数据
-        const [statsData, activity, audit, pending, brandPartnerships] = await Promise.all([
-          adminService.getDashboardStats(),
-          adminService.getUserActivityData(),
-          adminService.getAuditStats(),
-          adminService.getPendingWorks(),
-          brandPartnershipService.getAllPartnerships({ limit: 5 })
-        ]);
+      const { count: activePromotions } = await supabaseAdmin
+        .from('promoted_works')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
+      
+      // 获取品牌任务数据
+      const { count: brandTasks } = await supabaseAdmin
+        .from('brand_tasks')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: pendingBrandTasks } = await supabaseAdmin
+        .from('brand_task_submissions')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      
+      // 获取 IP 资产数据
+      const { count: ipAssets } = await supabaseAdmin
+        .from('ip_assets')
+        .select('*', { count: 'exact', head: true });
+      
+      // 获取知识库数据
+      const { count: knowledgeBaseItems } = await supabaseAdmin
+        .from('cultural_knowledge')
+        .select('*', { count: 'exact', head: true });
+      
+      setExtendedStats({
+        promotionOrders: promotionOrders || 0,
+        activePromotions: activePromotions || 0,
+        brandTasks: brandTasks || 0,
+        pendingBrandTasks: pendingBrandTasks || 0,
+        ipAssets: ipAssets || 0,
+        knowledgeBaseItems: knowledgeBaseItems || 0,
+      });
+    } catch (error) {
+      console.warn('获取扩展统计数据失败:', error);
+    }
+  };
 
-        setStats(statsData);
-        setActivityData(activity.length > 0 ? activity : [
-          { name: '周一', 新增用户: 0, 活跃用户: 0, 创作数量: 0 },
-          { name: '周二', 新增用户: 0, 活跃用户: 0, 创作数量: 0 },
-          { name: '周三', 新增用户: 0, 活跃用户: 0, 创作数量: 0 },
-          { name: '周四', 新增用户: 0, 活跃用户: 0, 创作数量: 0 },
-          { name: '周五', 新增用户: 0, 活跃用户: 0, 创作数量: 0 },
-          { name: '周六', 新增用户: 0, 活跃用户: 0, 创作数量: 0 },
-          { name: '周日', 新增用户: 0, 活跃用户: 0, 创作数量: 0 }
-        ]);
-        setAuditStats(audit);
-        setPendingWorks(pending);
-        setCommercialApplications(brandPartnerships.partnerships || []);
-      } catch (error) {
-        console.error('获取控制台数据失败:', error);
-        toast.error('获取数据失败，请稍后重试');
-      } finally {
-        setDataLoading(false);
-      }
-    };
+  // 获取控制台数据
+  const fetchDashboardData = useCallback(async () => {
+    if (isLoading) return;
+    
+    setDataLoading(true);
+    try {
+      // 并行获取所有数据
+      const [statsData, activity, audit, pending, brandPartnerships] = await Promise.all([
+        adminService.getDashboardStats(),
+        adminService.getUserActivityData(activityPeriod),
+        adminService.getAuditStats(),
+        adminService.getPendingWorks(),
+        brandPartnershipService.getAllPartnerships({ limit: 5 })
+      ]);
 
+      setStats(statsData);
+      setActivityData(activity.length > 0 ? activity : getDefaultActivityData(activityPeriod));
+      setAuditStats(audit);
+      setPendingWorks(pending);
+      setCommercialApplications(brandPartnerships.partnerships || []);
+      
+      // 获取扩展统计数据
+      await fetchExtendedStats();
+      
+      setLastRefreshTime(new Date());
+    } catch (error) {
+      console.error('获取控制台数据失败:', error);
+      toast.error('获取数据失败，请稍后重试');
+    } finally {
+      setDataLoading(false);
+    }
+  }, [isLoading, activityPeriod]);
+  
+  // 获取默认活跃度数据
+  const getDefaultActivityData = (period: 'week' | 'month' | 'year'): ActivityData[] => {
+    switch (period) {
+      case 'month':
+        return Array.from({ length: 30 }, (_, i) => ({
+          name: `${i + 1}日`,
+          新增用户: 0,
+          活跃用户: 0,
+          创作数量: 0
+        }));
+      case 'year':
+        return ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'].map(month => ({
+          name: month,
+          新增用户: 0,
+          活跃用户: 0,
+          创作数量: 0
+        }));
+      case 'week':
+      default:
+        return ['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map(day => ({
+          name: day,
+          新增用户: 0,
+          活跃用户: 0,
+          创作数量: 0
+        }));
+    }
+  };
+
+  // 初始加载数据
+  useEffect(() => {
     fetchDashboardData();
-  }, [isLoading]);
+  }, [fetchDashboardData]);
+  
+  // 自动刷新机制
+  useEffect(() => {
+    if (!autoRefreshEnabled) return;
+    
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 30000); // 每30秒刷新一次
+    
+    return () => clearInterval(interval);
+  }, [autoRefreshEnabled, fetchDashboardData]);
   
   // 获取用户数据
   const [userSearch, setUserSearch] = useState('');
@@ -562,7 +663,111 @@ export default function Admin() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
-            {/* 数据概览 */}
+            {/* 控制台标题栏 */}
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-2xl font-bold">控制台</h1>
+                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  实时监控系统运行状态和业务数据
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {/* 自动刷新开关 */}
+                <button
+                  onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    autoRefreshEnabled
+                      ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                      : isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                  title={autoRefreshEnabled ? '自动刷新已开启' : '自动刷新已关闭'}
+                >
+                  <span className={`w-2 h-2 rounded-full ${autoRefreshEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                  {autoRefreshEnabled ? '自动刷新' : '手动刷新'}
+                </button>
+                
+                {/* 导出数据按钮 */}
+                <button
+                  onClick={() => {
+                    // 导出控制台数据为 CSV
+                    const csvData = [
+                      ['指标', '数值', '趋势'],
+                      ['总用户数', stats.totalUsers, `${stats.userTrend}%`],
+                      ['作品总数', stats.totalWorks, `${stats.worksTrend}%`],
+                      ['待审核', stats.pendingAudit, `${stats.pendingTrend}`],
+                      ['已采纳', stats.adopted, `${stats.adoptedTrend}`],
+                      ['推广订单', extendedStats.promotionOrders, '-'],
+                      ['活跃推广', extendedStats.activePromotions, '-'],
+                      ['品牌任务', extendedStats.brandTasks, '-'],
+                      ['IP资产', extendedStats.ipAssets, '-'],
+                    ];
+                    
+                    const csvContent = csvData.map(row => row.join(',')).join('\n');
+                    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `控制台数据_${new Date().toLocaleDateString()}.csv`;
+                    link.click();
+                    toast.success('数据导出成功');
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${
+                    isDark 
+                      ? 'bg-green-600 hover:bg-green-700 text-white' 
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  }`}
+                >
+                  <i className="fas fa-download" />
+                  导出数据
+                </button>
+                
+                {/* 刷新按钮 */}
+                <button
+                  onClick={fetchDashboardData}
+                  disabled={dataLoading}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${
+                    isDark 
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  <i className={`fas fa-sync-alt ${dataLoading ? 'fa-spin' : ''}`} />
+                  刷新数据
+                </button>
+              </div>
+            </div>
+            
+            {/* 最后刷新时间和告警 */}
+            <div className="flex items-center justify-between mb-4">
+              {lastRefreshTime && (
+                <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  最后更新: {lastRefreshTime.toLocaleTimeString()}
+                </div>
+              )}
+              
+              {/* 数据异常告警 */}
+              <div className="flex items-center gap-2">
+                {stats.pendingAudit > 10 && (
+                  <div className="flex items-center gap-1 px-2 py-1 rounded bg-yellow-100 text-yellow-700 text-xs">
+                    <i className="fas fa-exclamation-triangle" />
+                    待审核作品较多
+                  </div>
+                )}
+                {extendedStats.pendingBrandTasks > 5 && (
+                  <div className="flex items-center gap-1 px-2 py-1 rounded bg-orange-100 text-orange-700 text-xs">
+                    <i className="fas fa-tasks" />
+                    有待审品牌任务
+                  </div>
+                )}
+                {stats.totalUsers === 0 && !dataLoading && (
+                  <div className="flex items-center gap-1 px-2 py-1 rounded bg-red-100 text-red-700 text-xs">
+                    <i className="fas fa-exclamation-circle" />
+                    数据获取失败
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* 数据概览 - 主要统计 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
               {[
                 { 
@@ -628,6 +833,84 @@ export default function Admin() {
               ))}
             </div>
             
+            {/* 扩展统计数据 */}
+            <div className="mb-8">
+              <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                业务数据概览
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {[
+                  { 
+                    title: '推广订单', 
+                    value: extendedStats.promotionOrders.toString(), 
+                    icon: 'bullhorn', 
+                    color: 'pink',
+                    action: () => setActiveTab('promotionOrderManagement')
+                  },
+                  { 
+                    title: '活跃推广', 
+                    value: extendedStats.activePromotions.toString(), 
+                    icon: 'fire', 
+                    color: 'red',
+                    action: () => setActiveTab('promotionOrderImplementation')
+                  },
+                  { 
+                    title: '品牌任务', 
+                    value: extendedStats.brandTasks.toString(), 
+                    icon: 'briefcase', 
+                    color: 'indigo',
+                    action: () => setActiveTab('brandTaskAudit')
+                  },
+                  { 
+                    title: '待审任务', 
+                    value: extendedStats.pendingBrandTasks.toString(), 
+                    icon: 'clipboard-list', 
+                    color: 'orange',
+                    action: () => setActiveTab('brandTaskAudit')
+                  },
+                  { 
+                    title: 'IP资产', 
+                    value: extendedStats.ipAssets.toString(), 
+                    icon: 'gem', 
+                    color: 'cyan',
+                    action: () => setActiveTab('workSubmissionAudit')
+                  },
+                  { 
+                    title: '知识库', 
+                    value: extendedStats.knowledgeBaseItems.toString(), 
+                    icon: 'book', 
+                    color: 'teal',
+                    action: () => setActiveTab('knowledgeBase')
+                  },
+                ].map((stat, index) => (
+                  <motion.div
+                    key={index}
+                    onClick={stat.action}
+                    className={`p-4 rounded-xl ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} shadow-sm cursor-pointer transition-all hover:shadow-md hover:scale-105`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.05 * index }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg bg-${stat.color}-100 text-${stat.color}-600`}>
+                        <i className={`fas fa-${stat.icon}`}></i>
+                      </div>
+                      <div>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.title}</p>
+                        <p className="text-lg font-bold">
+                          {dataLoading ? (
+                            <span className={`inline-block w-8 h-5 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-200'} animate-pulse`}></span>
+                          ) : (
+                            stat.value
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+            
             {/* 图表区域 */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               {/* 用户活跃度图表 */}
@@ -640,18 +923,23 @@ export default function Admin() {
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold">用户活跃度与创作趋势</h2>
                   <div className="flex space-x-2">
-                    {['周', '月', '年'].map((period) => (
+                    {[
+                      { key: 'week', label: '周' },
+                      { key: 'month', label: '月' },
+                      { key: 'year', label: '年' }
+                    ].map((period) => (
                       <button 
-                        key={period}
-                        className={`px-3 py-1 rounded-lg text-sm ${
-                          period === '周' 
+                        key={period.key}
+                        onClick={() => setActivityPeriod(period.key as 'week' | 'month' | 'year')}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                          activityPeriod === period.key
                             ? 'bg-red-600 text-white' 
                             : isDark 
                               ? 'bg-gray-700 hover:bg-gray-600' 
                               : 'bg-gray-100 hover:bg-gray-200'
-                        } transition-colors`}
+                        }`}
                       >
-                        {period}
+                        {period.label}
                       </button>
                     ))}
                   </div>
@@ -750,12 +1038,16 @@ export default function Admin() {
               transition={{ duration: 0.5, delay: 0.35 }}
             >
               <h2 className="text-xl font-bold mb-4">快速操作</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                 {[
                   { name: '发布活动', icon: 'calendar-plus', color: 'blue', action: () => setActiveTab('campaigns') },
                   { name: '审核作品', icon: 'clipboard-check', color: 'green', action: () => setActiveTab('audit') },
                   { name: '管理用户', icon: 'user-cog', color: 'purple', action: () => setActiveTab('users') },
                   { name: '查看数据', icon: 'chart-line', color: 'orange', action: () => setActiveTab('analytics') },
+                  { name: '推广订单', icon: 'bullhorn', color: 'pink', action: () => setActiveTab('promotionOrderManagement') },
+                  { name: '品牌任务', icon: 'briefcase', color: 'indigo', action: () => setActiveTab('brandTaskAudit') },
+                  { name: 'IP孵化', icon: 'gem', color: 'cyan', action: () => setActiveTab('workSubmissionAudit') },
+                  { name: '知识库', icon: 'book', color: 'teal', action: () => setActiveTab('knowledgeBase') },
                 ].map((item, index) => (
                   <button
                     key={index}
@@ -948,42 +1240,70 @@ export default function Admin() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 }}
             >
-              <h2 className="text-xl font-bold mb-4">系统状态</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">系统状态</h2>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  <span className="text-sm text-green-500">运行正常</span>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
-                    <span className="text-sm">系统运行正常</span>
+                    <div className="p-2 rounded-lg bg-green-100 text-green-600">
+                      <i className="fas fa-server"></i>
+                    </div>
+                    <div>
+                      <span className="text-sm block">系统状态</span>
+                      <span className="text-xs text-green-500">运行正常</span>
+                    </div>
                   </div>
                   <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    已运行 15 天 8 小时
+                    前端服务在线
                   </p>
                 </div>
                 <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-sm">数据库连接正常</span>
+                    <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                      <i className="fas fa-database"></i>
+                    </div>
+                    <div>
+                      <span className="text-sm block">数据库</span>
+                      <span className="text-xs text-blue-500">Supabase</span>
+                    </div>
                   </div>
                   <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    响应时间 23ms
+                    实时连接
                   </p>
                 </div>
                 <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                    <span className="text-sm">存储空间</span>
+                    <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
+                      <i className="fas fa-bolt"></i>
+                    </div>
+                    <div>
+                      <span className="text-sm block">实时数据</span>
+                      <span className="text-xs text-purple-500">
+                        {autoRefreshEnabled ? '自动刷新中' : '手动刷新'}
+                      </span>
+                    </div>
                   </div>
                   <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    已使用 67%
+                    {lastRefreshTime ? `更新于 ${lastRefreshTime.toLocaleTimeString()}` : '未更新'}
                   </p>
                 </div>
                 <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                    <span className="text-sm">API 调用</span>
+                    <div className="p-2 rounded-lg bg-orange-100 text-orange-600">
+                      <i className="fas fa-shield-alt"></i>
+                    </div>
+                    <div>
+                      <span className="text-sm block">安全状态</span>
+                      <span className="text-xs text-orange-500">已验证</span>
+                    </div>
                   </div>
                   <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    今日 12,458 次
+                    管理员权限
                   </p>
                 </div>
               </div>
@@ -1906,7 +2226,7 @@ export default function Admin() {
           </Suspense>
         )}
 
-        {/* IP孵化作品审核页面 */}
+        {/* IP 孵化作品审核页面 */}
         {activeTab === 'workSubmissionAudit' && (
           <Suspense fallback={
             <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
@@ -1918,6 +2238,36 @@ export default function Admin() {
             </div>
           }>
             <WorkSubmissionAudit />
+          </Suspense>
+        )}
+
+        {/* 商单审核管理页面 */}
+        {activeTab === 'orderAudit' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-blue-200 border-t-blue-500 rounded-full"
+              />
+            </div>
+          }>
+            <OrderAudit />
+          </Suspense>
+        )}
+
+        {/* 品牌方商单执行监控页面 */}
+        {activeTab === 'brandOrderExecution' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full"
+              />
+            </div>
+          }>
+            <BrandOrderExecution />
           </Suspense>
         )}
 
@@ -1966,6 +2316,36 @@ export default function Admin() {
           </Suspense>
         )}
 
+        {/* 推广效果深度分析页面 */}
+        {activeTab === 'promotionAnalytics' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-purple-200 border-t-purple-500 rounded-full"
+              />
+            </div>
+          }>
+            <PromotionAnalytics />
+          </Suspense>
+        )}
+
+        {/* 高级数据分析大屏页面 */}
+        {activeTab === 'advancedAnalytics' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-blue-200 border-t-blue-500 rounded-full"
+              />
+            </div>
+          }>
+            <AdvancedAnalytics />
+          </Suspense>
+        )}
+
         {/* 搜索记录管理页面 */}
         {activeTab === 'searchRecords' && (
           <Suspense fallback={
@@ -1978,6 +2358,21 @@ export default function Admin() {
             </div>
           }>
             <SearchRecordManagement />
+          </Suspense>
+        )}
+
+        {/* 首页推荐位管理页面 */}
+        {activeTab === 'homeRecommendation' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <HomeRecommendationManagement />
           </Suspense>
         )}
 

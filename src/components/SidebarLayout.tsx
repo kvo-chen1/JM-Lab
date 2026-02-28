@@ -1008,12 +1008,20 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: getDuration(0.3), delay: getDelay(0.3) }}
-                  onMouseEnter={() => setShowUserMenu(true)}
+                  onMouseEnter={() => {
+                    setShowUserMenu(true)
+                    setShowFeedDropdown(false)
+                    setShowMessageDropdown(false)
+                    setShowCollectionDropdown(false)
+                    setShowHistoryDropdown(false)
+                    setShowDraftDropdown(false)
+                    setShowCreateDropdown(false)
+                    setShowActivityDropdown(false)
+                  }}
                   onMouseLeave={() => setShowUserMenu(false)}
                   onClick={() => {
-                    if (!showUserMenu) {
-                      navigate('/dashboard')
-                    }
+                    navigate('/dashboard')
+                    setShowUserMenu(false)
                   }}
                 >
                   <motion.div
@@ -1372,7 +1380,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                       </div>
                       <div className="py-1">
                         {recentFeeds.length > 0 ? (
-                          recentFeeds.map(feed => (
+                          // 根据ID去重，避免重复显示
+                          Array.from(new Map(recentFeeds.map(f => [f.id, f])).values()).map(feed => (
                             <button
                               key={feed.id}
                               onClick={() => {
@@ -1958,7 +1967,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     transition={{ duration: 0.2, ease: 'easeOut' }}
                     onMouseEnter={() => setShowHistoryDropdown(true)}
                     onMouseLeave={() => setShowHistoryDropdown(false)}
-                    className={`absolute top-full -left-48 mt-2 w-[420px] rounded-xl shadow-2xl z-[100] overflow-hidden ${
+                    className={`absolute top-full right-0 mt-2 w-[380px] rounded-xl shadow-2xl z-[100] overflow-hidden ${
                       isDark
                         ? 'bg-[#1a1a2e] border border-gray-700/50'
                         : 'bg-white border border-gray-200'

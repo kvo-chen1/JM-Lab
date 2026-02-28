@@ -285,6 +285,42 @@ const CreatorCenter = createLazyComponent(() => import(/* webpackChunkName: "pag
   name: 'creator-center'
 });
 
+// 商单任务页面 - 懒加载（使用创作者中心布局）
+const BrandTaskCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-creator" */ "@/pages/creator-center/BrandTaskLayout"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'brand-task-center'
+});
+
+// 商单广场页面 - 懒加载（使用创作者中心布局）
+const OrderSquareCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-creator" */ "@/pages/creator-center/OrderSquareLayout"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'order-square-center'
+});
+
+// 发布商单页面 - 懒加载（使用创作者中心布局）
+const PublishOrderCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-creator" */ "@/pages/creator-center/PublishOrderLayout"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'publish-order-center'
+});
+
+// 商单中心页面 - 懒加载（使用创作者中心布局）
+const OrderCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-creator" */ "@/pages/creator-center/OrderCenterLayout"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'order-center'
+});
+
+// 品牌方商单管理页面 - 懒加载（使用创作者中心布局）
+const BrandOrderManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-creator" */ "@/pages/creator-center/BrandOrderManagementLayout"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'brand-order-management'
+});
+
+// 商单审核页面 - 懒加载
+const OrderAudit = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/admin/OrderAudit"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'order-audit'
+});
+
 // 社区和互动相关 - 懒加载
 const Leaderboard = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Leaderboard"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
@@ -916,6 +952,21 @@ export default function App() {
           <Route path="/creator-center" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/creator-center/:tab" element={<LazyComponent><PrivateRoute><CreatorCenter /></PrivateRoute></LazyComponent>} />
           
+          {/* 品牌任务中心 - 独立页面 */}
+          <Route path="/brand-tasks" element={<LazyComponent><PrivateRoute><BrandTaskCenter /></PrivateRoute></LazyComponent>} />
+          
+          {/* 商单广场 - 独立页面 */}
+          <Route path="/order-square" element={<LazyComponent><PrivateRoute><OrderSquareCenter /></PrivateRoute></LazyComponent>} />
+          
+          {/* 发布商单 - 独立页面 */}
+          <Route path="/publish-order" element={<LazyComponent><PrivateRoute><PublishOrderCenter /></PrivateRoute></LazyComponent>} />
+          
+          {/* 商单中心 - 独立页面 */}
+          <Route path="/order-center" element={<LazyComponent><PrivateRoute><OrderCenter /></PrivateRoute></LazyComponent>} />
+          
+          {/* 品牌方商单管理 - 独立页面 */}
+          <Route path="/brand-order-management" element={<LazyComponent><PrivateRoute><BrandOrderManagement /></PrivateRoute></LazyComponent>} />
+          
           {/* 原创保护中心路由 */}
           <Route path="/original-protection" element={<LazyComponent><PrivateRoute><OriginalProtection /></PrivateRoute></LazyComponent>} />
           
@@ -924,6 +975,7 @@ export default function App() {
         
         {/* 管理员路由 - 独立于 SidebarLayout */}
         <Route path="/admin" element={<LazyComponent><AdminRoute component={Admin} /></LazyComponent>} />
+        <Route path="/admin/order-audit" element={<LazyComponent><AdminRoute component={OrderAudit} /></LazyComponent>} />
         <Route path="/errors" element={<LazyComponent><AdminRoute component={ErrorMonitoringDashboard} /></LazyComponent>} />
         <Route path="/admin-analytics" element={<LazyComponent><AdminRoute component={AdminAnalytics} /></LazyComponent>} />
         <Route path="/admin/original-protection" element={<LazyComponent><AdminRoute component={OriginalProtectionManagement} /></LazyComponent>} />

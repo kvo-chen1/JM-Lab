@@ -37,18 +37,20 @@ const navItems: AdminNavItem[] = [
   { id: 'knowledgeBase', name: '文化知识库管理', icon: 'book' },
   { id: 'templates', name: '津脉作品模板管理', icon: 'layer-group' },
   { id: 'contentAudit', name: '津脉广场作品管理', icon: 'file-alt', showNotification: true },
-  { id: 'workSubmissionAudit', name: 'IP孵化作品审核', icon: 'lightbulb', showNotification: true },
+  { id: 'workSubmissionAudit', name: 'IP 孵化作品审核', icon: 'lightbulb', showNotification: true },
   { id: 'brandTaskAudit', name: '品牌任务审核', icon: 'clipboard-check', showNotification: true },
+  { id: 'orderAudit', name: '商单审核管理', icon: 'check-circle', showNotification: true },
   { id: 'promotionOrderManagement', name: '推广订单管理', icon: 'shopping-cart', showNotification: true },
-  { id: 'aiFeedback', name: 'AI反馈管理', icon: 'robot', showNotification: true },
+  { id: 'aiFeedback', name: 'AI 反馈管理', icon: 'robot', showNotification: true },
   { id: 'achievements', name: '成就管理', icon: 'trophy' },
   { id: 'searchRecords', name: '搜索记录管理', icon: 'search' },
+  { id: 'homeRecommendation', name: '首页推荐位管理', icon: 'home' },
   { id: 'adoption', name: '品牌管理', icon: 'star' },
   { id: 'users', name: '用户管理', icon: 'users', showNotification: true },
   { id: 'userAudit', name: '用户审计', icon: 'user-shield', showNotification: true },
   { id: 'creators', name: '创作者管理', icon: 'trophy' },
-  { id: 'productManagement', name: '商品管理', icon: 'box' },
-  { id: 'paymentAudit', name: '支付审核', icon: 'credit-card', showNotification: true },
+  { id: 'productManagement', name: '积分商城管理', icon: 'box' },
+  { id: 'paymentAudit', name: '会员支付审核', icon: 'credit-card', showNotification: true },
   { id: 'feedback', name: '反馈管理', icon: 'comments', showNotification: true },
   { id: 'reportManagement', name: '举报管理', icon: 'flag', showNotification: true },
   { id: 'permissions', name: '权限管理', icon: 'user-lock' },
@@ -135,7 +137,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             const promotionTabs = ['promotionOrderManagement', 'promotionUserManagement', 'promotionOrderImplementation'];
             const isPromotionTab = promotionTabs.includes(activeTab);
             const isPromotionMenu = item.id === 'promotionOrderManagement';
-            const isActive = activeTab === item.id || (isPromotionTab && isPromotionMenu);
+            
+            // 数据分析相关页面高亮同一个菜单
+            const analyticsTabs = ['analytics', 'advancedAnalytics'];
+            const isAnalyticsTab = analyticsTabs.includes(activeTab);
+            const isAnalyticsMenu = item.id === 'analytics';
+            
+            const isActive = activeTab === item.id || 
+                           (isPromotionTab && isPromotionMenu) ||
+                           (isAnalyticsTab && isAnalyticsMenu);
             const notificationState = notifications?.[item.id as NavItemType];
             const hasNotification = notificationState && notificationState.count > 0;
             const showNotification = item.showNotification && hasNotification;

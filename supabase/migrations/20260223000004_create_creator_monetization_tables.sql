@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.revenue_records (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. 商单任务表
+-- 3. 品牌任务表
 CREATE TABLE IF NOT EXISTS public.business_tasks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
@@ -105,8 +105,8 @@ CREATE POLICY "用户查看自己的收入明细" ON public.revenue_records
     FOR SELECT TO public
     USING (user_id = auth.uid());
 
--- 商单任务表：任何人可以查看开放的任务
-CREATE POLICY "查看开放商单任务" ON public.business_tasks
+-- 品牌任务表：任何人可以查看开放的任务
+CREATE POLICY "查看开放品牌任务" ON public.business_tasks
     FOR SELECT TO public
     USING (status = 'open');
 

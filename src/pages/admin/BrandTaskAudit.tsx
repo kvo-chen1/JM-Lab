@@ -523,7 +523,7 @@ export default function BrandTaskAudit() {
           <div className="p-8 text-center">
             <div className="text-gray-400">
               <i className="fas fa-inbox text-4xl mb-2"></i>
-              <p>暂无品牌任务</p>
+              <p>暂无可参与的商单</p>
             </div>
           </div>
         ) : (

@@ -3102,13 +3102,13 @@
             // 设置sessionStorage标志，告知index.html我们是从落地页来的
             sessionStorage.setItem('hasVisitedLanding', 'true');
             localStorage.setItem('hasExplored', 'true');
-            
-            // 跳转到登录页
+
+            // 跳转到首页（无需登录）
             const baseUrl = window.location.origin;
             // 添加from_landing参数作为双重保险
-            const loginUrl = `${baseUrl}/login?from_landing=true`;
-            console.log('Will navigate to:', loginUrl);
-            window.location.href = loginUrl;
+            const homeUrl = `${baseUrl}/?from_landing=true`;
+            console.log('Will navigate to:', homeUrl);
+            window.location.href = homeUrl;
         };
         
         document.addEventListener('DOMContentLoaded', () => {

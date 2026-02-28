@@ -19,6 +19,7 @@ import { Users, MessageCircle, Link2, X, AtSign } from 'lucide-react';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { trackWorkView } from '@/utils/browseHistory';
 import { MentionPicker } from '@/components/comment/MentionPicker';
+import { incrementWorkViewCount } from '@/services/analyticsService';
 
 // 常用表情列表
 const EMOJI_LIST = [
@@ -272,6 +273,12 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
         if (postData) {
           setPost(postData);
           const isVideo = postData.type === 'video';
+          
+          // 增加作品浏览量
+          incrementWorkViewCount(postData.id).catch(err => {
+            console.warn('[WorkDetail] 增加浏览量失败:', err);
+          });
+          
           trackWorkView({
             id: postData.id,
             title: postData.title || '未命名作品',

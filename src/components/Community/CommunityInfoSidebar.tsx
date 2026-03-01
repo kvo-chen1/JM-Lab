@@ -552,7 +552,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
           .map((thread, index) => ({
             id: thread.id,
             title: thread.title || '无标题',
-            comments: thread.comments?.length || 0,
+            comments: Array.isArray(thread.comments) ? thread.comments.length : (thread.comments || 0),
             upvotes: thread.upvotes || 0,
             thumbnail: thread.images?.[0] || undefined
           }));

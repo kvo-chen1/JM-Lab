@@ -1,15 +1,18 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import type { Thread } from '@/pages/Community';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
 import { HoverCard, FadeIn } from '@/components/Community/DesignSystem';
 import { useAuth } from '@/hooks/useAuth';
 import { FeedShareModal } from '@/components/feed/FeedShareModal';
+import { MentionSelector } from '@/components/MentionSelector';
+import { mentionService } from '@/services/mentionService';
 
 interface PostCardProps {
   isDark: boolean;
-  thread: Thread & { comments?: any[] };
+  thread: Thread & { comments?: any[] | number };
   onUpvote: (id: string) => void;
   onToggleFavorite: (id: string) => void;
   onAddComment: (threadId: string, content: string) => void;
@@ -497,7 +500,44 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-
+  
+  // @提及相关状态
+  const [isMentionSelectorOpen, setIsMentionSelectorOpen] = useState(false);
+  const [mentionSearchQuery, setMentionSearchQuery] = useState('');
+  const [mentionSelectorPosition, setMentionSelectorPosition] = useState({ top: 0, left: 0 });
+  
+  // 监听评论内容变化，检测@提及
+  useEffect(() => {
+    if (!showCommentInput) {
+      setIsMentionSelectorOpen(false);
+      return;
+    }
+    
+    // 获取光标位置
+    const input = document.querySelector(`input[data-thread-id="${thread.id}"]`) as HTMLInputElement;
+    const cursorPosition = input?.selectionStart || commentContent.length;
+    
+    // 检测@提及
+    const query = mentionService.getCurrentMentionQuery(commentContent, cursorPosition);
+    
+    if (query !== null && thread.communityId) {
+      setMentionSearchQuery(query);
+      
+      // 计算选择器位置 - 显示在输入框右侧
+      if (input) {
+        const rect = input.getBoundingClientRect();
+        setMentionSelectorPosition({
+          top: rect.top - 200,
+          left: rect.right + 20
+        });
+      }
+      
+      setIsMentionSelectorOpen(true);
+    } else {
+      setIsMentionSelectorOpen(false);
+    }
+  }, [commentContent, showCommentInput, thread.id, thread.communityId]);
+  
   // 调试日志
   console.log('[PostCard] thread:', {
     id: thread.id,
@@ -670,7 +710,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               <ActionButton 
                 icon="far fa-comment-alt"
                 label="评论"
-                count={thread.comments?.length || 0}
+                count={Array.isArray(thread.comments) ? thread.comments.length : (thread.comments || 0)}
                 isDark={isDark}
                 onClick={(e) => { 
                   e.stopPropagation(); 
@@ -701,7 +741,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                 <ActionButton 
                   icon={isLiked ? 'fas fa-heart' : 'far fa-heart'}
                   label={isLiked ? '已点赞' : '点赞'}
-                  count={thread.likes || 0}
+                  count={thread.upvotes || 0}
                   isDark={isDark}
                   onClick={(e) => { e.stopPropagation(); onToggleLike(thread.id); }}
                   isActive={isLiked}
@@ -759,7 +799,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                     <div className="flex-1 relative">
                       <input
                         type="text"
-                        placeholder="写下你的评论..."
+                        placeholder="写下你的评论... 使用 @ 提及成员"
                         value={commentContent}
                         onChange={(e) => setCommentContent(e.target.value)}
                         className={`w-full pl-4 pr-14 py-3 rounded-xl text-sm transition-all ${
@@ -769,6 +809,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         } border focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
                         onClick={(e) => e.stopPropagation()}
                         autoFocus
+                        data-thread-id={thread.id}
                       />
                       <motion.button
                         type="submit"
@@ -788,9 +829,9 @@ export const PostCard: React.FC<PostCardProps> = ({
                   </form>
                   
                   {/* Latest Comments Preview */}
-                  {thread.comments && thread.comments.length > 0 && (
+                  {thread.comments && Array.isArray(thread.comments) && thread.comments.length > 0 && (
                     <div className="mt-4 space-y-3">
-                      {thread.comments.slice(0, 3).map((comment, idx) => (
+                      {(thread.comments as any[]).slice(0, 3).map((comment, idx) => (
                         <motion.div 
                           key={comment.id || idx}
                           initial={{ opacity: 0, y: 10 }}
@@ -853,12 +894,12 @@ export const PostCard: React.FC<PostCardProps> = ({
                               )}
                             </div>
                             <p className={`text-sm leading-relaxed line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                              {comment.content}
+                              {typeof comment.content === 'string' ? comment.content : JSON.stringify(comment.content)}
                             </p>
                           </div>
                         </motion.div>
                       ))}
-                      {thread.comments.length > 3 && (
+                      {(thread.comments as any[]).length > 3 && (
                         <motion.button 
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
@@ -866,7 +907,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                           className={`flex items-center gap-1 text-sm font-medium ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} transition-colors mt-2`}
                           onClick={(e) => { e.stopPropagation(); onClick(thread.id); }}
                         >
-                          <span>查看全部 {thread.comments.length} 条评论</span>
+                          <span>查看全部 {(thread.comments as any[]).length} 条评论</span>
                           <i className="fas fa-arrow-right text-xs"></i>
                         </motion.button>
                       )}
@@ -898,7 +939,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           },
           createdAt: thread.createdAt,
           likes: thread.upvotes || 0,
-          comments: thread.comments?.length || 0,
+          comments: Array.isArray(thread.comments) ? thread.comments.length : (thread.comments || 0),
           shares: 0,
           isLiked: isLiked,
           isCollected: isFavorited
@@ -907,6 +948,38 @@ export const PostCard: React.FC<PostCardProps> = ({
           setShowShareModal(false);
         }}
       />
+      
+      {/* @提及选择器 - 使用Portal渲染 */}
+      {isMentionSelectorOpen && thread.communityId && createPortal(
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 2147483647,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ pointerEvents: 'auto' }}>
+            <MentionSelector
+              communityId={thread.communityId}
+              isOpen={isMentionSelectorOpen}
+              searchQuery={mentionSearchQuery}
+              onSelect={(member) => {
+                // 处理成员选择
+                const newContent = commentContent + member.username + ' ';
+                setCommentContent(newContent);
+                setIsMentionSelectorOpen(false);
+              }}
+              onClose={() => setIsMentionSelectorOpen(false)}
+              position={mentionSelectorPosition}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 };

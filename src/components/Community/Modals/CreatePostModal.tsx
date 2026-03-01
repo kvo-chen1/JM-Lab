@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import UploadBox from '@/components/UploadBox';
@@ -70,6 +71,45 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [isMentionSelectorOpen, setIsMentionSelectorOpen] = useState(false);
   const [mentionSearchQuery, setMentionSearchQuery] = useState('');
   const [selectorPosition, setSelectorPosition] = useState({ top: 0, left: 0 });
+  
+  // 监听内容变化，检测@提及
+  useEffect(() => {
+    if (!activeCommunityForMention) {
+      setIsMentionSelectorOpen(false);
+      return;
+    }
+    
+    // 获取光标位置
+    const textarea = document.querySelector('textarea');
+    const cursorPosition = textarea?.selectionStart || content.length;
+    
+    // 检测@提及
+    const query = mentionService.getCurrentMentionQuery(content, cursorPosition);
+    console.log('[CreatePostModal] Checking mention query:', query, 'content:', content, 'cursor:', cursorPosition);
+    
+    if (query !== null) {
+      setMentionSearchQuery(query);
+      
+      // 计算选择器位置 - 显示在模态框右侧
+      const modalElement = document.querySelector('[class*="max-w-lg"]');
+      if (modalElement) {
+        const modalRect = modalElement.getBoundingClientRect();
+        setSelectorPosition({
+          top: modalRect.top + 200,
+          left: modalRect.right + 20
+        });
+        console.log('[CreatePostModal] Setting selector position to modal right:', { top: modalRect.top + 200, left: modalRect.right + 20 });
+      } else {
+        // 如果找不到模态框，使用默认位置
+        setSelectorPosition({ top: 300, left: 800 });
+        console.log('[CreatePostModal] Modal not found, using default position');
+      }
+      
+      setIsMentionSelectorOpen(true);
+    } else {
+      setIsMentionSelectorOpen(false);
+    }
+  }, [content, activeCommunityForMention]);
   
   useEffect(() => {
     if (initialImages && initialImages.length > 0) {
@@ -808,29 +848,42 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       </div>
     </Modal>
     
-    {/* @提及选择器 - 显示在模态框右侧 */}
-    <AnimatePresence>
-      {isMentionSelectorOpen && activeCommunityForMention && (
-        <MentionSelector
-          communityId={activeCommunityForMention}
-          isOpen={isMentionSelectorOpen}
-          searchQuery={mentionSearchQuery}
-          onSelect={(member) => {
-            // 处理成员选择
-            const textarea = document.querySelector('textarea');
-            if (textarea) {
-              const cursorPosition = textarea.selectionStart;
-              const newContent = content.substring(0, cursorPosition) + member.username + ' ' + content.substring(cursorPosition);
-              setContent(newContent);
-              mentionInputRef.current?.setContent(newContent);
-            }
-            setIsMentionSelectorOpen(false);
-          }}
-          onClose={() => setIsMentionSelectorOpen(false)}
-          position={selectorPosition}
-        />
-      )}
-    </AnimatePresence>
+    {/* @提及选择器 - 使用Portal渲染到body，避免被Modal的backdrop-blur影响 */}
+    {isMentionSelectorOpen && activeCommunityForMention && createPortal(
+      <div 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 2147483647,
+          pointerEvents: 'none',
+        }}
+      >
+        <div style={{ pointerEvents: 'auto' }}>
+          <MentionSelector
+            communityId={activeCommunityForMention}
+            isOpen={isMentionSelectorOpen}
+            searchQuery={mentionSearchQuery}
+            onSelect={(member) => {
+              // 处理成员选择
+              const textarea = document.querySelector('textarea');
+              if (textarea) {
+                const cursorPosition = textarea.selectionStart;
+                const newContent = content.substring(0, cursorPosition) + member.username + ' ' + content.substring(cursorPosition);
+                setContent(newContent);
+                mentionInputRef.current?.setContent(newContent);
+              }
+              setIsMentionSelectorOpen(false);
+            }}
+            onClose={() => setIsMentionSelectorOpen(false)}
+            position={selectorPosition}
+          />
+        </div>
+      </div>,
+      document.body
+    )}
     </>
   );
 };

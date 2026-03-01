@@ -259,6 +259,10 @@ const AdminAnalytics = createLazyComponent(() => import(/* webpackChunkName: "pa
 const ErrorMonitoringDashboard = createLazyComponent(() => import(/* webpackChunkName: "components-admin" */ "@/components/ErrorMonitoringDashboard"), {
   priority: ROUTE_PRIORITIES.LOW
 });
+const LotteryManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/admin/LotteryManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'lottery-management'
+});
 
 // 会员和激励相关 - 懒加载
 const Membership = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/Membership"), {
@@ -374,6 +378,14 @@ const BrandGuide = createLazyComponent(() => import(/* webpackChunkName: "pages-
 const BusinessCooperation = createLazyComponent(() => import(/* webpackChunkName: "pages-business" */ "@/pages/BusinessCooperation"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'business'
+});
+const BrandShowcase = createLazyComponent(() => import(/* webpackChunkName: "pages-business" */ "@/pages/BrandShowcase"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'brand-showcase'
+});
+const BrandShowcaseManager = createLazyComponent(() => import(/* webpackChunkName: "pages-organizer" */ "@/pages/organizer/BrandShowcaseManager"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'brand-showcase-manager'
 });
 const BrandServiceAgreement = createLazyComponent(() => import(/* webpackChunkName: "pages-business" */ "@/pages/BrandServiceAgreement"), {
   priority: ROUTE_PRIORITIES.LOW,
@@ -891,6 +903,7 @@ export default function App() {
           <Route path="/brand" element={<LazyComponent><PrivateRoute><BrandGuide /></PrivateRoute></LazyComponent>} />
           <Route path="/business" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
           <Route path="/business-cooperation" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
+          <Route path="/brand-showcase" element={<LazyComponent><BrandShowcase /></LazyComponent>} />
           <Route path="/brand-service-agreement" element={<LazyComponent><BrandServiceAgreement isDark={isDark} /></LazyComponent>} />
           <Route path="/input" element={<LazyComponent><PrivateRoute><InputHub /></PrivateRoute></LazyComponent>} />
           <Route path="/generate" element={<LazyComponent><PrivateRoute><Generation /></PrivateRoute></LazyComponent>} />
@@ -930,6 +943,7 @@ export default function App() {
           <Route path="/organizer" element={<LazyComponent><PrivateRoute><OrganizerCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer-center" element={<LazyComponent><PrivateRoute><OrganizerCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer/events/:id" element={<LazyComponent><PrivateRoute><OrganizerEventDetail /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/brand-showcase" element={<LazyComponent><PrivateRoute><BrandShowcaseManager /></PrivateRoute></LazyComponent>} />
           <Route path="/ranking/:eventId" element={<LazyComponent><PrivateRoute><EventRanking /></PrivateRoute></LazyComponent>} />
           
           {/* 创新功能路由 - 懒加载 */}
@@ -983,6 +997,7 @@ export default function App() {
         {/* 管理员路由 - 独立于 SidebarLayout */}
         <Route path="/admin" element={<LazyComponent><AdminRoute component={Admin} /></LazyComponent>} />
         <Route path="/admin/order-audit" element={<LazyComponent><AdminRoute component={OrderAudit} /></LazyComponent>} />
+        <Route path="/admin/lottery" element={<LazyComponent><AdminRoute component={LotteryManagement} /></LazyComponent>} />
         <Route path="/errors" element={<LazyComponent><AdminRoute component={ErrorMonitoringDashboard} /></LazyComponent>} />
         <Route path="/admin-analytics" element={<LazyComponent><AdminRoute component={AdminAnalytics} /></LazyComponent>} />
         <Route path="/admin/original-protection" element={<LazyComponent><AdminRoute component={OriginalProtectionManagement} /></LazyComponent>} />

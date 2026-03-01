@@ -49,7 +49,8 @@ import {
   Globe,
   Smartphone,
   Percent,
-  Share2
+  Share2,
+  X
 } from 'lucide-react';
 import {
   LineChart as RechartsLineChart,
@@ -180,9 +181,10 @@ const COLORS = {
 
 interface AdvancedAnalyticsProps {
   onExitAdvancedView?: () => void;
+  embedded?: boolean;
 }
 
-export default function AdvancedAnalytics({ onExitAdvancedView }: AdvancedAnalyticsProps) {
+export default function AdvancedAnalytics({ onExitAdvancedView, embedded = false }: AdvancedAnalyticsProps) {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -604,67 +606,113 @@ export default function AdvancedAnalytics({ onExitAdvancedView }: AdvancedAnalyt
   }
 
   return (
-    <div ref={containerRef} className={`space-y-6 min-h-screen ${isFullScreen ? 'p-4' : 'p-6'}`}>
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              if (onExitAdvancedView) {
-                onExitAdvancedView();
-              } else {
-                navigate('/admin?tab=analytics');
-              }
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            返回数据分析
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Monitor className="w-6 h-6 text-blue-500" />
-              高级数据分析大屏
-            </h1>
-            <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+    <div ref={containerRef} className={`space-y-6 ${embedded ? '' : 'min-h-screen'} ${isFullScreen ? 'p-4' : embedded ? 'py-4' : 'p-6'}`}>
+      {/* 页面标题 - 仅在非嵌入模式下显示 */}
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                if (onExitAdvancedView) {
+                  onExitAdvancedView();
+                } else {
+                  navigate('/admin?tab=analytics');
+                }
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              返回数据分析
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Monitor className="w-6 h-6 text-blue-500" />
+                高级数据分析大屏
+              </h1>
+              <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                实时数据监控 · 用户行为分析 · 业务洞察
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                autoRefresh
+                  ? isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'
+                  : isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              {autoRefresh ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              {autoRefresh ? '自动刷新中' : '自动刷新'}
+            </button>
+            <button
+              onClick={fetchAnalyticsData}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              <RefreshCw className="w-4 h-4" />
+              刷新
+            </button>
+            <button
+              onClick={toggleFullScreen}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {isFullScreen ? '退出全屏' : '全屏模式'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 嵌入模式下的简化标题栏 */}
+      {embedded && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Monitor className="w-5 h-5 text-blue-500" />
+            <h3 className="text-lg font-semibold">高级数据分析</h3>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               实时数据监控 · 用户行为分析 · 业务洞察
             </p>
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                autoRefresh
+                  ? isDark ? 'bg-green-600/20 text-green-400' : 'bg-green-100 text-green-700'
+                  : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              {autoRefresh ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+              {autoRefresh ? '自动刷新中' : '自动刷新'}
+            </button>
+            <button
+              onClick={fetchAnalyticsData}
+              className={`p-1.5 rounded-lg transition-colors ${
+                isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+              }`}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            {onExitAdvancedView && (
+              <button
+                onClick={onExitAdvancedView}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              autoRefresh
-                ? isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'
-                : isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            {autoRefresh ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-            {autoRefresh ? '自动刷新中' : '自动刷新'}
-          </button>
-          <button
-            onClick={fetchAnalyticsData}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              isDark ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            <RefreshCw className="w-4 h-4" />
-            刷新
-          </button>
-          <button
-            onClick={toggleFullScreen}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
-            }`}
-          >
-            {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            {isFullScreen ? '退出全屏' : '全屏模式'}
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* 实时数据卡片 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

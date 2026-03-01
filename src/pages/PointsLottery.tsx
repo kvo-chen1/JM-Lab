@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
@@ -39,15 +39,16 @@ interface SpinRecord {
   cost: number;
 }
 
-const DEFAULT_SEGMENTS: WheelSegment[] = [
-  { id: '1', name: '谢谢参与', productName: '谢谢参与', points: 0, probability: 0.15, color: '#EF4444', textColor: '#FFFFFF' },
-  { id: '2', name: '虚拟红包', productName: '虚拟红包', points: 10, probability: 0.20, color: '#F97316', textColor: '#FFFFFF', imageUrl: '/images/红包.svg' },
-  { id: '3', name: '创室贴纸包', productName: '创室贴纸包', points: 50, probability: 0.18, color: '#EAB308', textColor: '#FFFFFF', imageUrl: '/images/贴纸包.svg' },
-  { id: '4', name: 'AI 创作工具包', productName: 'AI 创作工具包', points: 100, probability: 0.12, color: '#22C55E', textColor: '#FFFFFF', imageUrl: '/images/AI 工具包.svg' },
-  { id: '5', name: '谢谢参与', productName: '谢谢参与', points: 0, probability: 0.15, color: '#3B82F6', textColor: '#FFFFFF' },
-  { id: '6', name: '专属成就徽章', productName: '专属成就徽章', points: 500, probability: 0.05, color: '#A855F7', textColor: '#FFFFFF', imageUrl: '/images/徽章.svg' },
-  { id: '7', name: '数字壁纸', productName: '数字壁纸', points: 20, probability: 0.12, color: '#EC4899', textColor: '#FFFFFF', imageUrl: '/images/数字壁纸.svg' },
-  { id: '8', name: '￥10 红包', productName: '￥10 红包', points: 1000, probability: 0.03, color: '#DC2626', textColor: '#FFFFFF', imageUrl: '/images/红包.svg' },
+// 默认转盘配置（颜色和顺序）
+const SEGMENT_CONFIG = [
+  { color: '#EF4444', textColor: '#FFFFFF', imageUrl: '' },
+  { color: '#F97316', textColor: '#FFFFFF', imageUrl: '/images/红包.svg' },
+  { color: '#EAB308', textColor: '#FFFFFF', imageUrl: '/images/贴纸包.svg' },
+  { color: '#22C55E', textColor: '#FFFFFF', imageUrl: '/images/AI 工具包.svg' },
+  { color: '#3B82F6', textColor: '#FFFFFF', imageUrl: '' },
+  { color: '#A855F7', textColor: '#FFFFFF', imageUrl: '/images/徽章.svg' },
+  { color: '#EC4899', textColor: '#FFFFFF', imageUrl: '/images/数字壁纸.svg' },
+  { color: '#DC2626', textColor: '#FFFFFF', imageUrl: '/images/红包.svg' },
 ];
 
 const SPIN_COST = 50;
@@ -57,11 +58,74 @@ const PointsLottery: React.FC = () => {
   const { user } = useContext(AuthContext);
   const { balance, refreshBalance } = useSupabasePoints();
   const currentPoints = balance?.balance || 0;
-  
+
   const [isSpinning, setIsSpinning] = useState(false);
   const [spinRecords, setSpinRecords] = useState<SpinRecord[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
+  const [wheelSegments, setWheelSegments] = useState<WheelSegment[]>([]);
+  const [activityId, setActivityId] = useState<string>('');
+  const activityIdRef = useRef<string>('');
+  const [prizeMap, setPrizeMap] = useState<Map<string, string>>(new Map()); // name -> id
+  const prizeMapRef = useRef<Map<string, string>>(new Map());
+
+  // 从数据库加载奖品信息
+  useEffect(() => {
+    const loadPrizes = async () => {
+      try {
+        console.log('开始加载奖品信息...');
+        // 获取默认活动
+        const { data: activityData, error: activityError } = await supabase
+          .from('lottery_activities')
+          .select('id')
+          .eq('name', '幸运大转盘')
+          .single();
+
+        console.log('活动数据:', activityData, '错误:', activityError);
+
+        if (activityData) {
+          setActivityId(activityData.id);
+          activityIdRef.current = activityData.id;
+
+          // 获取奖品列表
+          const { data: prizesData, error: prizesError } = await supabase
+            .from('lottery_prizes')
+            .select('*')
+            .eq('activity_id', activityData.id)
+            .order('sort_order', { ascending: true });
+
+          console.log('奖品数据:', prizesData, '错误:', prizesError);
+
+          if (prizesData && prizesData.length > 0) {
+            const segments: WheelSegment[] = prizesData.map((prize: any, index: number) => ({
+              id: prize.id,
+              name: prize.name,
+              productName: prize.name,
+              points: prize.points,
+              probability: prize.probability,
+              color: SEGMENT_CONFIG[index % SEGMENT_CONFIG.length].color,
+              textColor: SEGMENT_CONFIG[index % SEGMENT_CONFIG.length].textColor,
+              imageUrl: SEGMENT_CONFIG[index % SEGMENT_CONFIG.length].imageUrl,
+            }));
+            console.log('设置转盘数据:', segments);
+            setWheelSegments(segments);
+
+            // 创建奖品名称到ID的映射
+            const map = new Map<string, string>();
+            prizesData.forEach((prize: any) => {
+              map.set(prize.name, prize.id);
+            });
+            setPrizeMap(map);
+            prizeMapRef.current = map;
+          }
+        }
+      } catch (error) {
+        console.error('加载奖品信息失败:', error);
+      }
+    };
+
+    loadPrizes();
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('lottery_records');
@@ -101,6 +165,50 @@ const PointsLottery: React.FC = () => {
         throw new Error(spendResult.error.message || '扣除积分失败，积分可能不足');
       }
 
+      // 保存抽奖记录到数据库
+      try {
+        const currentActivityId = activityIdRef.current || activityId;
+        const currentPrizeMap = prizeMapRef.current || prizeMap;
+        const prizeId = currentPrizeMap.get(segment.name) || segment.id;
+        
+        // 获取当前会话
+        const { data: sessionData } = await supabase.auth.getSession();
+        const currentUserId = sessionData?.session?.user?.id || user?.id;
+        
+        console.log('保存抽奖记录:', {
+          activity_id: currentActivityId,
+          user_id: currentUserId,
+          prize_id: prizeId,
+          segment_name: segment.name,
+          prizeMap_size: currentPrizeMap.size,
+          has_user: !!currentUserId,
+          has_activityId: !!currentActivityId,
+          session_exists: !!sessionData?.session
+        });
+
+        if (!currentUserId) {
+          console.error('用户未登录，无法保存记录');
+        } else if (!currentActivityId) {
+          console.error('活动ID为空，无法保存记录');
+        } else {
+          const { error: insertError } = await supabase.from('lottery_spin_records').insert({
+            activity_id: currentActivityId,
+            user_id: currentUserId,
+            prize_id: prizeId,
+            cost: SPIN_COST,
+            created_at: new Date().toISOString(),
+          });
+          if (insertError) {
+            console.error('保存抽奖记录到数据库失败:', insertError);
+          } else {
+            console.log('抽奖记录保存成功');
+          }
+        }
+      } catch (dbError) {
+        console.error('保存抽奖记录到数据库失败:', dbError);
+        // 数据库保存失败不影响用户体验，继续执行
+      }
+
       // 如果中奖，创建兑换记录
       if (segment.points > 0 && segment.productName !== '谢谢参与') {
         // 插入兑换记录（状态为已完成）
@@ -110,9 +218,9 @@ const PointsLottery: React.FC = () => {
             product_id: segment.id,
             product_name: segment.productName,
             product_category: 'virtual',
-            points: segment.points,
+            points_cost: segment.points,
             quantity: 1,
-            user_id: user.id,
+            user_id: currentUserId,
             status: 'completed',
             product_image: segment.imageUrl,
           });
@@ -134,7 +242,7 @@ const PointsLottery: React.FC = () => {
         }
       }
 
-      // 保存记录
+      // 保存记录到本地
       saveRecord({
         id: `spin-${Date.now()}`,
         segmentName: segment.name,
@@ -158,9 +266,7 @@ const PointsLottery: React.FC = () => {
     }
   }, [user, saveRecord, refreshBalance]);
 
-  const startSpin = async (segment: WheelSegment) => {
-    setIsSpinning(true);
-  };
+  // handleSpin 已经包含了完整的抽奖逻辑，直接传递给 LuckyWheel
 
   const totalSpent = spinRecords.reduce((sum, record) => sum + record.cost, 0);
   const totalWon = spinRecords.reduce((sum, record) => sum + record.points, 0);
@@ -253,12 +359,19 @@ const PointsLottery: React.FC = () => {
 
                 <div className="relative mb-8">
                   <LuckyWheel
-                    segments={DEFAULT_SEGMENTS}
-                    onSpin={startSpin}
+                    segments={wheelSegments.length > 0 ? wheelSegments : SEGMENT_CONFIG.map((cfg, i) => ({
+                      id: String(i),
+                      name: '加载中...',
+                      productName: '加载中...',
+                      points: 0,
+                      probability: 0.125,
+                      ...cfg
+                    }))}
+                    onSpin={handleSpin}
                     currentPoints={currentPoints}
                     spinCost={SPIN_COST}
                     isSpinning={isSpinning}
-                    disabled={!user}
+                    disabled={!user || wheelSegments.length === 0}
                   />
                 </div>
 
@@ -334,7 +447,7 @@ const PointsLottery: React.FC = () => {
               </h3>
               
               <div className="space-y-3">
-                {DEFAULT_SEGMENTS
+                {wheelSegments
                   .filter(s => s.points > 0)
                   .sort((a, b) => b.points - a.points)
                   .map((segment) => (

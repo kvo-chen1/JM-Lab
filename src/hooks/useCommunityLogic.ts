@@ -750,7 +750,7 @@ export const useCommunityLogic = () => {
     // 更新帖子的点赞数
     setThreads(prev => prev.map(t =>
       t.id === id
-        ? { ...t, likes: (t.likes || 0) + (isCurrentlyLiked ? -1 : 1) }
+        ? { ...t, upvotes: (t.upvotes || 0) + (isCurrentlyLiked ? -1 : 1) }
         : t
     ));
 
@@ -785,7 +785,7 @@ export const useCommunityLogic = () => {
       setLikedThreads(likedThreads);
       setThreads(prev => prev.map(t =>
         t.id === id
-          ? { ...t, likes: (t.likes || 0) + (isCurrentlyLiked ? 1 : -1) }
+          ? { ...t, upvotes: (t.upvotes || 0) + (isCurrentlyLiked ? 1 : -1) }
           : t
       ));
       // 显示错误信息

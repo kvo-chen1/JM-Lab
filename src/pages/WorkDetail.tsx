@@ -446,7 +446,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
       rejectionReason: null,
       scheduledPublishDate: null,
       visibility: 'public',
-      commentCount: thread.comments?.length || 0,
+      commentCount: Array.isArray(thread.comments) ? thread.comments.length : (thread.comments || 0),
       engagementRate: 0,
       trendingScore: 0,
       reach: 0,

@@ -147,6 +147,15 @@ class BrandPartnershipService {
     }
   }
 
+  // 保存品牌合作申请到 localStorage
+  private savePartnershipsLocal(partnerships: BrandPartnership[]): void {
+    try {
+      localStorage.setItem('jmzf_brand_partnerships', JSON.stringify(partnerships));
+    } catch (error) {
+      console.error('保存到 LocalStorage 失败:', error);
+    }
+  }
+
   // 获取所有品牌合作申请（管理员用）
   async getAllPartnerships(options?: {
     status?: string;
@@ -243,12 +252,31 @@ class BrandPartnershipService {
 
       // 合并结果
       const allData = [...(dataById || []), ...dataByEmail];
-      
+
       // 去重
-      const uniqueData = allData.filter((item, index, self) => 
+      const uniqueData = allData.filter((item, index, self) =>
         index === self.findIndex(t => t.id === item.id)
       );
-      
+
+      // 同步到 LocalStorage
+      if (uniqueData.length > 0) {
+        const existingData = this.getPartnershipsLocal();
+        const existingIds = new Set(existingData.map(p => p.id));
+        const newData = [...existingData];
+
+        uniqueData.forEach(item => {
+          const index = newData.findIndex(p => p.id === item.id);
+          if (index >= 0) {
+            newData[index] = item;
+          } else {
+            newData.push(item);
+          }
+        });
+
+        this.savePartnershipsLocal(newData);
+        console.log('品牌数据已同步到 LocalStorage');
+      }
+
       console.log('最终返回的品牌申请:', uniqueData);
       return uniqueData;
     } catch (error) {

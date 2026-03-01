@@ -2813,14 +2813,15 @@ export default function DataAnalytics() {
       const feeds = await Promise.all(
         (collectedFeeds || []).slice(0, 5).map(async (cf) => {
           const { data: feed } = await supabaseAdmin
-            .from('feeds')           .select('id, content, user_id')
+            .from('feeds')
+            .select('id, content, author_id')
             .eq('id', cf.feed_id)
             .single();
 
           const { data: author } = await supabaseAdmin
             .from('users')
             .select('username')
-            .eq('id', feed?.user_id)
+            .eq('id', feed?.author_id)
             .single();
 
           return {
@@ -5481,15 +5482,6 @@ export default function DataAnalytics() {
     </motion.div>
   );
 
-  // 如果是高级视图模式，直接渲染高级大屏组件
-  if (isAdvancedView) {
-    return (
-      <div className="h-full">
-        <AdvancedAnalytics onExitAdvancedView={() => setIsAdvancedView(false)} />
-      </div>
-    );
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -5586,7 +5578,7 @@ export default function DataAnalytics() {
             <RefreshCw className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
           </motion.button>
 
-          {/* 高级大屏切换按钮 */}
+          {/* 高级分析展开按钮 */}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -5598,7 +5590,7 @@ export default function DataAnalytics() {
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            {isAdvancedView ? '退出高级大屏' : '高级大屏'}
+            {isAdvancedView ? '收起高级分析' : '展开高级分析'}
           </motion.button>
 
           {/* 导出按钮 */}
@@ -5803,6 +5795,23 @@ export default function DataAnalytics() {
           color={CHART_COLORS.danger}
         />
       </div>
+
+      {/* 高级数据分析大屏区域 */}
+      <AnimatePresence>
+        {isAdvancedView && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`overflow-hidden rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-md`}
+          >
+            <div className="p-6">
+              <AdvancedAnalytics embedded onExitAdvancedView={() => setIsAdvancedView(false)} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 主图表区域 */}
       <motion.div
@@ -6913,6 +6922,46 @@ export default function DataAnalytics() {
                         <p className="text-xl font-bold text-red-500">{userPointsData.totalSpent.toLocaleString()}</p>
                       </div>
                     </div>
+                    
+                    {/* 积分来源分布饼图 */}
+                    <div className="h-40 mb-4">
+                      <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>积分来源分布</p>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: '签到', value: userPointsData.checkinDays * 10, color: '#3b82f6' },
+                              { name: '任务', value: userPointsData.tasksCompleted * 50, color: '#10b981' },
+                              { name: '邀请', value: userPointsData.invitesCount * 100, color: '#f59e0b' },
+                              { name: '其他', value: Math.max(0, userPointsData.totalEarned - userPointsData.checkinDays * 10 - userPointsData.tasksCompleted * 50 - userPointsData.invitesCount * 100), color: '#8b5cf6' },
+                            ].filter(d => d.value > 0)}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={30}
+                            outerRadius={55}
+                            paddingAngle={3}
+                            dataKey="value"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            labelLine={false}
+                          >
+                            <Cell fill="#3b82f6" />
+                            <Cell fill="#10b981" />
+                            <Cell fill="#f59e0b" />
+                            <Cell fill="#8b5cf6" />
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                              border: 'none', 
+                              borderRadius: '8px',
+                              color: isDark ? '#f3f4f6' : '#1f2937'
+                            }} 
+                            formatter={(value: number) => `${value.toLocaleString()}积分`}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
                     <div className="grid grid-cols-4 gap-2 text-center">
                       <div>
                         <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>签到天数</p>
@@ -6960,6 +7009,34 @@ export default function DataAnalytics() {
                         </p>
                       </div>
                     </div>
+                    
+                    {/* 成就类别分布柱状图 */}
+                    {userAchievementData.categoryBreakdown.length > 0 && (
+                      <div className="h-32 mb-4">
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>成就类别分布</p>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={userAchievementData.categoryBreakdown} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} horizontal={false} />
+                            <XAxis type="number" hide />
+                            <YAxis dataKey="category" type="category" width={60} tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                                border: 'none', 
+                                borderRadius: '8px',
+                                color: isDark ? '#f3f4f6' : '#1f2937'
+                              }} 
+                            />
+                            <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                              {userAchievementData.categoryBreakdown.map((_, index) => (
+                                <Cell key={`cell-${index}`} fill={['#f59e0b', '#3b82f6', '#10b981', '#ef4444'][index % 4]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    
                     <div className="space-y-2">
                       {userAchievementData.categoryBreakdown.map((cat, index) => (
                         <div key={cat.category} className="flex items-center justify-between">
@@ -7218,8 +7295,43 @@ export default function DataAnalytics() {
                       <p className="text-xl font-bold text-red-500">{userFeedbackData.totalReports}</p>
                     </div>
                   </div>
+                  {/* 反馈状态分布饼图 */}
+                  <div className="h-48 mt-4">
+                    <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>反馈状态分布</p>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: '待处理', value: userFeedbackData.pendingFeedbacks },
+                            { name: '已解决', value: userFeedbackData.resolvedFeedbacks },
+                            { name: '其他', value: Math.max(0, userFeedbackData.totalFeedbacks - userFeedbackData.pendingFeedbacks - userFeedbackData.resolvedFeedbacks) },
+                          ].filter(d => d.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={70}
+                          paddingAngle={5}
+                          dataKey="value"
+                          label={({ name, value }) => `${name}: ${value}`}
+                        >
+                          <Cell fill="#f59e0b" />
+                          <Cell fill="#10b981" />
+                          <Cell fill="#6b7280" />
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                            border: 'none', 
+                            borderRadius: '8px',
+                            color: isDark ? '#f3f4f6' : '#1f2937'
+                          }} 
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  
                   {userFeedbackData.feedbackTypes.length > 0 && (
-                    <div>
+                    <div className="mt-4">
                       <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>反馈类型分布</p>
                       <div className="flex flex-wrap gap-2">
                         {userFeedbackData.feedbackTypes.map((ft) => (
@@ -7244,6 +7356,112 @@ export default function DataAnalytics() {
                     </div>
                   </div>
                 </div>
+
+                {/* 审计日志 */}
+                {userAuditLogData.totalLogs > 0 && (
+                  <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
+                    <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                      <ClipboardList className="w-4 h-4 text-gray-500" />
+                      审计日志 ({userAuditLogData.totalLogs})
+                    </h4>
+                    
+                    {/* 审计操作类型分布 */}
+                    <div className="h-48 mb-4">
+                      <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>操作类型分布</p>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={Array.from(new Set(userAuditLogData.logs.map(l => l.action))).map(action => ({
+                          name: action?.substring(0, 8) || '未知',
+                          count: userAuditLogData.logs.filter(l => l.action === action).length
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                          <XAxis dataKey="name" tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                          <YAxis tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                              border: 'none', 
+                              borderRadius: '8px',
+                              color: isDark ? '#f3f4f6' : '#1f2937'
+                            }} 
+                          />
+                          <Bar dataKey="count" fill="#6b7280" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    {userAuditLogData.logs.length > 0 && (
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>最近审计记录</p>
+                        {userAuditLogData.logs.slice(0, 5).map((log, index) => (
+                          <div key={index} className={`flex items-center justify-between p-2 rounded ${isDark ? 'bg-gray-600/30' : 'bg-white'}`}>
+                            <div>
+                              <p className="text-sm font-medium">{log.action}</p>
+                              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {log.resourceType} · {log.details}
+                              </p>
+                            </div>
+                            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              {new Date(log.createdAt).toLocaleString('zh-CN')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 活动日志 */}
+                {userActivityLogData.totalLogs > 0 && (
+                  <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
+                    <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-blue-500" />
+                      活动日志 ({userActivityLogData.totalLogs})
+                    </h4>
+                    
+                    {/* 活动类型分布 */}
+                    <div className="h-48 mb-4">
+                      <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>活动类型分布</p>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={Array.from(new Set(userActivityLogData.logs.map(l => l.activityType))).map(type => ({
+                          name: type?.substring(0, 8) || '未知',
+                          count: userActivityLogData.logs.filter(l => l.activityType === type).length
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                          <XAxis dataKey="name" tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                          <YAxis tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                              border: 'none', 
+                              borderRadius: '8px',
+                              color: isDark ? '#f3f4f6' : '#1f2937'
+                            }} 
+                          />
+                          <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    {userActivityLogData.logs.length > 0 && (
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>最近活动记录</p>
+                        {userActivityLogData.logs.slice(0, 5).map((log, index) => (
+                          <div key={index} className={`flex items-center justify-between p-2 rounded ${isDark ? 'bg-gray-600/30' : 'bg-white'}`}>
+                            <div>
+                              <p className="text-sm font-medium">{log.activityType}</p>
+                              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {log.description}
+                              </p>
+                            </div>
+                            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              {new Date(log.createdAt).toLocaleString('zh-CN')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* AI使用记录 */}
                 <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
@@ -7809,6 +8027,78 @@ export default function DataAnalytics() {
                   </div>
                 )}
 
+                {/* 产品链接数据 */}
+                {userProductLinkData.totalLinks > 0 && (
+                  <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
+                    <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                      <Link className="w-4 h-4 text-blue-500" />
+                      产品链接 ({userProductLinkData.totalLinks})
+                    </h4>
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总链接</p>
+                        <p className="text-lg font-bold text-blue-500">{userProductLinkData.totalLinks}</p>
+                      </div>
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总点击</p>
+                        <p className="text-lg font-bold text-green-500">{userProductLinkData.totalClicks}</p>
+                      </div>
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>转化率</p>
+                        <p className="text-lg font-bold text-purple-500">
+                          {userProductLinkData.totalClicks > 0 
+                            ? ((userProductLinkData.totalConversions / userProductLinkData.totalClicks) * 100).toFixed(1)
+                            : 0}%
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* 链接转化漏斗图 */}
+                    <div className="h-48 mt-4">
+                      <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>链接转化漏斗</p>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={[
+                          { name: '链接', value: userProductLinkData.totalLinks },
+                          { name: '点击', value: userProductLinkData.totalClicks },
+                          { name: '转化', value: userProductLinkData.totalConversions },
+                        ].filter(d => d.value > 0)} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                          <XAxis type="number" tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                          <YAxis dataKey="name" type="category" width={60} tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 11 }} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                              border: 'none', 
+                              borderRadius: '8px',
+                              color: isDark ? '#f3f4f6' : '#1f2937'
+                            }} 
+                          />
+                          <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    {userProductLinkData.links.length > 0 && (
+                      <div className="space-y-2 max-h-40 overflow-y-auto mt-4">
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>链接列表</p>
+                        {userProductLinkData.links.slice(0, 5).map((link, index) => (
+                          <div key={index} className={`flex items-center justify-between p-2 rounded ${isDark ? 'bg-gray-600/30' : 'bg-white'}`}>
+                            <div>
+                              <p className="text-sm font-medium truncate max-w-[200px]">{link.url}</p>
+                              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                点击: {link.clicks} · 转化: {link.conversions}
+                              </p>
+                            </div>
+                            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              {new Date(link.createdAt).toLocaleDateString('zh-CN')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* 社区活动数据 */}
                 <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
                   <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
@@ -8182,6 +8472,69 @@ export default function DataAnalytics() {
                   </div>
                 )}
 
+                {/* 小流量测试 */}
+                {userSmallTrafficTestData.totalTests > 0 && (
+                  <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
+                    <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                      <TestTube className="w-4 h-4 text-pink-500" />
+                      小流量测试 ({userSmallTrafficTestData.totalTests})
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总测试</p>
+                        <p className="text-lg font-bold text-pink-500">{userSmallTrafficTestData.totalTests}</p>
+                      </div>
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>进行中</p>
+                        <p className="text-lg font-bold text-blue-500">{userSmallTrafficTestData.runningTests}</p>
+                      </div>
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>已通过</p>
+                        <p className="text-lg font-bold text-green-500">{userSmallTrafficTestData.passedTests}</p>
+                      </div>
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>已失败</p>
+                        <p className="text-lg font-bold text-red-500">{userSmallTrafficTestData.failedTests}</p>
+                      </div>
+                    </div>
+                    
+                    {/* 小流量测试状态分布饼图 */}
+                    <div className="h-48 mt-4">
+                      <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>测试状态分布</p>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: '进行中', value: userSmallTrafficTestData.runningTests },
+                              { name: '已通过', value: userSmallTrafficTestData.passedTests },
+                              { name: '已失败', value: userSmallTrafficTestData.failedTests },
+                            ].filter(d => d.value > 0)}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={40}
+                            outerRadius={70}
+                            paddingAngle={5}
+                            dataKey="value"
+                            label={({ name, value }) => `${name}: ${value}`}
+                          >
+                            <Cell fill="#3b82f6" />
+                            <Cell fill="#10b981" />
+                            <Cell fill="#ef4444" />
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                              border: 'none', 
+                              borderRadius: '8px',
+                              color: isDark ? '#f3f4f6' : '#1f2937'
+                            }} 
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
                 {/* A/B测试数据 */}
                 {userABTestData.totalExperiments > 0 && (
                   <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
@@ -8254,6 +8607,116 @@ export default function DataAnalytics() {
                             }`}>
                               {exp.status === 'active' ? '进行中' : 
                                exp.status === 'completed' ? '已完成' : '未知'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* AB指标 */}
+                {userABMetricData.totalMetrics > 0 && (
+                  <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
+                    <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-purple-500" />
+                      AB指标 ({userABMetricData.totalMetrics})
+                    </h4>
+                    
+                    {/* AB指标分布条形图 */}
+                    <div className="h-48 mb-4">
+                      <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>指标分布</p>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={userABMetricData.metrics.slice(0, 5).map((metric, index) => ({
+                          name: metric.metricName?.substring(0, 8) || `指标${index + 1}`,
+                          value: metric.metricValue
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                          <XAxis dataKey="name" tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                          <YAxis tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                              border: 'none', 
+                              borderRadius: '8px',
+                              color: isDark ? '#f3f4f6' : '#1f2937'
+                            }} 
+                          />
+                          <Bar dataKey="value" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    {userABMetricData.metrics.length > 0 && (
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>指标列表</p>
+                        {userABMetricData.metrics.slice(0, 5).map((metric, index) => (
+                          <div key={index} className={`flex items-center justify-between p-2 rounded ${isDark ? 'bg-gray-600/30' : 'bg-white'}`}>
+                            <div>
+                              <p className="text-sm font-medium">{metric.metricName}</p>
+                              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {metric.experimentName || '未命名实验'}
+                              </p>
+                            </div>
+                            <span className={`text-sm font-bold ${
+                              metric.metricValue > 0 ? 'text-green-500' : 
+                              metric.metricValue < 0 ? 'text-red-500' : 
+                              'text-gray-500'
+                            }`}>
+                              {metric.metricValue.toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* AB实验事件 */}
+                {userABExperimentEventData.totalEvents > 0 && (
+                  <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
+                    <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                      <FlaskConical className="w-4 h-4 text-purple-500" />
+                      AB实验事件 ({userABExperimentEventData.totalEvents})
+                    </h4>
+                    
+                    {/* 实验事件类型分布 */}
+                    <div className="h-48 mb-4">
+                      <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>事件类型分布</p>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={Array.from(new Set(userABExperimentEventData.events.map(e => e.eventType))).map(type => ({
+                          name: type?.substring(0, 8) || '未知',
+                          count: userABExperimentEventData.events.filter(e => e.eventType === type).length
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                          <XAxis dataKey="name" tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                          <YAxis tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                              border: 'none', 
+                              borderRadius: '8px',
+                              color: isDark ? '#f3f4f6' : '#1f2937'
+                            }} 
+                          />
+                          <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    {userABExperimentEventData.events.length > 0 && (
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>最近事件</p>
+                        {userABExperimentEventData.events.slice(0, 5).map((event, index) => (
+                          <div key={index} className={`flex items-center justify-between p-2 rounded ${isDark ? 'bg-gray-600/30' : 'bg-white'}`}>
+                            <div>
+                              <p className="text-sm font-medium">{event.eventType}</p>
+                              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                实验: {event.experimentName || '未命名'}
+                              </p>
+                            </div>
+                            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                              {new Date(event.createdAt).toLocaleString('zh-CN')}
                             </span>
                           </div>
                         ))}
@@ -8528,6 +8991,69 @@ export default function DataAnalytics() {
                             }} 
                           />
                         </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* 新内容提升池 */}
+                {userBoostPoolData.totalBoosts > 0 && (
+                  <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
+                    <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                      <Rocket className="w-4 h-4 text-orange-500" />
+                      新内容提升池 ({userBoostPoolData.totalBoosts})
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总提升</p>
+                        <p className="text-lg font-bold text-orange-500">{userBoostPoolData.totalBoosts}</p>
+                      </div>
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>进行中</p>
+                        <p className="text-lg font-bold text-green-500">{userBoostPoolData.activeBoosts}</p>
+                      </div>
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>已过期</p>
+                        <p className="text-lg font-bold text-gray-500">{userBoostPoolData.expiredBoosts}</p>
+                      </div>
+                      <div className={`${isDark ? 'bg-gray-600/50' : 'bg-white'} rounded-lg p-3 text-center`}>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>总曝光</p>
+                        <p className="text-lg font-bold text-blue-500">{userBoostPoolData.totalExposure}</p>
+                      </div>
+                    </div>
+                    
+                    {/* 提升池状态分布饼图 */}
+                    <div className="h-48 mt-4">
+                      <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>提升状态分布</p>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: '进行中', value: userBoostPoolData.activeBoosts },
+                              { name: '已过期', value: userBoostPoolData.expiredBoosts },
+                              { name: '其他', value: Math.max(0, userBoostPoolData.totalBoosts - userBoostPoolData.activeBoosts - userBoostPoolData.expiredBoosts) },
+                            ].filter(d => d.value > 0)}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={40}
+                            outerRadius={70}
+                            paddingAngle={5}
+                            dataKey="value"
+                            label={({ name, value }) => `${name}: ${value}`}
+                          >
+                            <Cell fill="#10b981" />
+                            <Cell fill="#6b7280" />
+                            <Cell fill="#f59e0b" />
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                              border: 'none', 
+                              borderRadius: '8px',
+                              color: isDark ? '#f3f4f6' : '#1f2937'
+                            }} 
+                          />
+                        </PieChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
@@ -10048,6 +10574,132 @@ export default function DataAnalytics() {
                     </div>
                   )}
                 </div>
+
+                {/* 作品表现分析图表 */}
+                {userWorks.length > 0 && (
+                  <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4 mb-6`}>
+                    <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-purple-500" />
+                      作品表现分析
+                    </h4>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* 作品互动分布柱状图 */}
+                      <div className="h-64">
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Top 10 作品互动对比</p>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart 
+                            data={[...userWorks]
+                              .sort((a, b) => (b.view_count + b.likes * 10 + b.comments_count * 20) - (a.view_count + a.likes * 10 + a.comments_count * 20))
+                              .slice(0, 10)
+                              .map((work, index) => ({
+                                name: work.title.substring(0, 8) || `作品${index + 1}`,
+                                浏览量: work.view_count,
+                                点赞数: work.likes,
+                                评论数: work.comments_count,
+                              }))}
+                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                            <XAxis dataKey="name" tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
+                            <YAxis tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                                border: 'none', 
+                                borderRadius: '8px',
+                                color: isDark ? '#f3f4f6' : '#1f2937'
+                              }} 
+                            />
+                            <Legend />
+                            <Bar dataKey="浏览量" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="点赞数" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="评论数" fill="#10b981" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* 作品表现雷达图 */}
+                      <div className="h-64">
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>作品综合表现评估</p>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={[
+                            { subject: '总浏览量', A: Math.min(100, (userWorks.reduce((sum, w) => sum + w.view_count, 0) / Math.max(1, userWorks.length)) / 100), fullMark: 100 },
+                            { subject: '总点赞数', A: Math.min(100, (userWorks.reduce((sum, w) => sum + w.likes, 0) / Math.max(1, userWorks.length)) * 2), fullMark: 100 },
+                            { subject: '总评论数', A: Math.min(100, (userWorks.reduce((sum, w) => sum + w.comments_count, 0) / Math.max(1, userWorks.length)) * 10), fullMark: 100 },
+                            { subject: '作品数量', A: Math.min(100, userWorks.length * 5), fullMark: 100 },
+                            { subject: '互动率', A: Math.min(100, userStats.engagementRate * 5), fullMark: 100 },
+                            { subject: '平均质量', A: userContentQualityData.totalAssessments > 0 ? userContentQualityData.avgOverallScore : 50, fullMark: 100 },
+                          ]}>
+                            <PolarGrid stroke={isDark ? '#374151' : '#e5e7eb'} />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                            <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 8 }} />
+                            <Radar
+                              name="作品表现"
+                              dataKey="A"
+                              stroke="#8b5cf6"
+                              fill="#8b5cf6"
+                              fillOpacity={0.3}
+                            />
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                                border: 'none', 
+                                borderRadius: '8px',
+                                color: isDark ? '#f3f4f6' : '#1f2937'
+                              }} 
+                              formatter={(value: number) => `${value.toFixed(1)}分`}
+                            />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* 作品发布时间分布 */}
+                      <div className="h-48 lg:col-span-2">
+                        <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>作品发布时间分布（最近30天）</p>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart 
+                            data={(() => {
+                              const days = 30;
+                              const data = [];
+                              const now = new Date();
+                              for (let i = days - 1; i >= 0; i--) {
+                                const date = new Date(now);
+                                date.setDate(date.getDate() - i);
+                                const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+                                const count = userWorks.filter(w => {
+                                  const workDate = new Date(w.created_at);
+                                  return workDate.toDateString() === date.toDateString();
+                                }).length;
+                                data.push({ date: dateStr, 作品数: count });
+                              }
+                              return data;
+                            })()}
+                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                          >
+                            <defs>
+                              <linearGradient id="worksPublishGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                            <XAxis dataKey="date" tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} interval={4} />
+                            <YAxis tick={{ fill: isDark ? '#9ca3af' : '#4b5563', fontSize: 10 }} />
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: isDark ? '#1f2937' : '#ffffff', 
+                                border: 'none', 
+                                borderRadius: '8px',
+                                color: isDark ? '#f3f4f6' : '#1f2937'
+                              }} 
+                            />
+                            <Area type="monotone" dataKey="作品数" stroke="#8b5cf6" fillOpacity={1} fill="url(#worksPublishGradient)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* 用户作品列表 */}
                 <div className={`${isDark ? 'bg-gray-700/30' : 'bg-gray-50'} rounded-xl p-4`}>

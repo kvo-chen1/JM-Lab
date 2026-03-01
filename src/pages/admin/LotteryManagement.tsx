@@ -65,6 +65,11 @@ import {
   Percent,
   Coins,
   Package,
+  Award,
+  Save,
+  GripVertical,
+  RefreshCw,
+  Upload,
 } from 'lucide-react';
 
 // 状态颜色映射
@@ -85,13 +90,29 @@ const statusLabels: Record<LotteryStatus, string> = {
 // 图表颜色
 const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
+// 转盘颜色配置
+const WHEEL_COLORS = [
+  { color: '#EF4444', textColor: '#FFFFFF' },
+  { color: '#F97316', textColor: '#FFFFFF' },
+  { color: '#EAB308', textColor: '#FFFFFF' },
+  { color: '#22C55E', textColor: '#FFFFFF' },
+  { color: '#3B82F6', textColor: '#FFFFFF' },
+  { color: '#A855F7', textColor: '#FFFFFF' },
+  { color: '#EC4899', textColor: '#FFFFFF' },
+  { color: '#DC2626', textColor: '#FFFFFF' },
+  { color: '#14B8A6', textColor: '#FFFFFF' },
+  { color: '#F59E0B', textColor: '#FFFFFF' },
+  { color: '#6366F1', textColor: '#FFFFFF' },
+  { color: '#84CC16', textColor: '#FFFFFF' },
+];
+
 export default function LotteryManagement() {
   const { isDark } = useTheme();
   const { user } = useContext(AuthContext);
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   // 标签页状态
-  const [activeTab, setActiveTab] = useState<'activities' | 'records' | 'statistics'>('activities');
+  const [activeTab, setActiveTab] = useState<'activities' | 'records' | 'statistics' | 'prizes'>('activities');
 
   // 活动列表状态
   const [activities, setActivities] = useState<LotteryActivity[]>([]);
@@ -126,6 +147,15 @@ export default function LotteryManagement() {
   const [statistics, setStatistics] = useState<LotteryStatistics | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsActivityId, setStatsActivityId] = useState('');
+
+  // 奖品管理状态
+  const [prizeManagementActivity, setPrizeManagementActivity] = useState<LotteryActivity | null>(null);
+  const [editingPrizes, setEditingPrizes] = useState<LotteryPrize[]>([]);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [savingPrizes, setSavingPrizes] = useState(false);
+  const [showPrizeModal, setShowPrizeModal] = useState(false);
+  const [editingPrize, setEditingPrize] = useState<LotteryPrize | null>(null);
+  const [editingPrizeIndex, setEditingPrizeIndex] = useState<number | null>(null);
 
   // 加载活动列表
   const loadActivities = useCallback(async () => {
@@ -227,6 +257,137 @@ export default function LotteryManagement() {
       console.error('更新状态失败:', error);
       toast.error('更新状态失败');
     }
+  };
+
+  // ========== 奖品管理方法 ==========
+
+  // 进入奖品管理
+  const handleEnterPrizeManagement = (activity: LotteryActivity) => {
+    setPrizeManagementActivity(activity);
+    setEditingPrizes([...activity.prizes]);
+    setActiveTab('prizes');
+  };
+
+  // 返回活动列表
+  const handleBackFromPrizeManagement = () => {
+    setPrizeManagementActivity(null);
+    setEditingPrizes([]);
+    setActiveTab('activities');
+  };
+
+  // 添加奖品
+  const handleAddPrize = () => {
+    const newPrize: LotteryPrize = {
+      id: `temp-${Date.now()}`,
+      name: '',
+      description: '',
+      probability: 0,
+      points: 0,
+      stock: -1,
+      sortOrder: editingPrizes.length,
+      isEnabled: true,
+      isRare: false,
+    };
+    setEditingPrize(newPrize);
+    setEditingPrizeIndex(null);
+    setShowPrizeModal(true);
+  };
+
+  // 编辑奖品
+  const handleEditPrize = (prize: LotteryPrize, index: number) => {
+    setEditingPrize({ ...prize });
+    setEditingPrizeIndex(index);
+    setShowPrizeModal(true);
+  };
+
+  // 删除奖品
+  const handleDeletePrize = (index: number) => {
+    if (!confirm('确定要删除这个奖品吗？')) return;
+    const newPrizes = editingPrizes.filter((_, i) => i !== index);
+    newPrizes.forEach((prize, i) => {
+      prize.sortOrder = i;
+    });
+    setEditingPrizes(newPrizes);
+    toast.success('奖品已删除');
+  };
+
+  // 保存奖品编辑
+  const handleSavePrize = () => {
+    if (!editingPrize) return;
+
+    if (!editingPrize.name.trim()) {
+      toast.error('请输入奖品名称');
+      return;
+    }
+
+    if (editingPrizeIndex !== null) {
+      const newPrizes = [...editingPrizes];
+      newPrizes[editingPrizeIndex] = editingPrize;
+      setEditingPrizes(newPrizes);
+    } else {
+      setEditingPrizes([...editingPrizes, editingPrize]);
+    }
+
+    setShowPrizeModal(false);
+    setEditingPrize(null);
+    setEditingPrizeIndex(null);
+    toast.success('奖品已保存');
+  };
+
+  // 保存所有奖品配置
+  const handleSaveAllPrizes = async () => {
+    if (!prizeManagementActivity) return;
+
+    const totalProb = editingPrizes.reduce((sum, p) => sum + p.probability, 0);
+    if (Math.abs(totalProb - 1) > 0.001) {
+      toast.error(`奖品总概率必须等于100%，当前为${(totalProb * 100).toFixed(1)}%`);
+      return;
+    }
+
+    if (editingPrizes.length < 2) {
+      toast.error('至少需要2个奖品');
+      return;
+    }
+
+    setSavingPrizes(true);
+    try {
+      await lotteryAdminService.updateActivity(prizeManagementActivity.id, {
+        prizes: editingPrizes,
+      });
+      toast.success('奖品配置保存成功');
+      loadActivities();
+    } catch (error) {
+      console.error('保存奖品配置失败:', error);
+      toast.error('保存失败');
+    } finally {
+      setSavingPrizes(false);
+    }
+  };
+
+  // 拖拽排序
+  const handleDragStart = (index: number) => {
+    setDraggingIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggingIndex === null || draggingIndex === index) return;
+
+    const newPrizes = [...editingPrizes];
+    const draggedPrize = newPrizes[draggingIndex];
+    newPrizes.splice(draggingIndex, 1);
+    newPrizes.splice(index, 0, draggedPrize);
+
+    newPrizes.forEach((prize, i) => {
+      prize.sortOrder = i;
+    });
+
+    setEditingPrizes(newPrizes);
+    setDraggingIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingIndex(null);
   };
 
   // 导出记录
@@ -444,6 +605,14 @@ export default function LotteryManagement() {
                             <Trash2 className="w-4 h-4" />
                           </button>
                         )}
+                        {/* 管理奖品按钮 */}
+                        <button
+                          onClick={() => handleEnterPrizeManagement(activity)}
+                          className="p-1 hover:bg-purple-100 dark:hover:bg-purple-900 text-purple-600 rounded transition-colors"
+                          title="管理奖品"
+                        >
+                          <Award className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -483,8 +652,62 @@ export default function LotteryManagement() {
   );
 
   // 渲染抽奖记录
-  const renderSpinRecords = () => (
-    <div className="space-y-4">
+  const renderSpinRecords = () => {
+    // 计算图表数据
+    const prizeDistribution = useMemo(() => {
+      const distribution: Record<string, { name: string; count: number; totalValue: number }> = {};
+      spinRecords.forEach((record) => {
+        if (!distribution[record.prizeName]) {
+          distribution[record.prizeName] = { name: record.prizeName, count: 0, totalValue: 0 };
+        }
+        distribution[record.prizeName].count += 1;
+        distribution[record.prizeName].totalValue += record.prizePoints;
+      });
+      return Object.values(distribution).sort((a, b) => b.count - a.count).slice(0, 8);
+    }, [spinRecords]);
+
+    const hourlyDistribution = useMemo(() => {
+      const hours = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
+      spinRecords.forEach((record) => {
+        const hour = new Date(record.spinTime).getHours();
+        hours[hour].count += 1;
+      });
+      return hours;
+    }, [spinRecords]);
+
+    const userSpinFrequency = useMemo(() => {
+      const userCounts: Record<string, number> = {};
+      spinRecords.forEach((record) => {
+        userCounts[record.userId] = (userCounts[record.userId] || 0) + 1;
+      });
+      const frequency: Record<string, number> = { '1次': 0, '2-3次': 0, '4-5次': 0, '6-10次': 0, '10次以上': 0 };
+      Object.values(userCounts).forEach((count) => {
+        if (count === 1) frequency['1次'] += 1;
+        else if (count <= 3) frequency['2-3次'] += 1;
+        else if (count <= 5) frequency['4-5次'] += 1;
+        else if (count <= 10) frequency['6-10次'] += 1;
+        else frequency['10次以上'] += 1;
+      });
+      return Object.entries(frequency).map(([name, value]) => ({ name, value }));
+    }, [spinRecords]);
+
+    const valueDistribution = useMemo(() => {
+      const ranges = [
+        { name: '0-100', min: 0, max: 100, count: 0 },
+        { name: '101-500', min: 101, max: 500, count: 0 },
+        { name: '501-1000', min: 501, max: 1000, count: 0 },
+        { name: '1001-5000', min: 1001, max: 5000, count: 0 },
+        { name: '5000+', min: 5001, max: Infinity, count: 0 },
+      ];
+      spinRecords.forEach((record) => {
+        const range = ranges.find((r) => record.prizePoints >= r.min && record.prizePoints <= r.max);
+        if (range) range.count += 1;
+      });
+      return ranges.map((r) => ({ name: r.name, count: r.count }));
+    }, [spinRecords]);
+
+    return (
+    <div className="space-y-6">
       {/* 筛选栏 */}
       <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
         <div className="flex flex-wrap gap-4">
@@ -533,6 +756,138 @@ export default function LotteryManagement() {
           </button>
         </div>
       </div>
+
+      {/* 数据图表 */}
+      {!recordsLoading && spinRecords.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* 热门奖品分布 */}
+          <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <PieChartIcon className="w-5 h-5" />
+              热门奖品分布
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={prizeDistribution}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="count"
+                    nameKey="name"
+                  >
+                    {prizeDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                      border: `1px solid ${isDark ? '#374151' : '#E5E7EB'}`,
+                      borderRadius: '8px',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* 用户抽奖频次分布 */}
+          <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              用户抽奖频次分布
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={userSpinFrequency}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {userSpinFrequency.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                      border: `1px solid ${isDark ? '#374151' : '#E5E7EB'}`,
+                      borderRadius: '8px',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* 24小时抽奖分布 */}
+          <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              24小时抽奖分布
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={hourlyDistribution}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#E5E7EB'} />
+                  <XAxis
+                    dataKey="hour"
+                    tickFormatter={(value) => `${value}:00`}
+                    stroke={isDark ? '#9CA3AF' : '#6B7280'}
+                  />
+                  <YAxis stroke={isDark ? '#9CA3AF' : '#6B7280'} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                      border: `1px solid ${isDark ? '#374151' : '#E5E7EB'}`,
+                      borderRadius: '8px',
+                    }}
+                    labelFormatter={(value) => `${value}:00 - ${value}:59`}
+                  />
+                  <Bar dataKey="count" name="抽奖次数" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* 奖品价值分布 */}
+          <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              奖品价值分布
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={valueDistribution}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#E5E7EB'} />
+                  <XAxis dataKey="name" stroke={isDark ? '#9CA3AF' : '#6B7280'} />
+                  <YAxis stroke={isDark ? '#9CA3AF' : '#6B7280'} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                      border: `1px solid ${isDark ? '#374151' : '#E5E7EB'}`,
+                      borderRadius: '8px',
+                    }}
+                  />
+                  <Bar dataKey="count" name="中奖次数" fill="#10B981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 记录表格 */}
       <div className={`rounded-xl overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
@@ -612,6 +967,7 @@ export default function LotteryManagement() {
       </div>
     </div>
   );
+  };
 
   // 渲染统计页面
   const renderStatistics = () => (
@@ -815,6 +1171,470 @@ export default function LotteryManagement() {
     </div>
   );
 
+  // 渲染奖品管理
+  const renderPrizeManagement = () => {
+    if (!prizeManagementActivity) return null;
+
+    const totalProbability = editingPrizes.reduce((sum, p) => sum + p.probability, 0);
+    const isProbabilityValid = Math.abs(totalProbability - 1) < 0.001;
+
+    return (
+      <div className="space-y-6">
+        {/* 头部导航 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleBackFromPrizeManagement}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                isDark
+                  ? 'bg-gray-800 hover:bg-gray-700 text-white'
+                  : 'bg-white hover:bg-gray-100 text-gray-900'
+              }`}
+            >
+              返回活动列表
+            </button>
+            <div>
+              <h2 className="text-2xl font-bold">{prizeManagementActivity.name}</h2>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                管理转盘奖品配置
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleAddPrize}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              添加奖品
+            </button>
+            <button
+              onClick={handleSaveAllPrizes}
+              disabled={savingPrizes || !isProbabilityValid}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingPrizes ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              保存配置
+            </button>
+          </div>
+        </div>
+
+        {/* 概率校验提示 */}
+        <div
+          className={`p-4 rounded-xl ${
+            isProbabilityValid
+              ? 'bg-green-100 dark:bg-green-900/30'
+              : 'bg-red-100 dark:bg-red-900/30'
+          }`}
+        >
+          <div
+            className={`flex items-center gap-2 ${
+              isProbabilityValid
+                ? 'text-green-700 dark:text-green-400'
+                : 'text-red-700 dark:text-red-400'
+            }`}
+          >
+            {isProbabilityValid ? (
+              <Check className="w-5 h-5" />
+            ) : (
+              <AlertCircle className="w-5 h-5" />
+            )}
+            <span className="font-medium">
+              总概率: {(totalProbability * 100).toFixed(1)}%
+              {isProbabilityValid
+                ? ' (有效)'
+                : ` (需调整 ${((1 - totalProbability) * 100).toFixed(1)}%)`}
+            </span>
+          </div>
+        </div>
+
+        {/* 转盘预览 */}
+        <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            转盘预览
+          </h3>
+          <div className="flex justify-center">
+            <div className="relative w-80 h-80">
+              <svg viewBox="0 0 200 200" className="w-full h-full">
+                {editingPrizes.map((prize, index) => {
+                  const angle = (360 / editingPrizes.length) * index;
+                  const nextAngle = (360 / editingPrizes.length) * (index + 1);
+                  const colorConfig = WHEEL_COLORS[index % WHEEL_COLORS.length];
+
+                  const startAngle = (angle - 90) * (Math.PI / 180);
+                  const endAngle = (nextAngle - 90) * (Math.PI / 180);
+                  const x1 = 100 + 80 * Math.cos(startAngle);
+                  const y1 = 100 + 80 * Math.sin(startAngle);
+                  const x2 = 100 + 80 * Math.cos(endAngle);
+                  const y2 = 100 + 80 * Math.sin(endAngle);
+
+                  const pathData = `M 100 100 L ${x1} ${y1} A 80 80 0 0 1 ${x2} ${y2} Z`;
+
+                  const textAngle = (angle + nextAngle) / 2 - 90;
+                  const textRadius = 60;
+                  const textX = 100 + textRadius * Math.cos(textAngle * (Math.PI / 180));
+                  const textY = 100 + textRadius * Math.sin(textAngle * (Math.PI / 180));
+
+                  return (
+                    <g key={prize.id}>
+                      <path d={pathData} fill={colorConfig.color} stroke="white" strokeWidth="2" />
+                      <text
+                        x={textX}
+                        y={textY}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill={colorConfig.textColor}
+                        fontSize="8"
+                        fontWeight="bold"
+                      >
+                        {prize.name.slice(0, 4)}
+                      </text>
+                    </g>
+                  );
+                })}
+                <circle cx="100" cy="100" r="20" fill={isDark ? '#374151' : '#F3F4F6'} stroke="white" strokeWidth="2" />
+              </svg>
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2">
+                <div className="w-0 h-0 border-l-8 border-r-8 border-t-12 border-l-transparent border-r-transparent border-t-red-500" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 奖品概率分布 */}
+        {editingPrizes.length > 0 && (
+          <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <PieChartIcon className="w-5 h-5" />
+              奖品概率分布
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={editingPrizes.map((prize, index) => ({
+                      name: prize.name || `奖品${index + 1}`,
+                      value: prize.probability,
+                      color: WHEEL_COLORS[index % WHEEL_COLORS.length].color
+                    }))}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
+                    outerRadius={80}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {editingPrizes.map((prize, index) => (
+                      <Cell key={`cell-${index}`} fill={WHEEL_COLORS[index % WHEEL_COLORS.length].color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                      border: `1px solid ${isDark ? '#374151' : '#E5E7EB'}`,
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value: number) => `${(value * 100).toFixed(2)}%`}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* 奖品列表 */}
+        <div className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Package className="w-5 h-5" />
+            奖品列表 ({editingPrizes.length}个)
+          </h3>
+
+          {editingPrizes.length === 0 ? (
+            <div className="text-center py-12">
+              <Package className={`w-16 h-16 mx-auto mb-4 ${isDark ? 'text-gray-600' : 'text-gray-300'}`} />
+              <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>暂无奖品，请点击"添加奖品"</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {editingPrizes.map((prize, index) => {
+                const colorConfig = WHEEL_COLORS[index % WHEEL_COLORS.length];
+                return (
+                  <motion.div
+                    key={prize.id}
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`p-4 rounded-xl ${
+                      isDark ? 'bg-gray-700' : 'bg-gray-50'
+                    } flex items-center gap-4 cursor-move hover:shadow-md transition-shadow`}
+                  >
+                    <div className="text-gray-400 hover:text-gray-600">
+                      <GripVertical className="w-5 h-5" />
+                    </div>
+
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                      style={{ backgroundColor: colorConfig.color }}
+                    >
+                      {index + 1}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium truncate">{prize.name || '未命名奖品'}</span>
+                        {prize.isRare && (
+                          <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 text-xs rounded-full">
+                            稀有
+                          </span>
+                        )}
+                        {!prize.isEnabled && (
+                          <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-400 text-xs rounded-full">
+                            禁用
+                          </span>
+                        )}
+                      </div>
+                      <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-4 mt-1`}>
+                        <span className="flex items-center gap-1">
+                          <Coins className="w-3 h-3" />
+                          {prize.points} 积分
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Percent className="w-3 h-3" />
+                          {(prize.probability * 100).toFixed(1)}%
+                        </span>
+                        <span>库存: {prize.stock === -1 ? '无限' : prize.stock}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditPrize(prize, index)}
+                        className="p-2 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 rounded-lg transition-colors"
+                        title="编辑"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeletePrize(index)}
+                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 rounded-lg transition-colors"
+                        title="删除"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // 渲染奖品编辑弹窗
+  const renderPrizeModal = () => {
+    if (!showPrizeModal || !editingPrize) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className={`w-full max-w-lg rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
+        >
+          <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+            <h3 className="text-xl font-bold">
+              {editingPrizeIndex !== null ? '编辑奖品' : '添加奖品'}
+            </h3>
+            <button
+              onClick={() => setShowPrizeModal(false)}
+              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">奖品名称 *</label>
+              <input
+                type="text"
+                value={editingPrize.name}
+                onChange={(e) => setEditingPrize({ ...editingPrize, name: e.target.value })}
+                placeholder="例如：10元红包"
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  isDark
+                    ? 'bg-gray-700 border-gray-600 text-white'
+                    : 'bg-white border-gray-200 text-gray-900'
+                } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">奖品描述</label>
+              <input
+                type="text"
+                value={editingPrize.description || ''}
+                onChange={(e) => setEditingPrize({ ...editingPrize, description: e.target.value })}
+                placeholder="奖品详细描述"
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  isDark
+                    ? 'bg-gray-700 border-gray-600 text-white'
+                    : 'bg-white border-gray-200 text-gray-900'
+                } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">积分价值</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editingPrize.points}
+                  onChange={(e) => setEditingPrize({ ...editingPrize, points: parseInt(e.target.value) || 0 })}
+                  className={`w-full px-4 py-2 rounded-lg border ${
+                    isDark
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">概率 (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={(editingPrize.probability * 100).toFixed(1)}
+                  onChange={(e) =>
+                    setEditingPrize({
+                      ...editingPrize,
+                      probability: parseFloat(e.target.value) / 100 || 0,
+                    })
+                  }
+                  className={`w-full px-4 py-2 rounded-lg border ${
+                    isDark
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">库存 (-1为无限)</label>
+                <input
+                  type="number"
+                  min={-1}
+                  value={editingPrize.stock}
+                  onChange={(e) => setEditingPrize({ ...editingPrize, stock: parseInt(e.target.value) || -1 })}
+                  className={`w-full px-4 py-2 rounded-lg border ${
+                    isDark
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">排序</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editingPrize.sortOrder}
+                  onChange={(e) =>
+                    setEditingPrize({ ...editingPrize, sortOrder: parseInt(e.target.value) || 0 })
+                  }
+                  className={`w-full px-4 py-2 rounded-lg border ${
+                    isDark
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">奖品图片URL</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={editingPrize.imageUrl || ''}
+                  onChange={(e) => setEditingPrize({ ...editingPrize, imageUrl: e.target.value })}
+                  placeholder="图片链接地址"
+                  className={`flex-1 px-4 py-2 rounded-lg border ${
+                    isDark
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+                <button className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                  <Upload className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingPrize.isEnabled}
+                  onChange={(e) => setEditingPrize({ ...editingPrize, isEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm">启用</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingPrize.isRare}
+                  onChange={(e) => setEditingPrize({ ...editingPrize, isRare: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                <span className="text-sm">稀有奖品</span>
+              </label>
+            </div>
+          </div>
+
+          <div className={`px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'} flex justify-end gap-3`}>
+            <button
+              onClick={() => setShowPrizeModal(false)}
+              className={`px-4 py-2 rounded-lg border ${
+                isDark
+                  ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+              } transition-colors`}
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSavePrize}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              保存
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
   // 渲染活动详情弹窗
   const renderActivityDetailModal = () => {
     if (!showActivityDetail || !selectedActivity) return null;
@@ -979,10 +1799,10 @@ export default function LotteryManagement() {
       spinCost: editingActivity?.spinCost || 10,
       maxSpinsPerUser: editingActivity?.maxSpinsPerUser || -1,
       prizes: editingActivity?.prizes || [
-        { id: '1', name: '谢谢参与', points: 0, probability: 0.3, stock: -1, isRare: false },
-        { id: '2', name: '小奖', points: 10, probability: 0.4, stock: 1000, isRare: false },
-        { id: '3', name: '大奖', points: 100, probability: 0.2, stock: 100, isRare: false },
-        { id: '4', name: '特等奖', points: 1000, probability: 0.1, stock: 10, isRare: true },
+        { id: '1', name: '谢谢参与', points: 0, probability: 0.3, stock: -1, isRare: false, sortOrder: 0, isEnabled: true },
+        { id: '2', name: '小奖', points: 10, probability: 0.4, stock: 1000, isRare: false, sortOrder: 1, isEnabled: true },
+        { id: '3', name: '大奖', points: 100, probability: 0.2, stock: 100, isRare: false, sortOrder: 2, isEnabled: true },
+        { id: '4', name: '特等奖', points: 1000, probability: 0.1, stock: 10, isRare: true, sortOrder: 3, isEnabled: true },
       ],
     });
 
@@ -993,7 +1813,7 @@ export default function LotteryManagement() {
         ...formData,
         prizes: [
           ...formData.prizes,
-          { id: Date.now().toString(), name: '', points: 0, probability: 0, stock: -1, isRare: false },
+          { id: Date.now().toString(), name: '', points: 0, probability: 0, stock: -1, isRare: false, sortOrder: formData.prizes.length, isEnabled: true },
         ],
       });
     };
@@ -1036,7 +1856,7 @@ export default function LotteryManagement() {
           await lotteryAdminService.updateActivity(editingActivity.id, formData);
           toast.success('活动更新成功');
         } else {
-          await lotteryAdminService.createActivity(formData);
+          await lotteryAdminService.createActivity(formData, user?.id || '');
           toast.success('活动创建成功');
         }
         setShowActivityForm(false);
@@ -1322,7 +2142,7 @@ export default function LotteryManagement() {
 
         {/* 标签页 */}
         <div className="mb-6">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {[
               { key: 'activities', label: '活动列表', icon: Gift },
               { key: 'records', label: '抽奖记录', icon: Activity },
@@ -1358,6 +2178,7 @@ export default function LotteryManagement() {
             {activeTab === 'activities' && renderActivitiesList()}
             {activeTab === 'records' && renderSpinRecords()}
             {activeTab === 'statistics' && renderStatistics()}
+            {activeTab === 'prizes' && renderPrizeManagement()}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -1366,6 +2187,7 @@ export default function LotteryManagement() {
       <AnimatePresence>
         {showActivityDetail && renderActivityDetailModal()}
         {showActivityForm && renderActivityFormModal()}
+        {showPrizeModal && renderPrizeModal()}
       </AnimatePresence>
     </div>
   );

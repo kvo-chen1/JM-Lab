@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { MentionSelector } from './MentionSelector';
 import { mentionService, CommunityMember } from '@/services/mentionService';
 
 export interface MentionInputRef {
@@ -24,8 +23,6 @@ interface MentionInputProps {
   maxLength?: number;
   className?: string;
   rows?: number;
-  selectorPosition?: 'cursor' | 'below' | 'modal-right';
-  modalRef?: React.RefObject<HTMLElement>;
 }
 
 export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
@@ -40,15 +37,10 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
       maxLength,
       className = '',
       rows = 4,
-      selectorPosition: selectorPositionType = 'below',
-      modalRef,
     },
     ref
   ) => {
     const [content, setContent] = useState(initialContent);
-    const [isMentionSelectorOpen, setIsMentionSelectorOpen] = useState(false);
-    const [mentionSearchQuery, setMentionSearchQuery] = useState('');
-    const [selectorPosition, setSelectorPosition] = useState({ top: 0, left: 0 });
     const [mentionedUsers, setMentionedUsers] = useState<Map<string, CommunityMember>>(new Map());
     
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -96,64 +88,11 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
       setContent(newContent);
       onChange?.(newContent);
 
-      // 检查是否触发了@提及
+      // 检查是否触发了@提及 - 只记录日志，不显示选择器（由父组件控制）
       const cursorPosition = e.target.selectionStart;
       const query = mentionService.getCurrentMentionQuery(newContent, cursorPosition);
 
       console.log('[MentionInput] Input changed:', newContent, 'Cursor:', cursorPosition, 'Query:', query);
-
-      if (query !== null) {
-        console.log('[MentionInput] Opening mention selector');
-        // 计算选择器位置
-        updateSelectorPosition();
-        setMentionSearchQuery(query);
-        setIsMentionSelectorOpen(true);
-      } else {
-        setIsMentionSelectorOpen(false);
-      }
-    };
-
-    // 更新选择器位置
-    const updateSelectorPosition = () => {
-      const textarea = textareaRef.current;
-      const container = containerRef.current;
-      if (!textarea || !container) {
-        console.log('[MentionInput] Textarea or container ref is null');
-        return;
-      }
-
-      let newPosition = { top: 0, left: 0 };
-
-      if (selectorPositionType === 'modal-right') {
-        // 显示在模态框右侧 - 查找模态框元素
-        const modalElement = document.querySelector('[class*="max-w-lg"], [class*="max-w-2xl"], [class*="max-w-4xl"]');
-        if (modalElement) {
-          const modalRect = modalElement.getBoundingClientRect();
-          newPosition = {
-            top: modalRect.top + 150, // 模态框顶部下方150px
-            left: modalRect.right + 10, // 模态框右侧10px
-          };
-          console.log('[MentionInput] Modal found, position:', modalRect);
-        } else {
-          console.log('[MentionInput] Modal element not found, using textarea position');
-          // 如果找不到模态框，使用输入框位置
-          const textareaRect = textarea.getBoundingClientRect();
-          newPosition = {
-            top: textareaRect.bottom + window.scrollY,
-            left: textareaRect.left + window.scrollX,
-          };
-        }
-      } else {
-        // 默认显示在输入框下方
-        const textareaRect = textarea.getBoundingClientRect();
-        newPosition = {
-          top: textareaRect.bottom + window.scrollY,
-          left: textareaRect.left + window.scrollX,
-        };
-      }
-      
-      console.log('[MentionInput] Setting selector position:', newPosition, 'type:', selectorPositionType);
-      setSelectorPosition(newPosition);
     };
 
     // 获取光标在textarea中的坐标（相对于视口）
@@ -206,7 +145,6 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
       setContent(newContent);
       onChange?.(newContent);
       setMentionedUsers(prev => new Map(prev).set(member.userId, member));
-      setIsMentionSelectorOpen(false);
       onMentionSelect?.(member);
 
       // 设置新的光标位置
@@ -218,12 +156,7 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
 
     // 处理键盘事件
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // 当@选择器打开时，让选择器处理键盘事件
-      if (isMentionSelectorOpen) {
-        if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
-          return;
-        }
-      }
+      // 键盘事件处理
     };
 
     // 处理粘贴事件
@@ -272,17 +205,6 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
           </div>
         )}
 
-        {/* @提及选择器 - 使用Portal渲染到body */}
-        {isMentionSelectorOpen && (
-          <MentionSelector
-            communityId={communityId}
-            isOpen={isMentionSelectorOpen}
-            searchQuery={mentionSearchQuery}
-            onSelect={handleMemberSelect}
-            onClose={() => setIsMentionSelectorOpen(false)}
-            position={selectorPosition}
-          />
-        )}
       </div>
     );
   }

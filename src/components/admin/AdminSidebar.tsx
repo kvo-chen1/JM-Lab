@@ -50,6 +50,7 @@ const navItems: AdminNavItem[] = [
   { id: 'userAudit', name: '用户审计', icon: 'user-shield', showNotification: true },
   { id: 'creators', name: '创作者管理', icon: 'trophy' },
   { id: 'productManagement', name: '积分商城管理', icon: 'box' },
+  { id: 'lotteryManagement', name: '转盘活动管理', icon: 'dharmachakra' },
   { id: 'paymentAudit', name: '会员支付审核', icon: 'credit-card', showNotification: true },
   { id: 'feedback', name: '反馈管理', icon: 'comments', showNotification: true },
   { id: 'reportManagement', name: '举报管理', icon: 'flag', showNotification: true },
@@ -142,8 +143,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             const analyticsTabs = ['analytics', 'advancedAnalytics'];
             const isAnalyticsTab = analyticsTabs.includes(activeTab);
             const isAnalyticsMenu = item.id === 'analytics';
-            
-            const isActive = activeTab === item.id || 
+
+            const isActive = activeTab === item.id ||
                            (isPromotionTab && isPromotionMenu) ||
                            (isAnalyticsTab && isAnalyticsMenu);
             const notificationState = notifications?.[item.id as NavItemType];
@@ -166,7 +167,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     ${isActive
                       ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
                       : isDark
-                        ? 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                        ? 'text-gray-200 hover:bg-gray-700 hover:text-white'
                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }
                   `}

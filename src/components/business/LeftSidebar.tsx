@@ -1,14 +1,16 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { BrandPartnership } from '@/services/brandPartnershipService';
-import { 
-  Building2, 
-  Handshake, 
-  TrendingUp, 
+import {
+  Building2,
+  Handshake,
+  TrendingUp,
   Sparkles,
   ChevronRight,
   Search,
-  CheckCircle2
+  CheckCircle2,
+  Store
 } from 'lucide-react';
 
 interface LeftSidebarProps {
@@ -35,8 +37,11 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   approvedBrands = [],
   stats
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   // 使用已入驻的品牌数据
-  const displayBrands = approvedBrands.length > 0 
+  const displayBrands = approvedBrands.length > 0
     ? approvedBrands.map(p => ({
         id: p.id,
         name: p.brand_name,
@@ -44,16 +49,24 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       }))
     : [];
 
-  const filteredBrands = displayBrands.filter(b => 
+  const filteredBrands = displayBrands.filter(b =>
     b.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
   ).slice(0, 8);
 
+  const isBusinessPage = location.pathname === '/business' || location.pathname === '/business-cooperation';
+  const isShowcasePage = location.pathname === '/brand-showcase';
+
   const menuItems = [
-    { icon: Building2, label: '品牌入驻', count: stats?.approvedPartnerships || 0, active: true },
-    { icon: Handshake, label: '合作申请', count: partnershipCount, active: false },
-    { icon: TrendingUp, label: '品牌活动', count: stats?.totalEvents || 0, active: false },
-    { icon: Sparkles, label: 'AI创意', count: null, active: false },
+    { icon: Building2, label: '品牌入驻', count: stats?.approvedPartnerships || 0, active: isBusinessPage, path: '/business' },
+    { icon: Store, label: '品牌展示', count: null, active: isShowcasePage, path: '/brand-showcase' },
+    { icon: Handshake, label: '合作申请', count: partnershipCount, active: false, path: '/business' },
+    { icon: TrendingUp, label: '品牌活动', count: stats?.totalEvents || 0, active: false, path: '/business' },
+    { icon: Sparkles, label: 'AI创意', count: null, active: false, path: '/business' },
   ];
+
+  const handleMenuClick = (path: string) => {
+    navigate(path);
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -83,10 +96,11 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.05 }}
+            onClick={() => handleMenuClick(item.path)}
             className={`
               w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group
-              ${item.active 
-                ? (isDark ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'bg-blue-50 text-blue-600 border border-blue-200') 
+              ${item.active
+                ? (isDark ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'bg-blue-50 text-blue-600 border border-blue-200')
                 : (isDark ? 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900')
               }
             `}

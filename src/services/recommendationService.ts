@@ -1217,7 +1217,8 @@ export function getTrendingContent(limit: number = 10): RecommendedItem[] {
       return; // 跳过已删除的作品
     }
     
-    const score = (work.likes * 5) + (work.views * 0.5) + (work.shares * 10) + ((work.comments?.length || 0) * 8);
+    const comments = Array.isArray(work.comments) ? work.comments.length : (work.comments || 0);
+    const score = (work.likes * 5) + (work.views * 0.5) + (work.shares * 10) + (comments * 8);
     
     // 优先使用 thumbnail，如果没有则使用 cover_url
     const thumbnailUrl = work.thumbnail || work.cover_url || work.thumbnailUrl || '';
@@ -1589,8 +1590,8 @@ function calculatePopularity(metadata: any): number {
   const likes = metadata.likes || 0;
   const views = metadata.views || 0;
   const shares = metadata.shares || 0;
-  const comments = metadata.comments?.length || 0;
-  
+  const comments = Array.isArray(metadata.comments) ? metadata.comments.length : (metadata.comments || 0);
+
   // 热度公式：点赞*5 + 浏览*0.5 + 分享*10 + 评论*8
   const score = (likes * 5 + views * 0.5 + shares * 10 + comments * 8) / 1000;
   return Math.min(score, 1);

@@ -17,6 +17,7 @@ interface MentionSelectorProps {
   onSelect: (member: CommunityMember) => void;
   onClose: () => void;
   position?: { top: number; left: number };
+  isDark?: boolean;
 }
 
 export const MentionSelector: React.FC<MentionSelectorProps> = ({
@@ -26,8 +27,12 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
   onSelect,
   onClose,
   position,
+  isDark: propIsDark,
 }) => {
   const [members, setMembers] = useState<CommunityMember[]>([]);
+  
+  // 检测深色模式
+  const isDark = propIsDark ?? document.documentElement.classList.contains('dark');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -149,33 +154,57 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
   left = Math.max(20, left);
   top = Math.max(20, top);
 
+  console.log('[MentionSelector] Rendering with isOpen:', isOpen, 'position:', { top, left });
+
+  if (!isOpen) return null;
+
+  // 使用内联样式确保清晰显示
+  const containerStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: top || 100,
+    left: left || 100,
+    width: '320px',
+    maxHeight: '400px',
+    backgroundColor: '#ffffff',
+    border: '2px solid #3b82f6',
+    borderRadius: '12px',
+    boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+    zIndex: 999999,
+    overflow: 'hidden',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+  };
+
   return (
-    <AnimatePresence>
-      <motion.div
-        ref={containerRef}
-        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-        transition={{ duration: 0.15 }}
-        className="fixed z-[9999] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
-        style={{
-          top,
-          left,
-          minWidth: '280px',
-          maxWidth: '320px',
-        }}
-      >
+    <div
+      ref={containerRef}
+      style={containerStyle}
+    >
         {/* 搜索头部 */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-          <Search className="w-4 h-4 text-gray-400" />
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+        <div 
+          className="flex items-center gap-3 px-5 py-4"
+          style={{
+            backgroundColor: isDark ? '#111827' : '#f3f4f6',
+            borderBottom: `2px solid ${isDark ? '#374151' : '#d1d5db'}`,
+          }}
+        >
+          <Search className="w-5 h-5" style={{ color: isDark ? '#9ca3af' : '#6b7280' }} />
+          <span className="text-base font-semibold" style={{ color: isDark ? '#e5e7eb' : '#374151' }}>
             {searchQuery ? `搜索 "${searchQuery}"` : '选择成员'}
           </span>
           <button
             onClick={onClose}
-            className="ml-auto p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+            className="ml-auto p-2 rounded-lg transition-colors"
+            style={{ 
+              backgroundColor: 'transparent',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = isDark ? '#374151' : '#e5e7eb';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
           >
-            <X className="w-4 h-4 text-gray-400" />
+            <X className="w-5 h-5" style={{ color: isDark ? '#9ca3af' : '#6b7280' }} />
           </button>
         </div>
 
@@ -198,43 +227,54 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
               </p>
             </div>
           ) : (
-            <div className="py-1">
+            <div style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff' }}>
               {members.map((member, index) => (
                 <button
                   key={member.userId}
                   data-index={index}
                   onClick={() => onSelect(member)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                    index === selectedIndex
-                      ? 'bg-blue-50 dark:bg-blue-900/20'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                  className="w-full flex items-center gap-4 px-5 py-4 text-left transition-all duration-150"
+                  style={{
+                    backgroundColor: index === selectedIndex 
+                      ? (isDark ? '#1e40af' : '#dbeafe')
+                      : (isDark ? '#1f2937' : '#ffffff'),
+                  }}
+                  onMouseEnter={(e) => {
+                    setSelectedIndex(index);
+                    if (index !== selectedIndex) {
+                      e.currentTarget.style.backgroundColor = isDark ? '#374151' : '#f3f4f6';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = index === selectedIndex 
+                      ? (isDark ? '#1e40af' : '#dbeafe')
+                      : (isDark ? '#1f2937' : '#ffffff');
+                  }}
                 >
                   <Avatar
                     src={member.avatarUrl}
                     alt={member.username}
-                    size="small"
+                    size="medium"
                   >
                     {member.username[0]?.toUpperCase()}
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    <p className="text-base font-bold truncate" style={{ color: isDark ? '#f9fafb' : '#111827' }}>
                       {member.username}
                     </p>
                     {member.bio && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      <p className="text-sm truncate" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
                         {member.bio}
                       </p>
                     )}
                   </div>
                   {member.memberRole === 'admin' && (
-                    <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
+                    <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ backgroundColor: '#3b82f6', color: '#ffffff' }}>
                       管理员
                     </span>
                   )}
                   {member.memberRole === 'moderator' && (
-                    <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded-full">
+                    <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ backgroundColor: '#22c55e', color: '#ffffff' }}>
                       版主
                     </span>
                   )}
@@ -245,13 +285,18 @@ export const MentionSelector: React.FC<MentionSelectorProps> = ({
         </div>
 
         {/* 底部提示 */}
-        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+        <div 
+          className="px-5 py-4"
+          style={{
+            backgroundColor: isDark ? '#111827' : '#f3f4f6',
+            borderTop: `2px solid ${isDark ? '#374151' : '#d1d5db'}`,
+          }}
+        >
+          <p className="text-sm font-medium" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
             使用 ↑↓ 选择，Enter 确认，Esc 关闭
           </p>
         </div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
   );
 };
 

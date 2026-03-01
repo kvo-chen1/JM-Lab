@@ -358,7 +358,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             videoUrl: videoUrl,
             type: type,
             likes: w.likes || 0,
-            comments: [],
+            comments: Array(w.comment_count || w.comments_count || w.commentsCount || 0).fill(null),
             date: w.date || (w.created_at ? new Date(w.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
             author: {
               id: w.creator_id || w.user_id || w.author_id || w.creator || w.author ||
@@ -390,7 +390,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             rejectionReason: null,
             scheduledPublishDate: null,
             visibility: 'public',
-            commentCount: 0,
+            commentCount: w.comment_count || w.comments_count || w.commentsCount || 0,
             engagementRate: 0,
             trendingScore: 0,
             reach: 0,
@@ -551,7 +551,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             videoUrl: p.video_url || p.videoUrl || undefined,
             type: p.type || 'image',
             likes: p.likes_count || p.likes || 0,
-            comments: [],
+            comments: Array(p.comments_count || p.comment_count || 0).fill(null),
             date: p.created_at ? (typeof p.created_at === 'string' ? p.created_at.split('T')[0] : new Date(p.created_at).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
             author: {
               id: authorData.id,
@@ -618,7 +618,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             videoUrl: p.video_url || p.videoUrl || undefined,
             type: p.type || 'image',
             likes: p.likes_count || 0,
-            comments: [],
+            comments: Array(p.comments_count || p.comment_count || 0).fill(null),
             date: p.created_at ? (typeof p.created_at === 'string' ? p.created_at.split('T')[0] : new Date(p.created_at).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
             author: {
               id: p.author_id || 'unknown',
@@ -725,7 +725,7 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
           videoUrl: w.videoUrl || w.video_url || undefined,
           type: w.type || 'image',
           likes: w.likes || 0,
-          comments: [],
+          comments: Array(commentCount).fill(null),
           date: w.date || (w.created_at ? new Date(w.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
           author: {
             id: w.creator_id || w.user_id || w.author_id || w.creator || w.author ||

@@ -165,9 +165,9 @@ export default function ContentManagement() {
       if (workIds.length > 0) {
         const { data: worksData, error: worksError } = await supabaseAdmin
           .from('works')
-          .select('id, title, thumbnail, cover_url, likes, comments, views, shares')
+          .select('id, title, thumbnail, cover_url, likes, comments, view_count, shares')
           .in('id', workIds);
-        
+
         if (!worksError && worksData) {
           workMap = worksData.reduce((acc: Record<string, any>, work: any) => {
             acc[work.id] = work;
@@ -195,7 +195,7 @@ export default function ContentManagement() {
           // 使用作品的真实互动数据
           likesCount = work.likes || 0;
           commentsCount = work.comments || 0;
-          viewsCount = work.views || 0;
+          viewsCount = work.view_count || 0;
         }
         
         return {

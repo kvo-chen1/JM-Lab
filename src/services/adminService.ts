@@ -435,8 +435,8 @@ class AdminService {
       // 获取累计总浏览量（所有作品的 views 总和）
       const { data: viewsData } = await supabaseAdmin
         .from('works')
-        .select('views');
-      const totalViews = viewsData?.reduce((sum, work) => sum + (work.views || 0), 0) || 0;
+        .select('view_count');
+      const totalViews = viewsData?.reduce((sum, work) => sum + (work.view_count || 0), 0) || 0;
 
       // 获取累计总点赞数（所有作品的 likes 总和）
       const { data: likesData } = await supabaseAdmin
@@ -473,17 +473,17 @@ class AdminService {
       // 获取当前时间段新增浏览量
       const { data: currentViewsData } = await supabaseAdmin
         .from('works')
-        .select('views')
+        .select('view_count')
         .gte('created_at', startDate.toISOString());
-      const currentViews = currentViewsData?.reduce((sum, work) => sum + (work.views || 0), 0) || 0;
+      const currentViews = currentViewsData?.reduce((sum, work) => sum + (work.view_count || 0), 0) || 0;
 
       // 获取上一时间段新增浏览量
       const { data: prevViewsData } = await supabaseAdmin
         .from('works')
-        .select('views')
+        .select('view_count')
         .gte('created_at', prevStartDate.toISOString())
         .lt('created_at', startDate.toISOString());
-      const prevViews = prevViewsData?.reduce((sum, work) => sum + (work.views || 0), 0) || 0;
+      const prevViews = prevViewsData?.reduce((sum, work) => sum + (work.view_count || 0), 0) || 0;
 
       // 获取当前时间段新增点赞数
       const { data: currentLikesData } = await supabaseAdmin
@@ -594,7 +594,7 @@ class AdminService {
       } else if (metric === 'works') {
         const { data } = await supabaseAdmin
           .from('works')
-          .select('created_at, views, likes')
+          .select('created_at, view_count, likes')
           .order('created_at', { ascending: true });
         rawData = data || [];
       } else if (metric === 'views' || metric === 'likes') {
@@ -628,7 +628,7 @@ class AdminService {
         // 注意：这里统计的是每日新增作品的 views/likes 总和，不是真实的每日浏览/点赞数
         const { data: worksData } = await supabaseAdmin
           .from('works')
-          .select('created_at, views, likes')
+          .select('created_at, view_count, likes')
           .order('created_at', { ascending: true });
         rawData = worksData || [];
       }
@@ -656,9 +656,9 @@ class AdminService {
             if (metric === 'users' || metric === 'works') {
               dateMap.set(displayDate, (dateMap.get(displayDate) || 0) + 1);
             } else if (metric === 'views') {
-              // 对于 views，使用作品的 views 字段（累积值）
-              // 这里简单处理：将作品的 views 分配到创建日期
-              dateMap.set(displayDate, (dateMap.get(displayDate) || 0) + (item.views || 0));
+              // 对于 views，使用作品的 view_count 字段（累积值）
+              // 这里简单处理：将作品的 view_count 分配到创建日期
+              dateMap.set(displayDate, (dateMap.get(displayDate) || 0) + (item.view_count || 0));
             } else if (metric === 'likes') {
               dateMap.set(displayDate, (dateMap.get(displayDate) || 0) + (item.likes || 0));
             }
@@ -673,7 +673,7 @@ class AdminService {
             inRange: itemDate >= startDate && itemDate <= now,
             isoDate: itemDate.toISOString().split('T')[0],
             displayDate: dateKeyMap.get(itemDate.toISOString().split('T')[0]),
-            views: item.views,
+            views: item.view_count,
             likes: item.likes
           });
         }
@@ -808,8 +808,8 @@ class AdminService {
     try {
       const { data: works, error } = await supabaseAdmin
         .from('works')
-        .select('id, title, views, likes, creator_id')
-        .order('views', { ascending: false })
+        .select('id, title, view_count, likes, creator_id')
+        .order('view_count', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
@@ -827,7 +827,7 @@ class AdminService {
       return works.map(work => ({
         id: work.id,
         title: work.title,
-        views: work.views || 0,
+        views: work.view_count || 0,
         likes: work.likes || 0,
         author: userMap.get(work.creator_id) || '未知用户',
       }));
@@ -1452,13 +1452,53 @@ class AdminService {
         .select('*', { count: 'exact', head: true })
         .eq('creator_id', userId);
 
-      // 获取用户获赞数
+      // 获取用户作品数据（包括浏览量和点赞数）
       const { data: worksData } = await supabaseAdmin
         .from('works')
-        .select('likes')
+        .select('likes, view_count')
         .eq('creator_id', userId);
       
       const totalLikes = worksData?.reduce((sum, work) => sum + (work.likes || 0), 0) || 0;
+      const totalViews = worksData?.reduce((sum, work) => sum + (work.view_count || 0), 0) || 0;
+
+      // 获取用户评论数
+      let totalComments = 0;
+      try {
+        const { count: commentsCount } = await supabaseAdmin
+          .from('comments')
+          .select('*', { count: 'exact', head: true })
+          .eq('author_id', userId);
+        totalComments = commentsCount || 0;
+      } catch (e) {
+        // 评论表可能不存在
+        totalComments = 0;
+      }
+
+      // 获取粉丝数
+      let followersCount = 0;
+      try {
+        const { count: followers } = await supabaseAdmin
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', userId);
+        followersCount = followers || 0;
+      } catch (e) {
+        // follows 表可能不存在
+        followersCount = 0;
+      }
+
+      // 获取关注数
+      let followingCount = 0;
+      try {
+        const { count: following } = await supabaseAdmin
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('follower_id', userId);
+        followingCount = following || 0;
+      } catch (e) {
+        // follows 表可能不存在
+        followingCount = 0;
+      }
 
       // 获取用户活动记录（user_activities 表可能不存在）
       let activities: any[] = [];
@@ -1510,11 +1550,17 @@ class AdminService {
         ...user,
         works_count: worksCount || 0,
         total_likes: totalLikes,
+        total_views: totalViews,
+        total_comments: totalComments,
+        followers_count: followersCount,
+        following_count: followingCount,
         activities: activities,
         status: user.status || 'active',
         membership_level,
         membership_status,
         membership_end,
+        points: user.points || 0,
+        last_login: user.last_login || user.updated_at,
       };
     } catch (error) {
       console.error('获取用户详情失败:', error);

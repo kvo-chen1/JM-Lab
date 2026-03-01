@@ -901,7 +901,7 @@ async function route(req, res, u, path) {
           video_url: work.video_url?.substring(0, 50),
           type: work.type,
           hasVideoUrl: !!work.video_url,
-          views: work.views,
+          views: work.view_count,
           likes: work.likes
         });
         return {
@@ -1359,7 +1359,7 @@ async function route(req, res, u, path) {
                 creator_id: post.author_id || post.user_id,
                 category: post.category || '其他',
                 created_at: post.created_at,
-                views: post.views || 0,
+                views: post.view_count || 0,
                 likes: post.likes || post.likes || 0,
                 comments: post.comments || 0
               }))
@@ -2406,7 +2406,7 @@ async function route(req, res, u, path) {
       console.log('[API] /api/user/analytics: 查询作品...')
       const { data: works, error: worksError } = await supabaseServer
         .from('works')
-        .select('id, created_at, views, likes, comments, type, tags')
+        .select('id, created_at, view_count, likes, comments, type, tags')
         .eq('creator_id', decoded.userId)
         .order('created_at', { ascending: true })
       
@@ -2420,7 +2420,7 @@ async function route(req, res, u, path) {
       
       // 计算总统计数据
       const totalWorks = works?.length || 0
-      const totalViews = works?.reduce((sum, w) => sum + (w.views || 0), 0) || 0
+      const totalViews = works?.reduce((sum, w) => sum + (w.view_count || 0), 0) || 0
       const totalLikes = works?.reduce((sum, w) => sum + (w.likes || 0), 0) || 0
       const totalComments = works?.reduce((sum, w) => sum + (w.comments || 0), 0) || 0
       
@@ -2442,7 +2442,7 @@ async function route(req, res, u, path) {
         monthlyTrend.push({
           month: monthLabel,
           works: monthWorks.length,
-          views: monthWorks.reduce((sum, w) => sum + (w.views || 0), 0),
+          views: monthWorks.reduce((sum, w) => sum + (w.view_count || 0), 0),
           likes: monthWorks.reduce((sum, w) => sum + (w.likes || 0), 0)
         })
       }
@@ -5441,7 +5441,7 @@ async function route(req, res, u, path) {
         community_id: post.community_id,
         likes: post.likes || 0,
         comments: post.comments || post.comments || 0,
-        views: post.views || 0,
+        views: post.view_count || 0,
         is_pinned: post.is_pinned || false,
         is_announcement: post.is_announcement || false,
         status: post.status,
@@ -6034,11 +6034,11 @@ async function route(req, res, u, path) {
       // 生产环境应该使用 Redis 等缓存来防止重复计数
       if (type === 'works') {
         await db.query(`
-          UPDATE works SET views = views + 1 WHERE id = $1
+          UPDATE works SET view_count = view_count + 1 WHERE id = $1
         `, [itemId])
       } else {
         await db.query(`
-          UPDATE posts SET views = views + 1 WHERE id = $1
+          UPDATE posts SET view_count = view_count + 1 WHERE id = $1
         `, [itemId])
       }
       
@@ -7747,12 +7747,12 @@ async function route(req, res, u, path) {
         } else {
           dayValue = dayWorks.reduce((sum, work) => {
             switch (metric) {
-              case 'views': return sum + (work.views || 0)
+              case 'views': return sum + (work.view_count || 0)
               case 'likes': return sum + (work.likes || 0)
               case 'comments': return sum + (work.comments || 0)
               case 'shares': return sum + (work.shares || 0)
               case 'favorites': return sum + (work.favorites || 0)
-              default: return sum + (work.views || 0)
+              default: return sum + (work.view_count || 0)
             }
           }, 0)
         }
@@ -7793,9 +7793,9 @@ async function route(req, res, u, path) {
       // 获取用户作品数据
       const { data: works, error } = await supabaseServer
         .from('works')
-        .select('id, title, thumbnail_url, video_url, type, views, likes, comments, shares, favorites, created_at')
+        .select('id, title, thumbnail_url, video_url, type, view_count, likes, comments, shares, favorites, created_at')
         .eq('creator_id', decoded.userId)
-        .order('views', { ascending: false })
+        .order('view_count', { ascending: false })
         .limit(limit)
 
       if (error) {
@@ -7814,7 +7814,7 @@ async function route(req, res, u, path) {
       const result = works?.map(work => {
         // 计算增长率（基于创建时间，越新增长越快）
         const daysSinceCreated = Math.max(1, Math.floor((Date.now() - new Date(work.created_at)) / (1000 * 60 * 60 * 24)))
-        const growth = Math.round((work.views || 0) / daysSinceCreated * 10) / 10
+        const growth = Math.round((work.view_count || 0) / daysSinceCreated * 10) / 10
 
         return {
           workId: work.id,
@@ -7824,7 +7824,7 @@ async function route(req, res, u, path) {
           videoUrl: work.video_url,
           author: userData?.username || '未知用户',
           metrics: {
-            views: work.views || 0,
+            views: work.view_count || 0,
             likes: work.likes || 0,
             comments: work.comments || 0,
             shares: work.shares || 0,
@@ -7881,7 +7881,7 @@ async function route(req, res, u, path) {
         console.error('[API] 获取作品统计失败:', worksError)
       }
 
-      const totalViews = works?.reduce((sum, w) => sum + (w.views || 0), 0) || 0
+      const totalViews = works?.reduce((sum, w) => sum + (w.view_count || 0), 0) || 0
       const totalLikes = works?.reduce((sum, w) => sum + (w.likes || 0), 0) || 0
 
       // 获取粉丝数
@@ -7959,7 +7959,7 @@ async function route(req, res, u, path) {
           }
           const theme = themeMap.get(tag)
           theme.worksCount += 1
-          theme.viewsCount += work.views || 0
+          theme.viewsCount += work.view_count || 0
         })
       })
 
@@ -8413,7 +8413,7 @@ async function route(req, res, u, path) {
         tags.forEach(tag => {
           const existing = tagMap.get(tag) || { count: 0, views: 0, recentCount: 0 }
           existing.count++
-          existing.views += work.views || 0
+          existing.views += work.view_count || 0
           if (isRecent) {
             existing.recentCount++
           }

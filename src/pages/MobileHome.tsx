@@ -699,8 +699,8 @@ export default function MobileHome() {
       // 使用 supabaseAdmin 绕过 RLS 限制获取用户列表，按 likes_count 排序
       const { data, error } = await supabaseAdmin
         .from('users')
-        .select('id, username, avatar_url, likes_count, views, posts_count')
-        .order('likes_count', { ascending: false })
+        .select('id, username, avatar_url')
+        .order('created_at', { ascending: false })
         .limit(10);
 
       if (error) throw error;

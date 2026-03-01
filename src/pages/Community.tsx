@@ -278,8 +278,8 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
               onToggleFavorite={onToggleFavorite}
               onToggleLike={onToggleLike}
               onAddComment={onAddComment}
-              onOpenThread={(id) => console.log('Thread clicked', id)}
-              onViewThread={(id) => console.log('View thread', id)}
+              onOpenThread={() => {}}
+              onViewThread={() => {}}
               onCreateThread={onCreateThread}
               onDeleteThread={onDeleteThread}
               onDeleteComment={onDeleteComment}
@@ -288,6 +288,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
               activeCommunity={activeCommunity} // 传递活跃社群信息，用于自定义风格
               user={user} // 传递用户信息，用于显示头像
               loading={loading.threads} // 传递帖子加载状态
+              disablePostClick={true} // 禁用帖子点击
             />
             )
           ) : activeChannel === 'chat' ? (
@@ -321,8 +322,8 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
                 onToggleFavorite={onToggleFavorite}
                 onToggleLike={onToggleLike}
                 onAddComment={onAddComment}
-                onOpenThread={(id) => navigate(`/community/${activeCommunityId}/post/${id}`)}
-                onViewThread={(id) => console.log('View thread', id)}
+                onOpenThread={() => {}}
+                onViewThread={() => {}}
                 onCreateThread={onCreateThread}
                 onDeleteThread={onDeleteThread}
                 onDeleteComment={onDeleteComment}
@@ -331,6 +332,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
                 activeCommunity={activeCommunity}
                 user={user}
                 loading={loading.threads}
+                disablePostClick={true}
             />
           )}
         </PageTransition>

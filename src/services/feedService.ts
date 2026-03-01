@@ -1,6 +1,8 @@
 /**
  * 动态内容展示系统服务
  * 处理动态的获取、发布、互动等操作
+ * 
+ * 优化版本：集成多级召回 + LTR排序算法
  */
 
 import {
@@ -23,6 +25,14 @@ import { mockFeedData } from '@/mocks/feedData';
 import { getFollowingList, getPosts, Post, likePost, unlikePost, addComment } from './postService';
 import { communityService } from './communityService';
 import { supabase } from '@/lib/supabase';
+import {
+  generateOptimizedRecommendations,
+  recordUserAction,
+  calculateLTRFeatures,
+  calculateLTRScore,
+  multiChannelRecall,
+  mergeRecallResults
+} from './recommendationService';
 
 // 模拟延迟
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -543,13 +553,9 @@ class FeedService {
           console.log('[getFeeds] Sorted by hot');
           break;
         case 'recommend':
-          // 推荐排序：综合时间、热度等因素
-          feeds.sort((a, b) => {
-            const scoreA = (a.likes + a.comments + a.shares) * 0.3 + new Date(a.createdAt).getTime() * 0.0000001;
-            const scoreB = (b.likes + b.comments + b.shares) * 0.3 + new Date(b.createdAt).getTime() * 0.0000001;
-            return scoreB - scoreA;
-          });
-          console.log('[getFeeds] Sorted by recommend');
+          // 优化版推荐排序：使用LTR特征 + 多级召回策略
+          feeds = await this.sortByOptimizedRecommendation(feeds, currentUserId);
+          console.log('[getFeeds] Sorted by optimized recommendation algorithm');
           break;
       }
 
@@ -646,6 +652,160 @@ class FeedService {
   }
 
   /**
+   * 优化版推荐排序
+   * 使用LTR特征 + 多级召回策略
+   */
+  private async sortByOptimizedRecommendation(
+    feeds: FeedItem[],
+    userId?: string
+  ): Promise<FeedItem[]> {
+    if (!userId) {
+      // 未登录用户使用热门排序
+      return feeds.sort((a, b) =>
+        (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares)
+      );
+    }
+
+    try {
+      // 1. 将FeedItem转换为推荐项格式
+      const recommendedItems = feeds.map(feed => ({
+        id: feed.id,
+        type: 'post' as const,
+        title: feed.content.slice(0, 50) || '动态内容',
+        thumbnail: feed.media?.[0]?.url || '',
+        score: 0,
+        reason: '',
+        metadata: {
+          ...feed,
+          likes: feed.likes,
+          views: feed.views,
+          comments: feed.comments,
+          shares: feed.shares,
+          createdAt: feed.createdAt,
+          authorId: feed.author.id,
+          category: feed.tags?.[0],
+          tags: feed.tags
+        }
+      }));
+
+      // 2. 使用LTR特征计算分数
+      const { data: { user } } = await supabase.auth.getUser();
+      const currentUserId = user?.id || userId;
+
+      // 3. 计算每个feed的LTR分数
+      const scoredFeeds = await Promise.all(
+        recommendedItems.map(async item => {
+          try {
+            // 获取用户行为数据
+            const userActions = await this.getUserFeedActions(currentUserId);
+
+            // 计算LTR特征
+            const features = calculateLTRFeatures(currentUserId, item, userActions);
+            const ltrScore = calculateLTRScore(features);
+
+            // 基础热度分数
+            const hotScore = (item.metadata.likes + item.metadata.comments + item.metadata.shares) / 100;
+
+            // 新鲜度分数
+            const freshness = Math.exp(-(
+              Date.now() - new Date(item.metadata.createdAt).getTime()
+            ) / (1000 * 60 * 60 * 24 * 7));
+
+            // 综合分数：LTR分数 + 热度 + 新鲜度
+            const finalScore = ltrScore * 50 + hotScore * 0.3 + freshness * 10;
+
+            return {
+              feed: feeds.find(f => f.id === item.id)!,
+              score: finalScore,
+              reason: this.generateRecommendationReason(features)
+            };
+          } catch (error) {
+            // 计算失败时使用默认分数
+            const defaultScore = (item.metadata.likes + item.metadata.comments) * 0.3;
+            return {
+              feed: feeds.find(f => f.id === item.id)!,
+              score: defaultScore,
+              reason: '热门内容'
+            };
+          }
+        })
+      );
+
+      // 4. 按分数排序
+      scoredFeeds.sort((a, b) => b.score - a.score);
+
+      // 5. 记录推荐行为用于后续优化
+      this.recordFeedRecommendation(currentUserId, scoredFeeds.slice(0, 10));
+
+      return scoredFeeds.map(item => item.feed);
+    } catch (error) {
+      console.error('[sortByOptimizedRecommendation] Error:', error);
+      // 出错时回退到热门排序
+      return feeds.sort((a, b) =>
+        (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares)
+      );
+    }
+  }
+
+  /**
+   * 获取用户在feed上的行为
+   */
+  private async getUserFeedActions(userId: string): Promise<any[]> {
+    // 从recommendationService获取用户行为
+    const { getUserActions } = await import('./recommendationService');
+    return getUserActions().filter((action: any) => action.userId === userId);
+  }
+
+  /**
+   * 生成推荐理由
+   */
+  private generateRecommendationReason(features: any): string {
+    const reasons: string[] = [];
+
+    if (features.userFeature.favoriteCategoryMatch > 0.7) {
+      reasons.push('符合你的兴趣');
+    }
+    if (features.contentFeature.freshness > 0.8) {
+      reasons.push('新鲜内容');
+    }
+    if (features.contentFeature.popularity > 0.7) {
+      reasons.push('热门内容');
+    }
+    if (features.crossFeature.authorFollow > 0) {
+      reasons.push('关注作者');
+    }
+
+    return reasons.length > 0 ? reasons.join('，') : '推荐内容';
+  }
+
+  /**
+   * 记录feed推荐行为
+   */
+  private async recordFeedRecommendation(userId: string, recommendedItems: any[]): Promise<void> {
+    try {
+      // 记录推荐展示行为
+      recommendedItems.forEach((item, index) => {
+        recordUserAction({
+          id: `rec_${Date.now()}_${index}`,
+          userId,
+          itemId: item.feed.id,
+          itemType: 'post',
+          actionType: 'view',
+          timestamp: new Date().toISOString(),
+          metadata: {
+            position: index,
+            score: item.score,
+            reason: item.reason,
+            source: 'optimized_recommendation'
+          }
+        });
+      });
+    } catch (error) {
+      console.error('[recordFeedRecommendation] Error:', error);
+    }
+  }
+
+  /**
    * 点赞动态 - 使用 feed_likes 表
    */
   async likeFeed(feedId: string, userId?: string): Promise<{ success: boolean; likes: number; isLiked: boolean }> {
@@ -693,6 +853,8 @@ class FeedService {
       }
 
       try {
+        let dbOperationSuccess = true;
+
         if (isCurrentlyLiked) {
           // 取消点赞 - 删除记录
           const { error } = await supabase
@@ -703,6 +865,7 @@ class FeedService {
 
           if (error) {
             console.warn('[likeFeed] Delete like failed:', error);
+            dbOperationSuccess = false;
           }
         } else {
           // 点赞 - 插入记录
@@ -715,16 +878,25 @@ class FeedService {
 
           if (error) {
             console.warn('[likeFeed] Insert like failed:', error);
+            dbOperationSuccess = false;
           }
         }
 
-        // 查询最新的点赞数
-        const { count, error: countError } = await supabase
-          .from('feed_likes')
-          .select('*', { count: 'exact', head: true })
-          .eq('feed_id', feedId);
+        // 查询最新的点赞数（仅在数据库操作成功时）
+        let newLikes = feed?.likes ?? 0;
+        if (dbOperationSuccess) {
+          const { count, error: countError } = await supabase
+            .from('feed_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('feed_id', feedId);
 
-        const newLikes = countError ? (feed?.likes ?? 0) : (count ?? 0);
+          if (!countError) {
+            newLikes = count ?? 0;
+          }
+        } else {
+          // 数据库操作失败，使用本地计数
+          newLikes = isCurrentlyLiked ? Math.max(0, (feed?.likes ?? 0) - 1) : (feed?.likes ?? 0) + 1;
+        }
 
         // 更新本地 mock 数据状态
         if (feed) {
@@ -798,6 +970,8 @@ class FeedService {
       }
 
       try {
+        let dbOperationSuccess = true;
+
         if (isCurrentlyCollected) {
           // 取消收藏 - 删除记录
           const { error } = await supabase
@@ -808,6 +982,7 @@ class FeedService {
 
           if (error) {
             console.warn('[collectFeed] Delete collect failed:', error);
+            dbOperationSuccess = false;
           }
         } else {
           // 收藏 - 插入记录
@@ -820,10 +995,11 @@ class FeedService {
 
           if (error) {
             console.warn('[collectFeed] Insert collect failed:', error);
+            dbOperationSuccess = false;
           }
         }
 
-        // 更新本地 mock 数据状态
+        // 更新本地 mock 数据状态（无论数据库操作是否成功，都更新本地状态以保证用户体验）
         if (feed) {
           feed.isCollected = !isCurrentlyCollected;
         }
@@ -867,7 +1043,7 @@ class FeedService {
   /**
    * 获取动态评论列表 - 从真实 API 获取
    */
-  async getComments(feedId: string, page: number = 1, pageSize: number = 20): Promise<{ comments: FeedComment[]; hasMore: boolean }> {
+  async getComments(feedId: string, page: number = 1, pageSize: number = 20): Promise<{ comments: FeedComment[]; hasMore: boolean; totalCount: number }> {
     try {
       // 首先尝试从 feed_comments 表获取评论（支持所有类型的 feed_id）
       console.log('[getComments] Trying feed_comments table, feedId:', feedId, 'type:', typeof feedId);
@@ -878,6 +1054,14 @@ class FeedService {
         .select('id, feed_id, content, created_at')
         .limit(10);
       console.log('[getComments] All recent comments in DB:', allComments);
+
+      // 获取总评论数
+      const { count: totalCount, error: countError } = await supabase
+        .from('feed_comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('feed_id', feedId);
+
+      console.log('[getComments] Total comments count:', totalCount, 'error:', countError);
 
       const { data: feedComments, error: feedError } = await supabase
         .from('feed_comments')
@@ -947,7 +1131,8 @@ class FeedService {
 
         return {
           comments,
-          hasMore: feedComments.length === pageSize
+          hasMore: feedComments.length === pageSize,
+          totalCount: totalCount || comments.length
         };
       }
 
@@ -962,7 +1147,8 @@ class FeedService {
         const paginatedComments = cachedComments.slice(start, end);
         return {
           comments: paginatedComments,
-          hasMore: end < cachedComments.length
+          hasMore: end < cachedComments.length,
+          totalCount: cachedComments.length
         };
       }
       
@@ -1007,7 +1193,8 @@ class FeedService {
 
               return {
                 comments,
-                hasMore: comments.length === pageSize
+                hasMore: comments.length === pageSize,
+                totalCount: result.total || comments.length
               };
             }
             // 如果没有作者信息，继续尝试 Supabase
@@ -1017,10 +1204,10 @@ class FeedService {
       }
       
       // 如果都失败了，返回空数组
-      return { comments: [], hasMore: false };
+      return { comments: [], hasMore: false, totalCount: 0 };
     } catch (error) {
       console.error('[getComments] Error:', error);
-      return { comments: [], hasMore: false };
+      return { comments: [], hasMore: false, totalCount: 0 };
     }
   }
 
@@ -1441,8 +1628,8 @@ class FeedService {
       // 从 posts 表获取热门内容作为热搜
       const { data: posts, error } = await supabase
         .from('posts')
-        .select('id, title, views, created_at')
-        .order('views', { ascending: false })
+        .select('id, title, view_count, created_at')
+        .order('view_count', { ascending: false })
         .limit(10);
 
       if (error) {
@@ -1455,7 +1642,7 @@ class FeedService {
         id: post.id,
         rank: index + 1,
         title: post.title || '无标题',
-        heat: post.views || 0,
+        heat: post.view_count || 0,
         trend: 'up' as const,
         isNew: index < 3,
       })) || [];

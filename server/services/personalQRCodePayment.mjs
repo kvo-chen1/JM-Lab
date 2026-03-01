@@ -423,6 +423,81 @@ class PersonalQRCodePaymentService {
   }
 
   /**
+   * 退款订单
+   */
+  async refundOrder(orderId, adminId, refundAmount, notes = '') {
+    try {
+      const { data: order, error: fetchError } = await supabaseServer
+        .from('membership_orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError || !order) {
+        throw new Error('订单不存在');
+      }
+
+      if (order.status !== 'completed') {
+        throw new Error('只有已完成的订单才能退款');
+      }
+
+      if (refundAmount <= 0 || refundAmount > order.amount) {
+        throw new Error('退款金额无效');
+      }
+
+      // 更新 metadata
+      const updatedMetadata = {
+        ...order.metadata,
+        refunded_by: adminId,
+        refunded_at: new Date().toISOString(),
+        refund_amount: refundAmount,
+        notes: notes || `已退款 ¥${refundAmount}`,
+      };
+
+      // 更新订单状态为已退款
+      const { error: updateError } = await supabaseServer
+        .from('membership_orders')
+        .update({
+          status: 'refunded',
+          metadata: updatedMetadata,
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      // 如果全额退款，取消用户会员状态
+      if (refundAmount >= order.amount) {
+        const { error: userUpdateError } = await supabaseServer
+          .from('users')
+          .update({
+            membership_status: 'inactive',
+            membership_end: new Date().toISOString(),
+          })
+          .eq('id', order.user_id);
+
+        if (userUpdateError) {
+          console.error('[PersonalPayment] 更新用户会员信息失败:', userUpdateError);
+        }
+      }
+
+      // 发送通知给用户
+      await this.notifyUser(order.user_id, 'payment_refunded', {
+        orderId,
+        refundAmount,
+        reason: notes,
+      });
+
+      return {
+        success: true,
+        message: `退款成功，金额：¥${refundAmount}`,
+      };
+    } catch (error) {
+      console.error('[PersonalPayment] 退款订单失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 通知管理员
    */
   async notifyAdmin(order, proofData) {

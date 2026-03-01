@@ -1,4 +1,4 @@
-import { createContext, useState, ReactNode, useEffect, useCallback, useMemo, useRef } from "react";
+import { createContext, useState, ReactNode, useEffect, useCallback, useMemo, useRef, useContext } from "react";
 import { supabase } from "@/lib/supabase";
 import securityService from "../services/securityService";
 import eventBus from '../lib/eventBus'; // 导入事件总线
@@ -59,6 +59,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  /** @deprecated 请使用 avatar_url */
   avatar?: string;
   avatar_url?: string;
   phone?: string;
@@ -196,14 +197,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const parsedUser = safeLocalStorage.getParsedItem<User>('user');
     if (!parsedUser) return null;
     
-    // 确保用户有有效的头像URL，并且始终是字符串
-    const avatarValue = parsedUser.avatar;
+    // 确保用户有有效的头像URL，并且始终是字符串（优先使用avatar_url，兼容avatar）
+    const avatarValue = parsedUser.avatar_url || parsedUser.avatar;
     const avatarUrl = typeof avatarValue === 'string' ? avatarValue.trim() || '' : '';
     
     // 添加默认会员信息和统计数据
     return {
       ...parsedUser,
-      avatar: avatarUrl,
+      avatar_url: avatarUrl,
+      avatar: avatarUrl, // 保持兼容
       isNewUser: parsedUser.isNewUser || false,
       worksCount: parsedUser.worksCount || 0,
       followersCount: parsedUser.followersCount || 0,
@@ -228,8 +230,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const userData = apiData || session.user?.user_metadata || {};
     const sessionUser = session.user || {};
     
-    // 确保avatar字段始终是字符串
-    const avatarValue = apiData?.avatar || userData.avatar;
+    // 确保avatar字段始终是字符串（优先使用avatar_url，兼容avatar）
+    const avatarValue = apiData?.avatar_url || apiData?.avatar || userData.avatar_url || userData.avatar;
     const safeAvatar = typeof avatarValue === 'string' ? avatarValue : '';
     
     // 优先使用 session.user.id 作为唯一标识，确保是 UUID
@@ -261,7 +263,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       id: finalId,
       username: username || '用户',
       email: apiData?.email || sessionUser.email || '',
-      avatar: safeAvatar,
+      avatar_url: safeAvatar,
+      avatar: safeAvatar, // 保持兼容
       phone: apiData?.phone || userData.phone || '',
       interests: userData.interests || [],
       isAdmin: userData.isAdmin || false,
@@ -318,7 +321,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             id: existingUser.id,
             username: existingUser.username,
             email: existingUser.email,
-            avatar: existingUser.avatar_url,
+            avatar_url: existingUser.avatar_url,
+            avatar: existingUser.avatar_url, // 保持兼容
             phone: existingUser.phone,
             interests: existingUser.interests || [],
             isNewUser: existingUser.is_new_user ?? true,
@@ -371,10 +375,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     updateAuthState(userWithMembership, true, false);
     
     // 检查用户信息是否完整（用户名和头像）
+    const avatarValue = userWithMembership.avatar_url || userWithMembership.avatar;
     const isProfileComplete = userWithMembership.username && 
                            userWithMembership.username.trim() !== '' && 
-                           userWithMembership.avatar && 
-                           userWithMembership.avatar.trim() !== '';
+                           avatarValue && 
+                           avatarValue.trim() !== '';
     
     // 如果是新用户或信息不完整，标记为需要完善信息
     const needsProfileCompletion = userWithMembership.isNewUser || !isProfileComplete;
@@ -469,8 +474,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             updateAuthState(userWithMembership, true, false);
             
             // 检查用户信息是否完整
+            const avatarValue = userWithMembership.avatar_url || userWithMembership.avatar;
             const isProfileComplete = !!(userWithMembership.username && userWithMembership.username.trim() !== '' &&
-                                   userWithMembership.avatar && userWithMembership.avatar.trim() !== '');
+                                   avatarValue && avatarValue.trim() !== '');
             
             // 延迟发布事件
             setTimeout(() => {
@@ -892,8 +898,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       updateAuthState(userWithMembership, true, false);
       
       // 检查用户信息是否完整
+      const avatarValue = userWithMembership.avatar_url || userWithMembership.avatar;
       const isProfileComplete = !!(userWithMembership.username && userWithMembership.username.trim() !== '' &&
-                               userWithMembership.avatar && userWithMembership.avatar.trim() !== '');
+                               avatarValue && avatarValue.trim() !== '');
       
       // 发布登录成功事件
       eventBus.publish('auth:login', { 
@@ -918,8 +925,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const actualUser = userData?.user || userData;
     const sessionData = userData?.session || {};
     
-    // 优先使用后端返回的头像，否则使用默认头像，确保是字符串
-    const avatarValue = actualUser?.avatar;
+    // 优先使用后端返回的头像，否则使用默认头像，确保是字符串（优先使用avatar_url，兼容avatar）
+    const avatarValue = actualUser?.avatar_url || actualUser?.avatar;
     const avatarUrl = typeof avatarValue === 'string' ? avatarValue : '';
     
     // 确保用户ID存在且是字符串
@@ -994,8 +1001,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         updateAuthState(userWithMembership, true, false);
         
         // 检查用户信息是否完整
+        const profileAvatarValue = userWithMembership.avatar_url || userWithMembership.avatar;
         const isProfileComplete = !!(userWithMembership.username && userWithMembership.username.trim() !== '' &&
-                               userWithMembership.avatar && userWithMembership.avatar.trim() !== '');
+                               profileAvatarValue && profileAvatarValue.trim() !== '');
         
         // 发布登录成功事件
         eventBus.publish('auth:login', { 
@@ -1105,7 +1113,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             options: {
               data: {
                 username: actualUser.username || actualUser.email.split('@')[0],
-                avatar: actualUser.avatar || '',
+                avatar_url: actualUser.avatar_url || actualUser.avatar || '',
                 auth_provider: 'local'
               }
             }
@@ -1155,8 +1163,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setIsAuthenticated(true);
     
     // 检查用户信息是否完整
-    const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' && 
-                           userWithMembership.avatar && userWithMembership.avatar.trim() !== '';
+    const finalAvatarValue = userWithMembership.avatar_url || userWithMembership.avatar;
+    const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' &&
+                           finalAvatarValue && finalAvatarValue.trim() !== '';
     
     eventBus.publish('auth:login', { 
       userId: userWithMembership.id, 
@@ -1333,21 +1342,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // 中文注释：更新用户信息并写入本地存储和数据库
   const updateUser = async (partial: Partial<User>) => {
-    // 确保avatar字段始终是字符串
+    // 确保avatar字段始终是字符串（优先使用avatar_url，兼容avatar）
     const safePartial = { ...partial };
-    if (safePartial.avatar && typeof safePartial.avatar === 'object') {
+    const avatarValue = safePartial.avatar_url || safePartial.avatar;
+    if (avatarValue && typeof avatarValue === 'object') {
+      safePartial.avatar_url = '';
       safePartial.avatar = '';
     }
     
     // 先更新本地状态
     setUser(prev => {
+      const avatarValue = safePartial.avatar_url || safePartial.avatar || prev?.avatar_url || prev?.avatar;
+      const safeAvatar = typeof avatarValue === 'string' ? avatarValue : '';
       const next = { 
         ...(prev || {} as User), 
         ...safePartial,
         // 确保avatar字段始终是字符串
-        avatar: typeof (safePartial.avatar || prev?.avatar) === 'string' 
-          ? (safePartial.avatar || prev?.avatar || '') 
-          : ''
+        avatar_url: safeAvatar,
+        avatar: safeAvatar // 保持兼容
       } as User;
       
       try {
@@ -1407,9 +1419,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
         
         if (data.user) {
-          // 根据Supabase返回的用户信息更新本地用户数据
-          const avatarUrl = data.user.user_metadata?.avatar && data.user.user_metadata?.avatar.trim() 
-            ? data.user.user_metadata?.avatar 
+          // 根据Supabase返回的用户信息更新本地用户数据（优先使用avatar_url，兼容avatar）
+          const metadataAvatar = data.user.user_metadata?.avatar_url || data.user.user_metadata?.avatar;
+          const avatarUrl = metadataAvatar && metadataAvatar.trim() 
+            ? metadataAvatar 
             : '';
           
           // 从数据库获取用户详细信息
@@ -1721,4 +1734,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       {children}
     </AuthContext.Provider>
   );
+};
+
+// useAuth hook
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };

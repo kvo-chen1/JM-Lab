@@ -99,8 +99,8 @@ export default function SystemMonitor() {
       // 获取总浏览量
       const { data: viewsData } = await supabaseAdmin
         .from('works')
-        .select('views');
-      const totalViews = viewsData?.reduce((sum, work) => sum + (work.views || 0), 0) || 0;
+        .select('view_count');
+      const totalViews = viewsData?.reduce((sum, work) => sum + (work.view_count || 0), 0) || 0;
 
       // 获取今日API调用数（从审计日志统计）
       const { count: apiCallsToday } = await supabaseAdmin

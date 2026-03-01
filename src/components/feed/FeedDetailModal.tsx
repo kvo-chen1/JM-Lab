@@ -52,21 +52,31 @@ function formatNumber(num: number): string {
   return num.toString();
 }
 
-// 格式化时间
+// 格式化时间 - 显示完整日期时间
 function formatTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
-  
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  
-  if (minutes < 1) return '刚刚';
-  if (minutes < 60) return `${minutes}分钟前`;
-  if (hours < 24) return `${hours}小时前`;
-  if (days < 7) return `${days}天前`;
-  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+
+  // 如果是今天，显示具体时间
+  if (days < 1) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  }
+  // 如果是昨天，显示"昨天 HH:mm"
+  if (days < 2) {
+    return `昨天 ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  // 如果是今年，显示"MM月DD日 HH:mm"
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) +
+           ' ' +
+           date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  }
+  // 其他情况显示完整日期时间
+  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' }) +
+         ' ' +
+         date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 }
 
 // 获取认证图标
@@ -128,20 +138,26 @@ export function FeedDetailModal({
 
   const loadComments = async (isRefresh = false) => {
     if (!feed) return;
-    
+
     setIsLoadingComments(true);
     try {
       const page = isRefresh ? 1 : commentPage;
       const response = await feedService.getComments(feed.id, page, 20);
-      
+
       if (isRefresh) {
         setComments(response.comments);
         setCommentPage(2);
+        // 使用服务器返回的总评论数
+        setLocalCommentsCount(response.totalCount);
       } else {
         setComments(prev => [...prev, ...response.comments]);
         setCommentPage(prev => prev + 1);
+        // 加载更多时，保持使用服务器返回的总数
+        if (response.totalCount > localCommentsCount) {
+          setLocalCommentsCount(response.totalCount);
+        }
       }
-      
+
       setHasMoreComments(response.hasMore);
     } catch (error) {
       toast.error('加载评论失败');

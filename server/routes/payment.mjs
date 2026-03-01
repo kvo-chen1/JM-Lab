@@ -708,6 +708,39 @@ export async function verifyOrder(req, res) {
 }
 
 /**
+ * 管理员退款订单
+ * POST /api/payment/admin/refund
+ */
+export async function refundOrder(req, res) {
+  try {
+    // TODO: 验证管理员权限
+    const user = await authenticateUser(req);
+    if (!user) {
+      return sendJSON(res, 401, { success: false, error: '未登录' });
+    }
+
+    const body = await getRequestBody(req);
+    const { orderId, refundAmount, notes } = body;
+
+    if (!orderId || refundAmount === undefined) {
+      return sendJSON(res, 400, { success: false, error: '缺少必要参数' });
+    }
+
+    const result = await personalQRCodePaymentService.refundOrder(
+      orderId,
+      user.userId,
+      refundAmount,
+      notes
+    );
+
+    return sendJSON(res, 200, result);
+  } catch (error) {
+    console.error('[Payment] Refund order error:', error);
+    return sendJSON(res, 500, { success: false, error: error.message || '退款失败' });
+  }
+}
+
+/**
  * 支付路由处理器
  */
 export default async function paymentRoutes(req, res) {
@@ -781,6 +814,11 @@ export default async function paymentRoutes(req, res) {
 
   if (pathname === '/api/payment/admin/verify' && method === 'POST') {
     await verifyOrder(req, res);
+    return;
+  }
+
+  if (pathname === '/api/payment/admin/refund' && method === 'POST') {
+    await refundOrder(req, res);
     return;
   }
 

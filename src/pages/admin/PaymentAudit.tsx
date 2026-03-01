@@ -23,7 +23,8 @@ import {
   XSquare,
   AlertCircle,
   FileText,
-  ExternalLink
+  ExternalLink,
+  RotateCcw
 } from 'lucide-react';
 
 // 支付订单状态类型
@@ -107,7 +108,9 @@ const PaymentAudit: React.FC = () => {
   
   // 审核备注
   const [auditNote, setAuditNote] = useState('');
-  const [processingAction, setProcessingAction] = useState<'approve' | 'reject' | null>(null);
+  const [processingAction, setProcessingAction] = useState<'approve' | 'reject' | 'refund' | null>(null);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundAmount, setRefundAmount] = useState('');
   
   // 凭证图片弹窗
   const [showProofModal, setShowProofModal] = useState(false);
@@ -266,14 +269,14 @@ const PaymentAudit: React.FC = () => {
 
       // 更新用户会员状态
       await supabaseAdmin
-        .from('user_memberships')
-        .upsert({
-          user_id: selectedOrder.user_id,
-          membership_type: selectedOrder.membership_type,
-          status: 'active',
-          started_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1年有效期
-        });
+        .from('users')
+        .update({
+          membership_level: selectedOrder.membership_type,
+          membership_status: 'active',
+          membership_start: new Date().toISOString(),
+          membership_end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1年有效期
+        })
+        .eq('id', selectedOrder.user_id);
 
       toast.success('审核通过，会员已激活');
       setShowDetailModal(false);
@@ -313,6 +316,56 @@ const PaymentAudit: React.FC = () => {
     } catch (error) {
       console.error('拒绝失败:', error);
       toast.error('操作失败');
+    } finally {
+      setProcessingAction(null);
+    }
+  };
+
+  // 处理退款
+  const handleRefund = async () => {
+    if (!selectedOrder) return;
+    
+    const amount = parseFloat(refundAmount);
+    if (!amount || amount <= 0 || amount > selectedOrder.amount) {
+      toast.error('请输入有效的退款金额');
+      return;
+    }
+    
+    setProcessingAction('refund');
+    try {
+      const { error } = await supabaseAdmin
+        .from('membership_orders')
+        .update({
+          status: 'refunded',
+          refund_amount: amount,
+          refunded_at: new Date().toISOString(),
+          notes: auditNote || `已退款 ¥${amount}`
+        })
+        .eq('id', selectedOrder.id);
+
+      if (error) throw error;
+
+      // 如果全额退款，取消用户会员状态
+      if (amount >= selectedOrder.amount) {
+        await supabaseAdmin
+          .from('users')
+          .update({
+            membership_status: 'inactive',
+            membership_end: new Date().toISOString()
+          })
+          .eq('id', selectedOrder.user_id);
+      }
+
+      toast.success(`退款成功，金额：¥${amount}`);
+      setShowRefundModal(false);
+      setShowDetailModal(false);
+      setAuditNote('');
+      setRefundAmount('');
+      fetchOrders();
+      fetchStats();
+    } catch (error) {
+      console.error('退款失败:', error);
+      toast.error('退款操作失败');
     } finally {
       setProcessingAction(null);
     }
@@ -696,6 +749,22 @@ const PaymentAudit: React.FC = () => {
                               </motion.button>
                             </>
                           )}
+                          {order.status === 'completed' && (
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => {
+                                setSelectedOrder(order);
+                                setRefundAmount(order.amount.toString());
+                                setAuditNote('');
+                                setShowRefundModal(true);
+                              }}
+                              className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              退款
+                            </motion.button>
+                          )}
                         </div>
                       </td>
                     </motion.tr>
@@ -766,6 +835,127 @@ const PaymentAudit: React.FC = () => {
                 alt="支付凭证"
                 className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
               />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 退款弹窗 */}
+      <AnimatePresence>
+        {showRefundModal && selectedOrder && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            onClick={() => setShowRefundModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-md rounded-2xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
+            >
+              {/* 弹窗头部 */}
+              <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
+                <div>
+                  <h3 className="text-xl font-bold">订单退款</h3>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>订单号: {selectedOrder.id}</p>
+                </div>
+                <button
+                  onClick={() => setShowRefundModal(false)}
+                  className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* 弹窗内容 */}
+              <div className="p-6 space-y-4">
+                <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>订单金额</span>
+                    <span className="font-bold text-lg">¥{selectedOrder.amount}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>会员类型</span>
+                    <span className="font-medium">{selectedOrder.membership_name}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    退款金额 <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">¥</span>
+                    <input
+                      type="number"
+                      value={refundAmount}
+                      onChange={(e) => setRefundAmount(e.target.value)}
+                      placeholder="请输入退款金额"
+                      min="0.01"
+                      max={selectedOrder.amount}
+                      step="0.01"
+                      className={`w-full pl-8 pr-4 py-2 rounded-xl text-sm transition-colors ${
+                        isDark 
+                          ? 'bg-gray-700 text-white placeholder-gray-400 border-gray-600' 
+                          : 'bg-gray-50 text-gray-900 placeholder-gray-500 border-gray-200'
+                      } border focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                    />
+                  </div>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    最大可退款金额：¥{selectedOrder.amount}
+                  </p>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    退款备注
+                  </label>
+                  <textarea
+                    value={auditNote}
+                    onChange={(e) => setAuditNote(e.target.value)}
+                    placeholder="请输入退款原因或备注（可选）..."
+                    rows={3}
+                    className={`w-full px-4 py-2 rounded-xl text-sm transition-colors resize-none ${
+                      isDark 
+                        ? 'bg-gray-700 text-white placeholder-gray-400 border-gray-600' 
+                        : 'bg-gray-50 text-gray-900 placeholder-gray-500 border-gray-200'
+                    } border focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowRefundModal(false)}
+                    className={`flex-1 px-4 py-3 rounded-xl font-medium transition-colors ${
+                      isDark 
+                        ? 'bg-gray-700 text-white hover:bg-gray-600' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    取消
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleRefund}
+                    disabled={processingAction === 'refund' || !refundAmount}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50"
+                  >
+                    {processingAction === 'refund' ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="w-4 h-4" />
+                    )}
+                    确认退款
+                  </motion.button>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -1034,6 +1224,19 @@ const PaymentAudit: React.FC = () => {
                     <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       该订单已审核通过，会员已开通。
                     </p>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setRefundAmount(selectedOrder.amount.toString());
+                        setAuditNote('');
+                        setShowRefundModal(true);
+                      }}
+                      className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      申请退款
+                    </motion.button>
                   </div>
                 ) : selectedOrder.status === 'failed' ? (
                   <div className={`p-4 rounded-xl border-2 border-red-500 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
@@ -1043,6 +1246,16 @@ const PaymentAudit: React.FC = () => {
                     </h4>
                     <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       该订单已被拒绝。
+                    </p>
+                  </div>
+                ) : selectedOrder.status === 'refunded' ? (
+                  <div className={`p-4 rounded-xl border-2 border-purple-500 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+                    <h4 className="font-medium mb-2 flex items-center gap-2 text-purple-600">
+                      <RotateCcw className="w-4 h-4" />
+                      已退款
+                    </h4>
+                    <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      该订单已退款处理。
                     </p>
                   </div>
                 ) : null}

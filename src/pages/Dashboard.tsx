@@ -188,10 +188,10 @@ export default function Dashboard() {
                       type: w.type || 'image',
                       status: w.status === 'published' ? '已发布' : '草稿',
                       date: workDate,
-                      views: w.views || 0,
+                      views: w.view_count || 0,
                       likes: w.likes || 0,
                       metrics: {
-                        views: w.views || 0,
+                        views: w.view_count || 0,
                         likes: w.likes || 0,
                         comments: w.comments || 0,
                         shares: 0,
@@ -207,7 +207,7 @@ export default function Dashboard() {
                   setRealUserWorks(formattedWorks);
                   worksLoaded = true;
 
-                  const totalViews = works.reduce((sum: number, w: any) => sum + (w.views || 0), 0);
+                  const totalViews = works.reduce((sum: number, w: any) => sum + (w.view_count || 0), 0);
                   const totalLikes = works.reduce((sum: number, w: any) => sum + (w.likes || 0), 0);
 
                   setRealUserStats({
@@ -262,10 +262,10 @@ export default function Dashboard() {
                   type: w.type || 'image',
                   status: w.status === 'published' ? '已发布' : '草稿',
                   date: workDate,
-                  views: w.views || 0,
+                  views: w.view_count || 0,
                   likes: w.likes || 0,
                   metrics: {
-                    views: w.views || 0,
+                    views: w.view_count || 0,
                     likes: w.likes || 0,
                     comments: w.comments || 0,
                     shares: 0,
@@ -275,7 +275,7 @@ export default function Dashboard() {
               });
               setRealUserWorks(formattedWorks);
 
-              const totalViews = works.reduce((sum, w) => sum + (w.views || 0), 0);
+              const totalViews = works.reduce((sum, w) => sum + (w.view_count || 0), 0);
               const totalLikes = works.reduce((sum, w) => sum + (w.likes || 0), 0);
 
               setRealUserStats({
@@ -531,7 +531,7 @@ export default function Dashboard() {
           
           data.push({
             name: dayName,
-            views: dayWorks.reduce((sum, w) => sum + (w.views || 0), 0),
+            views: dayWorks.reduce((sum, w) => sum + (w.view_count || 0), 0),
             likes: dayWorks.reduce((sum, w) => sum + (w.likes || 0), 0),
             comments: dayWorks.reduce((sum, w) => sum + (w.metrics?.comments || 0), 0)
           });
@@ -545,16 +545,16 @@ export default function Dashboard() {
         for (let i = 5; i >= 0; i--) {
           const monthIndex = (currentMonth - i + 12) % 12;
           const year = currentYear - (currentMonth - i < 0 ? 1 : 0);
-          
+
           // 统计这个月的作品数据
           const monthWorks = realUserWorks.filter(w => {
             const workDate = new Date(w.date);
             return workDate.getMonth() === monthIndex && workDate.getFullYear() === year;
           });
-          
+
           data.push({
             name: monthNames[monthIndex],
-            views: monthWorks.reduce((sum, w) => sum + (w.views || 0), 0),
+            views: monthWorks.reduce((sum, w) => sum + (w.view_count || 0), 0),
             likes: monthWorks.reduce((sum, w) => sum + (w.likes || 0), 0),
             comments: monthWorks.reduce((sum, w) => sum + (w.metrics?.comments || 0), 0)
           });
@@ -566,16 +566,16 @@ export default function Dashboard() {
         const data = [];
         for (let i = 3; i >= 0; i--) {
           const year = currentYear - i;
-          
+
           // 统计这一年的作品数据
           const yearWorks = realUserWorks.filter(w => {
             const workDate = new Date(w.date);
             return workDate.getFullYear() === year;
           });
-          
+
           data.push({
             name: year.toString(),
-            views: yearWorks.reduce((sum, w) => sum + (w.views || 0), 0),
+            views: yearWorks.reduce((sum, w) => sum + (w.view_count || 0), 0),
             likes: yearWorks.reduce((sum, w) => sum + (w.likes || 0), 0),
             comments: yearWorks.reduce((sum, w) => sum + (w.metrics?.comments || 0), 0)
           });
@@ -1186,7 +1186,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-4 text-sm">
                         <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           <Eye className="w-4 h-4" />
-                          {work.views}
+                          {work.view_count}
                         </span>
                         <span className={`flex items-center gap-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           <Heart className="w-4 h-4" />

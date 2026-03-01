@@ -99,6 +99,33 @@ interface RecommendedWork {
   videoUrl?: string;
 }
 
+// 格式化评论时间 - 显示完整日期时间
+const formatCommentTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const days = Math.floor(diff / 86400000);
+
+  // 如果是今天，显示具体时间
+  if (days < 1) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  }
+  // 如果是昨天，显示"昨天 HH:mm"
+  if (days < 2) {
+    return `昨天 ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  // 如果是今年，显示"MM月DD日 HH:mm"
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) +
+           ' ' +
+           date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  }
+  // 其他情况显示完整日期时间
+  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' }) +
+         ' ' +
+         date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+};
+
 const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -106,7 +133,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
   const { user: authUser } = React.useContext(AuthContext);
   const { isDark } = useTheme();
   const { addNotification } = useNotifications();
-  
+
   const currentUser = propUser || storeUser || authUser;
   
   const [post, setPost] = useState<Post | null>(null);
@@ -1093,7 +1120,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
                             <div className={styles.commentHeader}>
                               <span className={styles.commentAuthor}>{comment.author || '用户'}</span>
                               <span className={styles.commentDate}>
-                                {new Date(comment.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                                {formatCommentTime(comment.date)}
                               </span>
                             </div>
                             <p className={styles.commentText}>{renderCommentText(comment.content)}</p>
@@ -1105,7 +1132,7 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
                               </div>
                             )}
                             <div className={styles.commentActions}>
-                              <span className={styles.commentTime}>刚刚</span>
+                              <span className={styles.commentTime}>{formatCommentTime(comment.date)}</span>
                               <button onClick={() => handleReplyToComment(comment)}>
                                 回复
                               </button>

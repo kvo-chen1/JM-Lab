@@ -597,11 +597,25 @@ export default function PromotionOrderImplementation() {
 
     const interval = setInterval(() => {
       fetchRealTimeStats();
+      fetchBudgetMonitoring();
+      fetchROIAnalysis();
       checkAlerts();
     }, 5000);
 
     return () => clearInterval(interval);
   }, [realTimeRefreshEnabled, fetchRealTimeStats, fetchBudgetMonitoring, fetchROIAnalysis, checkAlerts]);
+
+  // 推广列表数据刷新（每 10 秒）- 用于更新曝光/点击统计
+  useEffect(() => {
+    if (!realTimeRefreshEnabled) return;
+
+    const interval = setInterval(() => {
+      fetchImplementationData();
+      console.log('自动刷新推广列表数据');
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [realTimeRefreshEnabled, fetchImplementationData]);
 
   // 返回推广订单管理页面
   const handleBack = () => {

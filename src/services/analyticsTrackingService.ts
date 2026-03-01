@@ -628,7 +628,7 @@ class AnalyticsTrackingService {
       // 获取所有作品的标签和浏览量
       const { data: works } = await supabaseAdmin
         .from('works')
-        .select('tags, views, created_at')
+        .select('tags, view_count, created_at')
         .order('created_at', { ascending: false })
         .limit(1000);
 
@@ -649,7 +649,7 @@ class AnalyticsTrackingService {
         tags.forEach((tag: string) => {
           const existing = tagMap.get(tag) || { count: 0, views: 0, recentCount: 0 };
           existing.count++;
-          existing.views += work.views || 0;
+          existing.views += work.view_count || 0;
           if (isRecent) {
             existing.recentCount++;
           }
@@ -1064,12 +1064,12 @@ class AnalyticsTrackingService {
         brandData.total_revenue += order.final_price || 0;
 
         (order.works as any[])?.forEach((work: any) => {
-          brandData.total_views += work.views || 0;
+          brandData.total_views += work.view_count || 0;
           brandData.total_engagement += work.likes || 0;
           brandData.top_performing_works.push({
             work_id: work.id,
             work_title: work.title,
-            views: work.views || 0,
+            views: work.view_count || 0,
             engagement: work.likes || 0,
           });
         });

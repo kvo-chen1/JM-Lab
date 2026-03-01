@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import UploadBox from '@/components/UploadBox';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Community } from '@/services/communityService';
+import { MentionInput, MentionInputRef } from '@/components/MentionInput';
+import { MentionSelector } from '@/components/MentionSelector';
+import { mentionService, CommunityMember } from '@/services/mentionService';
+import { toast } from 'sonner';
 
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { title: string; content: string; topic: string; contentType: string; images?: Array<string>; videos?: Array<string>; audios?: Array<string>; link?: string; communityIds: string[] }) => void;
+  onSubmit: (data: { title: string; content: string; topic: string; contentType: string; images?: Array<string>; videos?: Array<string>; audios?: Array<string>; link?: string; communityIds: string[]; mentionedUserIds?: string[] }) => void;
   isDark: boolean;
   topics?: string[];
   joinedCommunities?: Community[];
@@ -57,6 +61,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [selectedVideoFiles, setSelectedVideoFiles] = useState<File[]>([]);
   const [selectedAudioFiles, setSelectedAudioFiles] = useState<File[]>([]);
   
+  // @提及相关
+  const mentionInputRef = useRef<MentionInputRef>(null);
+  const [activeCommunityForMention, setActiveCommunityForMention] = useState<string>('');
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  
+  // 成员选择器状态
+  const [isMentionSelectorOpen, setIsMentionSelectorOpen] = useState(false);
+  const [mentionSearchQuery, setMentionSearchQuery] = useState('');
+  const [selectorPosition, setSelectorPosition] = useState({ top: 0, left: 0 });
+  
   useEffect(() => {
     if (initialImages && initialImages.length > 0) {
       setSelectedImages(initialImages);
@@ -75,16 +89,27 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   useEffect(() => {
     if (isOpen && activeCommunityId) {
       setSelectedCommunities([activeCommunityId]);
+      setActiveCommunityForMention(activeCommunityId);
     } else if (!isOpen) {
       // 模态框关闭时重置选择
       setSelectedCommunities([]);
+      setActiveCommunityForMention('');
     }
   }, [isOpen, activeCommunityId]);
   
+  // 当选择社群变化时，更新@提及的社群
+  useEffect(() => {
+    if (selectedCommunities.length > 0) {
+      setActiveCommunityForMention(selectedCommunities[0]);
+    }
+  }, [selectedCommunities]);
+  
   // 过滤社群列表，只显示用户已加入的社群
   const filteredCommunities = joinedCommunities;
-  console.log('joinedCommunities:', joinedCommunities);
-  console.log('filteredCommunities:', filteredCommunities);
+  console.log('[CreatePostModal] joinedCommunities:', joinedCommunities);
+  console.log('[CreatePostModal] filteredCommunities:', filteredCommunities);
+  console.log('[CreatePostModal] activeCommunityForMention:', activeCommunityForMention);
+  console.log('[CreatePostModal] selectedCommunities:', selectedCommunities);
 
   // 处理图片选择
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,13 +208,17 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     try {
       // 动态导入 uploadImage
       const { uploadImage } = await import('@/services/imageService');
+      
+      // 获取@提及的用户ID
+      const mentionedUserIds = mentionInputRef.current?.getMentionedUserIds() || [];
 
       const postData: any = {
         title,
         content,
         topic: selectedTopic,
         contentType: selectedContentType,
-        communityIds: selectedCommunities
+        communityIds: selectedCommunities,
+        mentionedUserIds
       };
       
       // 根据内容类型添加相应的媒体数据
@@ -237,6 +266,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       // 重置所有状态
       setTitle('');
       setContent('');
+      mentionInputRef.current?.setContent('');
       setSelectedTopic(initialTopic);
       setSelectedContentType(contentTypes[0].id);
       setSelectedImages([]);
@@ -261,6 +291,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   };
 
   return (
+    <>
     <Modal
       isOpen={isOpen}
       onClose={onClose}
@@ -285,7 +316,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         </>
       }
     >
-      <div className="space-y-6">
+      <div ref={modalContentRef} className="space-y-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -546,16 +577,32 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         >
           <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
             内容
+            <span className="ml-2 text-xs text-gray-400 font-normal">
+              (输入 @ 提及成员)
+            </span>
           </label>
-          <motion.textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={5}
-            className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-red-500 focus:outline-none resize-none transition-all duration-300 ${isDark ? 'bg-gray-800 border-gray-700 text-white hover:border-gray-600' : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300'}`}
-            placeholder="分享你的想法..."
-            whileFocus={{ scale: 1.01 }}
-            transition={{ type: "spring", stiffness: 400, damping: 10 }}
-          />
+          {activeCommunityForMention ? (
+            <MentionInput
+              ref={mentionInputRef}
+              communityId={activeCommunityForMention}
+              placeholder="分享你的想法... 使用 @ 提及社群成员"
+              initialContent={content}
+              onChange={(newContent) => setContent(newContent)}
+              maxLength={2000}
+              rows={5}
+              className={`${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900'} rounded-xl focus:ring-red-500`}
+            />
+          ) : (
+            <motion.textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={5}
+              className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-red-500 focus:outline-none resize-none transition-all duration-300 ${isDark ? 'bg-gray-800 border-gray-700 text-white hover:border-gray-600' : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300'}`}
+              placeholder="请先选择社群，然后可以使用 @ 提及成员"
+              whileFocus={{ scale: 1.01 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            />
+          )}
         </motion.div>
 
         {/* 媒体上传部分 - 根据内容类型动态显示 */}
@@ -760,5 +807,30 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         )}
       </div>
     </Modal>
+    
+    {/* @提及选择器 - 显示在模态框右侧 */}
+    <AnimatePresence>
+      {isMentionSelectorOpen && activeCommunityForMention && (
+        <MentionSelector
+          communityId={activeCommunityForMention}
+          isOpen={isMentionSelectorOpen}
+          searchQuery={mentionSearchQuery}
+          onSelect={(member) => {
+            // 处理成员选择
+            const textarea = document.querySelector('textarea');
+            if (textarea) {
+              const cursorPosition = textarea.selectionStart;
+              const newContent = content.substring(0, cursorPosition) + member.username + ' ' + content.substring(cursorPosition);
+              setContent(newContent);
+              mentionInputRef.current?.setContent(newContent);
+            }
+            setIsMentionSelectorOpen(false);
+          }}
+          onClose={() => setIsMentionSelectorOpen(false)}
+          position={selectorPosition}
+        />
+      )}
+    </AnimatePresence>
+    </>
   );
 };

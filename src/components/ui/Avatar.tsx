@@ -1,4 +1,5 @@
 // src/components/ui/Avatar.tsx
+// @mention feature - Avatar component
 
 import React, { ReactNode, HTMLAttributes, forwardRef } from 'react';
 import { clsx } from 'clsx';
@@ -141,6 +142,9 @@ const Avatar = forwardRef<HTMLDivElement, AvatarProps>(({
 });
 
 Avatar.displayName = 'Avatar';
+
+// 同时提供命名导出
+export { Avatar };
 
 // 头像组属性接口
 interface AvatarGroupProps extends HTMLAttributes<HTMLDivElement> {

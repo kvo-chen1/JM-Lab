@@ -279,6 +279,10 @@ const PointsMall = createLazyComponent(() => import(/* webpackChunkName: "pages-
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 
+const PointsLottery = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/PointsLottery"), {
+  priority: ROUTE_PRIORITIES.MEDIUM
+});
+
 // 创作者中心 - 懒加载
 const CreatorCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-creator" */ "@/pages/creator-center"), {
   priority: ROUTE_PRIORITIES.HIGH,
@@ -937,6 +941,9 @@ export default function App() {
           <Route path="/blind-box" element={<LazyComponent><PrivateRoute><BlindBoxShop /></PrivateRoute></LazyComponent>} />
           {/* 积分商城路由 */}
           <Route path="/points-mall" element={<LazyComponent><PrivateRoute><PointsMall /></PrivateRoute></LazyComponent>} />
+          
+          {/* 积分抽奖路由 */}
+          <Route path="/points-lottery" element={<LazyComponent><PrivateRoute><PointsLottery /></PrivateRoute></LazyComponent>} />
           
           {/* 会员相关路由 - 懒加载 */}
           <Route path="/membership" element={<LazyComponent><Membership /></LazyComponent>} />

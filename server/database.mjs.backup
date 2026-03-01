@@ -2015,7 +2015,7 @@ export const leaderboardDB = {
           SELECT u.id, u.username, u.email, u.avatar_url, u.created_at, u.updated_at, 
             COUNT(w.id) as posts_count, 
             COALESCE(SUM(w.likes), 0) as total_likes, 
-            COALESCE(SUM(w.views), 0) as total_views
+            COALESCE(SUM(w.view_count), 0) as total_views
           FROM users u
           LEFT JOIN works w ON u.id = w.creator_id ${pgWorkWhereClause}
           GROUP BY u.id
@@ -2631,7 +2631,7 @@ export const workDB = {
           SELECT 
             COUNT(*) as works_count,
             COALESCE(SUM(likes), 0) as total_likes,
-            COALESCE(SUM(views), 0) as total_views,
+            COALESCE(SUM(view_count), 0) as total_views,
             COALESCE(SUM(comments), 0) as total_comments
           FROM works WHERE creator_id = $1
         `, [userId])

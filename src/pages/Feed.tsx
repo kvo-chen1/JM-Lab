@@ -277,6 +277,11 @@ export default function Feed() {
             ? { ...feed, isLiked: result.isLiked, likes: result.likes }
             : feed
         ));
+        // 同时更新选中的动态（用于详情弹窗）
+        setSelectedFeed(prev => prev && prev.id === feedId
+          ? { ...prev, isLiked: result.isLiked, likes: result.likes }
+          : prev
+        );
       } else {
         toast.error('操作失败，请稍后重试');
       }
@@ -300,6 +305,11 @@ export default function Feed() {
             ? { ...feed, isCollected: result.isCollected }
             : feed
         ));
+        // 同时更新选中的动态（用于详情弹窗）
+        setSelectedFeed(prev => prev && prev.id === feedId
+          ? { ...prev, isCollected: result.isCollected }
+          : prev
+        );
         toast.success(result.isCollected ? '收藏成功' : '取消收藏成功');
       } else {
         toast.error('操作失败，请稍后重试');
@@ -335,6 +345,11 @@ export default function Feed() {
             ? { ...feed, shares: result.shares, isShared: true }
             : feed
         ));
+        // 同时更新选中的动态（用于详情弹窗）
+        setSelectedFeed(prev => prev && prev.id === feedId
+          ? { ...prev, shares: result.shares, isShared: true }
+          : prev
+        );
       }
     } catch (error) {
       console.error('分享失败:', error);

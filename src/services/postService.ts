@@ -94,6 +94,10 @@ export interface Post {
   reviewedAt: string | null;
   recommendationScore: number;
   recommendedFor: string[];
+  // 推广相关字段（内部使用）
+  _isPromoted?: boolean;
+  _promotedWorkId?: string;
+  _packageType?: string;
 }
 
 // ------------------------------------------------------------------
@@ -245,7 +249,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           console.log('First 5 works from API:', result.data.slice(0, 5).map((w: any) => ({
             id: w.id,
             title: w.title,
-            views: w.views,
+            views: w.view_count,
             likes: w.likes,
             thumbnail: w.thumbnail,
             thumbnail_length: w.thumbnail?.length,
@@ -371,7 +375,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             category: (w.category as PostCategory) || 'other',
             tags: w.tags || [],
             description: w.description || '',
-            views: w.views || 0,
+            views: w.view_count || 0,
             shares: 0,
             isFeatured: false,
             isDraft: false,
@@ -738,7 +742,7 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
           category: w.category || 'other',
           tags: w.tags || [],
           description: w.description || w.content || '',
-          views: w.views || 0,
+          views: w.view_count || 0,
           shares: 0,
           isFeatured: false,
           isDraft: w.status === 'draft',
@@ -3602,7 +3606,7 @@ function convertWorkToPost(work: any, isLiked: boolean, isBookmarked: boolean): 
     category: (work.category as PostCategory) || 'other',
     tags: work.tags || [],
     description: work.description || '',
-    views: work.views || 0,
+    views: work.view_count || 0,
     shares: 0,
     isFeatured: false,
     isDraft: false,
@@ -3757,12 +3761,15 @@ export async function recordPromotionView(
   promotedWorkId: string,
   viewerId?: string
 ): Promise<boolean> {
+  console.log('recordPromotionView called:', { promotedWorkId, viewerId });
   try {
     const { data, error } = await supabase
       .rpc('record_promotion_view', {
         p_promoted_work_id: promotedWorkId,
         p_viewer_id: viewerId || null
       });
+
+    console.log('recordPromotionView result:', { data, error });
 
     if (error) {
       console.warn('记录推广曝光失败:', error);
@@ -3785,12 +3792,15 @@ export async function recordPromotionClick(
   promotedWorkId: string,
   viewerId?: string
 ): Promise<boolean> {
+  console.log('recordPromotionClick called:', { promotedWorkId, viewerId });
   try {
     const { data, error } = await supabase
       .rpc('record_promotion_click', {
         p_promoted_work_id: promotedWorkId,
         p_viewer_id: viewerId || null
       });
+
+    console.log('recordPromotionClick result:', { data, error });
 
     if (error) {
       console.warn('记录推广点击失败:', error);
@@ -3849,11 +3859,11 @@ export function convertPromotedPostToPost(promotedPost: PromotedPost): Post {
     reviewedAt: null,
     recommendationScore: promotedPost.is_promoted ? 100 : 0,
     recommendedFor: promotedPost.is_promoted ? ['推广'] : [],
-    // 扩展字段，用于标识推广
+    // 推广相关字段
     _isPromoted: promotedPost.is_promoted,
     _promotedWorkId: promotedPost.promoted_work_id,
     _packageType: promotedPost.package_type
-  } as Post & { _isPromoted?: boolean; _promotedWorkId?: string; _packageType?: string };
+  };
 }
 
 export default {

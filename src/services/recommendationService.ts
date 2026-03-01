@@ -879,7 +879,69 @@ export function recordRecommendationFeedback(userId: string, feedback: Omit<Reco
 }
 
 /**
- * 计算用户相似度（协同过滤）
+ * 计算时间衰减权重
+ * 近期行为权重更高，使用指数衰减
+ * @param timestamp 行为发生时间
+ * @param halfLife 半衰期（天），默认30天
+ */
+function calculateTimeDecayWeight(timestamp: string, halfLife: number = 30): number {
+  const daysDiff = (Date.now() - new Date(timestamp).getTime()) / (1000 * 60 * 60 * 24);
+  const lambda = Math.log(2) / halfLife;
+  return Math.exp(-lambda * daysDiff);
+}
+
+/**
+ * 计算余弦相似度
+ * 比Jaccard相似度更适合评分数据，考虑行为强度
+ */
+function calculateCosineSimilarity(
+  vectorA: Map<string, number>,
+  vectorB: Map<string, number>
+): number {
+  // 获取所有维度
+  const allKeys = new Set([...vectorA.keys(), ...vectorB.keys()]);
+  
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  
+  for (const key of allKeys) {
+    const valueA = vectorA.get(key) || 0;
+    const valueB = vectorB.get(key) || 0;
+    
+    dotProduct += valueA * valueB;
+    normA += valueA * valueA;
+    normB += valueB * valueB;
+  }
+  
+  if (normA === 0 || normB === 0) return 0;
+  
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+/**
+ * 构建用户行为向量（带时间衰减）
+ */
+function buildUserVector(actions: UserAction[]): Map<string, number> {
+  const vector = new Map<string, number>();
+  
+  actions.forEach(action => {
+    const itemKey = `${action.itemType}_${action.itemId}`;
+    const baseWeight = ACTION_WEIGHTS[action.actionType] || 1;
+    const timeWeight = calculateTimeDecayWeight(action.timestamp, 30);
+    const finalWeight = baseWeight * timeWeight;
+    
+    // 累加同一物品的多次行为
+    const currentWeight = vector.get(itemKey) || 0;
+    vector.set(itemKey, currentWeight + finalWeight);
+  });
+  
+  return vector;
+}
+
+/**
+ * 计算用户相似度（协同过滤）- 优化版
+ * 使用余弦相似度 + 时间衰减，比Jaccard更准确
  */
 export function calculateUserSimilarities(targetUserId: string): UserSimilarity {
   const allActions = getUserActions();
@@ -893,6 +955,9 @@ export function calculateUserSimilarities(targetUserId: string): UserSimilarity 
     };
   }
   
+  // 构建目标用户的行为向量
+  const targetVector = buildUserVector(targetUserActions);
+  
   // 获取所有用户ID
   const userIds = Array.from(new Set(allActions.map(action => action.userId)));
   
@@ -904,21 +969,20 @@ export function calculateUserSimilarities(targetUserId: string): UserSimilarity 
     
     const otherUserActions = allActions.filter(action => action.userId === userId);
     
-    // 计算共同行为
-    const targetItemIds = new Set(targetUserActions.map(action => `${action.itemType}_${action.itemId}`));
-    const otherItemIds = new Set(otherUserActions.map(action => `${action.itemType}_${action.itemId}`));
+    // 构建其他用户的行为向量
+    const otherVector = buildUserVector(otherUserActions);
     
-    // 计算交集
-    const intersection = new Set([...targetItemIds].filter(x => otherItemIds.has(x)));
+    // 计算余弦相似度（考虑行为权重和时间衰减）
+    const cosineSim = calculateCosineSimilarity(targetVector, otherVector);
     
-    // 计算并集
-    const union = new Set([...targetItemIds, ...otherItemIds]);
+    // 计算共同行为数量（用于过滤）
+    const targetItems = new Set(targetUserActions.map(a => `${a.itemType}_${a.itemId}`));
+    const otherItems = new Set(otherUserActions.map(a => `${a.itemType}_${a.itemId}`));
+    const commonItems = [...targetItems].filter(x => otherItems.has(x));
     
-    // 计算Jaccard相似度
-    const similarity = union.size > 0 ? intersection.size / union.size : 0;
-    
-    if (similarity > 0) {
-      similarities.push({ userId, similarity });
+    // 只有当有足够共同行为时才计算相似度
+    if (commonItems.length >= 2 && cosineSim > 0.1) {
+      similarities.push({ userId, similarity: cosineSim });
     }
   });
   
@@ -927,7 +991,7 @@ export function calculateUserSimilarities(targetUserId: string): UserSimilarity 
   
   const result = {
     userId: targetUserId,
-    similarUsers: similarities.slice(0, 10), // 只保存前10个最相似的用户
+    similarUsers: similarities.slice(0, 20), // 增加到前20个最相似的用户
     timestamp: new Date().toISOString()
   };
   
@@ -1206,12 +1270,12 @@ export function getSimilarContent(itemId: string, itemType: 'post' | 'challenge'
   // 在实际应用中，这应该基于内容相似度计算
   
   // 获取数据源
-  const { posts: allPosts, challenges: allChallenges, templates: allTemplates } = getRecommendationData();
+  const { works: allWorks, challenges: allChallenges, templates: allTemplates } = getRecommendationData();
   
   // 1. 获取目标项目
   let targetItem: any;
   if (itemType === 'post') {
-    targetItem = allPosts.find((p: any) => p.id === itemId);
+    targetItem = allWorks.find((p: any) => p.id === itemId);
   } else if (itemType === 'challenge') {
     targetItem = allChallenges.find((c: any) => c.id === itemId);
   } else {
@@ -1319,6 +1383,557 @@ export function resetUserPreferences(userId: string): UserPreference {
   return initializeUserPreferences(userId);
 }
 
+// ============================================
+// Learning to Rank 特征工程
+// ============================================
+
+/**
+ * LTR特征接口
+ */
+export interface LTRFeatures {
+  // 用户特征
+  userFeature: {
+    avgSessionDuration: number;      // 平均会话时长
+    favoriteCategoryMatch: number;   // 偏好分类匹配度
+    lastViewTimeGap: number;         // 上次浏览时间间隔(小时)
+    userActivityScore: number;       // 用户活跃度
+    historicalCTR: number;           // 历史点击率
+  };
+  // 内容特征
+  contentFeature: {
+    qualityScore: number;            // 内容质量分
+    freshness: number;               // 新鲜度(0-1)
+    popularity: number;              // 热度分
+    completeness: number;            // 完整度
+    mediaQuality: number;            // 媒体质量
+  };
+  // 交叉特征
+  crossFeature: {
+    categoryMatch: number;           // 用户-内容分类匹配
+    authorFollow: number;            // 是否关注作者
+    timeRelevance: number;           // 时间相关性
+    tagOverlap: number;              // 标签重叠度
+  };
+}
+
+/**
+ * 计算LTR特征
+ */
+export function calculateLTRFeatures(
+  userId: string,
+  item: RecommendedItem,
+  userActions: UserAction[]
+): LTRFeatures {
+  const userActionsForItem = userActions.filter(a => a.itemId === item.id);
+  const preference = getUserPreferences(userId) || null;
+
+  // 计算用户特征
+  const userFeature = {
+    avgSessionDuration: calculateAvgSessionDuration(userActions),
+    favoriteCategoryMatch: calculateCategoryMatch(preference, item),
+    lastViewTimeGap: calculateLastViewTimeGap(userActionsForItem),
+    userActivityScore: calculateUserActivityScore(userActions),
+    historicalCTR: calculateHistoricalCTR(userActions)
+  };
+
+  // 计算内容特征
+  const contentFeature = {
+    qualityScore: calculateContentQuality(item),
+    freshness: calculateFreshness(item.metadata?.createdAt),
+    popularity: calculatePopularity(item.metadata),
+    completeness: calculateCompleteness(item.metadata),
+    mediaQuality: calculateMediaQuality(item.metadata)
+  };
+
+  // 计算交叉特征
+  const crossFeature = {
+    categoryMatch: userFeature.favoriteCategoryMatch,
+    authorFollow: calculateAuthorFollow(userId, item.metadata?.authorId),
+    timeRelevance: calculateTimeRelevance(item.metadata?.createdAt),
+    tagOverlap: calculateTagOverlap(preference, item)
+  };
+
+  return { userFeature, contentFeature, crossFeature };
+}
+
+/**
+ * 使用LTR特征计算排序分数
+ * 使用逻辑回归风格的加权求和（可后续升级为GBDT模型）
+ */
+export function calculateLTRScore(features: LTRFeatures): number {
+  // 特征权重（可通过离线训练学习）
+  const weights = {
+    // 用户特征权重
+    avgSessionDuration: 0.05,
+    favoriteCategoryMatch: 0.15,
+    lastViewTimeGap: 0.08,
+    userActivityScore: 0.06,
+    historicalCTR: 0.12,
+    // 内容特征权重
+    qualityScore: 0.18,
+    freshness: 0.10,
+    popularity: 0.08,
+    completeness: 0.05,
+    mediaQuality: 0.04,
+    // 交叉特征权重
+    categoryMatch: 0.05,
+    authorFollow: 0.03,
+    timeRelevance: 0.04,
+    tagOverlap: 0.02
+  };
+  
+  let score = 0;
+  
+  // 用户特征
+  score += features.userFeature.avgSessionDuration * weights.avgSessionDuration;
+  score += features.userFeature.favoriteCategoryMatch * weights.favoriteCategoryMatch;
+  score += Math.exp(-features.userFeature.lastViewTimeGap / 24) * weights.lastViewTimeGap;
+  score += features.userFeature.userActivityScore * weights.userActivityScore;
+  score += features.userFeature.historicalCTR * weights.historicalCTR;
+  
+  // 内容特征
+  score += features.contentFeature.qualityScore * weights.qualityScore;
+  score += features.contentFeature.freshness * weights.freshness;
+  score += features.contentFeature.popularity * weights.popularity;
+  score += features.contentFeature.completeness * weights.completeness;
+  score += features.contentFeature.mediaQuality * weights.mediaQuality;
+  
+  // 交叉特征
+  score += features.crossFeature.categoryMatch * weights.categoryMatch;
+  score += features.crossFeature.authorFollow * weights.authorFollow;
+  score += features.crossFeature.timeRelevance * weights.timeRelevance;
+  score += features.crossFeature.tagOverlap * weights.tagOverlap;
+  
+  // 使用sigmoid转换为概率
+  return 1 / (1 + Math.exp(-score));
+}
+
+// 辅助函数：计算平均会话时长
+function calculateAvgSessionDuration(actions: UserAction[]): number {
+  if (actions.length < 2) return 0;
+  const timestamps = actions.map(a => new Date(a.timestamp).getTime()).sort((a, b) => a - b);
+  let totalDuration = 0;
+  let sessionCount = 1;
+  
+  for (let i = 1; i < timestamps.length; i++) {
+    const gap = (timestamps[i] - timestamps[i-1]) / (1000 * 60); // 分钟
+    if (gap > 30) {
+      sessionCount++;
+    } else {
+      totalDuration += gap;
+    }
+  }
+  
+  return totalDuration / sessionCount;
+}
+
+// 辅助函数：计算分类匹配度
+function calculateCategoryMatch(preference: UserPreference | null, item: RecommendedItem): number {
+  if (!preference || !item.metadata?.category) return 0.5;
+  return preference.categories[item.metadata.category] || 0.5;
+}
+
+// 辅助函数：计算上次浏览时间间隔
+function calculateLastViewTimeGap(actions: UserAction[]): number {
+  if (actions.length === 0) return 168; // 默认7天
+  const lastAction = actions.sort((a, b) => 
+    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  )[0];
+  return (Date.now() - new Date(lastAction.timestamp).getTime()) / (1000 * 60 * 60);
+}
+
+// 辅助函数：计算用户活跃度
+function calculateUserActivityScore(actions: UserAction[]): number {
+  const recentActions = actions.filter(a => 
+    (Date.now() - new Date(a.timestamp).getTime()) < (7 * 24 * 60 * 60 * 1000)
+  );
+  return Math.min(recentActions.length / 10, 1);
+}
+
+// 辅助函数：计算历史点击率
+function calculateHistoricalCTR(actions: UserAction[]): number {
+  const views = actions.filter(a => a.actionType === 'view').length;
+  const clicks = actions.filter(a => a.actionType === 'click' || a.actionType === 'like').length;
+  return views > 0 ? clicks / views : 0.3;
+}
+
+// 辅助函数：计算内容质量分
+function calculateContentQuality(item: RecommendedItem): number {
+  const metadata = item.metadata || {};
+  let score = 0.5;
+  
+  // 基于互动数据
+  if (metadata.likes && metadata.views) {
+    const engagementRate = metadata.likes / metadata.views;
+    score += engagementRate * 0.3;
+  }
+  
+  // 基于完整性
+  if (metadata.title && metadata.description) score += 0.1;
+  if (metadata.tags && metadata.tags.length > 0) score += 0.05;
+  if (metadata.thumbnail) score += 0.05;
+  
+  return Math.min(score, 1);
+}
+
+// 辅助函数：计算新鲜度
+function calculateFreshness(createdAt?: string): number {
+  if (!createdAt) return 0.5;
+  const daysDiff = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+  return Math.exp(-daysDiff / 7); // 7天半衰期
+}
+
+// 辅助函数：计算热度
+function calculatePopularity(metadata: any): number {
+  if (!metadata) return 0.5;
+  const likes = metadata.likes || 0;
+  const views = metadata.views || 0;
+  const shares = metadata.shares || 0;
+  const comments = metadata.comments?.length || 0;
+  
+  // 热度公式：点赞*5 + 浏览*0.5 + 分享*10 + 评论*8
+  const score = (likes * 5 + views * 0.5 + shares * 10 + comments * 8) / 1000;
+  return Math.min(score, 1);
+}
+
+// 辅助函数：计算完整度
+function calculateCompleteness(metadata: any): number {
+  if (!metadata) return 0;
+  let score = 0;
+  if (metadata.title) score += 0.2;
+  if (metadata.description) score += 0.2;
+  if (metadata.tags?.length > 0) score += 0.2;
+  if (metadata.category) score += 0.2;
+  if (metadata.thumbnail) score += 0.2;
+  return score;
+}
+
+// 辅助函数：计算媒体质量
+function calculateMediaQuality(metadata: any): number {
+  if (!metadata) return 0.5;
+  // 简化实现，实际可基于图像分析
+  return metadata.thumbnail ? 0.7 : 0.3;
+}
+
+// 辅助函数：计算是否关注作者
+function calculateAuthorFollow(userId: string, authorId?: string): number {
+  // 简化实现，实际应查询用户关注关系
+  return authorId === userId ? 1 : 0;
+}
+
+// 辅助函数：计算时间相关性
+function calculateTimeRelevance(createdAt?: string): number {
+  if (!createdAt) return 0.5;
+  const hour = new Date().getHours();
+  const createdHour = new Date(createdAt).getHours();
+  const hourDiff = Math.abs(hour - createdHour);
+  return Math.exp(-hourDiff / 12);
+}
+
+// 辅助函数：计算标签重叠度
+function calculateTagOverlap(preference: UserPreference | null, item: RecommendedItem): number {
+  if (!preference || !item.metadata?.tags) return 0;
+  const itemTags = item.metadata.tags as string[];
+  let overlap = 0;
+  itemTags.forEach(tag => {
+    if (preference.tags[tag]) overlap += preference.tags[tag];
+  });
+  return itemTags.length > 0 ? overlap / itemTags.length : 0;
+}
+
+// ============================================
+// 多级召回策略
+// ============================================
+
+/**
+ * 召回渠道类型
+ */
+export type RecallChannel = 
+  | 'collaborative'    // 协同过滤召回
+  | 'content'          // 内容相似度召回
+  | 'trending'         // 热门召回
+  | 'following'        // 关注召回
+  | 'newContent'       // 新品召回
+  | 'author'           // 作者召回
+  | 'tag';             // 标签召回
+
+/**
+ * 召回配置
+ */
+interface RecallConfig {
+  channel: RecallChannel;
+  weight: number;
+  limit: number;
+}
+
+/**
+ * 多路召回结果
+ */
+interface RecallResult {
+  channel: RecallChannel;
+  items: RecommendedItem[];
+  weight: number;
+}
+
+/**
+ * 多路召回主函数
+ * 整合多个召回渠道，提供更丰富的候选集
+ */
+export async function multiChannelRecall(
+  userId: string,
+  configs?: RecallConfig[]
+): Promise<RecallResult[]> {
+  // 默认召回配置
+  const defaultConfigs: RecallConfig[] = [
+    { channel: 'collaborative', weight: 0.30, limit: 100 },
+    { channel: 'content', weight: 0.25, limit: 100 },
+    { channel: 'trending', weight: 0.20, limit: 50 },
+    { channel: 'following', weight: 0.15, limit: 50 },
+    { channel: 'newContent', weight: 0.10, limit: 30 }
+  ];
+  
+  const recallConfigs = configs || defaultConfigs;
+  
+  // 并行执行所有召回
+  const recallPromises = recallConfigs.map(async config => {
+    const items = await executeRecall(userId, config.channel, config.limit);
+    return {
+      channel: config.channel,
+      items,
+      weight: config.weight
+    };
+  });
+  
+  return Promise.all(recallPromises);
+}
+
+/**
+ * 执行单路召回
+ */
+async function executeRecall(
+  userId: string,
+  channel: RecallChannel,
+  limit: number
+): Promise<RecommendedItem[]> {
+  switch (channel) {
+    case 'collaborative':
+      return generateCollaborativeRecommendations(userId, limit);
+    case 'content':
+      return generateContentBasedRecommendations(userId, limit);
+    case 'trending':
+      return getTrendingContent(limit);
+    case 'following':
+      return recallFromFollowing(userId, limit);
+    case 'newContent':
+      return recallNewContent(limit);
+    case 'author':
+      return recallByAuthor(userId, limit);
+    case 'tag':
+      return recallByTag(userId, limit);
+    default:
+      return [];
+  }
+}
+
+/**
+ * 从关注用户召回
+ */
+function recallFromFollowing(userId: string, limit: number): RecommendedItem[] {
+  // 简化实现，实际应查询用户关注列表
+  const { works } = getRecommendationData();
+  const recentWorks = works
+    .filter((w: any) => w.createdAt && 
+      (Date.now() - new Date(w.createdAt).getTime()) < (7 * 24 * 60 * 60 * 1000))
+    .slice(0, limit);
+  
+  return recentWorks.map((work: any) => ({
+    id: work.id,
+    type: 'post' as const,
+    title: work.title,
+    thumbnail: work.thumbnail || work.cover_url || '',
+    score: 50,
+    reason: '关注作者新作',
+    metadata: work
+  }));
+}
+
+/**
+ * 新品召回
+ */
+function recallNewContent(limit: number): RecommendedItem[] {
+  const { works } = getRecommendationData();
+  const newWorks = works
+    .filter((w: any) => w.createdAt && 
+      (Date.now() - new Date(w.createdAt).getTime()) < (3 * 24 * 60 * 60 * 1000))
+    .sort((a: any, b: any) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+    .slice(0, limit);
+  
+  return newWorks.map((work: any) => ({
+    id: work.id,
+    type: 'post' as const,
+    title: work.title,
+    thumbnail: work.thumbnail || work.cover_url || '',
+    score: 40,
+    reason: '新鲜内容',
+    metadata: work
+  }));
+}
+
+/**
+ * 按作者召回
+ */
+function recallByAuthor(userId: string, limit: number): RecommendedItem[] {
+  const userActions = getUserActions().filter(a => a.userId === userId);
+  const likedAuthors = new Set(
+    userActions
+      .filter(a => a.actionType === 'like')
+      .map(a => a.metadata?.authorId)
+      .filter(Boolean)
+  );
+  
+  const { works } = getRecommendationData();
+  const authorWorks = works
+    .filter((w: any) => likedAuthors.has(w.authorId))
+    .slice(0, limit);
+  
+  return authorWorks.map((work: any) => ({
+    id: work.id,
+    type: 'post' as const,
+    title: work.title,
+    thumbnail: work.thumbnail || work.cover_url || '',
+    score: 45,
+    reason: '喜欢的作者',
+    metadata: work
+  }));
+}
+
+/**
+ * 按标签召回
+ */
+function recallByTag(userId: string, limit: number): RecommendedItem[] {
+  const preference = getUserPreferences(userId);
+  if (!preference) return [];
+  
+  const favoriteTags = Object.entries(preference.tags)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([tag]) => tag);
+  
+  const { works } = getRecommendationData();
+  const taggedWorks = works
+    .filter((w: any) => w.tags && w.tags.some((tag: string) => favoriteTags.includes(tag)))
+    .slice(0, limit);
+  
+  return taggedWorks.map((work: any) => ({
+    id: work.id,
+    type: 'post' as const,
+    title: work.title,
+    thumbnail: work.thumbnail || work.cover_url || '',
+    score: 35,
+    reason: '符合兴趣标签',
+    metadata: work
+  }));
+}
+
+/**
+ * 合并多路召回结果
+ * 使用加权融合策略
+ */
+export function mergeRecallResults(
+  recallResults: RecallResult[],
+  userId: string
+): RecommendedItem[] {
+  const merged: Map<string, RecommendedItem> = new Map();
+  const userActions = getUserActions().filter(a => a.userId === userId);
+  
+  recallResults.forEach(result => {
+    result.items.forEach(item => {
+      const key = `${item.type}_${item.id}`;
+      const weightedScore = item.score * result.weight;
+      
+      if (merged.has(key)) {
+        // 已存在，累加分数
+        const existing = merged.get(key)!;
+        existing.score += weightedScore;
+        // 合并推荐理由
+        if (!existing.reason?.includes(result.channel)) {
+          existing.reason = `${existing.reason}，${getChannelName(result.channel)}`;
+        }
+      } else {
+        // 新增
+        merged.set(key, {
+          ...item,
+          score: weightedScore,
+          reason: item.reason || getChannelName(result.channel)
+        });
+      }
+    });
+  });
+  
+  // 使用LTR特征重新排序
+  const items = Array.from(merged.values());
+  return items.map(item => {
+    const features = calculateLTRFeatures(userId, item, userActions);
+    const ltrScore = calculateLTRScore(features);
+    // 融合原始分数和LTR分数
+    const finalScore = item.score * 0.6 + ltrScore * 100 * 0.4;
+    return { ...item, score: finalScore };
+  }).sort((a, b) => b.score - a.score);
+}
+
+/**
+ * 获取召回渠道中文名
+ */
+function getChannelName(channel: RecallChannel): string {
+  const names: Record<RecallChannel, string> = {
+    collaborative: '相似用户喜欢',
+    content: '符合你的兴趣',
+    trending: '热门内容',
+    following: '关注作者',
+    newContent: '新鲜内容',
+    author: '喜欢的作者',
+    tag: '符合兴趣标签'
+  };
+  return names[channel];
+}
+
+/**
+ * 优化版推荐生成函数
+ * 使用多级召回 + LTR排序
+ */
+export async function generateOptimizedRecommendations(
+  userId: string,
+  options: RecommendationOptions = {}
+): Promise<RecommendedItem[]> {
+  const { limit = 20, includeDiverse = true } = options;
+  
+  // 1. 多路召回
+  const recallResults = await multiChannelRecall(userId);
+  
+  // 2. 合并召回结果
+  let recommendations = mergeRecallResults(recallResults, userId);
+  
+  // 3. 应用多样性优化
+  if (includeDiverse) {
+    recommendations = optimizeRecommendationDiversity(recommendations, limit);
+  } else {
+    recommendations = recommendations.slice(0, limit);
+  }
+  
+  // 4. 兜底策略
+  if (recommendations.length === 0) {
+    const trending = getTrendingContent(limit);
+    return trending.map(item => ({
+      ...item,
+      reason: '热门推荐'
+    }));
+  }
+  
+  return recommendations;
+}
+
 // 导出服务对象
 export default {
   getUserActions,
@@ -1337,5 +1952,11 @@ export default {
   calculateDiversityScore,
   optimizeRecommendationDiversity,
   clearUserActions,
-  resetUserPreferences
+  resetUserPreferences,
+  // 新增导出
+  calculateLTRFeatures,
+  calculateLTRScore,
+  multiChannelRecall,
+  mergeRecallResults,
+  generateOptimizedRecommendations
 };

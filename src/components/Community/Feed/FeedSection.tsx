@@ -26,6 +26,7 @@ interface FeedSectionProps {
   };
   onViewThread?: (id: string) => void; // 添加查看帖子的回调，用于记录用户行为
   loading?: boolean; // 添加加载状态
+  disablePostClick?: boolean; // 禁用帖子点击
 }
 
 // 帖子骨架屏组件
@@ -74,7 +75,8 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
   activeCommunity,
   user,
   onViewThread,
-  loading = false
+  loading = false,
+  disablePostClick = false
 }) => {
   const [sortBy, setSortBy] = useState<'hot' | 'new' | 'top'>('hot');
   const [hasMore, setHasMore] = useState(true);
@@ -264,6 +266,7 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
                     isLiked={isThreadLiked(thread.id)}
                     onToggleLike={onToggleLike}
                     index={index}
+                    disableClick={disablePostClick}
                 />
              </motion.div>
            );

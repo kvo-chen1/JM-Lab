@@ -1,6 +1,7 @@
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import type { PostWithAuthor, UserProfile, CommentWithAuthor } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { mentionService } from './mentionService';
 
 // 辅助函数：获取社区真实成员数
 async function getCommunityMemberCount(communityId: string): Promise<number> {
@@ -1197,6 +1198,7 @@ export const communityService = {
     workId?: string;
     images?: string[];
     videos?: string[];
+    mentionedUserIds?: string[];
   }): Promise<Thread[]> {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
@@ -1211,6 +1213,8 @@ export const communityService = {
     // 为每个选中的社群创建帖子
     for (const communityId of data.communityIds) {
       try {
+        let newPostId: string;
+        
         // 优先尝试使用后端API
         if (token) {
           try {
@@ -1231,6 +1235,7 @@ export const communityService = {
             if (response.ok) {
               const result = await response.json();
               if (result.code === 0) {
+                newPostId = result.data.id;
                 createdThreads.push({
                   id: result.data.id,
                   title: result.data.title,
@@ -1247,6 +1252,23 @@ export const communityService = {
                   authorId: user.id,
                   comments: []
                 });
+                
+                // 处理@提及
+                if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
+                  try {
+                    await mentionService.processContentMentions(
+                      data.content,
+                      user.id,
+                      'post',
+                      newPostId,
+                      'post',
+                      communityId
+                    );
+                  } catch (mentionError) {
+                    console.error('[createPost] Error processing mentions:', mentionError);
+                  }
+                }
+                
                 continue;
               }
             }
@@ -1274,6 +1296,8 @@ export const communityService = {
           throw error;
         }
 
+        newPostId = newPost.id;
+        
         createdThreads.push({
           id: newPost.id,
           title: newPost.title,
@@ -1290,6 +1314,22 @@ export const communityService = {
           authorId: user.id,
           comments: []
         });
+        
+        // 处理@提及
+        if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
+          try {
+            await mentionService.processContentMentions(
+              data.content,
+              user.id,
+              'post',
+              newPostId,
+              'post',
+              communityId
+            );
+          } catch (mentionError) {
+            console.error('[createPost] Error processing mentions:', mentionError);
+          }
+        }
       } catch (error) {
         console.error(`[createPost] Failed to create post for community ${communityId}:`, error);
         throw error;
@@ -1308,6 +1348,7 @@ export const communityService = {
     images?: Array<string>;
     videos?: Array<string>;
     audios?: Array<string>;
+    mentionedUserIds?: string[];
   }, userId: string, username: string, avatar: string): Promise<Thread> {
     // 验证用户ID
     if (!userId || typeof userId !== 'string' || userId.trim() === '') {
@@ -1341,6 +1382,23 @@ export const communityService = {
         if (response.ok && result.code === 0) {
           console.log('[createThread] Successfully created post via backend API');
           const newThread = result.data;
+          
+          // 处理@提及
+          if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
+            try {
+              await mentionService.processContentMentions(
+                data.content,
+                userId,
+                'post',
+                newThread.id,
+                'post',
+                data.communityId
+              );
+            } catch (mentionError) {
+              console.error('[createThread] Error processing mentions:', mentionError);
+            }
+          }
+          
           return {
             id: newThread.id,
             title: newThread.title,
@@ -1427,6 +1485,22 @@ export const communityService = {
              throw new Error('用户认证状态异常，请尝试退出后重新登录');
         }
         throw error;
+    }
+    
+    // 处理@提及
+    if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
+      try {
+        await mentionService.processContentMentions(
+          data.content,
+          realUserId,
+          'post',
+          newThread.id,
+          'post',
+          data.communityId
+        );
+      } catch (mentionError) {
+        console.error('[createThread] Error processing mentions:', mentionError);
+      }
     }
     
     return {

@@ -42,6 +42,7 @@ const createMockClient = (reason: string): SupabaseClient => {
       delete: () => ({ eq: () => Promise.resolve({ error: mockError }) }),
       upsert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: mockError }) }) }),
     }),
+    rpc: () => Promise.resolve({ data: null, error: mockError }),
     channel: () => ({
       on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
       subscribe: () => ({ unsubscribe: () => {} }),

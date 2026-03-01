@@ -20,6 +20,7 @@ interface PostCardProps {
   isLiked?: boolean;
   onToggleLike?: (id: string) => void;
   index?: number;
+  disableClick?: boolean;
 }
 
 // Lightbox 组件
@@ -484,7 +485,8 @@ export const PostCard: React.FC<PostCardProps> = ({
   isFavorited = false,
   isLiked = false,
   onToggleLike,
-  index = 0
+  index = 0,
+  disableClick = false
 }) => {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
@@ -541,13 +543,13 @@ export const PostCard: React.FC<PostCardProps> = ({
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.05, duration: 0.3 }}
-        className={`group relative flex flex-col md:flex-row rounded-2xl overflow-hidden border mb-4 cursor-pointer transition-all duration-300 ${
-          isDark 
-            ? 'bg-gray-800/80 border-gray-700/50 hover:border-gray-600 hover:shadow-xl hover:shadow-black/20' 
-            : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-xl hover:shadow-gray-200/50'
-        }`}
+        className={`group relative flex flex-col md:flex-row rounded-2xl overflow-hidden border mb-4 transition-all duration-300 ${
+          isDark
+            ? 'bg-gray-800/80 border-gray-700/50'
+            : 'bg-white border-gray-200'
+        } ${disableClick ? '' : 'cursor-pointer hover:border-gray-600 hover:shadow-xl hover:shadow-black/20 dark:hover:border-gray-600 dark:hover:shadow-black/20'}`}
         data-testid="post-card"
-        onClick={() => onClick(thread.id)}
+        onClick={disableClick ? undefined : () => onClick(thread.id)}
       >
         {/* Desktop Left Vote Column */}
         <VoteButtons 

@@ -6,6 +6,7 @@
 export { PrizeEditor } from './PrizeEditor';
 export { PrizeDisplay } from './PrizeDisplay';
 export { PrizeManager } from './PrizeManager';
+export { default as LuckyWheel } from './LuckyWheel';
 
 // 默认导出
 export { default } from './PrizeManager';

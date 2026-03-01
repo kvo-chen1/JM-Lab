@@ -1,8 +1,9 @@
 import React, { useCallback, memo, useEffect, useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Post } from '../services/postService'
+import { Post, recordPromotionClick } from '../services/postService'
 import LazyImage from './LazyImage'
 import { TianjinAvatar } from './TianjinStyleComponents'
+import { Flame } from 'lucide-react'
 
 interface PostGridProps {
   posts: Post[]
@@ -51,7 +52,9 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
   const [videoError, setVideoError] = useState(false);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   
-
+  // 判断是否是推广作品
+  const isPromoted = (post as any)._isPromoted === true;
+  const promotedWorkId = (post as any)._promotedWorkId;
 
   useEffect(() => {
     // 滚动触发：每行卡片依次淡入（stagger间隔0.15s）
@@ -62,9 +65,18 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
     return () => clearTimeout(timer);
   }, [index]);
 
-  const handlePostClick = useCallback(() => {
-    onPostClick(post.id)
-  }, [post.id, onPostClick])
+  const handlePostClick = useCallback(async () => {
+    // 如果是推广作品，记录点击
+    if (isPromoted && promotedWorkId) {
+      try {
+        await recordPromotionClick(promotedWorkId);
+        console.log('推广作品点击已记录:', promotedWorkId);
+      } catch (err) {
+        console.warn('记录推广点击失败:', err);
+      }
+    }
+    onPostClick(post.id);
+  }, [post.id, onPostClick, isPromoted, promotedWorkId]);
 
   const handleLike = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -163,6 +175,34 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
                     视频
                   </span>
                 </div>
+              </div>
+            );
+          }
+
+          // 推广标识
+          if (isPromoted) {
+            return (
+              <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20">
+                <LazyImage 
+                  src={post.thumbnail || ''}  
+                  alt={post.title}
+                  className="w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                  priority={index < 5}
+                  quality={index < 6 ? 'high' : 'medium'}
+                  placeholder="skeleton"
+                  loadingAnimation="fade"
+                  fit="cover"
+                  bare
+                />
+                {/* 推广标识 */}
+                <div className="absolute top-2 left-2 z-10">
+                  <span className="text-[10px] px-2 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white flex items-center gap-1 shadow-lg">
+                    <Flame className="w-3 h-3" />
+                    推广
+                  </span>
+                </div>
+                {/* 图片悬停时的光晕效果 */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/0 via-orange-500/0 to-pink-500/0 group-hover:from-amber-500/10 group-hover:via-orange-500/5 group-hover:to-pink-500/10 transition-all duration-700 opacity-0 group-hover:opacity-100 pointer-events-none" />
               </div>
             );
           }

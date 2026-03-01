@@ -262,27 +262,55 @@ export default function Square() {
         // 津脉广场只显示作品（works表），不显示帖子（posts表）
         // 同时获取推广作品并混合展示
         let current: Post[] = [];
+        console.log('========== 开始加载广场作品（含推广）==========');
         try {
           // 尝试获取包含推广作品的数据
+          console.log('调用 getSquareWorksWithPromotion...');
           const promotedPosts = await postsApi.getSquareWorksWithPromotion(20, 0, user?.id);
+          console.log('getSquareWorksWithPromotion 返回:', promotedPosts?.length || 0, '条数据');
+          
           if (promotedPosts && promotedPosts.length > 0) {
             // 转换推广作品为Post格式
             current = promotedPosts.map(convertPromotedPostToPost);
-            console.log('Loaded posts with promotion:', current.length, 'posts,', 
-              promotedPosts.filter(p => p.is_promoted).length, 'promoted');
+            const promotedCount = promotedPosts.filter(p => p.is_promoted).length;
+            console.log('Loaded posts with promotion:', current.length, 'posts,', promotedCount, 'promoted');
             
-            // 记录推广作品曝光
-            promotedPosts.filter(p => p.is_promoted && p.promoted_work_id).forEach(p => {
-              postsApi.recordPromotionView(p.promoted_work_id!, user?.id);
-            });
+            if (promotedCount === 0) {
+              console.warn('警告: 没有加载到推广作品，请检查数据库中是否有活跃的推广');
+            }
+            
+            // 记录推广作品曝光（使用异步等待确保记录成功）
+            const promotedWorks = promotedPosts.filter(p => p.is_promoted && p.promoted_work_id);
+            console.log('筛选出的推广作品:', promotedWorks.length, '个');
+            
+            if (promotedWorks.length > 0) {
+              console.log('准备记录推广曝光:', promotedWorks.map(p => ({ 
+                id: p.promoted_work_id, 
+                title: p.title 
+              })));
+              
+              for (const p of promotedWorks) {
+                try {
+                  console.log('正在记录曝光:', p.promoted_work_id);
+                  const result = await postsApi.recordPromotionView(p.promoted_work_id!, user?.id);
+                  console.log('✅ 推广曝光记录成功:', p.promoted_work_id, result);
+                } catch (err) {
+                  console.error('❌ 记录推广曝光失败:', p.promoted_work_id, err);
+                }
+              }
+            } else {
+              console.log('没有需要记录曝光的推广作品');
+            }
           } else {
+            console.warn('getSquareWorksWithPromotion 返回空数据，降级到普通作品');
             // 降级：只获取普通作品
             current = await postsApi.getPosts(undefined, user?.id, false, 'works');
           }
         } catch (promoError) {
-          console.warn('Failed to load promoted posts, falling back to normal posts:', promoError);
+          console.error('❌ Failed to load promoted posts:', promoError);
           current = await postsApi.getPosts(undefined, user?.id, false, 'works');
         }
+        console.log('========== 广场作品加载完成 ==========');
 
         if (Array.isArray(current)) {
           // 调试：检查视频帖子数据
@@ -326,9 +354,14 @@ export default function Square() {
           if (promotedPosts && promotedPosts.length > 0) {
             current = promotedPosts.map(convertPromotedPostToPost);
             // 记录推广作品曝光
-            promotedPosts.filter(p => p.is_promoted && p.promoted_work_id).forEach(p => {
-              postsApi.recordPromotionView(p.promoted_work_id!, user?.id);
-            });
+            const promotedWorks = promotedPosts.filter(p => p.is_promoted && p.promoted_work_id);
+            for (const p of promotedWorks) {
+              try {
+                await postsApi.recordPromotionView(p.promoted_work_id!, user?.id);
+              } catch (err) {
+                console.warn('记录推广曝光失败:', p.promoted_work_id, err);
+              }
+            }
           } else {
             current = await postsApi.getPosts(undefined, user?.id, false, 'works');
           }

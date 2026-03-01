@@ -367,7 +367,7 @@ class PromotionService {
       // 如果 API 失败，使用 Supabase 从 works 表获取
       const { data: works, error } = await supabase
         .from('works')
-        .select('id, title, thumbnail, cover_url, video_url, views, likes, comments, created_at, type, status')
+        .select('id, title, thumbnail, cover_url, video_url, view_count, likes, comments, created_at, type, status')
         .eq('creator_id', userId)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -382,7 +382,7 @@ class PromotionService {
         title: work.title || '未命名作品',
         thumbnail: work.thumbnail || work.cover_url || '',
         videoUrl: work.video_url || '',
-        views: work.views || 0,
+        views: work.view_count || 0,
         likes: work.likes || 0,
         comments: work.comments || 0,
         createdAt: work.created_at ? new Date(work.created_at * 1000).toISOString() : new Date().toISOString(),

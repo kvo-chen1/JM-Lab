@@ -151,22 +151,21 @@ export function useCreatorCenter() {
         console.warn('获取点赞数据失败:', likesError);
       }
 
-      // 从 work_comments 表获取评论数
-      // 注意：work_comments 表的 work_id 是 INTEGER 类型，而 works 表的 id 是 UUID
-      // 这里可能需要根据实际数据关联方式来查询
+      // 从 work_comments 表获取评论数（当前用户作品的评论）
       const { data: commentsData, error: commentsError } = await supabase
         .from('work_comments')
-        .select('id');
-      
+        .select('id')
+        .in('work_id', workIds);
+
       if (commentsError) {
         console.warn('获取评论数据失败:', commentsError);
       }
 
-      // 从 work_shares 表获取分享数（用户作为发送者的分享）
+      // 从 work_shares 表获取分享数（用户作品被分享的次数）
       const { data: sharesData, error: sharesError } = await supabase
         .from('work_shares')
         .select('id')
-        .eq('sender_id', userId);
+        .in('work_id', workIds);
       
       if (sharesError) {
         console.warn('获取分享数据失败:', sharesError);
@@ -248,10 +247,26 @@ export function useCreatorCenter() {
         console.warn('获取点赞数据失败:', likesError);
       }
 
+      // 获取每个作品的评论数
+      const { data: commentsData, error: commentsError } = await supabase
+        .from('work_comments')
+        .select('work_id')
+        .in('work_id', workIds);
+
+      if (commentsError) {
+        console.warn('获取评论数据失败:', commentsError);
+      }
+
       // 计算每个作品的点赞数
       const likesCountMap: Record<string, number> = {};
       likesData?.forEach(like => {
         likesCountMap[like.work_id] = (likesCountMap[like.work_id] || 0) + 1;
+      });
+
+      // 计算每个作品的评论数
+      const commentsCountMap: Record<string, number> = {};
+      commentsData?.forEach(comment => {
+        commentsCountMap[comment.work_id] = (commentsCountMap[comment.work_id] || 0) + 1;
       });
 
       const formattedWorks: CreatorWork[] = (data || []).map(work => ({
@@ -260,7 +275,7 @@ export function useCreatorCenter() {
         thumbnail: work.thumbnail,
         views: work.view_count || 0,
         likes: likesCountMap[work.id] || 0,
-        comments: 0, // 暂无法获取
+        comments: commentsCountMap[work.id] || 0,
         createdAt: work.created_at,
         status: work.status || 'published',
       }));

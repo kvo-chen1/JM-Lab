@@ -28,6 +28,43 @@ import {
   Mail
 } from 'lucide-react';
 import { CommunityInviteDialog } from '@/components/CommunityInviteDialog';
+import { supabase } from '@/lib/supabase';
+
+// 缓存用户名到用户ID的映射
+const userIdCache: Map<string, string | null> = new Map();
+
+/**
+ * 通过用户名获取用户ID
+ */
+async function getUserIdByUsername(username: string): Promise<string | null> {
+  // 检查缓存
+  if (userIdCache.has(username)) {
+    return userIdCache.get(username)!;
+  }
+
+  try {
+    // 从 Supabase 查询用户
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username)
+      .single();
+
+    if (error || !data) {
+      console.warn(`[CommunityInfoSidebar] User not found for username: ${username}`);
+      userIdCache.set(username, null);
+      return null;
+    }
+
+    // 缓存结果
+    userIdCache.set(username, data.id);
+    return data.id;
+  } catch (error) {
+    console.error('[CommunityInfoSidebar] Error fetching user by username:', error);
+    userIdCache.set(username, null);
+    return null;
+  }
+}
 
 interface CommunityInfoSidebarProps {
   isDark: boolean;
@@ -582,9 +619,32 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
   };
 
   // 处理用户点击
-  const handleUserClick = (username: string) => {
-    navigate(`/author/${encodeURIComponent(username)}`);
-  };
+  const handleUserClick = useCallback(async (username: string) => {
+    // 检查缓存
+    const cachedUserId = userIdCache.get(username);
+    if (cachedUserId) {
+      navigate(`/author/${cachedUserId}`);
+      return;
+    }
+    if (cachedUserId === null) {
+      // 已查询过但不存在，用用户名跳转
+      navigate(`/author/${encodeURIComponent(username)}`);
+      return;
+    }
+
+    try {
+      const userId = await getUserIdByUsername(username);
+      if (userId) {
+        navigate(`/author/${userId}`);
+      } else {
+        // 用户不存在，用用户名跳转
+        navigate(`/author/${encodeURIComponent(username)}`);
+      }
+    } catch (error) {
+      console.error('[CommunityInfoSidebar] Error handling user click:', error);
+      navigate(`/author/${encodeURIComponent(username)}`);
+    }
+  }, [navigate]);
 
   // 使用社群真实数据
   const communityTags = community.tags || [];

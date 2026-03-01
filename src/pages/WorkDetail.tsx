@@ -21,6 +21,42 @@ import { trackWorkView } from '@/utils/browseHistory';
 import { MentionPicker } from '@/components/comment/MentionPicker';
 import { incrementWorkViewCount } from '@/services/analyticsService';
 
+// 缓存用户名到用户ID的映射（与 MentionText 组件共享逻辑）
+const userIdCache: Map<string, string | null> = new Map();
+
+/**
+ * 通过用户名获取用户ID
+ */
+async function getUserIdByUsername(username: string): Promise<string | null> {
+  // 检查缓存
+  if (userIdCache.has(username)) {
+    return userIdCache.get(username)!;
+  }
+
+  try {
+    // 从 Supabase 查询用户
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username)
+      .single();
+
+    if (error || !data) {
+      console.warn(`[WorkDetail] User not found for username: ${username}`);
+      userIdCache.set(username, null);
+      return null;
+    }
+
+    // 缓存结果
+    userIdCache.set(username, data.id);
+    return data.id;
+  } catch (error) {
+    console.error('[WorkDetail] Error fetching user by username:', error);
+    userIdCache.set(username, null);
+    return null;
+  }
+}
+
 // 常用表情列表
 const EMOJI_LIST = [
   '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩',
@@ -639,6 +675,34 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
     }, 0);
   };
 
+  // 处理艾特点击
+  const handleMentionClick = useCallback(async (username: string) => {
+    // 检查缓存
+    const cachedUserId = userIdCache.get(username);
+    if (cachedUserId) {
+      navigate(`/author/${cachedUserId}`);
+      return;
+    }
+    if (cachedUserId === null) {
+      // 已查询过但不存在，用用户名跳转（会显示默认页面）
+      navigate(`/author/${username}`);
+      return;
+    }
+
+    try {
+      const userId = await getUserIdByUsername(username);
+      if (userId) {
+        navigate(`/author/${userId}`);
+      } else {
+        // 用户不存在，用用户名跳转
+        navigate(`/author/${username}`);
+      }
+    } catch (error) {
+      console.error('[WorkDetail] Error handling mention click:', error);
+      navigate(`/author/${username}`);
+    }
+  }, [navigate]);
+
   // 渲染带@高亮的评论文本
   const renderCommentText = (text: string) => {
     // 匹配@用户名格式
@@ -654,10 +718,11 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
               <span 
                 key={index} 
                 className={styles.mentionHighlight}
-                onClick={() => {
-                  // 可以跳转到用户主页
-                  navigate(`/author/${part}`);
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMentionClick(part);
                 }}
+                style={{ cursor: 'pointer' }}
               >
                 @{part}
               </span>

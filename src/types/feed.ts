@@ -79,6 +79,9 @@ export interface FeedItem extends BaseEntity {
 
   // 数据来源类型，用于跳转路由判断
   sourceType?: 'post' | 'work' | 'community' | 'announcement';
+  
+  // 社群ID（用于@提及功能）
+  communityId?: string;
 
   // 互动数据
   likes: number;

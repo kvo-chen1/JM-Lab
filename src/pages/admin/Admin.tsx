@@ -2920,9 +2920,9 @@ export default function Admin() {
                 <h2 className="text-xl font-bold mb-6">竞品对比分析</h2>
                 <div className="space-y-3">
                   {competitorData.map((item: any, index: number) => (
-                    <div key={item.metric} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                    <div key={item.metric} className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center justify-between mb-2">
-                        <span className={`font-medium ${isDark ? 'text-gray-100' : 'text-gray-700'}`}>{item.metric}</span>
+                        <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-700'}`}>{item.metric}</span>
                       </div>
                       <div className="relative h-6 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
                         <div className="absolute inset-0 flex">
@@ -3003,16 +3003,16 @@ export default function Admin() {
                 <h2 className="text-xl font-bold mb-6">错误日志统计</h2>
                 <div className="space-y-3">
                   {errorLogData.map((item: any, index: number) => (
-                    <div key={item.type} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                    <div key={item.type} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center gap-3">
                         <div className={`w-2 h-2 rounded-full ${
                           item.severity === 'high' ? 'bg-red-500' :
                           item.severity === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
                         }`} />
-                        <span className={isDark ? 'text-gray-100' : 'text-gray-700'}>{item.type}</span>
+                        <span className={isDark ? 'text-white' : 'text-gray-700'}>{item.type}</span>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className={`font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{item.count}</span>
+                        <span className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.count}</span>
                         <span className={`text-xs font-medium ${item.trend <= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {item.trend <= 0 ? '↓' : '↑'} {Math.abs(item.trend)}%
                         </span>

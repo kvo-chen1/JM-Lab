@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { FeedShareModal } from '@/components/feed/FeedShareModal';
 import { MentionSelector } from '@/components/MentionSelector';
 import { mentionService } from '@/services/mentionService';
+import { MentionText } from '@/components/MentionText';
 
 interface PostCardProps {
   isDark: boolean;
@@ -661,9 +662,12 @@ export const PostCard: React.FC<PostCardProps> = ({
 
             {/* Content Preview */}
             <div className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              <p className={!isExpanded && hasMoreContent ? 'line-clamp-3' : ''}>
-                {isExpanded ? thread.content : contentPreview}
-              </p>
+              <div className={!isExpanded && hasMoreContent ? 'line-clamp-3 pointer-events-auto' : 'pointer-events-auto'}>
+                <MentionText 
+                  content={isExpanded ? thread.content : contentPreview || ''} 
+                  className={isDark ? 'text-gray-300' : 'text-gray-600'}
+                />
+              </div>
               {hasMoreContent && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
@@ -893,9 +897,14 @@ export const PostCard: React.FC<PostCardProps> = ({
                                 </motion.button>
                               )}
                             </div>
-                            <p className={`text-sm leading-relaxed line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                              {typeof comment.content === 'string' ? comment.content : JSON.stringify(comment.content)}
-                            </p>
+                            <div className={`text-sm leading-relaxed line-clamp-2 pointer-events-auto ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                              {typeof comment.content === 'string' ? (
+                                <MentionText 
+                                  content={comment.content} 
+                                  className={isDark ? 'text-gray-300' : 'text-gray-700'}
+                                />
+                              ) : JSON.stringify(comment.content)}
+                            </div>
                           </div>
                         </motion.div>
                       ))}

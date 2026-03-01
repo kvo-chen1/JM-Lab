@@ -5,11 +5,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import type { FeedItem, FeedComment } from '@/types/feed';
 import feedService from '@/services/feedService';
 import { VideoPlayer } from './VideoPlayer';
+import { MentionSelector } from '@/components/MentionSelector';
+import { mentionService } from '@/services/mentionService';
 import {
   X,
   Heart,
@@ -39,6 +42,7 @@ interface FeedDetailModalProps {
   currentUserId?: string;
   currentUserName?: string;
   currentUserAvatar?: string;
+  communityId?: string; // 可选的社群ID，用于@提及功能
 }
 
 // 格式化数字
@@ -104,6 +108,7 @@ export function FeedDetailModal({
   currentUserId,
   currentUserName,
   currentUserAvatar,
+  communityId,
 }: FeedDetailModalProps) {
   const { isDark } = useTheme();
   const [comments, setComments] = useState<FeedComment[]>([]);
@@ -120,6 +125,51 @@ export function FeedDetailModal({
   const [localCommentsCount, setLocalCommentsCount] = useState(feed?.comments || 0);
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
+  
+  // @提及相关状态
+  const [isMentionSelectorOpen, setIsMentionSelectorOpen] = useState(false);
+  const [mentionSearchQuery, setMentionSearchQuery] = useState('');
+  const [mentionSelectorPosition, setMentionSelectorPosition] = useState({ top: 0, left: 0 });
+
+  // 监听评论内容变化，检测@提及
+  useEffect(() => {
+    console.log('[FeedDetailModal] Checking mention, communityId:', communityId, 'newComment:', newComment);
+    
+    if (!communityId || !newComment) {
+      console.log('[FeedDetailModal] No communityId or newComment, skipping');
+      setIsMentionSelectorOpen(false);
+      return;
+    }
+    
+    // 获取光标位置
+    const input = commentInputRef.current;
+    const cursorPosition = input?.selectionStart || newComment.length;
+    
+    // 检测@提及
+    const query = mentionService.getCurrentMentionQuery(newComment, cursorPosition);
+    console.log('[FeedDetailModal] Mention query:', query, 'cursorPosition:', cursorPosition);
+    
+    if (query !== null) {
+      setMentionSearchQuery(query);
+      
+      // 计算选择器位置 - 显示在输入框上方
+      if (input) {
+        const rect = input.getBoundingClientRect();
+        const position = {
+          top: rect.top - 250,
+          left: rect.left
+        };
+        console.log('[FeedDetailModal] Setting selector position:', position);
+        setMentionSelectorPosition(position);
+      }
+      
+      console.log('[FeedDetailModal] Opening mention selector');
+      setIsMentionSelectorOpen(true);
+    } else {
+      setIsMentionSelectorOpen(false);
+    }
+  }, [newComment, communityId]);
 
   // 同步本地评论数与 feed 数据
   useEffect(() => {
@@ -744,6 +794,7 @@ export function FeedDetailModal({
                 <div className={`p-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                   <div className="flex gap-3">
                     <input
+                      ref={commentInputRef}
                       type="text"
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
@@ -753,7 +804,7 @@ export function FeedDetailModal({
                           handleSubmitComment();
                         }
                       }}
-                      placeholder="写下你的评论..."
+                      placeholder={communityId ? "写下你的评论... 使用 @ 提及成员" : "写下你的评论..."}
                       className={`flex-1 px-4 py-2 rounded-full text-sm outline-none transition-colors ${
                         isDark 
                           ? 'bg-gray-800 text-white placeholder-gray-500 focus:bg-gray-750' 
@@ -783,6 +834,38 @@ export function FeedDetailModal({
             </div>
           </motion.div>
         </div>
+      )}
+      
+      {/* @提及选择器 - 使用Portal渲染 */}
+      {isMentionSelectorOpen && communityId && createPortal(
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 2147483647,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ pointerEvents: 'auto' }}>
+            <MentionSelector
+              communityId={communityId}
+              isOpen={isMentionSelectorOpen}
+              searchQuery={mentionSearchQuery}
+              onSelect={(member) => {
+                // 处理成员选择
+                const newContent = newComment + member.username + ' ';
+                setNewComment(newContent);
+                setIsMentionSelectorOpen(false);
+              }}
+              onClose={() => setIsMentionSelectorOpen(false)}
+              position={mentionSelectorPosition}
+            />
+          </div>
+        </div>,
+        document.body
       )}
     </AnimatePresence>
   );

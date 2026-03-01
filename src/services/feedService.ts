@@ -98,6 +98,7 @@ class FeedService {
       author,
       contentType,
       sourceType: 'post',  // 标识这是从 Post 转换来的
+      communityId: post.communityId, // 添加社群ID用于@提及功能
       title: post.title || '',
       content: post.description || '',
       media: media.length > 0 ? media : undefined,

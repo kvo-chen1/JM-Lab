@@ -3,16 +3,53 @@
  * 用于高亮显示内容中的@提及，并使其可点击
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mentionService } from '@/services/mentionService';
+import { supabase } from '@/lib/supabase';
 
 interface MentionTextProps {
   content: string;
   className?: string;
   mentionClassName?: string;
-  onMentionClick?: (username: string) => void;
+  onMentionClick?: (username: string, userId?: string) => void;
   enableLinks?: boolean;
+}
+
+// 缓存用户名到用户ID的映射
+const userIdCache: Map<string, string | null> = new Map();
+
+/**
+ * 通过用户名获取用户ID
+ */
+async function getUserIdByUsername(username: string): Promise<string | null> {
+  // 检查缓存
+  if (userIdCache.has(username)) {
+    return userIdCache.get(username)!;
+  }
+
+  try {
+    // 从 Supabase 查询用户
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username)
+      .single();
+
+    if (error || !data) {
+      console.warn(`[MentionText] User not found for username: ${username}`);
+      userIdCache.set(username, null);
+      return null;
+    }
+
+    // 缓存结果
+    userIdCache.set(username, data.id);
+    return data.id;
+  } catch (error) {
+    console.error('[MentionText] Error fetching user by username:', error);
+    userIdCache.set(username, null);
+    return null;
+  }
 }
 
 export const MentionText: React.FC<MentionTextProps> = ({
@@ -23,6 +60,49 @@ export const MentionText: React.FC<MentionTextProps> = ({
   enableLinks = true,
 }) => {
   const navigate = useNavigate();
+  const [loadingMentions, setLoadingMentions] = useState<Set<string>>(new Set());
+
+  // 处理艾特点击
+  const handleMentionClick = useCallback(async (e: React.MouseEvent, username: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (onMentionClick) {
+      onMentionClick(username);
+      return;
+    }
+
+    // 检查缓存
+    const cachedUserId = userIdCache.get(username);
+    if (cachedUserId) {
+      navigate(`/author/${cachedUserId}`);
+      return;
+    }
+    if (cachedUserId === null) {
+      // 已查询过但不存在，仍然用用户名跳转（会显示默认页面）
+      navigate(`/author/${username}`);
+      return;
+    }
+
+    // 设置加载状态
+    setLoadingMentions(prev => new Set(prev).add(username));
+
+    try {
+      const userId = await getUserIdByUsername(username);
+      if (userId) {
+        navigate(`/author/${userId}`);
+      } else {
+        // 用户不存在，用用户名跳转（会显示默认页面）
+        navigate(`/author/${username}`);
+      }
+    } finally {
+      setLoadingMentions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(username);
+        return newSet;
+      });
+    }
+  }, [navigate, onMentionClick]);
 
   // 解析内容，提取@提及和普通文本
   const parseContent = useCallback(() => {
@@ -43,36 +123,28 @@ export const MentionText: React.FC<MentionTextProps> = ({
 
       const username = match[1];
       const fullMatch = match[0];
+      const isLoading = loadingMentions.has(username);
 
       // 添加@提及（可点击）
       if (enableLinks) {
         parts.push(
           <span
             key={`mention-${match.index}`}
-            className={mentionClassName}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onMentionClick) {
-                onMentionClick(username);
-              } else {
-                // 默认行为：跳转到用户主页
-                navigate(`/user/${username}`);
-              }
-            }}
+            className={`${mentionClassName} pointer-events-auto relative z-10 inline-flex items-center gap-1 ${isLoading ? 'opacity-70' : ''}`}
+            onClick={(e) => handleMentionClick(e, username)}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                if (onMentionClick) {
-                  onMentionClick(username);
-                } else {
-                  navigate(`/user/${username}`);
-                }
+                handleMentionClick(e as any, username);
               }
             }}
           >
             {fullMatch}
+            {isLoading && (
+              <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            )}
           </span>
         );
       } else {
@@ -99,7 +171,7 @@ export const MentionText: React.FC<MentionTextProps> = ({
     }
 
     return parts;
-  }, [content, mentionClassName, enableLinks, onMentionClick, navigate]);
+  }, [content, mentionClassName, enableLinks, handleMentionClick, loadingMentions]);
 
   // 处理URL链接
   const renderWithLinks = useCallback(() => {
@@ -126,7 +198,7 @@ export const MentionText: React.FC<MentionTextProps> = ({
                   href={matches[i]}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-blue-600 dark:text-blue-400 hover:underline pointer-events-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {matches[i]}

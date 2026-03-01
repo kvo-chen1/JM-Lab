@@ -634,6 +634,7 @@ export default function Feed() {
         currentUserId={user?.id}
         currentUserName={user?.username || user?.name}
         currentUserAvatar={user?.avatar}
+        communityId={selectedFeed?.communityId}
       />
 
       {/* 分享弹窗 */}

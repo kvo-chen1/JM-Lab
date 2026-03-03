@@ -262,33 +262,47 @@ export default function Square() {
         // 津脉广场只显示作品（works表），不显示帖子（posts表）
         // 同时获取推广作品并混合展示
         let current: Post[] = [];
+        let promotedPosts: PromotedPost[] = [];
         console.log('========== 开始加载广场作品（含推广）==========');
         try {
           // 尝试获取包含推广作品的数据
           console.log('调用 getSquareWorksWithPromotion...');
-          const promotedPosts = await postsApi.getSquareWorksWithPromotion(20, 0, user?.id);
+          promotedPosts = await postsApi.getSquareWorksWithPromotion(20, 0, user?.id);
           console.log('getSquareWorksWithPromotion 返回:', promotedPosts?.length || 0, '条数据');
-          
+
+          // 获取所有普通作品
+          console.log('调用 getPosts 获取所有作品...');
+          const allWorks = await postsApi.getPosts(undefined, user?.id, false, 'works');
+          console.log('getPosts 返回:', allWorks?.length || 0, '条数据');
+
           if (promotedPosts && promotedPosts.length > 0) {
             // 转换推广作品为Post格式
-            current = promotedPosts.map(convertPromotedPostToPost);
+            const promotedAsPosts = promotedPosts.map(convertPromotedPostToPost);
             const promotedCount = promotedPosts.filter(p => p.is_promoted).length;
-            console.log('Loaded posts with promotion:', current.length, 'posts,', promotedCount, 'promoted');
-            
+            console.log('Loaded posts with promotion:', promotedAsPosts.length, 'posts,', promotedCount, 'promoted');
+
             if (promotedCount === 0) {
               console.warn('警告: 没有加载到推广作品，请检查数据库中是否有活跃的推广');
             }
-            
+
+            // 合并推广作品和普通作品：优先使用推广作品的数据，然后补充普通作品
+            const promotedIds = new Set(promotedAsPosts.map(p => p.id));
+            const normalWorks = allWorks.filter(w => !promotedIds.has(w.id));
+
+            // 合并：推广作品在前，普通作品在后
+            current = [...promotedAsPosts, ...normalWorks];
+            console.log('合并后作品总数:', current.length, '(推广:', promotedAsPosts.length, ', 普通:', normalWorks.length, ')');
+
             // 记录推广作品曝光（使用异步等待确保记录成功）
             const promotedWorks = promotedPosts.filter(p => p.is_promoted && p.promoted_work_id);
             console.log('筛选出的推广作品:', promotedWorks.length, '个');
-            
+
             if (promotedWorks.length > 0) {
-              console.log('准备记录推广曝光:', promotedWorks.map(p => ({ 
-                id: p.promoted_work_id, 
-                title: p.title 
+              console.log('准备记录推广曝光:', promotedWorks.map(p => ({
+                id: p.promoted_work_id,
+                title: p.title
               })));
-              
+
               for (const p of promotedWorks) {
                 try {
                   console.log('正在记录曝光:', p.promoted_work_id);
@@ -302,12 +316,13 @@ export default function Square() {
               console.log('没有需要记录曝光的推广作品');
             }
           } else {
-            console.warn('getSquareWorksWithPromotion 返回空数据，降级到普通作品');
-            // 降级：只获取普通作品
-            current = await postsApi.getPosts(undefined, user?.id, false, 'works');
+            console.warn('getSquareWorksWithPromotion 返回空数据，使用普通作品');
+            // 使用普通作品
+            current = allWorks;
           }
         } catch (promoError) {
           console.error('❌ Failed to load promoted posts:', promoError);
+          // 降级：只获取普通作品
           current = await postsApi.getPosts(undefined, user?.id, false, 'works');
         }
         console.log('========== 广场作品加载完成 ==========');
@@ -346,13 +361,23 @@ export default function Square() {
       try {
         // 清除缓存，确保获取最新数据
         await postsApi.clearAllCaches();
-        
+
         // 尝试获取包含推广作品的数据
         let current: Post[] = [];
+        let promotedPosts: PromotedPost[] = [];
         try {
-          const promotedPosts = await postsApi.getSquareWorksWithPromotion(20, 0, user?.id);
+          promotedPosts = await postsApi.getSquareWorksWithPromotion(20, 0, user?.id);
+          // 获取所有普通作品
+          const allWorks = await postsApi.getPosts(undefined, user?.id, false, 'works');
+
           if (promotedPosts && promotedPosts.length > 0) {
-            current = promotedPosts.map(convertPromotedPostToPost);
+            const promotedAsPosts = promotedPosts.map(convertPromotedPostToPost);
+
+            // 合并推广作品和普通作品
+            const promotedIds = new Set(promotedAsPosts.map(p => p.id));
+            const normalWorks = allWorks.filter(w => !promotedIds.has(w.id));
+            current = [...promotedAsPosts, ...normalWorks];
+
             // 记录推广作品曝光
             const promotedWorks = promotedPosts.filter(p => p.is_promoted && p.promoted_work_id);
             for (const p of promotedWorks) {
@@ -363,12 +388,12 @@ export default function Square() {
               }
             }
           } else {
-            current = await postsApi.getPosts(undefined, user?.id, false, 'works');
+            current = allWorks;
           }
         } catch (promoError) {
           current = await postsApi.getPosts(undefined, user?.id, false, 'works');
         }
-        
+
         setPosts(current);
         // 重置分页，显示最新作品
         setPage(1);

@@ -1,57 +1,44 @@
-import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+#!/usr/bin/env node
+/**
+ * 检查 works 表结构
+ */
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { createClient } from '@supabase/supabase-js'
+import dotenv from 'dotenv'
+import fs from 'fs'
 
-// 从 .env.local 读取配置
-const envLocalPath = path.join(__dirname, '..', '.env.local');
-let supabaseUrl = '';
-let supabaseServiceKey = '';
-
-if (fs.existsSync(envLocalPath)) {
-  const envContent = fs.readFileSync(envLocalPath, 'utf-8');
-  const lines = envContent.split('\n');
-  for (const line of lines) {
-    if (line.startsWith('VITE_SUPABASE_URL=')) {
-      supabaseUrl = line.split('=')[1].trim();
-    }
-    if (line.startsWith('VITE_SUPABASE_SERVICE_ROLE_KEY=')) {
-      supabaseServiceKey = line.split('=')[1].trim();
-    }
-  }
+if (fs.existsSync('.env.local')) {
+  dotenv.config({ path: '.env.local' })
 }
+dotenv.config()
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
+  auth: { autoRefreshToken: false, persistSession: false }
+})
 
-async function checkWorksSchema() {
-  console.log('Checking works table schema...\n');
-  
-  // 获取一个作品样本
-  const { data: work, error } = await supabase
+async function checkSchema() {
+  // 获取一条数据查看字段
+  const { data, error } = await supabase
     .from('works')
     .select('*')
     .limit(1)
-    .single();
-  
+
   if (error) {
-    console.error('Error:', error.message);
-    return;
+    console.error('查询失败:', error)
+    return
   }
-  
-  console.log('Sample work fields:');
-  Object.keys(work).forEach(key => {
-    console.log(`  - ${key}: ${work[key]}`);
-  });
-  
-  console.log('\n✓ Check complete!');
+
+  if (data && data.length > 0) {
+    console.log('works 表字段:')
+    Object.keys(data[0]).forEach(key => {
+      console.log(`  - ${key}: ${typeof data[0][key]}`)
+    })
+  } else {
+    console.log('works 表没有数据')
+  }
 }
 
-checkWorksSchema();
+checkSchema()

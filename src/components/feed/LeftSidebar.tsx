@@ -4,6 +4,7 @@
  */
 
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import type { FeedFilterType } from '@/types/feed';
 import type { User } from '@/types/index';
@@ -36,14 +37,14 @@ interface LeftSidebarProps {
 const menuItems = [
   { id: 'all' as FeedFilterType, label: '全部动态', icon: Home },
   { id: 'community' as FeedFilterType, label: '社群', icon: Users },
-  { id: 'video' as FeedFilterType, label: '视频', icon: Video },
-  { id: 'image' as FeedFilterType, label: '图文', icon: Image },
+  { id: 'works' as FeedFilterType, label: '作品', icon: Image },
   { id: 'article' as FeedFilterType, label: '专栏', icon: FileText },
   { id: 'activity' as FeedFilterType, label: '活动', icon: Calendar },
 ];
 
 export function LeftSidebar({ activeFilter, onFilterChange, user, userStats }: LeftSidebarProps) {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-4">
@@ -161,19 +162,25 @@ export function LeftSidebar({ activeFilter, onFilterChange, user, userStats }: L
           快捷链接
         </h4>
         <div className="space-y-1">
-          <button className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-            isDark 
-              ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200' 
-              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-          }`}>
+          <button
+            onClick={() => navigate('/settings')}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+              isDark
+                ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+          >
             <Settings className="w-4 h-4" />
             设置
           </button>
-          <button className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-            isDark 
-              ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200' 
-              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-          }`}>
+          <button
+            onClick={() => navigate('/help')}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+              isDark
+                ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+          >
             <HelpCircle className="w-4 h-4" />
             帮助中心
           </button>

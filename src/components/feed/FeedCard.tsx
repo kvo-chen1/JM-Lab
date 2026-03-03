@@ -4,12 +4,14 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import type { FeedItem } from '@/types/feed';
 import { VideoPlayer } from './VideoPlayer';
 import { ReportModal } from './ReportModal';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 import {
   Heart,
   MessageCircle,
@@ -37,6 +39,8 @@ interface FeedCardProps {
   onFollow: (isFollowing: boolean) => void;
   onComment?: () => void;
   onUnfollow?: () => void;
+  isCommentOpen?: boolean;
+  onCommentToggle?: () => void;
 }
 
 // 格式化数字
@@ -90,9 +94,12 @@ export function FeedCard({
   onClick,
   onFollow,
   onComment,
-  onUnfollow
+  onUnfollow,
+  isCommentOpen,
+  onCommentToggle
 }: FeedCardProps) {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
   const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});
   const [isExpanded, setIsExpanded] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -138,6 +145,58 @@ export function FeedCard({
   const handleReport = () => {
     setShowMoreMenu(false);
     setShowReportModal(true);
+  };
+
+  // 处理 @提及点击 - 通过用户名获取用户ID并跳转
+  const handleMentionClick = async (e: React.MouseEvent, username: string) => {
+    e.stopPropagation();
+    try {
+      // 先尝试通过用户名查询用户ID
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', username)
+        .single();
+
+      if (userData?.id) {
+        navigate(`/author/${userData.id}`);
+      } else {
+        // 如果找不到用户，尝试直接用用户名跳转（可能是ID格式）
+        navigate(`/author/${username}`);
+      }
+    } catch (error) {
+      // 查询失败，直接用用户名跳转
+      navigate(`/author/${username}`);
+    }
+  };
+
+  // 渲染带 @提及的内容
+  const renderContentWithMentions = (content: string) => {
+    // 匹配 @用户名 格式
+    const mentionRegex = /@([^\s@]+)/g;
+    const parts = content.split(mentionRegex);
+
+    return (
+      <>
+        {parts.map((part, index) => {
+          // 奇数索引是匹配到的用户名
+          if (index % 2 === 1) {
+            return (
+              <span
+                key={index}
+                onClick={(e) => handleMentionClick(e, part)}
+                className={`cursor-pointer hover:underline ${
+                  isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'
+                }`}
+              >
+                @{part}
+              </span>
+            );
+          }
+          return <span key={index}>{part}</span>;
+        })}
+      </>
+    );
   };
 
   // 渲染媒体网格
@@ -224,24 +283,34 @@ export function FeedCard({
     );
   };
 
+  // 判断是否是纯动态（不是作品）：没有标题、没有媒体，或者 sourceType 不是 work
+  const isPureFeed = feed.sourceType !== 'work' || (!feed.title && !feed.media?.length);
+
   return (
     <>
       <motion.article
         layout
-        className={`rounded-xl overflow-hidden cursor-pointer transition-all duration-200 ${
+        onClick={isPureFeed ? undefined : onClick}
+        className={`rounded-xl overflow-hidden transition-all duration-200 ${
+          isPureFeed ? '' : 'cursor-pointer'
+        } ${
           isDark
             ? 'bg-gray-900 border border-gray-800 hover:border-gray-700'
             : 'bg-white border border-gray-100 hover:shadow-sm'
         }`}
-        onClick={onClick}
         whileHover={{ scale: 1.002 }}
-        whileTap={{ scale: 0.998 }}
       >
         <div className="p-2.5">
           {/* 头部：作者信息 */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="relative">
+              <div
+                className="relative cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/author/${feed.author.id}`);
+                }}
+              >
                 <img
                   src={feed.author.avatar}
                   alt={feed.author.name}
@@ -255,7 +324,13 @@ export function FeedCard({
               </div>
               <div>
                 <div className="flex items-center gap-1">
-                  <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  <h3
+                    className={`text-sm font-semibold cursor-pointer hover:underline ${isDark ? 'text-white' : 'text-gray-900'}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/author/${feed.author.id}`);
+                    }}
+                  >
                     {feed.author.name}
                   </h3>
                 </div>
@@ -355,7 +430,7 @@ export function FeedCard({
             <p className={`text-sm leading-relaxed whitespace-pre-wrap ${
               isDark ? 'text-gray-300' : 'text-gray-700'
             }`}>
-              {displayContent}
+              {renderContentWithMentions(displayContent)}
               {shouldCollapse && !isExpanded && '...'}
             </p>
 
@@ -388,13 +463,16 @@ export function FeedCard({
             {feed.tags && feed.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1">
                 {feed.tags.map((tag, index) => (
-                  <span
+                  <button
                     key={index}
-                    className={`text-[11px] ${isDark ? 'text-blue-400' : 'text-blue-600'} hover:underline`}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/search?query=${encodeURIComponent('#' + tag)}`);
+                    }}
+                    className={`text-[11px] ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-500'} hover:underline cursor-pointer transition-colors`}
                   >
                     #{tag}
-                  </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -431,19 +509,24 @@ export function FeedCard({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (onComment) {
+                  if (onCommentToggle) {
+                    onCommentToggle();
+                  } else if (onComment) {
                     onComment();
-                  } else {
-                    onClick();
                   }
+                  // 不调用 onClick()，避免跳转页面
                 }}
                 className={`flex items-center gap-1 transition-colors ${
-                  isDark
+                  isCommentOpen
+                    ? isDark
+                      ? 'text-blue-400'
+                      : 'text-blue-600'
+                    : isDark
                     ? 'text-gray-500 hover:text-blue-400'
                     : 'text-gray-500 hover:text-blue-500'
                 }`}
               >
-                <MessageCircle className="w-4 h-4" />
+                <MessageCircle className={`w-4 h-4 ${isCommentOpen ? 'fill-current' : ''}`} />
                 <span className="text-xs">{formatNumber(feed.comments)}</span>
               </button>
 

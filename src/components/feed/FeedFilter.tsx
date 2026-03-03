@@ -23,10 +23,10 @@ interface FeedFilterProps {
 const filterItems: { id: FeedFilterType; label: string }[] = [
   { id: 'all', label: '全部' },
   { id: 'community', label: '社群' },
-  { id: 'video', label: '视频' },
-  { id: 'image', label: '图文' },
+  { id: 'works', label: '作品' },
   { id: 'article', label: '专栏' },
   { id: 'activity', label: '活动' },
+  { id: 'interaction', label: '互动' },
 ];
 
 const sortItems: { id: FeedSortType; label: string; icon: typeof Clock }[] = [
@@ -35,11 +35,11 @@ const sortItems: { id: FeedSortType; label: string; icon: typeof Clock }[] = [
   { id: 'recommend', label: '推荐', icon: Sparkles },
 ];
 
-export function FeedFilter({ 
-  activeFilter, 
-  activeSort, 
-  onFilterChange, 
-  onSortChange 
+export function FeedFilter({
+  activeFilter,
+  activeSort,
+  onFilterChange,
+  onSortChange
 }: FeedFilterProps) {
   const { isDark } = useTheme();
   const activeSortItem = sortItems.find(item => item.id === activeSort);
@@ -48,9 +48,10 @@ export function FeedFilter({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
       className={`sticky top-2 z-10 mt-4 rounded-2xl ${
-        isDark 
-          ? 'bg-gray-900/95 border border-gray-800 backdrop-blur-sm' 
+        isDark
+          ? 'bg-gray-900/95 border border-gray-800 backdrop-blur-sm'
           : 'bg-white/95 border border-gray-100 shadow-sm backdrop-blur-sm'
       }`}
     >
@@ -61,10 +62,12 @@ export function FeedFilter({
             <button
               key={item.id}
               onClick={() => {
-                console.log('[FeedFilter] Filter clicked:', item.id);
-                onFilterChange(item.id);
+                if (item.id !== activeFilter) {
+                  console.log('[FeedFilter] Filter clicked:', item.id);
+                  onFilterChange(item.id);
+                }
               }}
-              className={`relative px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+              className={`relative px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors duration-150 ${
                 activeFilter === item.id
                   ? isDark
                     ? 'text-white'
@@ -80,7 +83,7 @@ export function FeedFilter({
                   className={`absolute inset-0 rounded-full ${
                     isDark ? 'bg-gray-800' : 'bg-gray-100'
                   }`}
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                  transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
                 />
               )}
               <span className="relative z-10">{item.label}</span>

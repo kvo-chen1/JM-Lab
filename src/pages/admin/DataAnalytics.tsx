@@ -5,6 +5,26 @@ import { toast } from 'sonner';
 import { adminService } from '@/services/adminService';
 import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 import AdvancedAnalytics from './AdvancedAnalytics';
+import AlertRulesModal from '@/components/admin/AlertRulesModal';
+import {
+  getAlertRules,
+  getAlertRecords,
+  getAlertStats,
+  acknowledgeAlert,
+  resolveAlert,
+  checkAlert,
+  subscribeToAlerts,
+  formatTimeAgo,
+  metricNames,
+  operatorNames,
+  severityNames,
+  severityColors,
+  channelNames,
+  type AlertRule,
+  type AlertRecord,
+  type AlertStats,
+  type MetricType,
+} from '@/services/alertService';
 import {
   LineChart,
   Line,
@@ -1762,13 +1782,14 @@ export default function DataAnalytics() {
   });
 
   // 预警相关状态
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [showAlerts, setShowAlerts] = useState(false);
-  const [alertRules, setAlertRules] = useState<AlertRule[]>([
-    { id: '1', metric: 'users', threshold: -20, operator: 'lt', enabled: true },
-    { id: '2', metric: 'views', threshold: -30, operator: 'lt', enabled: true },
-    { id: '3', metric: 'likes', threshold: 1000, operator: 'gt', enabled: false },
-  ]);
+  const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
+  const [alertStats, setAlertStats] = useState<AlertStats | null>(null);
+  const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
+  const [showAlertRulesModal, setShowAlertRulesModal] = useState(false);
+  const [showCreateRuleModal, setShowCreateRuleModal] = useState(false);
+  const alertSubscriptionRef = useRef<(() => void) | null>(null);
 
   // 统计数据
   const [stats, setStats] = useState({
@@ -2814,14 +2835,14 @@ export default function DataAnalytics() {
         (collectedFeeds || []).slice(0, 5).map(async (cf) => {
           const { data: feed } = await supabaseAdmin
             .from('feeds')
-            .select('id, content, author_id')
+            .select('id, content, user_id')
             .eq('id', cf.feed_id)
             .single();
 
           const { data: author } = await supabaseAdmin
             .from('users')
             .select('username')
-            .eq('id', feed?.author_id)
+            .eq('id', feed?.user_id)
             .single();
 
           return {
@@ -3408,12 +3429,22 @@ export default function DataAnalytics() {
         .eq('user_id', userId)
         .single();
 
-      // 获取用户行为特征
-      const { data: behaviorFeatures } = await supabaseAdmin
+      // 获取用户行为特征 - 按事件类型分组统计
+      const { data: behaviorFeaturesRaw } = await supabaseAdmin
         .from('user_behavior_events')
-        .select('event_type, count')
+        .select('event_type')
         .eq('user_id', userId)
-        .limit(10);
+        .limit(100);
+
+      // 手动统计各事件类型的数量
+      const behaviorCounts: Record<string, number> = {};
+      (behaviorFeaturesRaw || []).forEach((event: any) => {
+        behaviorCounts[event.event_type] = (behaviorCounts[event.event_type] || 0) + 1;
+      });
+      const behaviorFeatures = Object.entries(behaviorCounts).map(([event_type, count]) => ({
+        event_type,
+        count,
+      }));
 
       // 获取实时特征
       const { data: realtimeFeatures } = await supabaseAdmin
@@ -3432,24 +3463,34 @@ export default function DataAnalytics() {
         .from('recommendation_history')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('clicked', true);
+        .eq('was_clicked', true);
 
       const clickThroughRate = recommendationsReceived && recommendationsReceived > 0
         ? Number(((recommendationsClicked || 0) / recommendationsReceived * 100).toFixed(2))
         : 0;
 
+      // 处理兴趣标签 - 从 interests JSONB 字段提取
+      let interestTags: string[] = [];
+      if (profileData?.interests) {
+        // interests 是 {tag: weight} 格式，提取标签名
+        interestTags = Object.keys(profileData.interests);
+      }
+      if (interestTags.length === 0) {
+        interestTags = ['设计', '创意', '艺术'];
+      }
+
       setUserRecommendationData({
-        profileCompleteness: profileData?.completeness || Math.floor(Math.random() * 40) + 60,
-        interestTags: profileData?.interest_tags || ['设计', '创意', '艺术'],
+        profileCompleteness: Math.floor(Math.random() * 40) + 60, // 用户画像表暂无完整度字段，使用模拟数据
+        interestTags,
         behaviorFeatures: (behaviorFeatures || []).map((f: any) => ({
           feature: f.event_type,
           score: f.count || Math.floor(Math.random() * 100),
         })),
         realtimeFeatures: [
-          { feature: '最近活跃', value: realtimeFeatures?.last_active || '刚刚' },
-          { feature: '当前会话', value: realtimeFeatures?.current_session || '浏览中' },
-          { feature: '兴趣偏好', value: realtimeFeatures?.interest_preference || '设计类' },
-          { feature: '设备类型', value: realtimeFeatures?.device_type || '桌面端' },
+          { feature: '最近活跃', value: realtimeFeatures?.last_updated ? new Date(realtimeFeatures.last_updated).toLocaleString('zh-CN') : '刚刚' },
+          { feature: '当前会话', value: realtimeFeatures?.current_session_duration ? `${Math.round(realtimeFeatures.current_session_duration / 1000)}秒` : '浏览中' },
+          { feature: '兴趣偏好', value: realtimeFeatures?.interest_tags ? Object.keys(realtimeFeatures.interest_tags).slice(0, 2).join(', ') || '设计类' : '设计类' },
+          { feature: '设备类型', value: realtimeFeatures?.context_device_type || '桌面端' },
         ],
         recommendationsReceived: recommendationsReceived || 0,
         recommendationsClicked: recommendationsClicked || 0,
@@ -3463,41 +3504,43 @@ export default function DataAnalytics() {
   // 加载用户IP孵化数据
   const loadUserIPData = async (userId: string) => {
     try {
-      // 获取IP资产
+      // 获取IP资产 - 使用 user_id 字段
       const { data: ipAssets } = await supabaseAdmin
         .from('ip_assets')
         .select('status')
-        .eq('creator_id', userId);
+        .eq('user_id', userId);
 
       const totalIPAssets = ipAssets?.length || 0;
-      const publishedIPs = ipAssets?.filter((ip: any) => ip.status === 'published').length || 0;
-      const incubatingIPs = ipAssets?.filter((ip: any) => ip.status === 'incubating').length || 0;
-      const commercializedIPs = ipAssets?.filter((ip: any) => ip.status === 'commercialized').length || 0;
+      // ip_assets 表的状态是 'active', 'archived', 'deleted'，不是 'published', 'incubating', 'commercialized'
+      const publishedIPs = ipAssets?.filter((ip: any) => ip.status === 'active').length || 0;
+      const incubatingIPs = 0; // 该表没有 incubating 状态
+      const commercializedIPs = 0; // 该表没有 commercialized 状态
 
-      // 获取IP收益
+      // 获取IP收益 - 使用 user_id 字段，且字段名是 total_revenue 而不是 amount
       const { data: revenueData } = await supabaseAdmin
         .from('creator_revenue')
-        .select('amount')
-        .eq('creator_id', userId);
-      const totalRevenue = revenueData?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0;
+        .select('total_revenue')
+        .eq('user_id', userId)
+        .single();
+      const totalRevenue = revenueData?.total_revenue || 0;
 
-      // 获取合作伙伴
+      // 获取合作伙伴 - 使用 user_id 字段
       const { count: partnerships } = await supabaseAdmin
         .from('ip_partnerships')
         .select('*', { count: 'exact', head: true })
-        .eq('ip_owner_id', userId);
+        .eq('user_id', userId);
 
-      // 获取版权资产
+      // 获取版权资产 - 使用 user_id 字段
       const { count: copyrightAssets } = await supabaseAdmin
         .from('copyright_assets')
         .select('*', { count: 'exact', head: true })
-        .eq('owner_id', userId);
+        .eq('user_id', userId);
 
-      // 获取IP活动
+      // 获取IP活动 - 使用 user_id 字段
       const { count: ipActivities } = await supabaseAdmin
         .from('ip_activities')
         .select('*', { count: 'exact', head: true })
-        .eq('ip_owner_id', userId);
+        .eq('user_id', userId);
 
       setUserIPData({
         totalIPAssets,
@@ -3547,20 +3590,38 @@ export default function DataAnalytics() {
   // 加载用户内容审核数据
   const loadUserModerationData = async (userId: string) => {
     try {
-      // 获取内容审核记录
+      // 获取内容审核记录 - moderation_logs 表使用 action 字段而不是 status
       const { data: moderationLogs } = await supabaseAdmin
         .from('moderation_logs')
         .select('action, reason, scores')
         .eq('user_id', userId);
 
       const totalSubmissions = moderationLogs?.length || 0;
-      const approved = moderationLogs?.filter((m: any) => m.status === 'approved').length || 0;
-      const rejected = moderationLogs?.filter((m: any) => m.status === 'rejected').length || 0;
-      const pending = moderationLogs?.filter((m: any) => m.status === 'pending').length || 0;
-      const aiReviews = moderationLogs?.filter((m: any) => m.review_type === 'ai').length || 0;
-      const humanReviews = moderationLogs?.filter((m: any) => m.review_type === 'human').length || 0;
+      // action 字段值: 'auto_approved', 'auto_rejected', 'manual_approved', 'manual_rejected', 'flagged'
+      const approved = moderationLogs?.filter((m: any) => 
+        m.action === 'auto_approved' || m.action === 'manual_approved'
+      ).length || 0;
+      const rejected = moderationLogs?.filter((m: any) => 
+        m.action === 'auto_rejected' || m.action === 'manual_rejected'
+      ).length || 0;
+      const pending = moderationLogs?.filter((m: any) => m.action === 'flagged').length || 0;
+      // auto_ 开头的表示AI审核，manual_ 开头的表示人工审核
+      const aiReviews = moderationLogs?.filter((m: any) => 
+        m.action?.startsWith('auto_')
+      ).length || 0;
+      const humanReviews = moderationLogs?.filter((m: any) => 
+        m.action?.startsWith('manual_')
+      ).length || 0;
 
-      const scores = moderationLogs?.filter((m: any) => m.score !== null).map((m: any) => m.score) || [];
+      // scores 是 JSONB 字段，存储各项评分
+      const scores: number[] = [];
+      moderationLogs?.forEach((m: any) => {
+        if (m.scores && typeof m.scores === 'object') {
+          Object.values(m.scores).forEach((v: any) => {
+            if (typeof v === 'number') scores.push(v);
+          });
+        }
+      });
       const averageScore = scores.length > 0
         ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2))
         : 0;
@@ -3582,18 +3643,19 @@ export default function DataAnalytics() {
   // 加载用户动态/Feed数据
   const loadUserFeedData = async (userId: string) => {
     try {
-      // 获取用户发布的动态
+      // 获取用户发布的动态 - feeds 表使用 user_id 字段
       const { data: feeds } = await supabaseAdmin
         .from('feeds')
-        .select('status, likes_count, comments_count, shares_count')
-        .eq('author_id', userId);
+        .select('likes, comments, shares, views')
+        .eq('user_id', userId);
 
       const totalFeeds = feeds?.length || 0;
-      const feedsPublished = feeds?.filter((f: any) => f.status === 'published').length || 0;
-      const feedsDraft = feeds?.filter((f: any) => f.status === 'draft').length || 0;
-      const totalLikes = feeds?.reduce((sum, f) => sum + (f.likes_count || 0), 0) || 0;
-      const totalComments = feeds?.reduce((sum, f) => sum + (f.comments_count || 0), 0) || 0;
-      const totalShares = feeds?.reduce((sum, f) => sum + (f.shares_count || 0), 0) || 0;
+      // feeds 表没有 status 字段，所有动态都是已发布的
+      const feedsPublished = totalFeeds;
+      const feedsDraft = 0;
+      const totalLikes = feeds?.reduce((sum, f) => sum + (f.likes || 0), 0) || 0;
+      const totalComments = feeds?.reduce((sum, f) => sum + (f.comments || 0), 0) || 0;
+      const totalShares = feeds?.reduce((sum, f) => sum + (f.shares || 0), 0) || 0;
 
       const avgEngagementRate = totalFeeds > 0
         ? Number(((totalLikes + totalComments + totalShares) / (totalFeeds * 100) * 100).toFixed(2))
@@ -4963,65 +5025,87 @@ export default function DataAnalytics() {
     }
   }, [userFilterType, selectedUserId, loadUserData]);
 
-  // 检查预警规则
-  const checkAlerts = useCallback((newStats: typeof stats) => {
-    const newAlerts: Alert[] = [];
-
-    alertRules.forEach(rule => {
-      if (!rule.enabled) return;
-
-      let currentValue = 0;
-      let metricName = '';
-
-      switch (rule.metric) {
-        case 'users':
-          currentValue = newStats.userGrowth;
-          metricName = '用户增长';
-          break;
-        case 'works':
-          currentValue = newStats.worksGrowth;
-          metricName = '作品增长';
-          break;
-        case 'views':
-          currentValue = newStats.viewsGrowth;
-          metricName = '浏览量增长';
-          break;
-        case 'likes':
-          currentValue = newStats.totalLikes;
-          metricName = '点赞数';
-          break;
-      }
-
-      const isTriggered = rule.operator === 'gt'
-        ? currentValue > rule.threshold
-        : currentValue < rule.threshold;
-
-      if (isTriggered) {
-        const alert: Alert = {
-          id: `${rule.id}-${Date.now()}`,
-          ruleId: rule.id,
-          metric: rule.metric,
-          message: rule.operator === 'lt'
-            ? `${metricName}下降超过 ${Math.abs(rule.threshold)}%，当前为 ${currentValue}%`
-            : `${metricName}超过 ${rule.threshold}，当前为 ${currentValue}`,
-          severity: rule.operator === 'lt' && rule.threshold < -30 ? 'error' : 'warning',
-          timestamp: Date.now(),
-          acknowledged: false,
-        };
-        newAlerts.push(alert);
-      }
-    });
-
-    if (newAlerts.length > 0) {
-      setAlerts(prev => [...newAlerts, ...prev].slice(0, 50)); // 最多保留50条
-      newAlerts.forEach(alert => {
-        toast.warning(alert.message, {
-          duration: 5000,
-          icon: <AlertTriangle className="w-5 h-5" />,
-        });
-      });
+  // 加载预警规则和记录
+  const loadAlertData = useCallback(async () => {
+    setIsLoadingAlerts(true);
+    try {
+      const [rules, records, stats] = await Promise.all([
+        getAlertRules(),
+        getAlertRecords({ status: 'active', limit: 50 }),
+        getAlertStats(7),
+      ]);
+      setAlertRules(rules);
+      setAlerts(records);
+      setAlertStats(stats);
+    } catch (error) {
+      console.error('加载预警数据失败:', error);
+    } finally {
+      setIsLoadingAlerts(false);
     }
-  }, [alertRules]);
+  }, []);
+
+  // 检查并触发预警（调用后端API）
+  const checkAndTriggerAlerts = useCallback(async (newStats: typeof stats) => {
+    try {
+      // 检查用户增长预警
+      if (newStats.userGrowth < -20) {
+        await checkAlert('users', newStats.userGrowth, {
+          totalUsers: newStats.totalUsers,
+          growthRate: newStats.userGrowth,
+        });
+      }
+
+      // 检查浏览量增长预警
+      if (newStats.viewsGrowth < -30) {
+        await checkAlert('views', newStats.viewsGrowth, {
+          totalViews: newStats.totalViews,
+          growthRate: newStats.viewsGrowth,
+        });
+      }
+
+      // 刷新预警记录
+      const records = await getAlertRecords({ status: 'active', limit: 50 });
+      setAlerts(records);
+
+      // 刷新统计
+      const stats = await getAlertStats(7);
+      setAlertStats(stats);
+    } catch (error) {
+      console.error('检查预警失败:', error);
+    }
+  }, []);
+
+  // 处理确认预警
+  const handleAcknowledgeAlert = async (alertId: string) => {
+    try {
+      await acknowledgeAlert(alertId);
+      setAlerts(prev => prev.map(a =>
+        a.id === alertId ? { ...a, status: 'acknowledged' as const, acknowledged_at: new Date().toISOString() } : a
+      ));
+      toast.success('已确认预警');
+
+      // 刷新统计
+      const stats = await getAlertStats(7);
+      setAlertStats(stats);
+    } catch (error) {
+      toast.error('确认预警失败');
+    }
+  };
+
+  // 处理解决预警
+  const handleResolveAlert = async (alertId: string, reason?: string) => {
+    try {
+      await resolveAlert(alertId, reason);
+      setAlerts(prev => prev.filter(a => a.id !== alertId));
+      toast.success('已解决预警');
+
+      // 刷新统计
+      const stats = await getAlertStats(7);
+      setAlertStats(stats);
+    } catch (error) {
+      toast.error('解决预警失败');
+    }
+  };
 
   // 加载数据
   const loadData = useCallback(async (showLoading = true) => {
@@ -5055,8 +5139,8 @@ export default function DataAnalytics() {
         likesGrowth: overview.likesGrowth,
       });
 
-      // 检查预警
-      checkAlerts({
+      // 检查并触发预警
+      await checkAndTriggerAlerts({
         totalUsers: overview.totalUsers,
         totalWorks: overview.totalWorks,
         totalViews: overview.totalViews,
@@ -5110,12 +5194,32 @@ export default function DataAnalytics() {
     } finally {
       if (showLoading) setIsLoading(false);
     }
-  }, [timeRange, checkAlerts]);
+  }, [timeRange, checkAndTriggerAlerts]);
 
   // 设置实时更新
   useEffect(() => {
     // 初始加载
     loadData();
+    loadAlertData();
+
+    // 订阅实时预警
+    const unsubscribe = subscribeToAlerts((newAlert) => {
+      setAlerts(prev => [newAlert, ...prev].slice(0, 50));
+      toast.warning(newAlert.message, {
+        duration: 5000,
+        icon: <AlertTriangle className="w-5 h-5" />,
+      });
+      // 刷新统计
+      getAlertStats(7).then(setAlertStats);
+    });
+
+    alertSubscriptionRef.current = unsubscribe;
+
+    return () => {
+      if (alertSubscriptionRef.current) {
+        alertSubscriptionRef.current();
+      }
+    };
 
     if (isRealtimeEnabled) {
       // 设置定时刷新（每30秒）
@@ -5247,21 +5351,8 @@ export default function DataAnalytics() {
     toast.success('数据已刷新');
   };
 
-  // 确认预警
-  const acknowledgeAlert = (alertId: string) => {
-    setAlerts(prev => prev.map(a =>
-      a.id === alertId ? { ...a, acknowledged: true } : a
-    ));
-  };
-
-  // 清除所有预警
-  const clearAllAlerts = () => {
-    setAlerts([]);
-    toast.success('已清除所有预警');
-  };
-
   // 未确认的预警数量
-  const unacknowledgedAlerts = alerts.filter(a => !a.acknowledged).length;
+  const unacknowledgedAlerts = alerts.filter(a => a.status === 'active').length;
 
   // 渲染主图表
   const renderMainChart = () => {
@@ -5529,9 +5620,22 @@ export default function DataAnalytics() {
             预警
             {unacknowledgedAlerts > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                {unacknowledgedAlerts}
+                {unacknowledgedAlerts > 99 ? '99+' : unacknowledgedAlerts}
               </span>
             )}
+          </motion.button>
+
+          {/* 预警规则管理按钮 */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowAlertRulesModal(true)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+              isDark ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <Shield className="w-4 h-4" />
+            规则管理
           </motion.button>
 
           {/* 筛选按钮 */}
@@ -5627,24 +5731,67 @@ export default function DataAnalytics() {
             className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md overflow-hidden`}
           >
             <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
-              <h3 className="font-semibold text-lg flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                数据预警
-              </h3>
-              {alerts.length > 0 && (
+              <div className="flex items-center gap-4">
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                  数据预警
+                  {alertStats && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      alertStats.active_count > 0
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30'
+                        : 'bg-green-100 text-green-700 dark:bg-green-900/30'
+                    }`}>
+                      {alertStats.active_count > 0 ? `${alertStats.active_count} 个活跃` : '正常'}
+                    </span>
+                  )}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={clearAllAlerts}
-                  className="text-sm text-red-500 hover:text-red-600"
+                  onClick={() => loadAlertData()}
+                  className="text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                  disabled={isLoadingAlerts}
                 >
-                  清除全部
+                  <RefreshCw className={`w-4 h-4 ${isLoadingAlerts ? 'animate-spin' : ''}`} />
+                  刷新
                 </button>
-              )}
+              </div>
             </div>
-            <div className="p-4 max-h-64 overflow-y-auto">
-              {alerts.length === 0 ? (
+
+            {/* 预警统计 */}
+            {alertStats && (
+              <div className={`px-6 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} grid grid-cols-4 gap-4`}>
+                <div className="text-center">
+                  <p className={`text-2xl font-bold ${alertStats.active_count > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                    {alertStats.active_count}
+                  </p>
+                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>活跃预警</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-orange-500">{alertStats.critical_alerts || 0}</p>
+                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>严重</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-yellow-500">{alertStats.warning_alerts || 0}</p>
+                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>警告</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-blue-500">{alertStats.total_alerts || 0}</p>
+                  <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>7天总计</p>
+                </div>
+              </div>
+            )}
+
+            <div className="p-4 max-h-80 overflow-y-auto">
+              {isLoadingAlerts ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : alerts.length === 0 ? (
                 <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   <CheckCircle className="w-12 h-12 mx-auto mb-2 text-green-500" />
                   <p>暂无预警信息</p>
+                  <p className="text-xs mt-1">系统运行正常</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -5653,35 +5800,79 @@ export default function DataAnalytics() {
                       key={alert.id}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className={`p-3 rounded-lg flex items-start justify-between ${
-                        alert.severity === 'error'
-                          ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-                          : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+                      className={`p-3 rounded-lg border ${
+                        alert.severity === 'critical' || alert.severity === 'error'
+                          ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                          : alert.severity === 'warning'
+                          ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+                          : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <AlertTriangle className={`w-5 h-5 flex-shrink-0 ${
-                          alert.severity === 'error' ? 'text-red-500' : 'text-yellow-500'
-                        }`} />
-                        <div>
-                          <p className={`text-sm font-medium ${
-                            alert.severity === 'error' ? 'text-red-700 dark:text-red-400' : 'text-yellow-700 dark:text-yellow-400'
-                          }`}>
-                            {alert.message}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {new Date(alert.timestamp).toLocaleString('zh-CN')}
-                          </p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3 flex-1">
+                          <AlertTriangle className={`w-5 h-5 flex-shrink-0 ${
+                            alert.severity === 'critical' || alert.severity === 'error'
+                              ? 'text-red-500'
+                              : alert.severity === 'warning'
+                              ? 'text-yellow-500'
+                              : 'text-blue-500'
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className={`text-sm font-medium truncate ${
+                                alert.severity === 'critical' || alert.severity === 'error'
+                                  ? 'text-red-700 dark:text-red-400'
+                                  : alert.severity === 'warning'
+                                  ? 'text-yellow-700 dark:text-yellow-400'
+                                  : 'text-blue-700 dark:text-blue-400'
+                              }`}>
+                                {alert.message}
+                              </p>
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                alert.severity === 'critical'
+                                  ? 'bg-red-100 text-red-700'
+                                  : alert.severity === 'error'
+                                  ? 'bg-orange-100 text-orange-700'
+                                  : alert.severity === 'warning'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                {severityNames[alert.severity] || alert.severity}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1">
+                              <p className="text-xs text-gray-500">
+                                {formatTimeAgo(alert.created_at)}
+                              </p>
+                              {alert.alert_rules && (
+                                <p className="text-xs text-gray-400">
+                                  规则: {alert.alert_rules.name}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 ml-2">
+                          {alert.status === 'active' && (
+                            <>
+                              <button
+                                onClick={() => handleAcknowledgeAlert(alert.id)}
+                                className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300"
+                                title="确认"
+                              >
+                                确认
+                              </button>
+                              <button
+                                onClick={() => handleResolveAlert(alert.id)}
+                                className="text-xs px-2 py-1 rounded bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-700 dark:text-green-400"
+                                title="解决"
+                              >
+                                解决
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
-                      {!alert.acknowledged && (
-                        <button
-                          onClick={() => acknowledgeAlert(alert.id)}
-                          className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                        >
-                          确认
-                        </button>
-                      )}
                     </motion.div>
                   ))}
                 </div>
@@ -5812,6 +6003,13 @@ export default function DataAnalytics() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 预警规则管理模态框 */}
+      <AlertRulesModal
+        isOpen={showAlertRulesModal}
+        onClose={() => setShowAlertRulesModal(false)}
+        isDark={isDark}
+      />
 
       {/* 主图表区域 */}
       <motion.div

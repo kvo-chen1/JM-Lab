@@ -365,7 +365,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
                    w.authorId || w.creatorId || w.userId ||
                    w.created_by || w.createdBy || w.owner_id || w.ownerId || 'unknown',
               username: w.author?.username || w.creator || w.creator_name || w.user?.username ||
-                        w.createdBy?.username || w.owner?.username || 'Unknown User',
+                        w.createdBy?.username || w.owner?.username || '创作者',
               email: '',
               avatar: w.author?.avatar || w.avatar_url || w.user?.avatar_url || w.creator_avatar ||
                       w.createdBy?.avatar || w.owner?.avatar || ''
@@ -384,8 +384,8 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             culturalElements: [],
             colorScheme: [],
             toolsUsed: [],
-            publishType: 'explore',
-            communityId: null,
+            publishType: w.community_id || w.communityId ? 'community' : 'explore',
+            communityId: w.community_id || w.communityId || null,
             moderationStatus: 'approved',
             rejectionReason: null,
             scheduledPublishDate: null,
@@ -523,7 +523,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           
           const authorData = authorFromMap || {
             id: authorId || 'unknown',
-            username: p.author?.username || p.creator || p.creator_name || p.user?.username || p.createdBy?.username || p.owner?.username || 'Unknown User',
+            username: p.author?.username || p.creator || p.creator_name || p.user?.username || p.createdBy?.username || p.owner?.username || '创作者',
             email: '',
             avatar_url: p.author?.avatar || p.avatar_url || p.user?.avatar_url || p.creator_avatar || p.createdBy?.avatar || p.owner?.avatar || ''
           };
@@ -577,7 +577,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             culturalElements: [],
             colorScheme: [],
             toolsUsed: [],
-            publishType: 'explore',
+            publishType: p._source === 'works' ? 'explore' : (p.community_id ? 'community' : 'explore'),
             communityId: p.community_id,
             moderationStatus: 'approved',
             rejectionReason: null,
@@ -608,53 +608,91 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           .from('posts')
           .select('*')
           .order('created_at', { ascending: false });
-        
+
         if (!error && allPosts && Array.isArray(allPosts)) {
           console.log('Fetched all posts from Supabase:', allPosts.length);
-          worksFromSupabase = allPosts.map((p: any) => ({
-            id: p.id.toString(),
-            title: p.title || 'Untitled',
-            thumbnail: p.images?.[0] || p.attachments?.[0]?.url || p.attachments?.[0] || '',
-            videoUrl: p.video_url || p.videoUrl || undefined,
-            type: p.type || 'image',
-            likes: p.likes_count || 0,
-            comments: Array(p.comments_count || p.comment_count || 0).fill(null),
-            date: p.created_at ? (typeof p.created_at === 'string' ? p.created_at.split('T')[0] : new Date(p.created_at).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
-            author: {
-              id: p.author_id || 'unknown',
-              username: 'Unknown User',
+
+          // 获取所有作者ID
+          const authorIds = [...new Set(allPosts.map(p => {
+            const id = p.author_id || p.creator_id || p.user_id || p.creator || p.author ||
+                       p.authorId || p.creatorId || p.userId ||
+                       p.created_by || p.createdBy || p.owner_id || p.ownerId;
+            return id;
+          }).filter(Boolean))].map(id => String(id));
+
+          // 批量获取作者信息
+          let authorsMap: Map<string, any> = new Map();
+          if (authorIds.length > 0) {
+            const { data: authorsData, error: authorsError } = await supabase
+              .from('users')
+              .select('id, username, email, avatar_url')
+              .in('id', authorIds);
+
+            if (!authorsError && authorsData) {
+              authorsData.forEach(author => {
+                authorsMap.set(String(author.id), author);
+              });
+            }
+          }
+
+          worksFromSupabase = allPosts.map((p: any) => {
+            const authorId = p.author_id || p.creator_id || p.user_id || p.creator || p.author ||
+                            p.authorId || p.creatorId || p.userId ||
+                            p.created_by || p.createdBy || p.owner_id || p.ownerId;
+            const authorFromMap = authorsMap.get(String(authorId));
+
+            const authorData = authorFromMap || {
+              id: authorId || 'unknown',
+              username: p.author?.username || p.creator || p.creator_name || p.user?.username || p.createdBy?.username || p.owner?.username || '创作者',
               email: '',
-              avatar: ''
-            },
-            isLiked: false,
-            isBookmarked: false,
-            category: (p.category as PostCategory) || 'other',
-            tags: p.tags || [],
-            description: p.content || '',
-            views: p.view_count || 0,
-            shares: 0,
-            isFeatured: false,
-            isDraft: p.status === 'draft',
-            completionStatus: p.status === 'published' ? 'published' : 'draft',
-            creativeDirection: '',
-            culturalElements: [],
-            colorScheme: [],
-            toolsUsed: [],
-            publishType: 'explore',
-            communityId: p.community_id,
-            moderationStatus: 'approved',
-            rejectionReason: null,
-            scheduledPublishDate: null,
-            visibility: 'public',
-            commentCount: p.comments_count || 0,
-            engagementRate: 0,
-            trendingScore: 0,
-            reach: 0,
-            moderator: null,
-            reviewedAt: null,
-            recommendationScore: 0,
-            recommendedFor: []
-          }));
+              avatar_url: p.author?.avatar || p.avatar_url || p.user?.avatar_url || p.creator_avatar || p.createdBy?.avatar || p.owner?.avatar || ''
+            };
+
+            return {
+              id: p.id.toString(),
+              title: p.title || 'Untitled',
+              thumbnail: p.images?.[0] || p.attachments?.[0]?.url || p.attachments?.[0] || '',
+              videoUrl: p.video_url || p.videoUrl || undefined,
+              type: p.type || 'image',
+              likes: p.likes_count || 0,
+              comments: Array(p.comments_count || p.comment_count || 0).fill(null),
+              date: p.created_at ? (typeof p.created_at === 'string' ? p.created_at.split('T')[0] : new Date(p.created_at).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+              author: {
+                id: authorData.id,
+                username: authorData.username || authorData.name || '创作者',
+                email: authorData.email || '',
+                avatar: authorData.avatar_url || ''
+              },
+              isLiked: false,
+              isBookmarked: false,
+              category: (p.category as PostCategory) || 'other',
+              tags: p.tags || [],
+              description: p.content || '',
+              views: p.view_count || 0,
+              shares: 0,
+              isFeatured: false,
+              isDraft: p.status === 'draft',
+              completionStatus: p.status === 'published' ? 'published' : 'draft',
+              creativeDirection: '',
+              culturalElements: [],
+              colorScheme: [],
+              toolsUsed: [],
+              publishType: 'explore',
+              communityId: p.community_id,
+              moderationStatus: 'approved',
+              rejectionReason: null,
+              scheduledPublishDate: null,
+              visibility: 'public',
+              commentCount: p.comments_count || 0,
+              engagementRate: 0,
+              trendingScore: 0,
+              reach: 0,
+              moderator: null,
+              reviewedAt: null,
+              recommendationScore: 0,
+              recommendedFor: []
+            };
+          });
         }
       } catch (error) {
         console.error('Error fetching all posts from Supabase:', error);
@@ -732,7 +770,7 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
                  w.authorId || w.creatorId || w.userId ||
                  w.created_by || w.createdBy || w.owner_id || w.ownerId || 'unknown',
             username: w.author?.username || w.creator || w.creator_name || w.user?.username ||
-                      w.createdBy?.username || w.owner?.username || 'Unknown User',
+                      w.createdBy?.username || w.owner?.username || '创作者',
             email: '',
             avatar: w.author?.avatar || w.avatar_url || w.user?.avatar_url || w.creator_avatar ||
                     w.createdBy?.avatar || w.owner?.avatar || ''
@@ -850,7 +888,7 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
 
   const authorData = author || p.author || {
         id: p.author_id || p.creator_id || p.user_id || 'unknown',
-        username: p.creator || p.creator_name || 'Unknown User',
+        username: p.creator || p.creator_name || '创作者',
         email: '',
         avatar: p.creator_avatar || ''
   };

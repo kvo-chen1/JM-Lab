@@ -1,164 +1,160 @@
 #!/usr/bin/env node
 /**
  * Supabase 连接测试脚本
- * 用于验证前端和后端的 Supabase 连接配置是否正确
+ * 用于检查与 Supabase 数据库的连接状态
  */
 
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
 import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 
 // 加载环境变量
-const envPath = path.resolve(__dirname, '../.env')
-const envLocalPath = path.resolve(__dirname, '../.env.local')
-
-if (fs.existsSync(envLocalPath)) {
-  dotenv.config({ path: envLocalPath })
-  console.log('✅ 已加载 .env.local 文件')
+if (fs.existsSync('.env.local')) {
+  dotenv.config({ path: '.env.local' })
 }
-if (fs.existsSync(envPath)) {
-  dotenv.config({ path: envPath })
-  console.log('✅ 已加载 .env 文件')
+dotenv.config()
+
+console.log('========================================')
+console.log('Supabase 连接测试')
+console.log('========================================\n')
+
+// 检查环境变量
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+
+console.log('📋 环境变量检查:')
+console.log('  - VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL ? '✅ 已设置' : '❌ 未设置')
+console.log('  - SUPABASE_URL:', process.env.SUPABASE_URL ? '✅ 已设置' : '❌ 未设置')
+console.log('  - VITE_SUPABASE_ANON_KEY:', process.env.VITE_SUPABASE_ANON_KEY ? '✅ 已设置' : '❌ 未设置')
+console.log('  - SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? '✅ 已设置' : '❌ 未设置')
+console.log('  - VITE_SUPABASE_SERVICE_ROLE_KEY:', process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ? '✅ 已设置' : '❌ 未设置')
+console.log('  - SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ 已设置' : '❌ 未设置')
+console.log('')
+
+// 验证 URL 格式
+console.log('🔗 URL 验证:')
+if (!supabaseUrl) {
+  console.log('  ❌ Supabase URL 未配置')
+  process.exit(1)
 }
 
-console.log('\n========== Supabase 连接测试 ==========\n')
-
-// 测试配置
-const configs = [
-  {
-    name: '前端客户端 (Anon Key)',
-    url: process.env.VITE_SUPABASE_URL,
-    key: process.env.VITE_SUPABASE_ANON_KEY,
-    expectedRole: 'anon'
-  },
-  {
-    name: '服务端客户端 (Anon Key)',
-    url: process.env.SUPABASE_URL,
-    key: process.env.SUPABASE_ANON_KEY,
-    expectedRole: 'anon'
-  },
-  {
-    name: '服务端客户端 (Service Role Key)',
-    url: process.env.SUPABASE_URL,
-    key: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    expectedRole: 'service_role'
-  }
-]
-
-// 解析 JWT 获取角色信息
-function parseJWT(token) {
-  try {
-    const base64Url = token.split('.')[1]
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    )
-    return JSON.parse(jsonPayload)
-  } catch (e) {
-    return null
-  }
+try {
+  new URL(supabaseUrl)
+  console.log('  ✅ URL 格式有效:', supabaseUrl)
+} catch (e) {
+  console.log('  ❌ URL 格式无效:', supabaseUrl)
+  process.exit(1)
 }
 
 // 测试连接
-async function testConnection(config) {
-  console.log(`\n📌 测试: ${config.name}`)
-  console.log('----------------------------------------')
+async function testConnection() {
+  console.log('\n🧪 连接测试:')
 
-  // 检查配置是否存在
-  if (!config.url || !config.key) {
-    console.log('❌ 配置缺失:')
-    console.log(`   URL: ${config.url ? '已设置' : '未设置'}`)
-    console.log(`   Key: ${config.key ? '已设置' : '未设置'}`)
-    return false
-  }
+  // 1. 使用 Anon Key 测试
+  if (supabaseAnonKey) {
+    console.log('\n  1. 使用 Anon Key 连接...')
+    try {
+      const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      })
 
-  console.log(`✅ URL: ${config.url}`)
-  console.log(`✅ Key: ${config.key.substring(0, 20)}...${config.key.substring(config.key.length - 10)}`)
+      const { data, error, count } = await supabaseAnon
+        .from('users')
+        .select('*', { count: 'exact', head: true })
 
-  // 解析 JWT 检查角色
-  const jwtPayload = parseJWT(config.key)
-  if (jwtPayload) {
-    const actualRole = jwtPayload.role
-    console.log(`📋 JWT 角色: ${actualRole}`)
-    if (actualRole !== config.expectedRole) {
-      console.log(`⚠️  警告: 期望角色是 '${config.expectedRole}'，但实际是 '${actualRole}'`)
-    } else {
-      console.log(`✅ 角色匹配: ${actualRole}`)
-    }
-  }
-
-  // 创建客户端并测试连接
-  try {
-    const client = createClient(config.url, config.key, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
+      if (error) {
+        console.log('     ❌ 连接失败:', error.message)
+      } else {
+        console.log('     ✅ 连接成功! 用户表记录数:', count ?? '未知')
       }
-    })
-
-    // 测试查询
-    const startTime = Date.now()
-    const { data, error, count } = await client
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-      .limit(1)
-    const duration = Date.now() - startTime
-
-    if (error) {
-      console.log(`❌ 查询失败: ${error.message}`)
-      console.log(`   错误代码: ${error.code}`)
-      return false
+    } catch (err) {
+      console.log('     ❌ 连接异常:', err.message)
     }
-
-    console.log(`✅ 连接成功! (${duration}ms)`)
-    console.log(`📊 用户表记录数: ${count !== null ? count : '无法获取'}`)
-    return true
-
-  } catch (error) {
-    console.log(`❌ 连接异常: ${error.message}`)
-    return false
   }
+
+  // 2. 使用 Service Role Key 测试
+  if (supabaseServiceKey) {
+    console.log('\n  2. 使用 Service Role Key 连接...')
+    try {
+      const supabaseService = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      })
+
+      const { data, error, count } = await supabaseService
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+
+      if (error) {
+        console.log('     ❌ 连接失败:', error.message)
+      } else {
+        console.log('     ✅ 连接成功! 用户表记录数:', count ?? '未知')
+      }
+
+      // 测试其他表
+      console.log('\n  3. 测试其他表访问...')
+      const tables = ['posts', 'comments', 'likes', 'follows', 'messages']
+      for (const table of tables) {
+        try {
+          const { error: tableError } = await supabaseService
+            .from(table)
+            .select('count', { count: 'exact', head: true })
+
+          if (tableError) {
+            console.log(`     - ${table}: ❌ ${tableError.message}`)
+          } else {
+            console.log(`     - ${table}: ✅ 可访问`)
+          }
+        } catch (err) {
+          console.log(`     - ${table}: ❌ ${err.message}`)
+        }
+      }
+
+      // 测试 Storage
+      console.log('\n  4. 测试 Storage 访问...')
+      try {
+        const { data: buckets, error: storageError } = await supabaseService.storage.listBuckets()
+        if (storageError) {
+          console.log('     ❌ Storage 访问失败:', storageError.message)
+        } else {
+          console.log('     ✅ Storage 访问成功')
+          console.log('     📦 存储桶列表:')
+          buckets.forEach(bucket => {
+            console.log(`       - ${bucket.name} (${bucket.public ? '公开' : '私有'})`)
+          })
+        }
+      } catch (err) {
+        console.log('     ❌ Storage 访问异常:', err.message)
+      }
+
+      // 测试 Auth
+      console.log('\n  5. 测试 Auth 服务...')
+      try {
+        const { data: authData, error: authError } = await supabaseService.auth.admin.listUsers()
+        if (authError) {
+          console.log('     ❌ Auth 服务访问失败:', authError.message)
+        } else {
+          console.log('     ✅ Auth 服务访问成功')
+          console.log('     👥 用户总数:', authData.users.length)
+        }
+      } catch (err) {
+        console.log('     ❌ Auth 服务访问异常:', err.message)
+      }
+
+    } catch (err) {
+      console.log('     ❌ 连接异常:', err.message)
+    }
+  }
+
+  console.log('\n========================================')
+  console.log('测试完成')
+  console.log('========================================')
 }
 
-// 运行所有测试
-async function runTests() {
-  const results = []
-
-  for (const config of configs) {
-    const success = await testConnection(config)
-    results.push({ name: config.name, success })
-  }
-
-  // 汇总结果
-  console.log('\n========== 测试结果汇总 ==========\n')
-  const passed = results.filter(r => r.success).length
-  const failed = results.filter(r => !r.success).length
-
-  results.forEach(r => {
-    const icon = r.success ? '✅' : '❌'
-    console.log(`${icon} ${r.name}`)
-  })
-
-  console.log(`\n总计: ${passed} 通过, ${failed} 失败`)
-
-  if (failed > 0) {
-    console.log('\n⚠️  部分测试失败，请检查配置')
-    process.exit(1)
-  } else {
-    console.log('\n🎉 所有测试通过！Supabase 连接正常')
-    process.exit(0)
-  }
-}
-
-runTests().catch(error => {
-  console.error('测试执行失败:', error)
-  process.exit(1)
-})
+testConnection().catch(console.error)

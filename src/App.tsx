@@ -21,6 +21,7 @@ import { debounce } from '@/lib/utils';
 import { Routes, Route, Outlet, useLocation, useNavigationType, Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserSession } from '@/hooks/useUserSession';
 // 导入postService用于初始化
 import postsApi from '@/services/postService';
 import { addPost } from '@/services/postService';
@@ -454,6 +455,12 @@ const PromotionApplication = createLazyComponent(() => import(/* webpackChunkNam
   name: 'promotion-application'
 });
 
+// TrendingCard 设计对比演示页面
+const TrendingCardDemo = createLazyComponent(() => import(/* webpackChunkName: "pages-demo" */ "@/pages/TrendingCardDemo"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'trending-card-demo'
+});
+
 // 导入新的骨架屏组件
 import { DashboardSkeleton, ProfileSkeleton, SimpleLoadingSkeleton } from '@/components/skeletons/PageSkeletons';
 
@@ -573,6 +580,9 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(false);
   // 添加用户反馈状态
   const [showFeedback, setShowFeedback] = useState(false);
+  
+  // 使用用户会话跟踪
+  useUserSession();
   
   // 性能优化：延迟初始化非关键数据
   useEffect(() => {
@@ -874,6 +884,7 @@ export default function App() {
           <Route path="/chat/:userId" element={<LazyComponent><PrivateRoute><ChatPage /></PrivateRoute></LazyComponent>} />
           <Route path="/post/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <WorkDetail />}</LazyComponent>} />
           <Route path="/work/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <WorkDetail />}</LazyComponent>} />
+          <Route path="/works/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <WorkDetail />}</LazyComponent>} />
           <Route path="/creator-community" element={<Navigate to="/community" replace />} />
           <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />
           <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
@@ -923,6 +934,7 @@ export default function App() {
           <Route path="/notifications" element={<LazyComponent><PrivateRoute><Notifications /></PrivateRoute></LazyComponent>} />
           <Route path="/messages" element={<LazyComponent><PrivateRoute><MessageCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/component-showcase" element={<ComponentShowcase />} />
+          <Route path="/trending-card-demo" element={<LazyComponent><TrendingCardDemo /></LazyComponent>} />
           <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/knowledge/:type/:id" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/cultural-knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />

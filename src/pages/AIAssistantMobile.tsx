@@ -16,6 +16,7 @@ import { InlineGenerationCard } from '@/components/InlineGenerationCard'
 import AIMessageActions from '@/components/AIMessageActions'
 import { MobileShareSheet } from '@/components/MobileShareSheet'
 import { downloadAndUploadImage } from '@/services/imageService'
+import { createWorkWithUrl } from '@/services/postService'
 
 // 扩展 Message 类型，支持生成任务
 // 注意：这个类型需要与 InlineGenerationCard 组件的 GenerationTask 类型完全兼容
@@ -179,7 +180,12 @@ export default function AIAssistantMobile() {
         
         // 如果有更新，保存到 session
         if (JSON.stringify(updatedMessages) !== JSON.stringify(session.messages)) {
-          sessionService.updateSessionMessages(session.id, updatedMessages)
+          console.log('[AIAssistant] 准备更新会话消息:', session.id, typeof sessionService.updateSessionMessages)
+          if (typeof sessionService.updateSessionMessages === 'function') {
+            sessionService.updateSessionMessages(session.id, updatedMessages)
+          } else {
+            console.error('[AIAssistant] updateSessionMessages 不是函数:', sessionService)
+          }
         }
         
         setCurrentSessionId(session.id)
@@ -275,7 +281,12 @@ export default function AIAssistantMobile() {
         console.log('[AIAssistant] 保存消息:', m.id, 'generationTask:', m.generationTask)
       })
       // 保存完整消息，包括 generationTask
-      sessionService.updateSessionMessages(currentSessionId, newMessages)
+      console.log('[AIAssistant] 保存消息到会话:', currentSessionId, typeof sessionService.updateSessionMessages)
+      if (typeof sessionService.updateSessionMessages === 'function') {
+        sessionService.updateSessionMessages(currentSessionId, newMessages)
+      } else {
+        console.error('[AIAssistant] updateSessionMessages 不是函数:', sessionService)
+      }
       
       // 异步保存到数据库
       (async () => {
@@ -1234,6 +1245,99 @@ export default function AIAssistantMobile() {
 
       setIsGenerating(false)
       return
+    }
+
+    // 检查是否是保存请求（用户点击"很满意"按钮后的保存请求）
+    const isSaveRequest = content.includes('很满意') && content.includes('保存')
+    if (isSaveRequest) {
+      console.log('[AIAssistant] 检测到保存请求:', content)
+      
+      // 查找最近的生成任务
+      const lastGenerationMessage = messages.slice().reverse().find(m => m.generationTask && m.generationTask.result)
+      
+      if (lastGenerationMessage?.generationTask?.result) {
+        const task = lastGenerationMessage.generationTask
+        const result = task.result
+        
+        // 添加AI回复
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `🎉 **保存成功！**
+
+您的作品已保存到「我的作品」中，您可以：
+• 在「我的作品」页面查看和管理
+• 分享给朋友或发布到社区
+• 继续创作更多作品
+
+感谢您的创作，期待您的下一个作品！✨`,
+          timestamp: Date.now()
+        }
+        
+        setMessages(prev => {
+          const newMessages = [...prev, aiMessage]
+          saveMessagesToSession(newMessages)
+          return newMessages
+        })
+        
+        // 实际保存到作品库
+        try {
+          // 获取生成的图片/视频URL
+          const mediaUrl = result.urls?.[0]
+          if (mediaUrl) {
+            // 创建作品记录
+            const workData = {
+              title: task.params?.prompt?.substring(0, 50) || 'AI生成作品',
+              description: task.params?.prompt || '',
+              type: task.type === 'image' ? 'image' : 'video',
+              media_url: mediaUrl,
+              creator_id: user?.id,
+              status: 'published'
+            }
+            
+            console.log('[AIAssistant] 保存作品到数据库:', workData)
+
+            // 调用保存作品的API
+            const savedWork = await createWorkWithUrl(
+              {
+                title: workData.title,
+                description: workData.description,
+                categoryId: 'ai-generated'
+              },
+              mediaUrl,
+              user?.id,
+              task.type === 'video'
+            )
+
+            console.log('[AIAssistant] 作品保存成功:', savedWork)
+
+            toast.success('作品已保存到「我的作品」')
+          }
+        } catch (saveError) {
+          console.error('[AIAssistant] 保存作品失败:', saveError)
+          toast.error('保存失败，请稍后重试')
+        }
+        
+        setIsGenerating(false)
+        return
+      } else {
+        // 没有找到生成结果
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `抱歉，我没有找到您刚才生成的作品。请先生成图片或视频，然后再点击「很满意」保存哦~`,
+          timestamp: Date.now()
+        }
+        
+        setMessages(prev => {
+          const newMessages = [...prev, aiMessage]
+          saveMessagesToSession(newMessages)
+          return newMessages
+        })
+        
+        setIsGenerating(false)
+        return
+      }
     }
 
     try {

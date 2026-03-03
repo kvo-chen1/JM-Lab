@@ -988,7 +988,7 @@ ${prompt}`;
                     : `${isDark ? 'bg-gray-800/50 border-gray-700 hover:border-gray-600' : 'bg-white border-gray-200 hover:border-gray-300'}`
                 }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 relative z-10">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                     isActive 
                       ? `bg-gradient-to-br ${config.color} text-white` 
@@ -1008,7 +1008,7 @@ ${prompt}`;
                 {isActive && (
                   <motion.div
                     layoutId="activeModeIndicator"
-                    className={`absolute inset-0 rounded-xl border-2 ${config.borderColor}`}
+                    className={`absolute inset-0 rounded-xl border-2 ${config.borderColor} pointer-events-none z-0`}
                     initial={false}
                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   />

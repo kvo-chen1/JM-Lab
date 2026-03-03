@@ -251,7 +251,10 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
         console.log('[WorkDetail] Loading post with currentUser:', currentUser?.id);
         const allPosts = await postsApi.getPosts(undefined, currentUser?.id);
         console.log('[WorkDetail] Loaded posts count:', allPosts.length);
-        let postData = allPosts.find(p => p.id === id);
+        // 过滤掉社群帖子，只显示津脉广场的作品 (publishType === 'explore')
+        const explorePosts = allPosts.filter(p => p.publishType === 'explore' || p.publishType === 'both');
+        console.log('[WorkDetail] Filtered explore posts count:', explorePosts.length);
+        let postData = explorePosts.find(p => p.id === id);
         console.log('[WorkDetail] Found post:', postData?.id, 'isLiked:', postData?.isLiked, 'likes:', postData?.likes);
 
         // 如果没有找到帖子，尝试从 Supabase 获取
@@ -369,8 +372,8 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
           }
         }
         
-        // 使用真实作品数据作为推荐作品（排除当前作品）
-        const otherPosts = allPosts.filter(p => p.id !== id);
+        // 使用真实作品数据作为推荐作品（排除当前作品，并过滤掉社群帖子）
+        const otherPosts = explorePosts.filter(p => p.id !== id);
         const realRecommendedWorks: RecommendedWork[] = otherPosts.map((post, index) => {
           // 计算宽高比：优先使用原始数据，如果没有则基于ID生成一个固定的错落有致的宽高比
           let aspectRatio = post.aspectRatio || (post.width && post.height ? post.width / post.height : 0);
@@ -1106,7 +1109,14 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
               {post.tags && post.tags.length > 0 && (
                 <div className={styles.tagsSection}>
                   {post.tags.map((tag, index) => (
-                    <span key={index} className={styles.tag}>#{tag}</span>
+                    <button
+                      key={index}
+                      onClick={() => navigate(`/search?query=${encodeURIComponent(tag)}`)}
+                      className={styles.tag}
+                      style={{ cursor: 'pointer', border: 'none', background: 'var(--hover-bg, #f3f4f6)' }}
+                    >
+                      #{tag}
+                    </button>
                   ))}
                 </div>
               )}
@@ -1403,19 +1413,23 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
             </div>
 
             {/* 底部推荐作品（两列布局） */}
-            <div className={styles.bottomRecommended}>
-              <h3 className={styles.bottomRecommendedTitle}>更多精彩推荐</h3>
-              {renderMasonryGrid(recommendedWorks.slice(0, Math.ceil(recommendedWorks.length / 2)), 2)}
-            </div>
+            {recommendedWorks.length > 0 && (
+              <div className={styles.bottomRecommended}>
+                <h3 className={styles.bottomRecommendedTitle}>更多精彩推荐</h3>
+                {renderMasonryGrid(recommendedWorks.slice(0, Math.ceil(recommendedWorks.length / 2)), 2)}
+              </div>
+            )}
           </div>
         </div>
 
         {/* 右侧：推荐作品（右半部分） */}
-        <aside className={styles.rightColumn}>
-          <div className={styles.stickyWrapper}>
-            {renderMasonryGrid(recommendedWorks.slice(Math.ceil(recommendedWorks.length / 2)))}
-          </div>
-        </aside>
+        {recommendedWorks.length > 0 && (
+          <aside className={styles.rightColumn}>
+            <div className={styles.stickyWrapper}>
+              {renderMasonryGrid(recommendedWorks.slice(Math.ceil(recommendedWorks.length / 2)))}
+            </div>
+          </aside>
+        )}
       </main>
 
       {/* 全屏图片预览 */}

@@ -103,7 +103,7 @@ const MODEL_ID = process.env.DOUBAO_MODEL_ID || 'doubao-seedance-1-0-pro-250528'
 // DashScope (Aliyun Qwen) config
 const DASHSCOPE_BASE_URL = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1'
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || ''
-const DASHSCOPE_MODEL_ID = process.env.DASHSCOPE_MODEL_ID || 'qwen-plus'
+const DASHSCOPE_MODEL_ID = process.env.DASHSCOPE_MODEL_ID || 'qwen3.5-plus'
 
 // Kimi (Moonshot) config
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || 'https://api.moonshot.cn/v1'
@@ -456,8 +456,8 @@ async function dashscopeVideoGenerate(params) {
     // Remove img_url if not provided (text-to-video)
     if (!imageUrl) {
         delete payload.input.img_url;
-        // Default to wan2.6-t2v for text-to-video (has free quota)
-        if (!model || model === 'wan2.6-i2v-flash') payload.model = 'wan2.6-t2v'; 
+        // Use wan2.6-i2v-flash for text-to-video as well (has free quota)
+        if (!model) payload.model = 'wan2.6-i2v-flash'; 
     }
 
     console.log('[DashScope] Starting video generation task:', JSON.stringify(payload, null, 2));
@@ -538,8 +538,9 @@ async function dashscopeImageGenerate(params) {
     console.log('[DashScope] Starting async image generation...', refImage ? '(with ref image)' : '(text only)');
     
     // 构建请求体 - 优先使用传入的 model 参数，参考图片时使用 wanx-v1
+    // 使用 qwen-image-plus 模型（有免费额度）
     const requestBody = {
-      model: refImage ? 'wanx-v1' : (model || 'wanx2.1-t2i-turbo'),
+      model: refImage ? 'wanx-v1' : (model || 'qwen-image-plus'),
       input: { prompt },
       parameters: { 
         size: normalizedSize, 
@@ -808,10 +809,20 @@ async function route(req, res, u, path) {
             const promotedWorksData = works.filter(w => promotedWorkIds.includes(w.id))
 
             // 获取推广作者信息
-            const { data: promotedUsers } = await supabaseServer
-              .from('users')
-              .select('id, username, avatar_url')
-              .in('id', promotedUserIds)
+            // 注意：promoted_works.user_id 是 text 类型，users.id 是 uuid 类型
+            // 使用原始 SQL 查询，将 uuid 转换为 text 进行比较
+            let promotedUsers = []
+            try {
+              const db = await getDB()
+              const { rows } = await db.query(`
+                SELECT id, username, avatar_url
+                FROM users
+                WHERE id::text = ANY($1)
+              `, [promotedUserIds])
+              promotedUsers = rows || []
+            } catch (err) {
+              console.error('[API] Error fetching promoted users with SQL:', err)
+            }
 
             const promotedUsersMap = new Map()
             if (promotedUsers) {
@@ -864,13 +875,20 @@ async function route(req, res, u, path) {
 
       if (creatorIds.length > 0) {
         // 使用 PostgreSQL 的 UUID 数组查询
-        const { data, error } = await supabaseServer
-          .from('users')
-          .select('id, username, avatar_url')
-          .in('id', creatorIds)
-
-        usersData = data || []
-        usersError = error
+        // 注意：feeds.user_id 是 text 类型，users.id 是 uuid 类型
+        // 使用原始 SQL 查询，将 uuid 转换为 text 进行比较
+        try {
+          const db = await getDB()
+          const { rows } = await db.query(`
+            SELECT id, username, avatar_url
+            FROM users
+            WHERE id::text = ANY($1)
+          `, [creatorIds])
+          usersData = rows || []
+        } catch (err) {
+          usersError = err
+          console.error('[API] Error fetching users with SQL:', err)
+        }
       }
 
       if (usersError) {
@@ -909,6 +927,7 @@ async function route(req, res, u, path) {
           // 确保 thumbnail 字段包含有效的图片URL
           thumbnail: thumbnailUrl,
           videoUrl: work.video_url,
+          communityId: work.community_id || work.communityId || null,
           date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           author: {
             id: work.creator_id,
@@ -1203,6 +1222,147 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Share to community failed:', e)
       sendJson(res, 500, { code: 1, message: '分享失败: ' + e.message })
+    }
+    return
+  }
+
+  // 获取动态列表
+  if (req.method === 'GET' && path === '/api/feeds') {
+    const limit = parseInt(u.searchParams.get('limit') || '20')
+    const offset = parseInt(u.searchParams.get('offset') || '0')
+
+    try {
+      console.log('[API] Get all feeds')
+      const db = await getDB()
+      
+      // 从 feeds 表获取动态
+      const { rows: feeds } = await db.query(`
+        SELECT 
+          f.id,
+          f.content,
+          f.images,
+          f.videos,
+          f.community_id,
+          f.likes,
+          f.comments,
+          f.shares,
+          f.views,
+          f.created_at,
+          f.updated_at,
+          u.username,
+          u.avatar_url
+        FROM feeds f
+        LEFT JOIN users u ON f.user_id = u.id
+        ORDER BY f.created_at DESC
+        LIMIT $1 OFFSET $2
+      `, [limit, offset])
+
+      console.log('[API] Feeds count:', feeds.length)
+
+      // 字段映射，将数据库字段转换为前端期望的格式
+      const mappedFeeds = feeds.map(feed => {
+        const thumbnailUrl = feed.images?.[0] || ''
+        return {
+          id: feed.id,
+          content: feed.content,
+          images: feed.images,
+          videos: feed.videos,
+          communityId: feed.community_id,
+          likes: feed.likes,
+          comments: feed.comments,
+          shares: feed.shares,
+          views: feed.views,
+          thumbnail: thumbnailUrl,
+          date: feed.created_at ? new Date(feed.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          author: {
+            id: feed.user_id,
+            name: feed.username || 'Unknown User',
+            avatar: feed.avatar_url || ''
+          },
+          isPromoted: false
+        }
+      })
+
+      sendJson(res, 200, { code: 0, data: mappedFeeds })
+    } catch (e) {
+      console.error('[API] Get feeds failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取动态失败: ' + e.message })
+    }
+    return
+  }
+
+  // 创建动态/朋友圈
+  if (req.method === 'POST' && path === '/api/feeds') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      console.log('[API] Create feed:', body)
+
+      const userId = decoded.userId || decoded.sub || decoded.id
+
+      if (!userId) {
+        throw new Error('无法获取用户ID，请重新登录')
+      }
+
+      // 获取用户信息
+      const db = await getDB()
+      const { rows: userRows } = await db.query(
+        'SELECT username, avatar_url FROM users WHERE id = $1',
+        [userId]
+      )
+      const user = userRows[0] || { username: '未知用户', avatar_url: null }
+
+      // 创建动态 - 插入到 feeds 表
+      const content = body.content || ''
+      const images = body.images || []
+      const videos = body.videos || []
+      const communityId = body.communityId || null
+
+      const result = await db.query(
+        `INSERT INTO feeds (user_id, content, images, videos, community_id, likes, comments, shares, views, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, 0, 0, 0, 0, NOW(), NOW())
+         RETURNING *`,
+        [
+          userId,
+          content,
+          images,
+          videos,
+          communityId
+        ]
+      )
+
+      const feed = result.rows[0]
+      console.log('[API] Created feed:', feed.id)
+      
+      // 返回格式化的feed数据
+      const feedData = {
+        id: feed.id,
+        content: feed.content,
+        images: feed.images,
+        videos: feed.videos,
+        communityId: feed.community_id,
+        likes: feed.likes,
+        comments: feed.comments,
+        shares: feed.shares,
+        views: feed.views,
+        createdAt: feed.created_at,
+        updatedAt: feed.updated_at,
+        author: {
+          id: userId,
+          name: user.username,
+          avatar: user.avatar_url
+        }
+      }
+      
+      sendJson(res, 200, { code: 0, data: feedData, message: '发布成功' })
+    } catch (e) {
+      console.error('[API] Create feed failed:', e)
+      sendJson(res, 500, { code: 1, message: '发布失败: ' + e.message })
     }
     return
   }
@@ -4496,7 +4656,7 @@ async function route(req, res, u, path) {
         size: b.size || '1024x1024',
         n: b.n || 1,
         authKey,
-        model: b.model || 'wanx2.1-t2i-turbo'
+        model: b.model || 'qwen-image-plus'
       })
       
       if (!r.ok) {
@@ -6725,7 +6885,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx2.1-t2i-turbo'
+        model: 'qwen-image-plus'
       })
       
       if (!result.ok) {
@@ -6778,7 +6938,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx2.1-t2i-turbo',
+        model: 'qwen-image-plus',
         refImage: b.imageUrl  // 传入原图URL进行图生图
       })
       
@@ -6831,7 +6991,7 @@ async function route(req, res, u, path) {
         size: ratio > 1.5 ? '1440x1024' : '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx2.1-t2i-turbo'
+        model: 'qwen-image-plus'
       })
       
       if (!result.ok) {
@@ -6954,7 +7114,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx2.1-t2i-turbo'
+        model: 'qwen-image-plus'
       })
       
       if (!result.ok) {
@@ -7007,7 +7167,7 @@ async function route(req, res, u, path) {
 
       // 使用 dashscopeFetch 函数来调用 API
       const r = await dashscopeFetch('/chat/completions', 'POST', {
-        model: 'qwen-plus',
+        model: 'qwen3.5-plus',
         messages: [{ role: 'user', content: optimizationPrompt }],
         temperature: 0.7,
         max_tokens: 800
@@ -7087,7 +7247,7 @@ async function route(req, res, u, path) {
 
       // 使用 dashscopeFetch 函数来调用 API
       const r = await dashscopeFetch('/chat/completions', 'POST', {
-        model: 'qwen-plus',
+        model: 'qwen3.5-plus',
         messages: [{ role: 'user', content: analysisPrompt }],
         temperature: 0.5,
         max_tokens: 800
@@ -8459,6 +8619,390 @@ async function route(req, res, u, path) {
       sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取热点话题失败' })
     }
     return
+  }
+
+  // ==================== 数据预警系统 API ====================
+
+  // 获取预警规则列表
+  if (req.method === 'GET' && path === '/api/admin/alerts/rules') {
+    try {
+      const { data: rules, error } = await supabaseServer
+        .from('alert_rules')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      sendJson(res, 200, {
+        code: 0,
+        data: rules || [],
+        message: '获取预警规则成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取预警规则失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取预警规则失败' })
+    }
+    return
+  }
+
+  // 创建预警规则
+  if (req.method === 'POST' && path === '/api/admin/alerts/rules') {
+    try {
+      const body = await readBody(req)
+      const { name, description, metric_type, threshold, operator, time_window, severity, enabled, notify_channels, notify_targets } = body
+
+      const { data: rule, error } = await supabaseServer
+        .from('alert_rules')
+        .insert({
+          name,
+          description,
+          metric_type,
+          threshold,
+          operator,
+          time_window: time_window || 60,
+          severity,
+          enabled: enabled !== false,
+          notify_channels: notify_channels || ['dashboard'],
+          notify_targets: notify_targets || {}
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      sendJson(res, 200, {
+        code: 0,
+        data: rule,
+        message: '创建预警规则成功'
+      })
+    } catch (error) {
+      console.error('[API] 创建预警规则失败:', error)
+      sendJson(res, 500, { error: 'CREATE_FAILED', message: '创建预警规则失败' })
+    }
+    return
+  }
+
+  // 更新预警规则
+  if (req.method === 'PUT' && path.match(/^\/api\/admin\/alerts\/rules\/[^/]+$/)) {
+    try {
+      const ruleId = path.split('/').pop()
+      const body = await readBody(req)
+      const { name, description, metric_type, threshold, operator, time_window, severity, enabled, notify_channels, notify_targets } = body
+
+      const { data: rule, error } = await supabaseServer
+        .from('alert_rules')
+        .update({
+          name,
+          description,
+          metric_type,
+          threshold,
+          operator,
+          time_window,
+          severity,
+          enabled,
+          notify_channels,
+          notify_targets,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', ruleId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      sendJson(res, 200, {
+        code: 0,
+        data: rule,
+        message: '更新预警规则成功'
+      })
+    } catch (error) {
+      console.error('[API] 更新预警规则失败:', error)
+      sendJson(res, 500, { error: 'UPDATE_FAILED', message: '更新预警规则失败' })
+    }
+    return
+  }
+
+  // 删除预警规则
+  if (req.method === 'DELETE' && path.match(/^\/api\/admin\/alerts\/rules\/[^/]+$/)) {
+    try {
+      const ruleId = path.split('/').pop()
+
+      const { error } = await supabaseServer
+        .from('alert_rules')
+        .delete()
+        .eq('id', ruleId)
+
+      if (error) throw error
+
+      sendJson(res, 200, {
+        code: 0,
+        message: '删除预警规则成功'
+      })
+    } catch (error) {
+      console.error('[API] 删除预警规则失败:', error)
+      sendJson(res, 500, { error: 'DELETE_FAILED', message: '删除预警规则失败' })
+    }
+    return
+  }
+
+  // 获取预警记录列表
+  if (req.method === 'GET' && path === '/api/admin/alerts/records') {
+    try {
+      const status = u.searchParams.get('status') || 'active'
+      const limit = parseInt(u.searchParams.get('limit') || '50')
+      const offset = parseInt(u.searchParams.get('offset') || '0')
+
+      let query = supabaseServer
+        .from('alert_records')
+        .select(`
+          *,
+          alert_rules(name, description)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+        .range(offset, offset + limit - 1)
+
+      if (status !== 'all') {
+        query = query.eq('status', status)
+      }
+
+      const { data: records, error } = await query
+
+      if (error) throw error
+
+      sendJson(res, 200, {
+        code: 0,
+        data: records || [],
+        message: '获取预警记录成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取预警记录失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取预警记录失败' })
+    }
+    return
+  }
+
+  // 确认预警（标记为已确认）
+  if (req.method === 'POST' && path.match(/^\/api\/admin\/alerts\/records\/[^/]+\/acknowledge$/)) {
+    try {
+      const recordId = path.split('/')[4]
+
+      const { data: record, error } = await supabaseServer
+        .from('alert_records')
+        .update({
+          status: 'acknowledged',
+          acknowledged_at: new Date().toISOString()
+        })
+        .eq('id', recordId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      sendJson(res, 200, {
+        code: 0,
+        data: record,
+        message: '确认预警成功'
+      })
+    } catch (error) {
+      console.error('[API] 确认预警失败:', error)
+      sendJson(res, 500, { error: 'ACK_FAILED', message: '确认预警失败' })
+    }
+    return
+  }
+
+  // 解决预警
+  if (req.method === 'POST' && path.match(/^\/api\/admin\/alerts\/records\/[^/]+\/resolve$/)) {
+    try {
+      const recordId = path.split('/')[4]
+      const body = await readBody(req)
+      const { reason } = body
+
+      const { data: record, error } = await supabaseServer
+        .from('alert_records')
+        .update({
+          status: 'resolved',
+          resolved_at: new Date().toISOString(),
+          resolved_reason: reason || '手动解决'
+        })
+        .eq('id', recordId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      sendJson(res, 200, {
+        code: 0,
+        data: record,
+        message: '解决预警成功'
+      })
+    } catch (error) {
+      console.error('[API] 解决预警失败:', error)
+      sendJson(res, 500, { error: 'RESOLVE_FAILED', message: '解决预警失败' })
+    }
+    return
+  }
+
+  // 获取预警统计
+  if (req.method === 'GET' && path === '/api/admin/alerts/stats') {
+    try {
+      const days = parseInt(u.searchParams.get('days') || '7')
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+      const endDate = new Date().toISOString()
+
+      const { data: stats, error } = await supabaseServer
+        .rpc('get_alert_stats', {
+          p_start_date: startDate,
+          p_end_date: endDate
+        })
+
+      if (error) throw error
+
+      // 获取活跃预警数量
+      const { count: activeCount, error: countError } = await supabaseServer
+        .from('alert_records')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active')
+
+      if (countError) throw countError
+
+      sendJson(res, 200, {
+        code: 0,
+        data: {
+          ...(stats?.[0] || {}),
+          active_count: activeCount || 0
+        },
+        message: '获取预警统计成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取预警统计失败:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取预警统计失败' })
+    }
+    return
+  }
+
+  // 检查并触发预警（内部使用）
+  if (req.method === 'POST' && path === '/api/admin/alerts/check') {
+    try {
+      const body = await readBody(req)
+      const { metric_type, actual_value, metadata } = body
+
+      // 获取启用的规则
+      const { data: rules, error: rulesError } = await supabaseServer
+        .from('alert_rules')
+        .select('*')
+        .eq('enabled', true)
+        .eq('metric_type', metric_type)
+
+      if (rulesError) throw rulesError
+
+      const triggeredAlerts = []
+
+      for (const rule of rules || []) {
+        let shouldTrigger = false
+
+        switch (rule.operator) {
+          case 'gt':
+            shouldTrigger = actual_value > rule.threshold
+            break
+          case 'lt':
+            shouldTrigger = actual_value < rule.threshold
+            break
+          case 'eq':
+            shouldTrigger = actual_value === rule.threshold
+            break
+          case 'gte':
+            shouldTrigger = actual_value >= rule.threshold
+            break
+          case 'lte':
+            shouldTrigger = actual_value <= rule.threshold
+            break
+        }
+
+        if (shouldTrigger) {
+          // 检查是否已存在相同规则的活跃预警
+          const { data: existingAlerts, error: existingError } = await supabaseServer
+            .from('alert_records')
+            .select('*')
+            .eq('rule_id', rule.id)
+            .eq('status', 'active')
+            .gte('created_at', new Date(Date.now() - rule.time_window * 60 * 1000).toISOString())
+
+          if (existingError) throw existingError
+
+          // 如果没有相同规则的活跃预警，创建新预警
+          if (!existingAlerts || existingAlerts.length === 0) {
+            const message = rule.operator === 'lt'
+              ? `${getMetricName(rule.metric_type)}低于阈值 ${rule.threshold}，当前值为 ${actual_value}`
+              : `${getMetricName(rule.metric_type)}超过阈值 ${rule.threshold}，当前值为 ${actual_value}`
+
+            const { data: alert, error: alertError } = await supabaseServer
+              .from('alert_records')
+              .insert({
+                rule_id: rule.id,
+                metric_type: rule.metric_type,
+                threshold: rule.threshold,
+                actual_value,
+                severity: rule.severity,
+                message,
+                status: 'active',
+                metadata: metadata || {}
+              })
+              .select()
+              .single()
+
+            if (alertError) throw alertError
+
+            triggeredAlerts.push(alert)
+
+            // 创建通知记录
+            for (const channel of rule.notify_channels || ['dashboard']) {
+              await supabaseServer
+                .from('alert_notifications')
+                .insert({
+                  alert_id: alert.id,
+                  channel,
+                  status: 'pending',
+                  content: message
+                })
+            }
+          }
+        }
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: {
+          triggered: triggeredAlerts.length > 0,
+          alerts: triggeredAlerts
+        },
+        message: triggeredAlerts.length > 0 ? `触发 ${triggeredAlerts.length} 个预警` : '未触发预警'
+      })
+    } catch (error) {
+      console.error('[API] 检查预警失败:', error)
+      sendJson(res, 500, { error: 'CHECK_FAILED', message: '检查预警失败' })
+    }
+    return
+  }
+
+  // 辅助函数：获取指标名称
+  function getMetricName(metricType) {
+    const names = {
+      users: '用户数',
+      works: '作品数',
+      views: '浏览量',
+      likes: '点赞数',
+      comments: '评论数',
+      shares: '分享数',
+      active_users: '活跃用户',
+      conversion_rate: '转化率',
+      revenue: '收入',
+      server_cpu: '服务器CPU',
+      server_memory: '服务器内存',
+      error_rate: '错误率',
+      response_time: '响应时间'
+    }
+    return names[metricType] || metricType
   }
 
   sendJson(res, 404, { error: 'NOT_FOUND', message: '接口不存在' })

@@ -338,7 +338,7 @@ export const DEFAULT_CONFIG: ModelConfig = {
   frequency_penalty: 0,
   stop: [],
   // 新增通义千问模型配置默认值
-  qwen_model: 'qwen-plus',
+  qwen_model: 'qwen3.5-plus',
   qwen_base_url: 'https://dashscope.aliyuncs.com/api/v1',
   // 新增对话相关配置默认值
   enable_memory: true,
@@ -1930,7 +1930,7 @@ export interface WorkReviewResult {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: params.model || 'wanx2.1-t2i-turbo',
+            model: params.model || 'qwen-image-plus',
             prompt: params.prompt,
             size: params.size,
             n: params.n || 1
@@ -2858,7 +2858,7 @@ export interface WorkReviewResult {
   }): Promise<string> {
     try {
       return await callQwenChat({
-        model: this.modelConfig.qwen_model || 'qwen-plus',
+        model: this.modelConfig.qwen_model || 'qwen3.5-plus',
         messages,
         temperature: this.modelConfig.temperature,
         top_p: this.modelConfig.top_p,

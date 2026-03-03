@@ -97,8 +97,9 @@ class FeedService {
       id: post.id,
       author,
       contentType,
-      sourceType: 'post',  // 标识这是从 Post 转换来的
+      sourceType: post.publishType === 'explore' || post.publishType === 'both' ? 'work' : 'post',  // 津脉广场作品标识为 'work'，社群帖子标识为 'post'
       communityId: post.communityId, // 添加社群ID用于@提及功能
+      publishType: post.publishType, // 发布类型：explore(津脉广场) / community(社群) / both
       title: post.title || '',
       content: post.description || '',
       media: media.length > 0 ? media : undefined,
@@ -113,6 +114,11 @@ class FeedService {
       updatedAt: post.updatedAt || post.date || new Date().toISOString(),
     };
   }
+
+  // 缓存数据
+  private feedsCache: FeedItem[] | null = null;
+  private cacheTimestamp: number = 0;
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
 
   /**
    * 获取动态列表（真实数据）
@@ -129,17 +135,98 @@ class FeedService {
     } = params;
 
     try {
-      // 获取多个数据源
-      const [posts, communities] = await Promise.all([
-        getPosts('all', false),
-        communityService.getCommunities().catch(() => []),
-      ]);
+      // 检查缓存是否有效（仅用于 'all' 筛选）
+      const now = Date.now();
+      const isCacheValid = this.feedsCache && (now - this.cacheTimestamp) < this.CACHE_DURATION;
+
+      let posts: any[] = [];
+      let communities: any[] = [];
+      let apiFeeds: any[] = [];
+
+      if (filter === 'all' && isCacheValid) {
+        // 使用缓存数据
+        console.log('[getFeeds] Using cached data');
+        return this.processFeeds(this.feedsCache!, params);
+      }
+
+      // 根据筛选条件决定需要请求哪些数据源
+      const needPosts = filter === 'all' || filter === 'works' || filter === 'article' || filter === 'video' || filter === 'image';
+      const needCommunities = filter === 'all' || filter === 'community';
+      const needApiFeeds = filter === 'all' || filter === 'interaction';
+
+      // 并行请求需要的数据源
+      const requests: Promise<any>[] = [];
+
+      if (needPosts) {
+        requests.push(
+          getPosts('all', currentUserId, false, 'works')
+            .catch(() => [])
+        );
+      } else {
+        requests.push(Promise.resolve([]));
+      }
+
+      if (needCommunities) {
+        requests.push(
+          communityService.getCommunities().catch(() => [])
+        );
+      } else {
+        requests.push(Promise.resolve([]));
+      }
+
+      if (needApiFeeds) {
+        requests.push(
+          fetch('/api/feeds')
+            .then(res => res.json())
+            .then(data => data.code === 0 ? data.data : [])
+            .catch(() => [])
+        );
+      } else {
+        requests.push(Promise.resolve([]));
+      }
+
+      [posts, communities, apiFeeds] = await Promise.all(requests);
 
       // 转换帖子为 FeedItem
       let feeds = posts.map(post => this.transformPostToFeedItem(post));
+      
+      // 添加从 /api/feeds 获取的动态
+      const apiFeedItems: FeedItem[] = apiFeeds.map((feed: any) => ({
+        id: feed.id,
+        author: {
+          id: feed.author?.id || 'unknown',
+          type: 'user',
+          name: feed.author?.name || '创作者',
+          avatar: feed.author?.avatar || '',
+          verified: false,
+        },
+        contentType: feed.contentType || 'image',
+        content: feed.content,
+        media: feed.images?.map((url: string, index: number) => ({
+          id: `media_${feed.id}_${index}`,
+          type: 'image',
+          url: url,
+          thumbnailUrl: url,
+        })),
+        communityId: feed.communityId,
+        publishType: feed.publishType || 'explore', // 默认为津脉广场作品
+        likes: feed.likes || 0,
+        comments: feed.comments || 0,
+        shares: feed.shares || 0,
+        views: feed.views || 0,
+        isLiked: false,
+        isCollected: false,
+        createdAt: feed.createdAt || new Date().toISOString(),
+        updatedAt: feed.updatedAt || new Date().toISOString(),
+      }));
+      
+      // 合并动态
+      feeds = [...apiFeedItems, ...feeds];
 
       // 添加社群动态（作为活动/公告类型）
-      const communityFeeds: FeedItem[] = communities.slice(0, 5).map(community => ({
+      // 使用一个较旧的时间戳，让社群推荐排在真实动态后面
+      const baseTimestamp = Date.now() - 30 * 24 * 60 * 60 * 1000; // 30天前
+      const communityFeeds: FeedItem[] = communities.slice(0, 5).map((community, index) => ({
         id: `community_feed_${community.id}`,
         author: {
           id: community.creatorId || 'system',
@@ -164,8 +251,9 @@ class FeedService {
         views: community.memberCount || 0,
         isLiked: false,
         isCollected: false,
-        createdAt: community.createdAt || new Date().toISOString(),
-        updatedAt: community.updatedAt || new Date().toISOString(),
+        // 使用旧时间戳 + 索引偏移，确保社群推荐排在真实动态后面
+        createdAt: new Date(baseTimestamp + index * 1000).toISOString(),
+        updatedAt: new Date(baseTimestamp).toISOString(),
         shareTarget: {
           id: community.id,
           type: 'community',
@@ -293,6 +381,19 @@ class FeedService {
             }
             break;
           }
+          case 'works':
+            // 作品：只显示津脉广场的作品（视频+图文），不包含社群帖子
+            console.log('[getFeeds] works filter - before:', feeds.length, 'feeds');
+            feeds = feeds.filter(f => {
+              // 首先必须是视频或图文类型
+              const isWorkContent = f.contentType === 'video' || f.contentType === 'image' || f.media?.some(m => m.type === 'image' || m.type === 'video');
+              // 然后必须是津脉广场的作品（publishType 为 explore 或 both）
+              const isExploreWork = f.publishType === 'explore' || f.publishType === 'both';
+              console.log('[getFeeds] works filter - feed:', f.id, 'contentType:', f.contentType, 'publishType:', f.publishType, 'isWorkContent:', isWorkContent, 'isExploreWork:', isExploreWork);
+              return isWorkContent && isExploreWork;
+            });
+            console.log('[getFeeds] works filter - after:', feeds.length, 'feeds');
+            break;
           case 'video':
             feeds = feeds.filter(f => f.contentType === 'video');
             break;
@@ -527,6 +628,75 @@ class FeedService {
           case 'brand':
             feeds = feeds.filter(f => f.author.type === 'brand');
             break;
+          case 'interaction': {
+            // 互动：显示自己发布的动态
+            try {
+              // 获取当前用户ID - 优先使用 params 中的 currentUserId
+              let targetUserId = currentUserId;
+              if (!targetUserId) {
+                const { data: { user } } = await supabase.auth.getUser();
+                targetUserId = user?.id;
+              }
+
+              if (targetUserId) {
+                // 从 feeds 表获取当前用户发布的动态
+                const { data: userFeeds, error } = await supabase
+                  .from('feeds')
+                  .select('*')
+                  .eq('user_id', targetUserId)
+                  .order('created_at', { ascending: false });
+
+                if (!error && userFeeds) {
+                  // 获取用户信息
+                  const { data: userData } = await supabase
+                    .from('users')
+                    .select('id, username, avatar_url')
+                    .eq('id', targetUserId)
+                    .single();
+
+                  // 转换为自己的 FeedItem 格式
+                  const myFeeds: FeedItem[] = userFeeds.map(feed => ({
+                    id: feed.id,
+                    author: {
+                      id: targetUserId,
+                      type: 'user',
+                      name: userData?.username || '我',
+                      avatar: userData?.avatar_url || '',
+                      verified: false,
+                    },
+                    contentType: 'image',
+                    content: feed.content,
+                    media: feed.images?.map((url: string, index: number) => ({
+                      id: `media_${feed.id}_${index}`,
+                      type: 'image',
+                      url: url,
+                      thumbnailUrl: url,
+                    })),
+                    communityId: feed.community_id,
+                    likes: feed.likes || 0,
+                    comments: feed.comments || 0,
+                    shares: feed.shares || 0,
+                    views: feed.views || 0,
+                    isLiked: false,
+                    isCollected: false,
+                    createdAt: feed.created_at,
+                    updatedAt: feed.updated_at,
+                  }));
+
+                  feeds = myFeeds;
+                  console.log('[getFeeds] 找到自己的动态:', feeds.length);
+                } else {
+                  feeds = [];
+                }
+              } else {
+                feeds = [];
+              }
+            } catch (error) {
+              console.log('[getFeeds] 获取自己的动态失败:', error);
+              feeds = [];
+            }
+            break;
+          }
         }
       }
 
@@ -546,8 +716,12 @@ class FeedService {
       console.log('[getFeeds] Before sort:', { sort, feedsCount: feeds.length });
       switch (sort) {
         case 'latest':
-          feeds.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          console.log('[getFeeds] Sorted by latest');
+          feeds.sort((a, b) => {
+            const timeA = new Date(a.createdAt).getTime();
+            const timeB = new Date(b.createdAt).getTime();
+            return timeB - timeA;
+          });
+          console.log('[getFeeds] Sorted by latest, first 3:', feeds.slice(0, 3).map(f => ({ id: f.id, createdAt: f.createdAt, time: new Date(f.createdAt).getTime(), author: f.author.name })));
           break;
         case 'hot':
           feeds.sort((a, b) => (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares));
@@ -568,6 +742,13 @@ class FeedService {
 
       console.log('[getFeeds] Pagination:', { page, pageSize, start, end, totalFeeds: feeds.length, paginatedCount: paginatedFeeds.length, hasMore });
 
+      // 更新缓存（仅缓存 'all' 筛选的完整数据）
+      if (filter === 'all' && page === 1) {
+        this.feedsCache = feeds;
+        this.cacheTimestamp = Date.now();
+        console.log('[getFeeds] Updated cache with', feeds.length, 'feeds');
+      }
+
       return {
         feeds: paginatedFeeds,
         hasMore,
@@ -585,6 +766,51 @@ class FeedService {
   }
 
   /**
+   * 处理缓存的feeds数据（排序和分页）
+   */
+  private processFeeds(
+    cachedFeeds: FeedItem[],
+    params: FeedQueryParams
+  ): { feeds: FeedItem[]; hasMore: boolean; total: number } {
+    const { sort = 'latest', page = 1, pageSize = 10 } = params;
+
+    let feeds = [...cachedFeeds];
+
+    // 排序
+    switch (sort) {
+      case 'latest':
+        feeds.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case 'hot':
+        feeds.sort((a, b) => (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares));
+        break;
+    }
+
+    // 分页
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    const paginatedFeeds = feeds.slice(start, end);
+    const hasMore = end < feeds.length;
+
+    console.log('[processFeeds] Using cached data:', { page, pageSize, total: feeds.length, returned: paginatedFeeds.length, hasMore });
+
+    return {
+      feeds: paginatedFeeds,
+      hasMore,
+      total: feeds.length
+    };
+  }
+
+  /**
+   * 清除缓存
+   */
+  clearCache(): void {
+    this.feedsCache = null;
+    this.cacheTimestamp = 0;
+    console.log('[feedService] Cache cleared');
+  }
+
+  /**
    * 获取单个动态详情
    */
   async getFeedById(feedId: string): Promise<FeedItem | null> {
@@ -597,37 +823,70 @@ class FeedService {
    * 发布动态
    */
   async createFeed(request: CreateFeedRequest): Promise<FeedItem> {
-    await delay(800);
+    // 调用后端API创建动态
+    console.log('[feedService.createFeed] Sending request:', {
+      content: request.content,
+      images: request.media?.filter(m => m.type === 'image').map(m => m.url) || [],
+      videos: request.media?.filter(m => m.type === 'video').map(m => m.url) || [],
+      communityId: request.communityId
+    });
+    
+    const response = await fetch('/api/feeds', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+      },
+      body: JSON.stringify({
+        content: request.content,
+        images: request.media?.filter(m => m.type === 'image').map(m => m.url) || [],
+        videos: request.media?.filter(m => m.type === 'video').map(m => m.url) || [],
+        communityId: request.communityId
+      })
+    });
 
+    console.log('[feedService.createFeed] Response status:', response.status);
+    
+    if (!response.ok) {
+      console.error('[feedService.createFeed] Response not ok:', response.status);
+      throw new Error('发布动态失败');
+    }
+
+    const result = await response.json();
+    console.log('[feedService.createFeed] Response result:', result);
+    
+    if (result.code !== 0) {
+      throw new Error(result.message || '发布动态失败');
+    }
+
+    // 将后端返回的数据转换为FeedItem格式
+    const feedData = result.data;
     const newFeed: FeedItem = {
-      id: `feed_${Date.now()}`,
+      id: feedData.id,
       author: {
-        id: 'current_user',
+        id: feedData.author.id,
         type: 'user',
-        name: '当前用户',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=current',
+        name: feedData.author.name,
+        avatar: feedData.author.avatar,
         verified: false,
       },
       contentType: request.contentType,
-      content: request.content,
-      media: request.media?.map((m, index) => ({
-        ...m,
-        id: `media_${Date.now()}_${index}`
-      })),
+      content: feedData.content,
+      media: request.media,
       tags: request.tags,
       location: request.location,
-      likes: 0,
-      comments: 0,
-      shares: 0,
-      views: 0,
+      communityId: feedData.communityId,
+      likes: feedData.likes,
+      comments: feedData.comments,
+      shares: feedData.shares,
+      views: feedData.views,
       isLiked: false,
       isCollected: false,
       isShared: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: feedData.createdAt,
+      updatedAt: feedData.updatedAt,
     };
 
-    this.mockFeeds.unshift(newFeed);
     return newFeed;
   }
 

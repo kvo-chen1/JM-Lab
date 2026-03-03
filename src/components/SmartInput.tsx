@@ -274,8 +274,15 @@ export const SmartInput: React.FC<SmartInputProps> = ({
                 <AIActionSuggestions
                   input={value}
                   onSuggestionClick={(suggestion) => {
-                    onChange(`${value} ${suggestion.title}`);
-                    setShowSuggestions(false);
+                    // 对于生成图片或视频操作，不关闭建议面板，让生成流程继续显示
+                    if (suggestion.type === 'generate_image' || suggestion.type === 'generate_video') {
+                      // 只更新输入框，不关闭面板
+                      onChange(`${value} ${suggestion.title}`);
+                    } else {
+                      // 其他操作正常关闭面板
+                      onChange(`${value} ${suggestion.title}`);
+                      setShowSuggestions(false);
+                    }
                   }}
                   onNavigate={onNavigate}
                 />

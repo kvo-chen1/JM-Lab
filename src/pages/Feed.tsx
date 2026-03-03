@@ -33,6 +33,7 @@ import { RightSidebar } from '@/components/feed/RightSidebar';
 import { FollowingUsersBar } from '@/components/feed/FollowingUsersBar';
 import { FeedDetailModal } from '@/components/feed/FeedDetailModal';
 import { FeedShareModal } from '@/components/feed/FeedShareModal';
+import { FeedCommentDrawer } from '@/components/feed/FeedCommentDrawer';
 
 // 导入图标
 import {
@@ -47,7 +48,7 @@ export default function Feed() {
   const navigate = useNavigate();
 
   // 调试：打印 user 对象
-  console.log('[Feed] Current user:', user);
+  console.log('[Feed] Current user:', user, 'user.id:', user?.id);
 
   // 状态管理
   const [feeds, setFeeds] = useState<FeedItem[]>([]);
@@ -57,6 +58,10 @@ export default function Feed() {
   const [page, setPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState<FeedFilterType>('all');
   const [activeSort, setActiveSort] = useState<FeedSortType>('latest');
+
+  // 缓存所有原始数据，避免重复请求
+  const [allFeedsCache, setAllFeedsCache] = useState<FeedItem[]>([]);
+  const [isCacheLoading, setIsCacheLoading] = useState(false);
 
   // 调试：监听 activeFilter 变化
   useEffect(() => {
@@ -83,6 +88,9 @@ export default function Feed() {
   // 评论弹窗状态
   const [selectedFeed, setSelectedFeed] = useState<FeedItem | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // 评论抽屉状态 - 每个动态独立的展开状态
+  const [openCommentFeedId, setOpenCommentFeedId] = useState<string | null>(null);
 
   // 分享弹窗状态
   const [shareFeed, setShareFeed] = useState<FeedItem | null>(null);
@@ -113,7 +121,7 @@ export default function Feed() {
     userRef.current = user;
   }, [user]);
 
-  // 加载动态列表
+  // 加载动态列表 - 使用缓存策略
   const loadFeeds = useCallback(async (isRefresh = false, targetPage?: number) => {
     if (isRefresh) {
       setIsLoading(true);
@@ -122,11 +130,49 @@ export default function Feed() {
     }
 
     try {
-      // 使用 ref 获取最新的值
       const currentPage = isRefresh ? 1 : (targetPage ?? pageRef.current);
+      const currentFilter = activeFilterRef.current;
+      const currentSort = activeSortRef.current;
+
+      // 如果是 "全部" 筛选且有缓存数据，使用缓存策略（包括刷新操作）
+      if (currentFilter === 'all' && allFeedsCache.length > 0) {
+        console.log('[loadFeeds] Using cached data for filter:', currentFilter, 'sort:', currentSort);
+        // 从缓存中筛选和排序
+        let filteredFeeds = [...allFeedsCache];
+
+        // 排序 - 确保按时间正确排序
+        switch (currentSort) {
+          case 'latest':
+            filteredFeeds.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            break;
+          case 'hot':
+            filteredFeeds.sort((a, b) => (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares));
+            break;
+        }
+
+        // 分页
+        const start = (currentPage - 1) * 10;
+        const end = start + 10;
+        const paginatedFeeds = filteredFeeds.slice(start, end);
+
+        console.log('[loadFeeds] First 3 sorted:', paginatedFeeds.slice(0, 3).map(f => ({ id: f.id, createdAt: f.createdAt, author: f.author.name })));
+
+        if (isRefresh) {
+          setFeeds(paginatedFeeds);
+          setPage(2);
+        } else {
+          setFeeds(prev => [...prev, ...paginatedFeeds]);
+          setPage(prev => prev + 1);
+        }
+        setHasMore(end < filteredFeeds.length);
+        setIsLoading(false);
+        setIsLoadingMore(false);
+        return;
+      }
+
       const params: FeedQueryParams = {
-        filter: activeFilterRef.current,
-        sort: activeSortRef.current,
+        filter: currentFilter,
+        sort: currentSort,
         page: currentPage,
         pageSize: 10,
         currentUserId: userRef.current?.id,
@@ -147,6 +193,12 @@ export default function Feed() {
       }
 
       setHasMore(response.hasMore);
+
+      // 如果是 "全部" 筛选且是刷新操作，更新缓存
+      if (currentFilter === 'all' && isRefresh) {
+        // 异步加载完整数据到缓存
+        loadAllFeedsToCache();
+      }
     } catch (error) {
       console.error('[loadFeeds] Error:', error);
       toast.error('加载动态失败，请稍后重试');
@@ -154,7 +206,35 @@ export default function Feed() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, []);
+  }, [allFeedsCache]);
+
+  // 加载所有数据到缓存（用于快速筛选切换）
+  const loadAllFeedsToCache = useCallback(async () => {
+    if (isCacheLoading || allFeedsCache.length > 0) return;
+
+    setIsCacheLoading(true);
+    try {
+      console.log('[loadAllFeedsToCache] Loading all feeds to cache...');
+      const response = await feedService.getFeeds({
+        filter: 'all',
+        sort: 'latest',
+        page: 1,
+        pageSize: 100, // 加载更多数据到缓存
+        currentUserId: user?.id,
+      });
+      // 确保缓存数据按时间排序
+      const sortedFeeds = [...response.feeds].sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setAllFeedsCache(sortedFeeds);
+      console.log('[loadAllFeedsToCache] Cached and sorted', sortedFeeds.length, 'feeds');
+      console.log('[loadAllFeedsToCache] First 3 feeds:', sortedFeeds.slice(0, 3).map(f => ({ id: f.id, createdAt: f.createdAt, author: f.author.name })));
+    } catch (error) {
+      console.error('[loadAllFeedsToCache] Error:', error);
+    } finally {
+      setIsCacheLoading(false);
+    }
+  }, [isCacheLoading, allFeedsCache.length, user?.id]);
 
   // 加载右侧栏数据
   const loadSidebarData = useCallback(async () => {
@@ -219,13 +299,10 @@ export default function Feed() {
   // 筛选或排序变化时重新加载
   useEffect(() => {
     console.log('[Feed] Filter or sort changed:', { activeFilter, activeSort });
-    // 重置页码并重新加载
+    // 重置页码
     setPage(1);
-    // 使用 setTimeout 确保 page 状态更新后再加载
-    const timer = setTimeout(() => {
-      loadFeeds(true);
-    }, 0);
-    return () => clearTimeout(timer);
+    // 直接加载，不使用 setTimeout 减少延迟
+    loadFeeds(true);
   }, [activeFilter, activeSort, loadFeeds]);
 
   // 无限滚动
@@ -250,11 +327,32 @@ export default function Feed() {
   // 发布动态
   const handlePublish = async (data: CreateFeedRequest) => {
     try {
+      console.log('[Feed] Publishing feed:', data);
       const newFeed = await feedService.createFeed(data);
-      setFeeds(prev => [newFeed, ...prev]);
+      console.log('[Feed] Created feed:', newFeed);
+
+      // 更新当前显示的feeds
+      setFeeds(prev => {
+        console.log('[Feed] Previous feeds count:', prev.length);
+        const updated = [newFeed, ...prev];
+        console.log('[Feed] Updated feeds count:', updated.length);
+        return updated;
+      });
+
+      // 同时更新缓存，确保切换标签时能看到新发布的动态
+      setAllFeedsCache(prev => {
+        const updated = [newFeed, ...prev];
+        console.log('[Feed] Updated cache count:', updated.length);
+        return updated;
+      });
+
+      // 清除服务层缓存，确保下次请求获取最新数据
+      feedService.clearCache();
+
       toast.success('动态发布成功！');
       return true;
     } catch (error) {
+      console.error('[Feed] Publish error:', error);
       toast.error('发布失败，请稍后重试');
       return false;
     }
@@ -417,6 +515,16 @@ export default function Feed() {
     setSelectedFeed(null);
   };
 
+  // 切换评论抽屉
+  const handleToggleComment = (feedId: string) => {
+    setOpenCommentFeedId((prev) => (prev === feedId ? null : feedId));
+  };
+
+  // 关闭评论抽屉
+  const handleCloseComment = () => {
+    setOpenCommentFeedId(null);
+  };
+
   // 评论添加成功
   const handleCommentAdded = (feedId: string) => {
     setFeeds(prev => prev.map(feed =>
@@ -552,10 +660,15 @@ export default function Feed() {
                 {feeds.map((feed, index) => (
                   <motion.div
                     key={feed.id}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{
+                      duration: 0.2,
+                      delay: Math.min(index * 0.03, 0.15), // 限制最大延迟
+                      ease: "easeOut"
+                    }}
+                    className="rounded-xl overflow-hidden"
                   >
                     <FeedCard
                       feed={feed}
@@ -566,6 +679,18 @@ export default function Feed() {
                       onClick={() => handleOpenDetail(feed)}
                       onFollow={(isFollowing) => handleFollowUser(feed.author.id, isFollowing)}
                       onComment={() => handleOpenComment(feed)}
+                      isCommentOpen={openCommentFeedId === feed.id}
+                      onCommentToggle={() => handleToggleComment(feed.id)}
+                    />
+                    {/* 评论抽屉 */}
+                    <FeedCommentDrawer
+                      feed={feed}
+                      isOpen={openCommentFeedId === feed.id}
+                      onClose={handleCloseComment}
+                      currentUserId={user?.id}
+                      currentUserName={user?.username || user?.name}
+                      currentUserAvatar={user?.avatar}
+                      onCommentAdded={handleCommentAdded}
                     />
                   </motion.div>
                 ))}

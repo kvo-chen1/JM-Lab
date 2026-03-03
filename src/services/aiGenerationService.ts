@@ -221,7 +221,7 @@ class AIGenerationService {
         prompt: params.prompt,
         size: params.size || '1024x1024',
         n: params.n || 1,
-        model: 'wanx2.1-t2i-turbo'
+        model: 'qwen-image-plus'
       });
 
       // 停止进度模拟

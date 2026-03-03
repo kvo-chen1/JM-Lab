@@ -211,6 +211,10 @@ const PointsLottery: React.FC = () => {
 
       // 如果中奖，创建兑换记录
       if (segment.points > 0 && segment.productName !== '谢谢参与') {
+        // 获取当前用户ID
+        const { data: sessionData } = await supabase.auth.getSession();
+        const currentUserId = sessionData?.session?.user?.id || user?.id;
+        
         // 插入兑换记录（状态为已完成）
         const { error: exchangeError } = await supabase
           .from('exchange_records')

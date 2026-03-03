@@ -31,7 +31,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { trendingService, TrendingTopic } from '@/services/trendingService';
 import { supabase } from '@/lib/supabase';
-import TrendingCard from '@/components/TrendingCard';
+import TrendingCard from '@/components/TrendingCardV2';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 

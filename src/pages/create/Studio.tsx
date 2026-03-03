@@ -168,6 +168,81 @@ export default function Studio() {
       }
     }
   }, [setPrompt, addGeneratedResult]);
+
+  // 读取从 AI 快捷生成传递的数据
+  useEffect(() => {
+    // 读取图片数据
+    const aiGeneratedImageData = sessionStorage.getItem('ai_generated_image');
+    if (aiGeneratedImageData) {
+      try {
+        const data = JSON.parse(aiGeneratedImageData);
+        console.log('[Studio] 读取到 AI 生成的图片数据:', data);
+
+        // 设置提示词
+        if (data.prompt) {
+          setPrompt(data.prompt);
+        }
+
+        // 添加生成的图片到预览区域
+        if (data.url) {
+          const newResult = {
+            id: Date.now(),
+            thumbnail: data.url,
+            score: 85, // AI生成图片默认分数
+            type: 'image' as const,
+            prompt: data.prompt || ''
+          };
+
+          addGeneratedResult(newResult);
+
+          toast.success('AI生成的图片已导入', {
+            description: '您可以在创作中心继续编辑和完善'
+          });
+        }
+
+        // 清除已使用的数据
+        sessionStorage.removeItem('ai_generated_image');
+      } catch (error) {
+        console.error('读取 AI 生成图片数据失败:', error);
+      }
+    }
+
+    // 读取视频数据
+    const aiGeneratedVideoData = sessionStorage.getItem('ai_generated_video');
+    if (aiGeneratedVideoData) {
+      try {
+        const data = JSON.parse(aiGeneratedVideoData);
+        console.log('[Studio] 读取到 AI 生成的视频数据:', data);
+
+        // 设置提示词
+        if (data.prompt) {
+          setPrompt(data.prompt);
+        }
+
+        // 添加生成的视频到预览区域
+        if (data.url) {
+          const newResult = {
+            id: Date.now(),
+            thumbnail: data.url,
+            score: 85, // AI生成视频默认分数
+            type: 'video' as const,
+            prompt: data.prompt || ''
+          };
+
+          addGeneratedResult(newResult);
+
+          toast.success('AI生成的视频已导入', {
+            description: '您可以在创作中心继续编辑和完善'
+          });
+        }
+
+        // 清除已使用的数据
+        sessionStorage.removeItem('ai_generated_video');
+      } catch (error) {
+        console.error('读取 AI 生成视频数据失败:', error);
+      }
+    }
+  }, [setPrompt, addGeneratedResult]);
   
   // 读取从模板页面传递的数据
   useEffect(() => {

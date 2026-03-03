@@ -11,8 +11,9 @@ import { toast } from 'sonner';
 import type { FeedItem, FeedComment } from '@/types/feed';
 import feedService from '@/services/feedService';
 import { VideoPlayer } from './VideoPlayer';
-import { MentionSelector } from '@/components/MentionSelector';
-import { mentionService } from '@/services/mentionService';
+import { communityService } from '@/services/communityService';
+import { getFollowingList, getFollowersList } from '@/services/postService';
+import { useNavigate } from 'react-router-dom';
 import {
   X,
   Heart,
@@ -111,6 +112,7 @@ export function FeedDetailModal({
   communityId,
 }: FeedDetailModalProps) {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
   const [comments, setComments] = useState<FeedComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [commentPage, setCommentPage] = useState(1);
@@ -131,45 +133,138 @@ export function FeedDetailModal({
   const [isMentionSelectorOpen, setIsMentionSelectorOpen] = useState(false);
   const [mentionSearchQuery, setMentionSearchQuery] = useState('');
   const [mentionSelectorPosition, setMentionSelectorPosition] = useState({ top: 0, left: 0 });
+  const [friends, setFriends] = useState<any[]>([]);
+  const [filteredFriends, setFilteredFriends] = useState<any[]>([]);
 
-  // 监听评论内容变化，检测@提及
+  // 加载好友列表（互相关注）
   useEffect(() => {
-    console.log('[FeedDetailModal] Checking mention, communityId:', communityId, 'newComment:', newComment);
-    
-    if (!communityId || !newComment) {
-      console.log('[FeedDetailModal] No communityId or newComment, skipping');
-      setIsMentionSelectorOpen(false);
+    console.log('[FeedDetailModal] currentUserId changed:', currentUserId);
+    if (!currentUserId) {
+      console.log('[FeedDetailModal] No currentUserId, skipping friend load');
       return;
     }
     
+    const loadFriends = async () => {
+      try {
+        console.log('[FeedDetailModal] Loading friends for user:', currentUserId);
+        
+        // 获取关注列表和粉丝列表
+        console.log('[FeedDetailModal] Fetching following and followers lists...');
+        const [following, followers] = await Promise.all([
+          getFollowingList().catch(e => {
+            console.error('[FeedDetailModal] getFollowingList error:', e);
+            return [];
+          }),
+          getFollowersList().catch(e => {
+            console.error('[FeedDetailModal] getFollowersList error:', e);
+            return [];
+          })
+        ]);
+        
+        console.log('[FeedDetailModal] Following:', following.length, 'Followers:', followers.length);
+        console.log('[FeedDetailModal] Following data:', following);
+        console.log('[FeedDetailModal] Followers data:', followers);
+        
+        // 计算互相关注（好友）
+        const followerIds = new Set(followers.map(u => u.id));
+        const mutualFriends = following.filter(user => followerIds.has(user.id));
+        
+        console.log('[FeedDetailModal] Mutual friends:', mutualFriends.length);
+        
+        // 转换为好友格式
+        const friendsList = mutualFriends.map(user => ({
+          id: user.id,
+          username: user.username || user.name,
+          avatar_url: user.avatar,
+        }));
+        
+        setFriends(friendsList);
+      } catch (e) {
+        console.error('[FeedDetailModal] Failed to load friends:', e);
+      }
+    };
+    
+    loadFriends();
+  }, [currentUserId]);
+
+  // 监听评论内容变化，检测@提及
+  useEffect(() => {
+    console.log('[FeedDetailModal] Checking mention, newComment:', newComment);
+
+    if (!newComment) {
+      setIsMentionSelectorOpen(false);
+      return;
+    }
+
     // 获取光标位置
     const input = commentInputRef.current;
     const cursorPosition = input?.selectionStart || newComment.length;
-    
-    // 检测@提及
-    const query = mentionService.getCurrentMentionQuery(newComment, cursorPosition);
-    console.log('[FeedDetailModal] Mention query:', query, 'cursorPosition:', cursorPosition);
-    
-    if (query !== null) {
-      setMentionSearchQuery(query);
-      
-      // 计算选择器位置 - 显示在输入框上方
-      if (input) {
-        const rect = input.getBoundingClientRect();
-        const position = {
-          top: rect.top - 250,
-          left: rect.left
-        };
-        console.log('[FeedDetailModal] Setting selector position:', position);
-        setMentionSelectorPosition(position);
+
+    // 检测@提及 - 获取@后面的文本
+    const textBeforeCursor = newComment.substring(0, cursorPosition);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      const query = textBeforeCursor.substring(lastAtIndex + 1);
+      // 如果query中没有空格，说明正在输入@提及
+      if (!query.includes(' ')) {
+        setMentionSearchQuery(query);
+
+        // 过滤好友列表
+        const filtered = friends.filter(friend =>
+          friend.username?.toLowerCase().includes(query.toLowerCase())
+        );
+        setFilteredFriends(filtered);
+
+        // 使用 setTimeout 确保 DOM 已经更新
+        setTimeout(() => {
+          // 计算选择器位置 - 显示在输入框上方
+          if (input) {
+            const rect = input.getBoundingClientRect();
+            // 如果 rect 为 0，尝试获取父元素的位置
+            if (rect.width === 0 && rect.height === 0) {
+              const parent = input.parentElement;
+              if (parent) {
+                const parentRect = parent.getBoundingClientRect();
+                const position = {
+                  top: parentRect.top - 320,
+                  left: parentRect.left + 20
+                };
+                console.log('[FeedDetailModal] Using parent rect:', parentRect);
+                console.log('[FeedDetailModal] Setting selector position:', position);
+                setMentionSelectorPosition(position);
+              } else {
+                // 使用视口中心位置
+                const position = {
+                  top: window.innerHeight / 2 - 150,
+                  left: window.innerWidth / 2 - 140
+                };
+                console.log('[FeedDetailModal] Using viewport center:', position);
+                setMentionSelectorPosition(position);
+              }
+            } else {
+              const position = {
+                top: rect.top - 320,
+                left: rect.left + 20
+              };
+              console.log('[FeedDetailModal] Input rect:', rect);
+              console.log('[FeedDetailModal] Setting selector position:', position);
+              setMentionSelectorPosition(position);
+            }
+          } else {
+            console.log('[FeedDetailModal] Input ref is null, using default position');
+            setMentionSelectorPosition({ top: 200, left: 100 });
+          }
+        }, 100);
+
+        console.log('[FeedDetailModal] Opening friend selector, query:', query, 'friends count:', friends.length, 'filtered count:', filtered.length);
+        setIsMentionSelectorOpen(true);
+        return;
       }
-      
-      console.log('[FeedDetailModal] Opening mention selector');
-      setIsMentionSelectorOpen(true);
-    } else {
-      setIsMentionSelectorOpen(false);
     }
-  }, [newComment, communityId]);
+
+    setIsMentionSelectorOpen(false);
+  }, [newComment, friends]);
 
   // 同步本地评论数与 feed 数据
   useEffect(() => {
@@ -477,12 +572,13 @@ export function FeedDetailModal({
                   {feed.tags && feed.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-4">
                       {feed.tags.map((tag, index) => (
-                        <span
+                        <button
                           key={index}
-                          className={`text-sm ${isDark ? 'text-blue-400' : 'text-blue-600'} hover:underline cursor-pointer`}
+                          onClick={() => navigate(`/search?query=${encodeURIComponent(tag)}`)}
+                          className={`text-sm ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} hover:underline cursor-pointer transition-colors`}
                         >
                           #{tag}
-                        </span>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -804,7 +900,7 @@ export function FeedDetailModal({
                           handleSubmitComment();
                         }
                       }}
-                      placeholder={communityId ? "写下你的评论... 使用 @ 提及成员" : "写下你的评论..."}
+                      placeholder={friends.length > 0 ? "写下你的评论... 使用 @ 提及好友" : "写下你的评论..."}
                       className={`flex-1 px-4 py-2 rounded-full text-sm outline-none transition-colors ${
                         isDark 
                           ? 'bg-gray-800 text-white placeholder-gray-500 focus:bg-gray-750' 
@@ -837,7 +933,7 @@ export function FeedDetailModal({
       )}
       
       {/* @提及选择器 - 使用Portal渲染 */}
-      {isMentionSelectorOpen && communityId && createPortal(
+      {isMentionSelectorOpen && createPortal(
         <div 
           style={{
             position: 'fixed',
@@ -850,19 +946,115 @@ export function FeedDetailModal({
           }}
         >
           <div style={{ pointerEvents: 'auto' }}>
-            <MentionSelector
-              communityId={communityId}
-              isOpen={isMentionSelectorOpen}
-              searchQuery={mentionSearchQuery}
-              onSelect={(member) => {
-                // 处理成员选择
-                const newContent = newComment + member.username + ' ';
-                setNewComment(newContent);
-                setIsMentionSelectorOpen(false);
+            {/* 好友选择器 */}
+            <div
+              style={{
+                position: 'fixed',
+                top: mentionSelectorPosition.top,
+                left: mentionSelectorPosition.left,
+                width: '280px',
+                maxHeight: '300px',
+                backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                border: `1px solid ${isDark ? '#374151' : '#e5e7af'}`,
+                borderRadius: '12px',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+                zIndex: 2147483647,
+                overflow: 'hidden',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
               }}
-              onClose={() => setIsMentionSelectorOpen(false)}
-              position={mentionSelectorPosition}
-            />
+            >
+              {/* 标题 */}
+              <div style={{
+                padding: '12px 16px',
+                borderBottom: `1px solid ${isDark ? '#374151' : '#e5e7af'}`,
+                fontWeight: 600,
+                fontSize: '14px',
+                color: isDark ? '#f3f4f6' : '#111827',
+              }}>
+                选择好友
+              </div>
+              
+              {/* 好友列表 */}
+              <div style={{
+                maxHeight: '240px',
+                overflowY: 'auto',
+              }}>
+                {filteredFriends.length === 0 ? (
+                  <div style={{
+                    padding: '30px 20px',
+                    textAlign: 'center',
+                    color: isDark ? '#9ca3af' : '#6b7280',
+                    fontSize: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.5 }}>
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span>暂无好友</span>
+                    <span style={{ fontSize: '12px', opacity: 0.7 }}>添加好友后即可使用@提及功能</span>
+                  </div>
+                ) : (
+                  filteredFriends.map((friend) => (
+                    <div
+                      key={friend.id}
+                      onClick={() => {
+                        // 处理好友选择
+                        const input = commentInputRef.current;
+                        const cursorPosition = input?.selectionStart || newComment.length;
+                        const textBeforeCursor = newComment.substring(0, cursorPosition);
+                        const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+                        const textBeforeAt = newComment.substring(0, lastAtIndex);
+                        const textAfterCursor = newComment.substring(cursorPosition);
+                        const newContent = textBeforeAt + '@' + friend.username + ' ' + textAfterCursor;
+                        setNewComment(newContent);
+                        setIsMentionSelectorOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        borderBottom: `1px solid ${isDark ? '#374151' : '#f3f4f6'}`,
+                        transition: 'background-color 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = isDark ? '#374151' : '#f3f4f6';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {/* 头像 */}
+                      <img
+                        src={friend.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.id}`}
+                        alt={friend.username}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          marginRight: '12px',
+                          objectFit: 'cover',
+                        }}
+                      />
+                      {/* 用户名 */}
+                      <span style={{
+                        fontSize: '14px',
+                        color: isDark ? '#f3f4f6' : '#111827',
+                        fontWeight: 500,
+                      }}>
+                        {friend.username}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>,
         document.body

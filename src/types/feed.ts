@@ -79,9 +79,12 @@ export interface FeedItem extends BaseEntity {
 
   // 数据来源类型，用于跳转路由判断
   sourceType?: 'post' | 'work' | 'community' | 'announcement';
-  
+
   // 社群ID（用于@提及功能）
   communityId?: string;
+
+  // 发布类型：explore(津脉广场作品) / community(社群帖子) / both(两者都有)
+  publishType?: 'explore' | 'community' | 'both';
 
   // 互动数据
   likes: number;
@@ -106,11 +109,13 @@ export interface FeedItem extends BaseEntity {
 export type FeedFilterType = 
   | 'all'        // 全部
   | 'community'  // 社群
+  | 'works'      // 作品（视频+图文）
   | 'video'      // 视频
   | 'image'      // 图文
   | 'article'    // 专栏
   | 'activity'   // 活动
-  | 'brand';     // 品牌
+  | 'brand'      // 品牌
+  | 'interaction'; // 互动（自己发布的动态）
 
 // 动态排序方式
 export type FeedSortType = 'latest' | 'hot' | 'recommend';

@@ -314,12 +314,16 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
         {post.tags && post.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-3">
             {post.tags.slice(0, 2).map((tag, i) => (
-              <span 
-                key={i} 
-                className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${isDark ? 'bg-slate-700/60 text-slate-300' : 'bg-gray-100 text-gray-600'}`}
+              <button
+                key={i}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/search?query=${encodeURIComponent(tag)}`);
+                }}
+                className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-colors ${isDark ? 'bg-slate-700/60 text-slate-300 hover:bg-slate-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               >
                 {tag}
-              </span>
+              </button>
             ))}
           </div>
         )}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
   TrendingDown,
@@ -38,6 +39,7 @@ const TrendingCard: React.FC<TrendingCardProps> = ({
   compact = false,
 }) => {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
   const [isBookmarked, setIsBookmarked] = useState(false);
 
   // 格式化数字
@@ -173,16 +175,17 @@ const TrendingCard: React.FC<TrendingCardProps> = ({
           {topic.relatedTags && topic.relatedTags.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-2">
               {topic.relatedTags.slice(0, 4).map((tag, index) => (
-                <span
+                <button
                   key={index}
-                  className={`text-[10px] px-2 py-0.5 rounded-full ${
+                  onClick={() => navigate(`/search?query=${encodeURIComponent(tag)}`)}
+                  className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
                     isDark
-                      ? 'bg-amber-500/10 text-amber-400'
-                      : 'bg-amber-100 text-amber-700'
+                      ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                   }`}
                 >
                   #{tag}
-                </span>
+                </button>
               ))}
               {topic.relatedTags.length > 4 && (
                 <span className={`text-[10px] px-2 py-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>

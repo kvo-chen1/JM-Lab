@@ -750,11 +750,15 @@ async function createPostgreSQLTables(pool) {
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS votes INTEGER DEFAULT 0;`)
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS event_id TEXT;`)
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS score INTEGER DEFAULT 0;`)
+      await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS community_id TEXT;`)
       
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_creator_id ON works(creator_id);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_created_at ON works(created_at);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_category ON works(category);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_event_id ON works(event_id);')
+
+      // 注意：community_posts 表已经在上面创建了，用于存储社群动态
+      // 不需要再创建 feeds 表
 
       // 创建作品收藏表 (work_favorites)
       // 先删除旧表（如果存在）以更新结构
@@ -3168,7 +3172,7 @@ export const workDB = {
     console.log('[workDB.createWork] Current dbType:', config.dbType);
     
     const db = await getDB()
-    const { title, description, cover_url, thumbnail, creator_id, category, tags, media } = workData
+    const { title, description, cover_url, thumbnail, creator_id, category, tags, media, community_id } = workData
     const now = workData.created_at || Date.now()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     
@@ -3193,6 +3197,8 @@ export const workDB = {
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS creator TEXT`);
           // 添加 video_url 列（如果不存在），用于存储视频URL
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS video_url TEXT`);
+          // 添加 community_id 列（如果不存在），用于社群@提及功能
+          await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS community_id TEXT`);
         } catch (e) {
           console.log('Column already exists or error adding column:', e.message);
         }
@@ -3249,14 +3255,15 @@ export const workDB = {
           const videoUrl = workData.video_url || workData.videoUrl || null;
           
           const { rows } = await db.query(`
-            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, creator, category, tags, media, video_url, views, likes, votes, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, creator, category, tags, media, video_url, community_id, views, likes, votes, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING *
           `, [
             title, description, cover_url, thumbnail || cover_url, creator_id, creatorName || '未知用户', category, 
             tagsValue, 
             mediaValue,
             videoUrl,
+            community_id || null, // community_id
             0, // views
             0, // likes
             0, // votes
@@ -3275,6 +3282,7 @@ export const workDB = {
           id: Date.now(), // Simple numeric ID
           title, description, cover_url, thumbnail: thumbnail || cover_url, creator_id, category, tags, media,
           video_url: workData.video_url || workData.videoUrl || null,
+          community_id: community_id || null,
           views: 0, likes: 0, comments: 0,
           created_at: now, updated_at: now
         }
@@ -3432,60 +3440,38 @@ export const workDB = {
       case DB_TYPE.MEMORY:
         return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at)
       case DB_TYPE.POSTGRESQL: {
-        // 首先尝试从 works 表查询，只获取津脉广场的作品，使用子查询计算真实点赞数
-        // 同时过滤掉没有有效缩略图或标题太短的作品
+        // 从 works 表获取作品
+        console.log('[workDB.getAllWorks] Fetching from works table')
         const { rows: worksRows } = await db.query(`
-          SELECT
-            w.*,
-            u.username,
-            u.avatar_url,
-            COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
-          FROM works w
-          LEFT JOIN users u ON w.creator_id = u.id
-          WHERE (w.source = '津脉广场' OR w.source IS NULL)
-            AND LENGTH(COALESCE(w.title, '')) >= 3
-            AND COALESCE(w.thumbnail, w.cover_url, '') <> ''
-            AND COALESCE(w.thumbnail, w.cover_url, '') <> 'EMPTY'
-            AND LOWER(COALESCE(w.thumbnail, w.cover_url, '')) NOT LIKE '%empty%'
-          ORDER BY w.created_at DESC
-        `)
-        console.log('[workDB.getAllWorks] Works count:', worksRows.length)
-
-        // 如果 works 表有数据，直接返回
-        if (worksRows.length > 0) {
-          console.log('[workDB.getAllWorks] First work ID:', worksRows[0].id, 'type:', typeof worksRows[0].id, 'likes:', worksRows[0].likes)
-          return worksRows
-        }
-        
-        // 如果 works 表为空，从 posts 表获取已发布的帖子作为作品
-        console.log('[workDB.getAllWorks] No works found, fetching from posts table')
-        const { rows: postsRows } = await db.query(`
           SELECT 
-            p.id,
-            p.title,
-            p.content as description,
-            p.images,
-            COALESCE(p.images->>0, '') as thumbnail,
-            COALESCE(p.images->>0, '') as cover_url,
-            p.author_id as creator_id,
-            p.created_at,
-            p.updated_at,
-            p.views,
-            p.likes_count as likes,
-            p.comments_count as comments,
+            w.id,
+            w.title,
+            w.description,
+            w.thumbnail,
+            w.cover_url,
+            w.media,
+            w.video_url,
+            w.creator_id,
+            w.category,
+            w.tags,
+            w.views,
+            w.likes,
+            w.comments,
+            w.votes,
+            w.created_at,
+            w.updated_at,
             u.username,
             u.avatar_url
-          FROM posts p 
-          LEFT JOIN users u ON p.author_id = u.id 
-          WHERE p.status = 'published'
-          ORDER BY p.created_at DESC
-          LIMIT 20
+          FROM works w 
+          LEFT JOIN users u ON w.creator_id = u.id 
+          ORDER BY w.created_at DESC
+          LIMIT 100
         `)
-        console.log('[workDB.getAllWorks] Posts count:', postsRows.length)
-        if (postsRows.length > 0) {
-          console.log('[workDB.getAllWorks] First post ID:', postsRows[0].id, 'type:', typeof postsRows[0].id)
+        console.log('[workDB.getAllWorks] Works count:', worksRows.length)
+        if (worksRows.length > 0) {
+          console.log('[workDB.getAllWorks] First work ID:', worksRows[0].id, 'title:', worksRows[0].title)
         }
-        return postsRows
+        return worksRows
       }
       default: return []
     }

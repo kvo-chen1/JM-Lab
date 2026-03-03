@@ -1873,6 +1873,8 @@ export const communityService = {
   },
 
   async getFriends(userId: string): Promise<{ data: UserProfile[] | null; error: any }> {
+    console.log('[communityService.getFriends] Getting friends for userId:', userId);
+    
     // 先获取好友请求
     const { data: requests, error } = await supabase
       .from('friend_requests')
@@ -1880,19 +1882,26 @@ export const communityService = {
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       .eq('status', 'accepted');
 
+    console.log('[communityService.getFriends] Requests:', requests?.length, 'error:', error);
+    
     if (error) return { data: null, error };
-    if (!requests || requests.length === 0) return { data: [], error: null };
+    if (!requests || requests.length === 0) {
+      console.log('[communityService.getFriends] No friend requests found');
+      return { data: [], error: null };
+    }
 
     // 获取所有相关用户ID（转换为字符串以匹配 users.id 的 TEXT 类型）
     const userIds = [...new Set(requests.flatMap(r => [r.sender_id, r.receiver_id]))].map(id => String(id));
 
     // 获取用户信息
     let users: any[] = [];
+    console.log('[communityService.getFriends] User IDs to query:', userIds);
     if (userIds.length > 0) {
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('id, username, avatar_url')
         .in('id', userIds);
+      console.log('[communityService.getFriends] Users found:', usersData?.length, 'error:', usersError);
       if (!usersError && usersData) {
         users = usersData;
       }
@@ -1903,6 +1912,7 @@ export const communityService = {
     requests.forEach((request: any) => {
       const sender = users.find(u => u.id === request.sender_id);
       const receiver = users.find(u => u.id === request.receiver_id);
+      console.log('[communityService.getFriends] Processing request:', request.id, 'sender:', sender?.username, 'receiver:', receiver?.username);
 
       if (sender && sender.id !== userId) {
         friends.push(sender as UserProfile);
@@ -1912,6 +1922,7 @@ export const communityService = {
       }
     });
 
+    console.log('[communityService.getFriends] Final friends count:', friends.length);
     return { data: friends, error: null };
   },
 

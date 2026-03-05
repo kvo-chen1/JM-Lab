@@ -7798,6 +7798,21 @@ async function route(req, res, u, path) {
     return
   }
 
+  // ==================== 数据 API ====================
+
+  // 获取热门作品
+  if (req.method === 'GET' && path === '/api/data/popularWorks') {
+    try {
+      const limit = parseInt(u.searchParams.get('limit') || '20')
+      const works = await workDB.getPopularWorks(limit)
+      sendJson(res, 200, { code: 0, data: works })
+    } catch (e) {
+      console.error('[API] Get popular works failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取热门作品失败' })
+    }
+    return
+  }
+
   // ==================== 数据分析 API ====================
 
   // 获取指标数据（用于图表）- 基于用户作品的真实数据生成趋势
@@ -8081,6 +8096,145 @@ async function route(req, res, u, path) {
     } catch (error) {
       console.error('[API] 获取用户活动数据失败:', error)
       sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取用户活动数据失败' })
+    }
+    return
+  }
+
+  // 获取分析仪表板数据
+  if (req.method === 'GET' && path === '/api/analytics/dashboard') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      // 获取仪表板数据
+      const dashboardData = {
+        totalWorks: 0,
+        totalViews: 0,
+        totalLikes: 0,
+        totalComments: 0,
+        recentWorks: [],
+        topWorks: []
+      }
+      
+      // 获取用户作品数据
+      const { data: works, error } = await supabaseServer
+        .from('works')
+        .select('id, title, view_count, likes, comments, created_at')
+        .eq('creator_id', decoded.userId)
+        .order('created_at', { ascending: false })
+
+      if (!error && works) {
+        dashboardData.totalWorks = works.length
+        dashboardData.totalViews = works.reduce((sum, work) => sum + (work.view_count || 0), 0)
+        dashboardData.totalLikes = works.reduce((sum, work) => sum + (work.likes || 0), 0)
+        dashboardData.totalComments = works.reduce((sum, work) => sum + (work.comments || 0), 0)
+        dashboardData.recentWorks = works.slice(0, 5)
+        dashboardData.topWorks = works.sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 5)
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: dashboardData,
+        message: '获取仪表板数据成功'
+      })
+    } catch (e) {
+      console.error('[API] Get dashboard data failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取数据失败' })
+    }
+    return
+  }
+
+  // 获取分析统计数据
+  if (req.method === 'GET' && path === '/api/analytics/stats') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      // 获取统计数据
+      const statsData = {
+        works: 0,
+        views: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        favorites: 0
+      }
+      
+      // 获取用户作品数据
+      const { data: works, error } = await supabaseServer
+        .from('works')
+        .select('view_count, likes, comments, shares, favorites')
+        .eq('creator_id', decoded.userId)
+
+      if (!error && works) {
+        statsData.works = works.length
+        statsData.views = works.reduce((sum, work) => sum + (work.view_count || 0), 0)
+        statsData.likes = works.reduce((sum, work) => sum + (work.likes || 0), 0)
+        statsData.comments = works.reduce((sum, work) => sum + (work.comments || 0), 0)
+        statsData.shares = works.reduce((sum, work) => sum + (work.shares || 0), 0)
+        statsData.favorites = works.reduce((sum, work) => sum + (work.favorites || 0), 0)
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: statsData,
+        message: '获取统计数据成功'
+      })
+    } catch (e) {
+      console.error('[API] Get stats data failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取统计数据失败' })
+    }
+    return
+  }
+
+  // 加载分析数据
+  if (req.method === 'POST' && path === '/api/analytics/load') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      const { metrics, timeRange } = body
+      
+      // 加载分析数据
+      const loadData = {
+        metrics: metrics || ['views', 'likes', 'comments'],
+        timeRange: timeRange || '30d',
+        data: []
+      }
+      
+      // 生成模拟数据
+      const now = new Date()
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date(now)
+        date.setDate(now.getDate() - i)
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        
+        loadData.data.push({
+          date: dateStr,
+          views: Math.floor(Math.random() * 1000),
+          likes: Math.floor(Math.random() * 100),
+          comments: Math.floor(Math.random() * 50)
+        })
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: loadData,
+        message: '获取数据成功'
+      })
+    } catch (e) {
+      console.error('[API] Load analytics data failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取数据失败' })
     }
     return
   }

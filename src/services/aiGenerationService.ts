@@ -221,7 +221,7 @@ class AIGenerationService {
         prompt: params.prompt,
         size: params.size || '1024x1024',
         n: params.n || 1,
-        model: 'qwen-image-plus'
+        model: 'qwen-image-2.0'
       });
 
       // 停止进度模拟
@@ -324,7 +324,7 @@ class AIGenerationService {
         duration: params.duration || 5,
         resolution: params.resolution || '720p',
         aspectRatio: params.aspectRatio || '16:9',
-        model: params.model || 'wanx2.1-t2v-turbo'
+        model: params.model || 'wan2.6-i2v-flash'
       });
 
       if (!result.ok || !result.data) {

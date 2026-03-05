@@ -404,9 +404,16 @@ export default function AIAssistantPanel() {
     const lowerInput = input.toLowerCase();
 
     // 图片生成关键词
-    const imageKeywords = ['生成图片', '画一张', '画一个', '生成一张图', '画个', '生成图像', 'create image', 'generate image'];
+    const imageKeywords = [
+      '生成图片', '画一张', '画一个', '生成一张图', '画个', '生成图像',
+      '直接生成', '帮我生成', '生成一张', '给我画', '画一', '画个图',
+      'create image', 'generate image', 'draw a', 'draw me'
+    ];
     // 视频生成关键词
-    const videoKeywords = ['生成视频', '做个视频', '生成一段视频', 'create video', 'generate video'];
+    const videoKeywords = [
+      '生成视频', '做个视频', '生成一段视频', '创建视频',
+      'create video', 'generate video', 'make a video'
+    ];
 
     for (const keyword of imageKeywords) {
       if (lowerInput.includes(keyword)) {
@@ -681,17 +688,45 @@ export default function AIAssistantPanel() {
     return { table, endIndex: i - 1 };
   };
 
-  // 渲染消息内容，支持 Markdown 表格
+  // 渲染消息内容，支持 Markdown 格式
   const renderMessageContent = (content: string): React.ReactNode => {
     const lines = content.split('\n');
     const result: React.ReactNode[] = [];
     let i = 0;
 
+    // 处理内联 Markdown 格式（粗体、斜体、行内代码）
+    const renderInlineMarkdown = (text: string): React.ReactNode => {
+      // 处理粗体 **text**
+      let parts = text.split(/(\*\*[^*]+\*\*)/g);
+      return parts.map((part, idx) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={idx} className="font-semibold">{part.slice(2, -2)}</strong>;
+        }
+        // 处理斜体 *text*
+        if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
+          return <em key={idx} className="italic">{part.slice(1, -1)}</em>;
+        }
+        // 处理行内代码 `code`
+        if (part.startsWith('`') && part.endsWith('`') && !part.startsWith('```')) {
+          return (
+            <code key={idx} className={clsx(
+              "px-1.5 py-0.5 rounded text-xs font-mono",
+              isDark ? "bg-gray-700 text-pink-300" : "bg-gray-100 text-pink-600"
+            )}>
+              {part.slice(1, -1)}
+            </code>
+          );
+        }
+        return part;
+      });
+    };
+
     while (i < lines.length) {
       const line = lines[i];
+      const trimmedLine = line.trim();
 
       // 检查是否是表格开始
-      if (line.trim().startsWith('|')) {
+      if (trimmedLine.startsWith('|')) {
         const tableResult = parseMarkdownTable(lines, i);
         if (tableResult) {
           result.push(tableResult.table);
@@ -700,17 +735,115 @@ export default function AIAssistantPanel() {
         }
       }
 
-      // 普通文本行
-      if (line.trim()) {
+      // 检查是否是代码块开始
+      if (trimmedLine.startsWith('```')) {
+        const language = trimmedLine.slice(3).trim();
+        let codeContent = '';
+        let j = i + 1;
+        while (j < lines.length && !lines[j].trim().startsWith('```')) {
+          codeContent += (codeContent ? '\n' : '') + lines[j];
+          j++;
+        }
         result.push(
-          <p
-            key={i}
-            className={clsx(
-              "mb-1 last:mb-0",
-              line.startsWith('**') && line.endsWith('**') && "font-semibold"
+          <div key={i} className={clsx(
+            "my-3 rounded-lg overflow-hidden",
+            isDark ? "bg-gray-800 border border-gray-700" : "bg-gray-100 border border-gray-200"
+          )}>
+            {language && (
+              <div className={clsx(
+                "px-3 py-1 text-xs font-medium border-b",
+                isDark ? "bg-gray-700/50 border-gray-700 text-gray-400" : "bg-gray-200/50 border-gray-200 text-gray-500"
+              )}>
+                {language}
+              </div>
             )}
-          >
-            {line}
+            <pre className="p-3 overflow-x-auto">
+              <code className={clsx(
+                "text-xs font-mono whitespace-pre",
+                isDark ? "text-gray-300" : "text-gray-700"
+              )}>
+                {codeContent}
+              </code>
+            </pre>
+          </div>
+        );
+        i = j + 1;
+        continue;
+      }
+
+      // 检查是否是标题
+      const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const text = headingMatch[2];
+        const headingClasses = [
+          "text-lg font-bold mt-4 mb-2", // h1
+          "text-base font-bold mt-3 mb-2", // h2
+          "text-sm font-bold mt-3 mb-1", // h3
+          "text-sm font-semibold mt-2 mb-1", // h4
+          "text-xs font-semibold mt-2 mb-1", // h5
+          "text-xs font-medium mt-2 mb-1", // h6
+        ];
+        result.push(
+          <div key={i} className={headingClasses[level - 1]}>
+            {renderInlineMarkdown(text)}
+          </div>
+        );
+        i++;
+        continue;
+      }
+
+      // 检查是否是分隔线
+      if (trimmedLine === '---' || trimmedLine === '***' || trimmedLine === '___') {
+        result.push(
+          <hr key={i} className={clsx(
+            "my-4 border-t",
+            isDark ? "border-gray-700" : "border-gray-200"
+          )} />
+        );
+        i++;
+        continue;
+      }
+
+      // 检查是否是列表项
+      const listMatch = trimmedLine.match(/^(\s*)(\d+\.\s+|[-*]\s+)(.+)$/);
+      if (listMatch) {
+        const indent = listMatch[1].length;
+        const isOrdered = /^\d+\./.test(listMatch[2]);
+        const listItems: React.ReactNode[] = [];
+        let j = i;
+        while (j < lines.length) {
+          const itemMatch = lines[j].trim().match(/^(\s*)(\d+\.\s+|[-*]\s+)(.+)$/);
+          if (itemMatch && itemMatch[1].length === indent) {
+            listItems.push(
+              <li key={j} className={clsx(
+                "ml-4 mb-1",
+                isOrdered ? "list-decimal" : "list-disc"
+              )}>
+                {renderInlineMarkdown(itemMatch[3])}
+              </li>
+            );
+            j++;
+          } else if (lines[j].trim() === '' && j + 1 < lines.length && lines[j + 1].trim().match(/^(\s*)(\d+\.\s+|[-*]\s+)(.+)$/)) {
+            j++;
+          } else {
+            break;
+          }
+        }
+        result.push(
+          <ol key={i} className={isOrdered ? "list-decimal list-inside my-2" : "list-disc list-inside my-2"}>
+            {listItems}
+          </ol>
+        );
+        i = j;
+        continue;
+      }
+
+      // 普通文本行
+      if (trimmedLine) {
+        result.push(
+          <p key={i} className="mb-1 last:mb-0 leading-relaxed">
+            {renderInlineMarkdown(line)}
           </p>
         );
       } else {
@@ -1208,15 +1341,8 @@ export default function AIAssistantPanel() {
                               </div>
                             </div>
                           ) : (
-                            <div className="whitespace-pre-wrap prose prose-sm max-w-none dark:prose-invert">
-                              {message.content.split('\n').map((line, i) => (
-                                <p key={i} className={clsx(
-                                  "mb-1 last:mb-0",
-                                  line.startsWith('**') && line.endsWith('**') && "font-semibold"
-                                )}>
-                                  {line}
-                                </p>
-                              ))}
+                            <div className="whitespace-pre-wrap max-w-none">
+                              {renderMessageContent(message.content)}
                             </div>
                           )}
                         </div>

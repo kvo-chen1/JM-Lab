@@ -11,7 +11,11 @@ import {
   TrendingUp,
   Zap,
   ChevronRight,
-  MoreHorizontal
+  MoreHorizontal,
+  Cloud,
+  CloudOff,
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 
 interface StorageStats {
@@ -38,6 +42,8 @@ interface DraftsRightSidebarProps {
   onExportAll: () => void;
   onClearOld: () => void;
   onActivityClick?: (activity: RecentActivity) => void;
+  syncStatus?: 'idle' | 'syncing' | 'synced' | 'error';
+  syncedCount?: number;
 }
 
 export default function DraftsRightSidebar({
@@ -47,9 +53,46 @@ export default function DraftsRightSidebar({
   onNewDraft,
   onExportAll,
   onClearOld,
-  onActivityClick
+  onActivityClick,
+  syncStatus = 'idle',
+  syncedCount = 0
 }: DraftsRightSidebarProps) {
   const usagePercentage = (storageStats.used / storageStats.total) * 100;
+
+  const getSyncStatusDisplay = () => {
+    switch (syncStatus) {
+      case 'syncing':
+        return {
+          icon: <Loader2 className="w-4 h-4 animate-spin" />,
+          text: '正在同步...',
+          color: 'text-blue-500',
+          bgColor: 'bg-blue-50 dark:bg-blue-900/20'
+        };
+      case 'synced':
+        return {
+          icon: <CheckCircle2 className="w-4 h-4" />,
+          text: syncedCount > 0 ? `已同步 ${syncedCount} 个草稿` : '已同步到云端',
+          color: 'text-green-500',
+          bgColor: 'bg-green-50 dark:bg-green-900/20'
+        };
+      case 'error':
+        return {
+          icon: <CloudOff className="w-4 h-4" />,
+          text: '同步失败',
+          color: 'text-red-500',
+          bgColor: 'bg-red-50 dark:bg-red-900/20'
+        };
+      default:
+        return {
+          icon: <Cloud className="w-4 h-4" />,
+          text: '本地草稿',
+          color: 'text-gray-500',
+          bgColor: 'bg-gray-50 dark:bg-gray-800'
+        };
+    }
+  };
+
+  const syncDisplay = getSyncStatusDisplay();
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -88,6 +131,16 @@ export default function DraftsRightSidebar({
 
   return (
     <div className="space-y-6">
+      {/* 同步状态 */}
+      <div className={`flex items-center gap-2 p-3 rounded-xl ${syncDisplay.bgColor} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+        <div className={`${syncDisplay.color}`}>
+          {syncDisplay.icon}
+        </div>
+        <span className={`text-sm font-medium ${syncDisplay.color}`}>
+          {syncDisplay.text}
+        </span>
+      </div>
+
       {/* 快捷操作 */}
       <div>
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">快捷操作</h3>

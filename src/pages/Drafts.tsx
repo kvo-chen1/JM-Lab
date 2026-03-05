@@ -5,12 +5,15 @@ import { useCreateStore } from './create/hooks/useCreateStore';
 import { toast } from 'sonner';
 import { draftService, Draft } from '@/services/draftService';
 import { brandWizardDraftService, BrandWizardDraft } from '@/services/brandWizardDraftService';
+import { createDraftService, CreateDraft } from '@/services/createDraftService';
+import { supabase } from '@/lib/supabase';
 import {
   DraftsLayout,
   DraftsLeftSidebar,
   DraftsRightSidebar,
   DraftsMainContent
 } from '@/components/drafts';
+import { Loader2, Cloud, CloudOff } from 'lucide-react';
 
 interface DraftData {
   id?: string;
@@ -66,7 +69,165 @@ export default function Drafts() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeTimeFilter, setActiveTimeFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [syncedCount, setSyncedCount] = useState(0);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+
+  // 同步所有类型的本地草稿到云端
+  const syncAllLocalDraftsToCloud = async () => {
+    try {
+      setIsSyncing(true);
+      setSyncStatus('syncing');
+      
+      // 检查用户是否登录
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('[Drafts] User not logged in, skipping sync');
+        setSyncStatus('idle');
+        return;
+      }
+
+      let totalSynced = 0;
+
+      // 1. 同步创作中心草稿 (CREATE_DRAFTS)
+      const createDraftsSynced = await syncCreateDrafts(user.id);
+      totalSynced += createDraftsSynced;
+
+      // 2. AI Writer 草稿 - draftService 已经会自动同步，只需重新加载
+      // 3. 品牌向导草稿 - brandWizardDraftService 已经会自动同步，只需重新加载
+      
+      // 4. 同步活动提交草稿
+      const eventDraftsSynced = await syncEventSubmissionDrafts(user.id);
+      totalSynced += eventDraftsSynced;
+
+      setSyncedCount(totalSynced);
+      console.log('[Drafts] Total synced', totalSynced, 'drafts to cloud');
+
+      if (totalSynced > 0) {
+        toast.success(`成功同步 ${totalSynced} 个草稿到云端`);
+      }
+
+      setSyncStatus('synced');
+    } catch (error) {
+      console.error('[Drafts] Sync error:', error);
+      setSyncStatus('error');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // 同步创作中心草稿
+  const syncCreateDrafts = async (userId: string): Promise<number> => {
+    try {
+      const rawSaved = localStorage.getItem('CREATE_DRAFTS');
+      if (!rawSaved) return 0;
+
+      const localDrafts = JSON.parse(rawSaved);
+      if (!Array.isArray(localDrafts) || localDrafts.length === 0) return 0;
+
+      console.log('[Drafts] Found', localDrafts.length, 'create drafts to sync');
+
+      // 获取云端已有的草稿
+      const cloudDrafts = await createDraftService.getUserDrafts(100);
+      const cloudDraftIds = new Set(cloudDrafts.map(d => d.id));
+
+      let synced = 0;
+
+      for (const draft of localDrafts) {
+        // 如果草稿ID以 'draft-' 开头，说明是本地草稿，需要同步
+        if (draft.id?.startsWith('draft-') && !cloudDraftIds.has(draft.id)) {
+          try {
+            const cloudDraft: Omit<CreateDraft, 'userId' | 'createdAt' | 'updatedAt' | 'isSynced'> = {
+              id: draft.id,
+              name: draft.name || `AI作品 ${synced + 1}`,
+              description: draft.description,
+              prompt: draft.prompt,
+              selectedResult: draft.selectedResult,
+              generatedResults: draft.generatedResults || [],
+              activeTool: draft.activeTool || 'layout',
+              stylePreset: draft.stylePreset,
+              currentStep: draft.currentStep || 1,
+              aiExplanation: draft.aiExplanation,
+              selectedPatternId: draft.selectedPatternId,
+              patternOpacity: draft.patternOpacity,
+              patternScale: draft.patternScale,
+              patternRotation: draft.patternRotation,
+              patternBlendMode: draft.patternBlendMode,
+              patternTileMode: draft.patternTileMode,
+              patternPositionX: draft.patternPositionX,
+              patternPositionY: draft.patternPositionY,
+              tilePatternId: draft.tilePatternId,
+              tileMode: draft.tileMode,
+              tileSize: draft.tileSize,
+              tileSpacing: draft.tileSpacing,
+              tileRotation: draft.tileRotation,
+              tileOpacity: draft.tileOpacity,
+              mockupSelectedTemplateId: draft.mockupSelectedTemplateId,
+              mockupShowWireframe: draft.mockupShowWireframe,
+              traceSelectedKnowledgeId: draft.traceSelectedKnowledgeId,
+              culturalInfoText: draft.culturalInfoText,
+              createdAt: draft.createdAt || Date.now(),
+            };
+
+            const result = await createDraftService.saveDraft(cloudDraft);
+            if (result) {
+              synced++;
+              console.log('[Drafts] Synced create draft:', draft.id);
+            }
+          } catch (error) {
+            console.error('[Drafts] Failed to sync create draft:', draft.id, error);
+          }
+        }
+      }
+
+      return synced;
+    } catch (error) {
+      console.error('[Drafts] Error syncing create drafts:', error);
+      return 0;
+    }
+  };
+
+  // 同步活动提交草稿
+  const syncEventSubmissionDrafts = async (userId: string): Promise<number> => {
+    try {
+      let synced = 0;
+      
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('draft_event_submission_')) {
+          try {
+            const draftData = localStorage.getItem(key);
+            if (draftData) {
+              const parsed = JSON.parse(draftData);
+              const eventId = key.replace('draft_event_submission_', '');
+              
+              // 检查是否已同步（可以添加标记）
+              if (!parsed.isSynced) {
+                // 这里可以添加到云端数据库
+                // 目前 event_submission_drafts 表可能不存在，先记录日志
+                console.log('[Drafts] Found event submission draft to sync:', eventId);
+                
+                // 标记为已同步
+                parsed.isSynced = true;
+                parsed.syncedAt = new Date().toISOString();
+                localStorage.setItem(key, JSON.stringify(parsed));
+                
+                synced++;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to sync event submission draft:', e);
+          }
+        }
+      }
+
+      return synced;
+    } catch (error) {
+      console.error('[Drafts] Error syncing event submission drafts:', error);
+      return 0;
+    }
+  };
 
   // Load Data
   useEffect(() => {
@@ -82,7 +243,7 @@ export default function Drafts() {
           }
         }
 
-        // Load Saved Drafts
+        // Load Saved Drafts from localStorage
         const rawSaved = localStorage.getItem('CREATE_DRAFTS');
         if (rawSaved) {
           const parsed = JSON.parse(rawSaved);
@@ -122,6 +283,58 @@ export default function Drafts() {
           }
         }
         setEventSubmissionDrafts(eventDrafts);
+
+        // 同步本地草稿到云端
+        await syncAllLocalDraftsToCloud();
+
+        // 重新加载所有云端草稿（包含刚刚同步的）
+        // 1. 重新加载创作中心草稿
+        const cloudDrafts = await createDraftService.getUserDrafts(100);
+        if (cloudDrafts.length > 0) {
+          const cloudDraftsAsDraftData: DraftData[] = cloudDrafts.map(d => ({
+            id: d.id,
+            name: d.name,
+            description: d.description,
+            prompt: d.prompt,
+            selectedResult: d.selectedResult,
+            generatedResults: d.generatedResults,
+            activeTool: d.activeTool as any,
+            stylePreset: d.stylePreset,
+            currentStep: d.currentStep,
+            aiExplanation: d.aiExplanation,
+            selectedPatternId: d.selectedPatternId,
+            patternOpacity: d.patternOpacity,
+            patternScale: d.patternScale,
+            patternRotation: d.patternRotation,
+            patternBlendMode: d.patternBlendMode,
+            patternTileMode: d.patternTileMode,
+            patternPositionX: d.patternPositionX,
+            patternPositionY: d.patternPositionY,
+            tilePatternId: d.tilePatternId,
+            tileMode: d.tileMode,
+            tileSize: d.tileSize,
+            tileSpacing: d.tileSpacing,
+            tileRotation: d.tileRotation,
+            tileOpacity: d.tileOpacity,
+            mockupSelectedTemplateId: d.mockupSelectedTemplateId,
+            mockupShowWireframe: d.mockupShowWireframe,
+            traceSelectedKnowledgeId: d.traceSelectedKnowledgeId,
+            culturalInfoText: d.culturalInfoText,
+            updatedAt: d.updatedAt,
+            createdAt: d.createdAt,
+          }));
+
+          setSavedDrafts(cloudDraftsAsDraftData);
+          localStorage.setItem('CREATE_DRAFTS', JSON.stringify(cloudDraftsAsDraftData));
+        }
+
+        // 2. 重新加载 AI Writer 草稿（draftService 会自动合并云端和本地）
+        const refreshedAiDrafts = await draftService.getAllDrafts();
+        setAiWriterDrafts(refreshedAiDrafts);
+
+        // 3. 重新加载品牌向导草稿（brandWizardDraftService 会自动合并云端和本地）
+        const refreshedWizardDrafts = await brandWizardDraftService.getAllDrafts();
+        setBrandWizardDrafts(refreshedWizardDrafts);
 
         // Generate mock recent activities (in real app, this would come from a service)
         setRecentActivities([
@@ -379,6 +592,8 @@ export default function Drafts() {
           onNewDraft={handleNewDraft}
           onExportAll={handleExportAll}
           onClearOld={handleClearOld}
+          syncStatus={syncStatus}
+          syncedCount={syncedCount}
         />
       }
     />

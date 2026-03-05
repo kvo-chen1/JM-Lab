@@ -77,6 +77,16 @@
       ]
     }
   ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 10,
+      "memory": 1024
+    },
+    "api/health/ping.js": {
+      "maxDuration": 5,
+      "memory": 512
+    }
+  },
   "build": {
     "env": {
       "NODE_ENV": "production"

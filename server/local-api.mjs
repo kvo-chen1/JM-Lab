@@ -538,9 +538,9 @@ async function dashscopeImageGenerate(params) {
     console.log('[DashScope] Starting async image generation...', refImage ? '(with ref image)' : '(text only)');
     
     // 构建请求体 - 优先使用传入的 model 参数，参考图片时使用 wanx-v1
-    // 使用 qwen-image-plus 模型（有免费额度）
+    // 使用 qwen-image-2.0 模型（有免费额度）
     const requestBody = {
-      model: refImage ? 'wanx-v1' : (model || 'qwen-image-plus'),
+      model: refImage ? 'wanx-v1' : (model || 'qwen-image-2.0'),
       input: { prompt },
       parameters: { 
         size: normalizedSize, 
@@ -4656,7 +4656,7 @@ async function route(req, res, u, path) {
         size: b.size || '1024x1024',
         n: b.n || 1,
         authKey,
-        model: b.model || 'qwen-image-plus'
+        model: b.model || 'qwen-image-2.0'
       })
       
       if (!r.ok) {
@@ -6885,7 +6885,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'qwen-image-plus'
+        model: 'qwen-image-2.0'
       })
       
       if (!result.ok) {
@@ -6938,7 +6938,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'qwen-image-plus',
+        model: 'qwen-image-2.0',
         refImage: b.imageUrl  // 传入原图URL进行图生图
       })
       
@@ -6991,7 +6991,7 @@ async function route(req, res, u, path) {
         size: ratio > 1.5 ? '1440x1024' : '1024x1024',
         n: 1,
         authKey,
-        model: 'qwen-image-plus'
+        model: 'qwen-image-2.0'
       })
       
       if (!result.ok) {
@@ -7114,7 +7114,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'qwen-image-plus'
+        model: 'qwen-image-2.0'
       })
       
       if (!result.ok) {

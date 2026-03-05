@@ -1881,7 +1881,7 @@ export default function Neo() {
           prompt: final || input,
           duration: videoParams.duration,
           resolution: videoParams.resolution,
-          model: 'wanx2.1-t2v-turbo'
+          model: 'wan2.6-i2v-flash'
         })
         
         if (videoResult.ok && videoResult.data?.video_url) {
@@ -1907,7 +1907,7 @@ export default function Neo() {
               source: 'neo',
               metadata: {
                 mode: generationMode,
-                model: 'wanx2.1-t2v-turbo',
+                model: 'wan2.6-i2v-flash',
                 duration: videoParams.duration,
                 resolution: videoParams.resolution
               }

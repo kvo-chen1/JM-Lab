@@ -69,7 +69,10 @@ const getPostgresConnectionString = () => {
                   process.env.NEON_DATABASE_URL || 
                   process.env.NEON_POSTGRES_URL || 
                   process.env.NEON_DATABASE_URL_UNPOOLED ||
-                  process.env.NEON_POSTGRES_URL_NON_POOLING
+                  process.env.NEON_POSTGRES_URL_NON_POOLING ||
+                  // 支持 Netlify Neon 扩展的环境变量
+                  process.env.NETLIFY_DATABASE_URL ||
+                  process.env.NETLIFY_DATABASE_URL_UNPOOLED
   if (neonUrl) {
     console.log('[DB] Using NEON URL');
     return neonUrl;
@@ -92,7 +95,7 @@ const detectDbType = () => {
   // Vercel 环境强制检测
   if (process.env.VERCEL) {
     // 如果配置了 PostgreSQL 相关的环境变量，优先使用 PostgreSQL
-    if (process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.SUPABASE_URL) {
+    if (process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.SUPABASE_URL || process.env.NETLIFY_DATABASE_URL || process.env.NETLIFY_DATABASE_URL_UNPOOLED) {
       return DB_TYPE.POSTGRESQL;
     }
     // Vercel Serverless 环境必须使用 PostgreSQL
@@ -102,7 +105,7 @@ const detectDbType = () => {
   // 如果配置了 Supabase 和 PostgreSQL URL，则使用 Supabase
   if (process.env.SUPABASE_URL && process.env.POSTGRES_URL) return DB_TYPE.SUPABASE
   // 如果有数据库 URL，则使用 PostgreSQL
-  if (process.env.DATABASE_URL || process.env.POSTGRES_URL) return DB_TYPE.POSTGRESQL
+  if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.NETLIFY_DATABASE_URL || process.env.NETLIFY_DATABASE_URL_UNPOOLED) return DB_TYPE.POSTGRESQL
   
   // 本地环境也必须使用 PostgreSQL
   throw new Error('PostgreSQL database is required. Please set DATABASE_URL environment variable.');

@@ -1,0 +1,10 @@
+# Netlify 重定向配置
+# API 代理
+/api/proxy/trae-api/*  https://trae-api-sg.mchost.guru/:splat  200
+/api/proxy/unsplash/*  https://images.unsplash.com/:splat  200
+
+# API 路由 - 需要 Serverless Functions 支持
+/api/*  /.netlify/functions/api/:splat  200
+
+# SPA 路由支持
+/*  /index.html  200

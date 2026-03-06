@@ -300,40 +300,37 @@ export default async function handler(req, res) {
 
 // 辅助函数：解析请求体
 async function parseRequestBody(req) {
-  return new Promise((resolve, reject) => {
-    if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') {
-      resolve({});
-      return;
-    }
+  // 如果 req.body 已经被解析（Vercel 会自动解析 JSON）
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+    return req.body;
+  }
 
-    // 如果 req.body 已经被解析（如 Vercel 的 helper）
-    if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
-      resolve(req.body);
-      return;
-    }
+  // 如果不是 POST/PUT/PATCH，返回空对象
+  if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') {
+    return {};
+  }
 
-    let data = '';
-    req.on('data', chunk => {
-      data += chunk;
-    });
-    req.on('end', () => {
-      try {
-        if (data) {
-          const contentType = req.headers['content-type'] || '';
-          if (contentType.includes('application/json')) {
-            resolve(JSON.parse(data));
-          } else {
-            resolve(data);
-          }
-        } else {
-          resolve({});
-        }
-      } catch (error) {
-        reject(error);
-      }
-    });
-    req.on('error', reject);
-  });
+  // 如果 req.body 是字符串，尝试解析为 JSON
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return { data: req.body };
+    }
+  }
+
+  // 如果 req.body 是 Buffer，转换为字符串并解析
+  if (Buffer.isBuffer(req.body)) {
+    try {
+      const str = req.body.toString('utf8');
+      return JSON.parse(str);
+    } catch {
+      return {};
+    }
+  }
+
+  // 默认返回空对象
+  return {};
 }
 
 // 处理认证请求

@@ -402,8 +402,8 @@ export default async (request, context) => {
     
     console.log('[Netlify API] Request:', request.method, path);
 
-    // 处理 /db 路径 - Neon 数据库代理
-    if (path.startsWith('/db')) {
+    // 处理 /db 路径 - Neon 数据库代理 (包括 /db/rest/v1/...)
+    if (path.startsWith('/db') || path.startsWith('/rest/v1')) {
       return handleDbRequest(request, context, headers);
     }
 

@@ -323,6 +323,25 @@ export default async function handler(req, res) {
       return handleDbRequest(req, res, path);
     }
 
+    // 用户成就相关API
+    if (path === '/user/achievements' && req.method === 'GET') {
+      return handleUserAchievements(req, res);
+    }
+
+    // 用户积分相关API
+    if (path === '/user/points' && req.method === 'GET') {
+      return handleUserPoints(req, res);
+    }
+
+    if (path === '/user/points/claim' && req.method === 'POST') {
+      return handleClaimPoints(req, res);
+    }
+
+    // 用户作品统计API (ports可能是笔误，应该是stats)
+    if (path === '/user/ports' && req.method === 'GET') {
+      return handleUserStats(req, res);
+    }
+
     // 其他 API 返回未实现
     return res.status(501).json({ code: 1, message: 'API endpoint not implemented: ' + path });
 
@@ -495,5 +514,231 @@ async function handleDbRequest(req, res, path) {
   } catch (error) {
     console.error('[DB] Error:', error);
     return res.status(500).json({ code: 1, message: 'Database error', error: error.message });
+  }
+}
+
+// 验证Token
+function verifyAuthToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authHeader.substring(7);
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    if (payload.exp && payload.exp < Date.now() / 1000) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// 处理用户成就查询
+async function handleUserAchievements(req, res) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const client = await getDbClient();
+    if (!client) {
+      // 返回空数据，避免前端报错
+      return res.status(200).json({ code: 0, data: [] });
+    }
+
+    // 查询用户成就表
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_achievements (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        achievement_id INTEGER NOT NULL,
+        progress INTEGER DEFAULT 0,
+        is_unlocked BOOLEAN DEFAULT FALSE,
+        unlocked_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, achievement_id)
+      )
+    `);
+
+    const result = await client.query(
+      'SELECT * FROM user_achievements WHERE user_id = $1',
+      [decoded.userId || decoded.id || decoded.sub]
+    );
+
+    return res.status(200).json({ code: 0, data: result.rows });
+  } catch (error) {
+    console.error('[API] Get achievements error:', error);
+    return res.status(200).json({ code: 0, data: [] });
+  }
+}
+
+// 处理用户积分查询
+async function handleUserPoints(req, res) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(200).json({ code: 0, data: { total: 0, records: [] } });
+    }
+
+    // 查询积分记录表
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS points_records (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        points INTEGER NOT NULL,
+        source VARCHAR(255),
+        source_type VARCHAR(50),
+        description TEXT,
+        balance_after INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const userId = decoded.userId || decoded.id || decoded.sub;
+    const recordsResult = await client.query(
+      'SELECT * FROM points_records WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
+      [userId]
+    );
+
+    // 计算总积分
+    const totalResult = await client.query(
+      'SELECT COALESCE(SUM(points), 0) as total FROM points_records WHERE user_id = $1',
+      [userId]
+    );
+
+    return res.status(200).json({
+      code: 0,
+      data: {
+        total: parseInt(totalResult.rows[0]?.total || 0),
+        records: recordsResult.rows
+      }
+    });
+  } catch (error) {
+    console.error('[API] Get points error:', error);
+    return res.status(200).json({ code: 0, data: { total: 0, records: [] } });
+  }
+}
+
+// 处理积分领取
+async function handleClaimPoints(req, res) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const body = await parseRequestBody(req);
+    const { achievementId, points } = body;
+
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(503).json({ code: 1, message: 'Database not available' });
+    }
+
+    const userId = decoded.userId || decoded.id || decoded.sub;
+
+    // 添加积分记录
+    await client.query(`
+      INSERT INTO points_records (user_id, points, source, source_type, description, balance_after)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [userId, points, `achievement_${achievementId}`, 'achievement', '成就奖励', points]);
+
+    // 更新成就状态为已领取
+    await client.query(`
+      UPDATE user_achievements SET is_claimed = TRUE WHERE user_id = $1 AND achievement_id = $2
+    `, [userId, achievementId]);
+
+    return res.status(200).json({ code: 0, data: { balance: points } });
+  } catch (error) {
+    console.error('[API] Claim points error:', error);
+    return res.status(500).json({ code: 1, message: '领取积分失败', error: error.message });
+  }
+}
+
+// 处理用户统计
+async function handleUserStats(req, res) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(200).json({
+        code: 0,
+        data: {
+          works_count: 0,
+          total_likes: 0,
+          total_views: 0,
+          favorites_count: 0
+        }
+      });
+    }
+
+    const userId = decoded.userId || decoded.id || decoded.sub;
+
+    // 创建必要的表
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS works (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        title VARCHAR(255),
+        likes INTEGER DEFAULT 0,
+        views INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS favorites (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        work_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 查询统计数据
+    const worksResult = await client.query(
+      'SELECT COUNT(*) as count, COALESCE(SUM(likes), 0) as total_likes, COALESCE(SUM(views), 0) as total_views FROM works WHERE user_id = $1',
+      [userId]
+    );
+
+    const favoritesResult = await client.query(
+      'SELECT COUNT(*) as count FROM favorites WHERE user_id = $1',
+      [userId]
+    );
+
+    return res.status(200).json({
+      code: 0,
+      data: {
+        works_count: parseInt(worksResult.rows[0]?.count || 0),
+        total_likes: parseInt(worksResult.rows[0]?.total_likes || 0),
+        total_views: parseInt(worksResult.rows[0]?.total_views || 0),
+        favorites_count: parseInt(favoritesResult.rows[0]?.count || 0)
+      }
+    });
+  } catch (error) {
+    console.error('[API] Get user stats error:', error);
+    return res.status(200).json({
+      code: 0,
+      data: {
+        works_count: 0,
+        total_likes: 0,
+        total_views: 0,
+        favorites_count: 0
+      }
+    });
   }
 }

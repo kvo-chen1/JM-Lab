@@ -4,8 +4,128 @@
 // 设置内存限制
 process.env.NODE_OPTIONS = '--max-old-space-size=512';
 
-// 内存中存储验证码（生产环境应该使用数据库）
-const verificationCodes = new Map();
+// 数据库连接
+let pgClient = null;
+
+// 获取数据库连接
+async function getDbClient() {
+  if (pgClient) return pgClient;
+  
+  const databaseUrl = process.env.DATABASE_URL || process.env.NEON_POSTGRES_DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('Database not configured');
+  }
+  
+  try {
+    const { Client } = await import('pg');
+    pgClient = new Client({
+      connectionString: databaseUrl,
+      ssl: { rejectUnauthorized: false }
+    });
+    await pgClient.connect();
+    console.log('[DB] Connected to Neon database');
+    return pgClient;
+  } catch (error) {
+    console.error('[DB] Connection error:', error);
+    throw error;
+  }
+}
+
+// 确保验证码表存在
+async function ensureVerificationTable() {
+  try {
+    const client = await getDbClient();
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS verification_codes (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(10) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        attempts INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(email)
+      )
+    `);
+    console.log('[DB] Verification table ready');
+  } catch (error) {
+    console.error('[DB] Table creation error:', error);
+  }
+}
+
+// 保存验证码到数据库
+async function saveVerificationCode(email, code, expiresAt) {
+  try {
+    const client = await getDbClient();
+    await ensureVerificationTable();
+    
+    // 删除旧的验证码
+    await client.query(
+      'DELETE FROM verification_codes WHERE email = $1',
+      [email]
+    );
+    
+    // 插入新的验证码
+    await client.query(
+      'INSERT INTO verification_codes (email, code, expires_at, attempts) VALUES ($1, $2, $3, $4)',
+      [email, code, new Date(expiresAt), 0]
+    );
+    
+    console.log('[DB] Code saved for', email);
+    return true;
+  } catch (error) {
+    console.error('[DB] Save code error:', error);
+    throw error;
+  }
+}
+
+// 从数据库获取验证码
+async function getVerificationCode(email) {
+  try {
+    const client = await getDbClient();
+    await ensureVerificationTable();
+    
+    const result = await client.query(
+      'SELECT * FROM verification_codes WHERE email = $1',
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return null;
+    }
+    
+    return result.rows[0];
+  } catch (error) {
+    console.error('[DB] Get code error:', error);
+    throw error;
+  }
+}
+
+// 更新验证码尝试次数
+async function incrementAttempts(email) {
+  try {
+    const client = await getDbClient();
+    await client.query(
+      'UPDATE verification_codes SET attempts = attempts + 1 WHERE email = $1',
+      [email]
+    );
+  } catch (error) {
+    console.error('[DB] Increment attempts error:', error);
+  }
+}
+
+// 删除验证码
+async function deleteVerificationCode(email) {
+  try {
+    const client = await getDbClient();
+    await client.query(
+      'DELETE FROM verification_codes WHERE email = $1',
+      [email]
+    );
+    console.log('[DB] Code deleted for', email);
+  } catch (error) {
+    console.error('[DB] Delete code error:', error);
+  }
+}
 
 // 邮件发送函数 - 使用动态导入
 async function sendEmail(to, subject, htmlContent) {
@@ -240,15 +360,11 @@ async function handleAuthRequest(request, path, headers) {
 
         console.log('[Netlify Auth] Email result:', emailResult);
 
-        // 保存验证码到内存（带过期时间）
+        // 保存验证码到数据库
         const expiresAt = Date.now() + (10 * 60 * 1000); // 10分钟过期
-        verificationCodes.set(email, {
-          code,
-          expiresAt,
-          attempts: 0
-        });
+        await saveVerificationCode(email, code, expiresAt);
 
-        console.log('[Netlify Auth] Code saved for', email);
+        console.log('[Netlify Auth] Code saved to database for', email);
 
         return new Response(
           JSON.stringify({
@@ -291,8 +407,8 @@ async function handleAuthRequest(request, path, headers) {
 
       console.log('[Netlify Auth] Login attempt:', email, 'Code:', code);
 
-      // 验证验证码
-      const storedData = verificationCodes.get(email);
+      // 从数据库获取验证码
+      const storedData = await getVerificationCode(email);
       
       if (!storedData) {
         return new Response(
@@ -305,8 +421,8 @@ async function handleAuthRequest(request, path, headers) {
       }
 
       // 检查是否过期
-      if (Date.now() > storedData.expiresAt) {
-        verificationCodes.delete(email);
+      if (new Date() > new Date(storedData.expires_at)) {
+        await deleteVerificationCode(email);
         return new Response(
           JSON.stringify({ 
             code: 1, 
@@ -318,7 +434,7 @@ async function handleAuthRequest(request, path, headers) {
 
       // 检查尝试次数
       if (storedData.attempts >= 5) {
-        verificationCodes.delete(email);
+        await deleteVerificationCode(email);
         return new Response(
           JSON.stringify({ 
             code: 1, 
@@ -330,7 +446,7 @@ async function handleAuthRequest(request, path, headers) {
 
       // 验证验证码
       if (storedData.code !== code) {
-        storedData.attempts++;
+        await incrementAttempts(email);
         return new Response(
           JSON.stringify({ 
             code: 1, 
@@ -341,7 +457,7 @@ async function handleAuthRequest(request, path, headers) {
       }
 
       // 验证码正确，删除已使用的验证码
-      verificationCodes.delete(email);
+      await deleteVerificationCode(email);
 
       // 生成用户信息
       const user = {

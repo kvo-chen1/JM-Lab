@@ -87,9 +87,9 @@ try {
       schema: 'public'
     },
     realtime: {
-      // 禁用实时功能，因为在本地代理模式下 WebSocket 连接不可用
-      // 这样可以避免 WebSocket 连接错误
-      enabled: false
+      enabled: false,
+      // @ts-ignore - 使用 null transport 禁用 WebSocket
+      transport: null
     }
   })
 

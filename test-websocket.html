@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+    <div id="status">Connecting...</div>
+    <script>
+        const status = document.getElementById('status');
+        
+        // Test WebSocket on port 3023
+        try {
+            const ws = new WebSocket('ws://localhost:3023/ws');
+            
+            ws.onopen = () => {
+                status.innerHTML += '<br>✅ WebSocket connected on port 3023';
+                ws.send(JSON.stringify({type: 'ping'}));
+            };
+            
+            ws.onmessage = (event) => {
+                status.innerHTML += '<br>📨 Received: ' + event.data;
+            };
+            
+            ws.onerror = (error) => {
+                status.innerHTML += '<br>❌ WebSocket error: ' + error;
+            };
+            
+            ws.onclose = () => {
+                status.innerHTML += '<br>🔌 WebSocket closed';
+            };
+        } catch (e) {
+            status.innerHTML += '<br>❌ Error: ' + e.message;
+        }
+    </script>
+</body>
+</html>

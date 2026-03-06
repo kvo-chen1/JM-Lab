@@ -1363,7 +1363,7 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
       p_type_is_video: p.type === 'video'
     });
 
-    // 处理缩略图：如果是外部链接（非 Supabase Storage），下载并上传到 Supabase Storage
+    // 处理缩略图：下载并上传到新的存储服务
     // 对于视频类型，如果没有缩略图但有视频URL，使用视频URL作为缩略图
     let thumbnail = p.thumbnail;
     if (!thumbnail && p.videoUrl && isVideo) {
@@ -1371,8 +1371,12 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
       console.log('[createWorkViaBackend] Using video URL as thumbnail:', thumbnail);
     }
 
-    if (thumbnail && !thumbnail.includes('supabase.co')) {
-      console.log('[createWorkViaBackend] Processing external thumbnail...');
+    // 如果缩略图是本地存储 URL，直接使用
+    if (thumbnail && thumbnail.startsWith('/uploads/')) {
+      console.log('[createWorkViaBackend] Thumbnail is already local URL:', thumbnail);
+    } else if (thumbnail) {
+      // 需要上传：可能是外部链接或旧的 Supabase URL（已无法访问）
+      console.log('[createWorkViaBackend] Processing thumbnail...');
       try {
         const uploadedUrl = await downloadAndUploadImage(thumbnail, currentUser.id);
         if (uploadedUrl) {
@@ -1388,8 +1392,6 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
         // 上传失败，使用内联 SVG 占位图
         thumbnail = generatePlaceholderSvg('Upload Failed', 600, 400, '#e5e7eb', '#9ca3af');
       }
-    } else if (thumbnail) {
-      console.log('[createWorkViaBackend] Thumbnail already on Supabase, skipping upload');
     }
 
     // 生成时间戳（秒级）

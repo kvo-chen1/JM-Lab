@@ -1,13 +1,23 @@
-// Supabase 客户端配置 - 使用 Neon 数据库（通过本地代理）
+// Supabase 客户端配置 - 使用 Neon 数据库（通过本地代理或生产环境）
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// 强制使用本地 API 代理（Neon 数据库）
-const localApiUrl = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3023'
-const supabaseUrl = `${localApiUrl}/api/db`
-const supabaseAnonKey = 'local-proxy-key'
-const supabaseServiceKey = 'local-proxy-key'
+// 根据环境选择 API 地址
+const isProduction = import.meta.env.PROD
+const localApiUrl = isProduction 
+  ? (import.meta.env.VITE_API_BASE_URL || '') 
+  : (import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3023')
+const supabaseUrl = isProduction 
+  ? `${localApiUrl}/api/db` 
+  : `${localApiUrl}/api/db`
+const supabaseAnonKey = isProduction 
+  ? (import.meta.env.VITE_SUPABASE_ANON_KEY || 'local-proxy-key')
+  : 'local-proxy-key'
+const supabaseServiceKey = isProduction
+  ? (import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 'local-proxy-key')
+  : 'local-proxy-key'
 
-console.log('[Supabase] Using Neon database via local proxy:', supabaseUrl)
+console.log('[Supabase] Environment:', isProduction ? 'production' : 'development')
+console.log('[Supabase] Using API URL:', supabaseUrl)
 
 // 导出配置供其他模块使用
 export { supabaseUrl, supabaseAnonKey as supabaseAnonKey }

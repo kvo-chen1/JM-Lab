@@ -268,8 +268,10 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const path = req.url.replace('/api', '') || '/';
-  console.log('[Vercel API] Request:', req.method, path);
+  // 正确处理路径：移除 /api 前缀，并移除查询参数
+  const urlWithoutQuery = req.url.split('?')[0];
+  const path = urlWithoutQuery.replace(/^\/api/, '') || '/';
+  console.log('[Vercel API] Request:', req.method, path, 'Original URL:', req.url);
 
   try {
     // 健康检查
@@ -296,13 +298,49 @@ export default async function handler(req, res) {
   }
 }
 
+// 辅助函数：解析请求体
+async function parseRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') {
+      resolve({});
+      return;
+    }
+
+    // 如果 req.body 已经被解析（如 Vercel 的 helper）
+    if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+      resolve(req.body);
+      return;
+    }
+
+    let data = '';
+    req.on('data', chunk => {
+      data += chunk;
+    });
+    req.on('end', () => {
+      try {
+        if (data) {
+          const contentType = req.headers['content-type'] || '';
+          if (contentType.includes('application/json')) {
+            resolve(JSON.parse(data));
+          } else {
+            resolve(data);
+          }
+        } else {
+          resolve({});
+        }
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 // 处理认证请求
 async function handleAuthRequest(req, res, path) {
   try {
-    let body = {};
-    if (req.method === 'POST' || req.method === 'PUT') {
-      body = req.body || {};
-    }
+    // 解析请求体
+    const body = await parseRequestBody(req);
 
     console.log('[Auth] Path:', path, 'Body:', JSON.stringify(body));
 
@@ -389,10 +427,7 @@ async function handleDbRequest(req, res, path) {
     }
 
     // 解析请求体
-    let body = {};
-    if (req.method === 'POST' || req.method === 'PUT') {
-      body = req.body || {};
-    }
+    const body = await parseRequestBody(req);
 
     const { operation, table, data, query, params } = body;
     console.log('[DB] Operation:', operation, 'Table:', table);

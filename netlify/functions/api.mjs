@@ -655,8 +655,15 @@ async function handleAuthRequest(request, path, headers) {
 // 处理数据库请求
 async function handleDbRequest(request, context, headers) {
   try {
-    // 获取 Neon 数据库连接信息
-    const databaseUrl = process.env.DATABASE_URL || process.env.NEON_POSTGRES_DATABASE_URL;
+    // 获取 Neon 数据库连接信息（支持多种环境变量名）
+    let databaseUrl = process.env.DATABASE_URL || 
+                      process.env.NETLIFY_DATABASE_URL || 
+                      process.env.NEON_POSTGRES_DATABASE_URL;
+    
+    // 处理 Netlify 的 psql 格式
+    if (databaseUrl && databaseUrl.startsWith("psql '")) {
+      databaseUrl = databaseUrl.replace(/^psql '/, '').replace(/'$/, '');
+    }
     
     if (!databaseUrl) {
       return new Response(

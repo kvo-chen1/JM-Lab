@@ -272,6 +272,14 @@ export default async function handler(req, res) {
   const urlWithoutQuery = req.url.split('?')[0];
   const path = urlWithoutQuery.replace(/^\/api/, '') || '/';
   console.log('[Vercel API] Request:', req.method, path, 'Original URL:', req.url);
+  
+  // 调试：打印环境变量状态（不要打印敏感信息）
+  console.log('[Vercel API] Env check:', {
+    hasDatabaseUrl: !!process.env.DATABASE_URL || !!process.env.NETLIFY_DATABASE_URL,
+    hasEmailHost: !!process.env.EMAIL_HOST,
+    hasEmailUser: !!process.env.EMAIL_USER,
+    hasEmailPass: !!process.env.EMAIL_PASS
+  });
 
   try {
     // 健康检查

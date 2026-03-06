@@ -39,6 +39,25 @@ export { supabaseUrl, supabaseAnonKey as supabaseAnonKey }
 // 检查是否在浏览器环境
 const isBrowser = typeof window !== 'undefined'
 
+// 在开发环境中禁用 Supabase Realtime WebSocket
+if (isBrowser && !isProduction) {
+  const originalWebSocket = window.WebSocket;
+  window.WebSocket = class extends WebSocket {
+    constructor(url: string | URL, protocols?: string | string[]) {
+      const urlString = url.toString();
+      // 拦截 Supabase Realtime WebSocket 连接
+      if (urlString.includes('/realtime/v1/websocket') || urlString.includes('/api/db/realtime')) {
+        console.log('[Supabase] Blocked realtime WebSocket connection:', urlString);
+        // 返回一个假的 WebSocket 对象，模拟连接成功但不做任何事
+        const fakeWs = new originalWebSocket('wss://echo.websocket.org'); // 连接到一个存在的 echo 服务器
+        fakeWs.close(); // 立即关闭
+        return fakeWs;
+      }
+      return new originalWebSocket(url, protocols);
+    }
+  } as typeof WebSocket;
+}
+
 // 增强的 fetch，带有重试逻辑
 const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit, retries = 3, backoff = 300): Promise<Response> => {
   try {
@@ -85,11 +104,6 @@ try {
     },
     db: {
       schema: 'public'
-    },
-    realtime: {
-      enabled: false,
-      // @ts-ignore - 使用 null transport 禁用 WebSocket
-      transport: null
     }
   })
 
@@ -101,10 +115,6 @@ try {
       auth: {
         autoRefreshToken: false,
         persistSession: false
-      },
-      realtime: {
-        // 禁用实时功能
-        enabled: false
       }
     }
   )

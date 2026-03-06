@@ -9,7 +9,11 @@ const pool = new Pool({
                     process.env.NEON_DATABASE_URL || 
                     process.env.POSTGRES_URL_NON_POOLING ||
                     'postgresql://neondb_owner:npg_fV0Tzot3RCxh@ep-shy-bar-ajp9o0kn-pooler.c-3.us-east-2.aws.neon.tech/neondb',
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  max: 10,
+  min: 2,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 30000
 })
 
 // 发送 JSON 响应的辅助函数
@@ -281,7 +285,17 @@ export default async function handleDbProxy(req, res, path) {
         ).join(', ')
         
         const values = data.flatMap(row => columns.map(col => row[col]))
-        const sql = `INSERT INTO "${table}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES ${placeholders} RETURNING *`
+        
+        // 为特定表添加 ON CONFLICT 处理，避免重复键错误
+        let sql = `INSERT INTO "${table}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES ${placeholders}`
+        
+        // 处理 user_status 表的冲突（user_id 是主键）
+        if (table === 'user_status') {
+          const updateSet = columns.map(col => `"${col}" = EXCLUDED."${col}"`).join(', ')
+          sql += ` ON CONFLICT (user_id) DO UPDATE SET ${updateSet}`
+        }
+        
+        sql += ' RETURNING *'
         
         const result = await pool.query(sql, values)
         sendJson(res, 201, result.rows)

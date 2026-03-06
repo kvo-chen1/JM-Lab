@@ -129,12 +129,12 @@ const config = {
   postgresql: {
     connectionString: connectionString,
     options: {
-      // 连接池大小优化：Supabase Session模式限制最大连接数，使用更小的连接池
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '3'),
-      // 最小连接数：减少空闲连接占用
-      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '0'),
-      // 空闲连接超时：快速释放不用的连接
-      idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '10000'),
+      // 连接池大小：本地开发使用更大的连接池以提高性能
+      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '10'),
+      // 最小连接数：保持一些连接预热，减少连接建立开销
+      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '2'),
+      // 空闲连接超时：增加超时时间以保持连接
+      idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '60000'),
       // 连接超时：增加超时时间以适应 Neon 数据库连接较慢的情况
       connectionTimeoutMillis: isVercel ? 10000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '30000'),
       // 连接最大生命周期：防止连接长时间不释放

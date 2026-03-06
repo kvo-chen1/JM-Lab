@@ -4,12 +4,100 @@
 // 设置内存限制
 process.env.NODE_OPTIONS = '--max-old-space-size=512';
 
-// 导入邮件服务
-let nodemailer;
-try {
-  nodemailer = require('nodemailer');
-} catch (e) {
-  console.log('[Netlify] Nodemailer not available, will use fetch API for email');
+// 邮件发送函数 - 使用动态导入
+async function sendEmail(to, subject, htmlContent) {
+  const {
+    EMAIL_HOST,
+    EMAIL_PORT,
+    EMAIL_USER,
+    EMAIL_PASS,
+    EMAIL_FROM,
+    EMAIL_SECURE
+  } = process.env;
+
+  // 检查邮件配置
+  if (!EMAIL_HOST || !EMAIL_USER || !EMAIL_PASS) {
+    console.log('[Email] Email not configured, logging email instead:');
+    console.log('[Email] To:', to);
+    console.log('[Email] Subject:', subject);
+    console.log('[Email] Content:', htmlContent);
+    return { success: true, message: 'Email logged (email not configured)' };
+  }
+
+  try {
+    // 动态导入 nodemailer
+    const nodemailer = await import('nodemailer').then(m => m.default).catch(() => null);
+    
+    if (!nodemailer) {
+      console.log('[Email] Nodemailer not available, logging email:');
+      console.log('[Email] To:', to);
+      console.log('[Email] Subject:', subject);
+      return { success: true, message: 'Email logged (nodemailer not available)' };
+    }
+
+    // 使用 nodemailer 发送邮件
+    const transporter = nodemailer.createTransport({
+      host: EMAIL_HOST,
+      port: parseInt(EMAIL_PORT || '587'),
+      secure: EMAIL_SECURE === 'true' || EMAIL_PORT === '465',
+      auth: {
+        user: EMAIL_USER,
+        pass: EMAIL_PASS
+      }
+    });
+
+    const info = await transporter.sendMail({
+      from: EMAIL_FROM || EMAIL_USER,
+      to,
+      subject,
+      html: htmlContent
+    });
+
+    console.log('[Email] Sent:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('[Email] Error:', error);
+    throw error;
+  }
+}
+
+// 生成验证码邮件模板
+function generateVerificationEmailTemplate(code, expireMinutes = 10) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+        .code { font-size: 32px; font-weight: bold; color: #667eea; text-align: center; padding: 20px; background: white; border-radius: 8px; margin: 20px 0; letter-spacing: 8px; }
+        .footer { text-align: center; color: #999; font-size: 12px; margin-top: 20px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>津脉智坊</h1>
+          <p>验证码登录</p>
+        </div>
+        <div class="content">
+          <p>您好！</p>
+          <p>您正在使用邮箱验证码登录津脉智坊平台。您的验证码是：</p>
+          <div class="code">${code}</div>
+          <p>此验证码将在 <strong>${expireMinutes} 分钟</strong> 后过期，请尽快使用。</p>
+          <p>如果您没有请求此验证码，请忽略此邮件。</p>
+        </div>
+        <div class="footer">
+          <p>此邮件由系统自动发送，请勿回复。</p>
+          <p>津脉智坊团队</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
 }
 
 export default async (request, context) => {
@@ -55,31 +143,14 @@ export default async (request, context) => {
       return handleAuthRequest(request, path, headers);
     }
 
-    // 其他 API 路由 - 尝试导入本地 API 处理
-    try {
-      const { default: apiHandler } = await import('../../server/local-api.mjs');
-      
-      // 创建模拟的 req/res 对象
-      const req = await createMockReq(request, path);
-      const res = createMockRes(headers);
-      
-      await apiHandler(req, res);
-      
-      return new Response(
-        JSON.stringify(res.body), 
-        { status: res.statusCode || 200, headers }
-      );
-    } catch (error) {
-      console.error('[Netlify API] Handler error:', error);
-      return new Response(
-        JSON.stringify({ 
-          code: 1, 
-          message: 'API handler not available',
-          error: error.message
-        }), 
-        { status: 501, headers }
-      );
-    }
+    // 其他 API 路由 - 返回未实现
+    return new Response(
+      JSON.stringify({ 
+        code: 1, 
+        message: 'API endpoint not implemented: ' + path
+      }), 
+      { status: 501, headers }
+    );
 
   } catch (error) {
     console.error('[Netlify API] Error:', error);
@@ -93,125 +164,6 @@ export default async (request, context) => {
     );
   }
 };
-
-// 发送邮件函数
-async function sendEmail(to, subject, htmlContent) {
-  const {
-    SMTP_HOST,
-    SMTP_PORT,
-    SMTP_USER,
-    SMTP_PASS,
-    SMTP_FROM
-  } = process.env;
-
-  // 检查邮件配置
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    console.log('[Email] SMTP not configured, logging email instead:');
-    console.log('[Email] To:', to);
-    console.log('[Email] Subject:', subject);
-    console.log('[Email] Content:', htmlContent);
-    return { success: true, message: 'Email logged (SMTP not configured)' };
-  }
-
-  try {
-    if (nodemailer) {
-      // 使用 nodemailer 发送邮件
-      const transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: parseInt(SMTP_PORT || '587'),
-        secure: SMTP_PORT === '465',
-        auth: {
-          user: SMTP_USER,
-          pass: SMTP_PASS
-        }
-      });
-
-      const info = await transporter.sendMail({
-        from: SMTP_FROM || SMTP_USER,
-        to,
-        subject,
-        html: htmlContent
-      });
-
-      console.log('[Email] Sent:', info.messageId);
-      return { success: true, messageId: info.messageId };
-    } else {
-      // 如果没有 nodemailer，使用 Resend API（如果配置了）
-      const RESEND_API_KEY = process.env.RESEND_API_KEY;
-      if (RESEND_API_KEY) {
-        const response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${RESEND_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            from: SMTP_FROM || 'noreply@jinmai-lab.tech',
-            to,
-            subject,
-            html: htmlContent
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log('[Email] Sent via Resend:', data.id);
-          return { success: true, messageId: data.id };
-        } else {
-          throw new Error('Resend API error: ' + await response.text());
-        }
-      }
-      
-      // 如果没有配置任何邮件服务，只记录日志
-      console.log('[Email] To:', to);
-      console.log('[Email] Subject:', subject);
-      console.log('[Email] Content:', htmlContent);
-      return { success: true, message: 'Email logged (no email service configured)' };
-    }
-  } catch (error) {
-    console.error('[Email] Error:', error);
-    throw error;
-  }
-}
-
-// 生成验证码邮件模板
-function generateVerificationEmailTemplate(code, expireMinutes = 10) {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-        .code { font-size: 32px; font-weight: bold; color: #667eea; text-align: center; padding: 20px; background: white; border-radius: 8px; margin: 20px 0; letter-spacing: 8px; }
-        .footer { text-align: center; color: #999; font-size: 12px; margin-top: 20px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>津脉智坊</h1>
-          <p>验证码登录</p>
-        </div>
-        <div class="content">
-          <p>您好！</p>
-          <p>您正在使用邮箱验证码登录津脉智坊平台。您的验证码是：</p>
-          <div class="code">${code}</div>
-          <p>此验证码将在 <strong>${expireMinutes} 分钟</strong> 后过期，请尽快使用。</p>
-          <p>如果您没有请求此验证码，请忽略此邮件。</p>
-        </div>
-        <div class="footer">
-          <p>此邮件由系统自动发送，请勿回复。</p>
-          <p>津脉智坊团队</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
 
 // 处理认证请求
 async function handleAuthRequest(request, path, headers) {
@@ -268,12 +220,6 @@ async function handleAuthRequest(request, path, headers) {
 
         console.log('[Netlify Auth] Email result:', emailResult);
 
-        // 这里应该将验证码保存到数据库（带过期时间）
-        // 为了简化，暂时使用 Netlify 的环境变量存储（实际应该用数据库）
-        // 在生产环境中，应该：
-        // 1. 将验证码保存到 Neon 数据库
-        // 2. 设置过期时间（如 10 分钟）
-
         return new Response(
           JSON.stringify({
             code: 0,
@@ -312,14 +258,6 @@ async function handleAuthRequest(request, path, headers) {
           { status: 400, headers }
         );
       }
-
-      // 这里应该验证验证码
-      // 目前返回模拟成功响应
-      // 在生产环境中，应该：
-      // 1. 从数据库查询验证码
-      // 2. 验证是否过期
-      // 3. 验证是否正确
-      // 4. 删除已使用的验证码
 
       return new Response(
         JSON.stringify({
@@ -379,11 +317,8 @@ async function handleDbRequest(request, context, headers) {
     // 解析请求体
     const body = await request.json().catch(() => ({}));
     
-    // 这里可以实现一个简单的数据库查询代理
-    // 为了安全，只支持特定的操作
     const { operation, table, data, query } = body;
 
-    // 返回模拟响应（实际实现需要连接数据库）
     return new Response(
       JSON.stringify({
         code: 0,
@@ -406,61 +341,4 @@ async function handleDbRequest(request, context, headers) {
       { status: 500, headers }
     );
   }
-}
-
-// 创建模拟请求对象
-async function createMockReq(request, path) {
-  const url = new URL(request.url);
-  
-  // 解析请求体
-  let body = null;
-  if (request.method === 'POST' || request.method === 'PUT') {
-    const contentType = request.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      body = await request.json().catch(() => null);
-    }
-  }
-  
-  const req = {
-    method: request.method,
-    url: path + url.search,
-    path: path,
-    query: Object.fromEntries(url.searchParams),
-    headers: Object.fromEntries(request.headers),
-    body: body,
-    on: (event, callback) => {
-      if (event === 'data' && body) {
-        callback(Buffer.from(JSON.stringify(body)));
-      }
-      if (event === 'end') {
-        callback();
-      }
-    }
-  };
-  
-  return req;
-}
-
-// 创建模拟响应对象
-function createMockRes(headers) {
-  const res = {
-    statusCode: 200,
-    headers: {},
-    body: null,
-    headersSent: false,
-    setHeader: function(key, value) {
-      this.headers[key] = value;
-    },
-    end: function(data) {
-      this.headersSent = true;
-      if (data) {
-        try {
-          this.body = JSON.parse(data);
-        } catch {
-          this.body = data;
-        }
-      }
-    }
-  };
-  return res;
 }

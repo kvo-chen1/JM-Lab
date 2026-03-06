@@ -1236,11 +1236,12 @@ async function hasValidAuth(): Promise<{ isAuthenticated: boolean; userId?: stri
   }
 }
 
-// 下载外部图片并上传到 Supabase Storage
+// 下载外部图片并上传到新的存储服务
 async function downloadAndUploadImage(imageUrl: string, userId: string): Promise<string | null> {
   try {
-    // 如果已经是 Supabase 的链接，直接返回
-    if (imageUrl.includes('supabase.co') || imageUrl.includes('localhost')) {
+    // 如果已经是本地存储的链接，直接返回
+    if (imageUrl.startsWith('/uploads/')) {
+      console.log('[downloadAndUploadImage] Already local URL:', imageUrl);
       return imageUrl;
     }
 
@@ -1307,8 +1308,8 @@ async function downloadAndUploadImage(imageUrl: string, userId: string): Promise
     }
   } catch (error) {
     console.error('[downloadAndUploadImage] Error:', error);
-    // 任何错误都返回原始 URL 作为降级
-    return imageUrl;
+    // 任何错误都返回 null（而不是原始 URL）
+    return null;
   }
 }
 

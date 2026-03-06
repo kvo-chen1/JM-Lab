@@ -101,6 +101,10 @@ try {
       auth: {
         autoRefreshToken: false,
         persistSession: false
+      },
+      realtime: {
+        // 禁用实时功能
+        enabled: false
       }
     }
   )

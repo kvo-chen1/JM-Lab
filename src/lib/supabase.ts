@@ -3,12 +3,25 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 // 根据环境选择 API 地址
 const isProduction = import.meta.env.PROD
-const localApiUrl = isProduction 
-  ? (import.meta.env.VITE_API_BASE_URL || '') 
-  : (import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3023')
-const supabaseUrl = isProduction 
-  ? `${localApiUrl}/api/db` 
-  : `${localApiUrl}/api/db`
+
+// 生产环境使用当前域名，开发环境使用 localhost
+let apiBaseUrl: string
+if (isProduction) {
+  // 生产环境：使用相对路径或配置的域名
+  const configuredUrl = import.meta.env.VITE_API_BASE_URL
+  if (configuredUrl && configuredUrl.startsWith('http')) {
+    apiBaseUrl = configuredUrl
+  } else {
+    // 使用当前域名
+    apiBaseUrl = typeof window !== 'undefined' 
+      ? `${window.location.protocol}//${window.location.host}`
+      : ''
+  }
+} else {
+  apiBaseUrl = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3023'
+}
+
+const supabaseUrl = `${apiBaseUrl}/api/db`
 const supabaseAnonKey = isProduction 
   ? (import.meta.env.VITE_SUPABASE_ANON_KEY || 'local-proxy-key')
   : 'local-proxy-key'
@@ -17,6 +30,7 @@ const supabaseServiceKey = isProduction
   : 'local-proxy-key'
 
 console.log('[Supabase] Environment:', isProduction ? 'production' : 'development')
+console.log('[Supabase] API Base URL:', apiBaseUrl)
 console.log('[Supabase] Using API URL:', supabaseUrl)
 
 // 导出配置供其他模块使用
@@ -73,9 +87,9 @@ try {
       schema: 'public'
     },
     realtime: {
-      params: {
-        eventsPerSecond: 10
-      }
+      // 禁用实时功能，因为在本地代理模式下 WebSocket 连接不可用
+      // 这样可以避免 WebSocket 连接错误
+      enabled: false
     }
   })
 

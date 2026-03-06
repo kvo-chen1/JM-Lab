@@ -2,12 +2,28 @@ import { createClient } from '@supabase/supabase-js'
 
 // 根据环境选择 API 地址
 const isProduction = import.meta.env.PROD
-const apiBaseUrl = isProduction
-  ? (import.meta.env.VITE_API_BASE_URL || '')
-  : (import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3023')
+
+// 生产环境使用当前域名，开发环境使用 localhost
+let apiBaseUrl: string
+if (isProduction) {
+  // 生产环境：使用相对路径或配置的域名
+  const configuredUrl = import.meta.env.VITE_API_BASE_URL
+  if (configuredUrl && configuredUrl.startsWith('http')) {
+    apiBaseUrl = configuredUrl
+  } else {
+    // 使用当前域名
+    apiBaseUrl = typeof window !== 'undefined'
+      ? `${window.location.protocol}//${window.location.host}`
+      : ''
+  }
+} else {
+  apiBaseUrl = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3023'
+}
+
 const proxyUrl = `${apiBaseUrl}/api/db`
 
 console.log(`🔄 [Supabase Client] Environment: ${isProduction ? 'production' : 'development'}`)
+console.log('🔄 [Supabase Client] API Base URL:', apiBaseUrl)
 console.log('🔄 [Supabase Client] Using API URL:', proxyUrl)
 
 // 根据环境选择密钥

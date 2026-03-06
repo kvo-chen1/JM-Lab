@@ -78,16 +78,10 @@ const getPostgresConnectionString = () => {
     return neonUrl;
   }
   
-  // 5. 尝试从环境变量文件中读取
-  if (process.env.DB_TYPE === 'supabase') {
-    console.log('[DB] Using fallback connection string for Supabase');
-    return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
-  }
-  
-  // 6. 尝试使用无密码认证连接 Neon 数据库
+  // 5. 尝试使用 Neon 数据库连接
   if (process.env.DB_TYPE === 'postgresql') {
-    console.log('[DB] Using passwordless connection for Neon');
-    return process.env.NEON_URL || process.env.NEON_DATABASE_URL || 'postgres://neon_owner@ep-rough-star-a2j3o23k.us-east-2.aws.neon.tech:5432/neondb';
+    console.log('[DB] Using Neon PostgreSQL connection');
+    return process.env.NEON_URL || process.env.NEON_DATABASE_URL || process.env.NEON_POSTGRES_URL || process.env.NEON_POSTGRES_DATABASE_URL;
   }
   
   return null
@@ -108,10 +102,8 @@ const detectDbType = () => {
     throw new Error('Vercel environment requires PostgreSQL database. Please set DATABASE_URL or POSTGRES_URL environment variable.');
   }
 
-  // 如果配置了 Supabase 和 PostgreSQL URL，则使用 Supabase
-  if (process.env.SUPABASE_URL && process.env.POSTGRES_URL) return DB_TYPE.SUPABASE
-  // 如果有数据库 URL，则使用 PostgreSQL
-  if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.NETLIFY_DATABASE_URL || process.env.NETLIFY_DATABASE_URL_UNPOOLED) return DB_TYPE.POSTGRESQL
+  // 使用 PostgreSQL (Neon 数据库)
+  if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.NEON_URL || process.env.NEON_DATABASE_URL || process.env.NEON_POSTGRES_URL || process.env.NETLIFY_DATABASE_URL || process.env.NETLIFY_DATABASE_URL_UNPOOLED) return DB_TYPE.POSTGRESQL
   
   // 本地环境也必须使用 PostgreSQL
   throw new Error('PostgreSQL database is required. Please set DATABASE_URL environment variable.');

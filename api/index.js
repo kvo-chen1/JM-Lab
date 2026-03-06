@@ -97,6 +97,31 @@ async function ensureVerificationTable() {
   }
 }
 
+// 根据邮箱查询用户
+async function getUserByEmail(email) {
+  try {
+    const client = await getDbClient();
+    if (!client) return null;
+
+    await ensureUsersTable();
+
+    const result = await client.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    console.log('[DB] User found by email:', email);
+    return result.rows[0];
+  } catch (error) {
+    console.error('[DB] Get user by email error:', error.message);
+    return null;
+  }
+}
+
 // 保存或更新用户
 async function saveUser(user) {
   try {
@@ -113,6 +138,7 @@ async function saveUser(user) {
         username = EXCLUDED.username,
         avatar_url = EXCLUDED.avatar_url,
         updated_at = CURRENT_TIMESTAMP
+      RETURNING *
     `, [user.id, user.email, user.username, user.avatar_url, user.created_at]);
 
     console.log('[DB] User saved:', user.email);
@@ -392,13 +418,22 @@ async function handleAuthRequest(req, res, path) {
 
       await deleteVerificationCode(email);
 
-      const user = {
-        id: 'user_' + Date.now(),
-        email,
-        username: email.split('@')[0],
-        avatar_url: null,
-        created_at: new Date().toISOString()
-      };
+      // 先查询是否已有该用户
+      let user = await getUserByEmail(email);
+
+      if (!user) {
+        // 新用户，创建记录
+        user = {
+          id: 'user_' + Date.now(),
+          email,
+          username: email.split('@')[0],
+          avatar_url: null,
+          created_at: new Date().toISOString()
+        };
+        console.log('[Auth] Creating new user:', email);
+      } else {
+        console.log('[Auth] Existing user found:', email, 'ID:', user.id);
+      }
 
       await saveUser(user);
       const token = generateToken(user);

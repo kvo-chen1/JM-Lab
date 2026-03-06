@@ -76,6 +76,113 @@ import { userDB, workDB, favoriteDB, achievementDB, friendDB, messageDB, communi
 import { sendLoginEmailCode } from './emailService.mjs'
 import { randomUUID } from 'crypto'
 // import { supabaseServer } from './supabase-server.mjs'
+
+// 创建模拟的 supabaseServer 对象，使用本地数据库
+// 简化版实现，支持基本的 CRUD 操作
+class SupabaseQueryBuilder {
+  constructor(table, db) {
+    this.table = table
+    this.db = db
+    this.query = `SELECT * FROM "${table}"`
+    this.conditions = []
+    this.values = []
+    this.paramIndex = 1
+  }
+
+  select(columns = '*') {
+    this.query = `SELECT ${columns} FROM "${this.table}"`
+    return this
+  }
+
+  eq(column, value) {
+    this.conditions.push(`"${column}" = $${this.paramIndex++}`)
+    this.values.push(value)
+    return this
+  }
+
+  order(column, { ascending = true } = {}) {
+    this.query += ` ORDER BY "${column}" ${ascending ? 'ASC' : 'DESC'}`
+    return this
+  }
+
+  limit(n) {
+    this.query += ` LIMIT ${n}`
+    return this
+  }
+
+  range(start, end) {
+    this.query += ` OFFSET ${start}`
+    return this
+  }
+
+  async execute() {
+    let finalQuery = this.query
+    if (this.conditions.length > 0) {
+      finalQuery += ' WHERE ' + this.conditions.join(' AND ')
+    }
+    try {
+      const result = await this.db.query(finalQuery, this.values)
+      return { data: result.rows, error: null }
+    } catch (error) {
+      return { data: null, error }
+    }
+  }
+}
+
+const supabaseServer = {
+  from: (table) => {
+    const db = getDB()
+    const builder = new SupabaseQueryBuilder(table, db)
+    
+    return {
+      select: (columns) => builder.select(columns),
+      insert: (data) => ({
+        select: () => ({
+          single: async () => {
+            const columns = Object.keys(data).map(k => `"${k}"`).join(', ')
+            const placeholders = Object.keys(data).map((_, i) => `$${i + 1}`).join(', ')
+            const values = Object.values(data)
+            const query = `INSERT INTO "${table}" (${columns}) VALUES (${placeholders}) RETURNING *`
+            try {
+              const result = await db.query(query, values)
+              return { data: result.rows[0], error: null }
+            } catch (error) {
+              return { data: null, error }
+            }
+          }
+        })
+      }),
+      update: (data) => ({
+        eq: (column, value) => ({
+          select: () => ({
+            single: async () => {
+              const setClause = Object.keys(data).map((k, i) => `"${k}" = $${i + 1}`).join(', ')
+              const values = [...Object.values(data), value]
+              const query = `UPDATE "${table}" SET ${setClause} WHERE "${column}" = $${values.length} RETURNING *`
+              try {
+                const result = await db.query(query, values)
+                return { data: result.rows[0], error: null }
+              } catch (error) {
+                return { data: null, error }
+              }
+            }
+          })
+        })
+      }),
+      delete: () => ({
+        eq: async (column, value) => {
+          const query = `DELETE FROM "${table}" WHERE "${column}" = $1`
+          try {
+            await db.query(query, [value])
+            return { error: null }
+          } catch (error) {
+            return { error }
+          }
+        }
+      })
+    }
+  }
+}
 import membershipRoutes from './routes/membership.mjs'
 import searchRoutes from './routes/search.mjs'
 import paymentRoutes from './routes/payment.mjs'

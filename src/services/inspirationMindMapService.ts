@@ -284,6 +284,29 @@ export class InspirationMindMapService {
   // ============================================
 
   /**
+   * 清理对象中的 undefined 值，避免 JSON 序列化问题
+   */
+  private cleanUndefinedValues(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return null;
+    }
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.cleanUndefinedValues(item));
+    }
+    if (typeof obj === 'object') {
+      const cleaned: any = {};
+      for (const key of Object.keys(obj)) {
+        const value = obj[key];
+        if (value !== undefined) {
+          cleaned[key] = this.cleanUndefinedValues(value);
+        }
+      }
+      return cleaned;
+    }
+    return obj;
+  }
+
+  /**
    * 添加节点
    */
   async addNode(
@@ -300,13 +323,16 @@ export class InspirationMindMapService {
       ...cleanNodeData
     } = nodeData as any;
 
+    // 清理 content 字段中的 undefined 值
+    const cleanedContent = this.cleanUndefinedValues(cleanNodeData.content);
+
     const nodeDbData = {
       map_id: mapId,
       parent_id: parentId || null,
       title: cleanNodeData.title || '新节点',
       description: cleanNodeData.description || '',
       category: cleanNodeData.category || 'inspiration',
-      content: cleanNodeData.content || null,
+      content: cleanedContent,
       ai_prompt: cleanNodeData.aiPrompt || null,
       ai_generated_content: cleanNodeData.aiGeneratedContent || null,
       user_note: cleanNodeData.userNote || null,
@@ -365,7 +391,7 @@ export class InspirationMindMapService {
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
     if (updates.category !== undefined) dbUpdates.category = updates.category;
-    if (updates.content !== undefined) dbUpdates.content = updates.content;
+    if (updates.content !== undefined) dbUpdates.content = this.cleanUndefinedValues(updates.content);
     if (updates.aiPrompt !== undefined) dbUpdates.ai_prompt = updates.aiPrompt;
     if (updates.aiGeneratedContent !== undefined) dbUpdates.ai_generated_content = updates.aiGeneratedContent;
     if (updates.userNote !== undefined) dbUpdates.user_note = updates.userNote;

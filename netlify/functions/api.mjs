@@ -15,11 +15,22 @@ let dbAvailable = false;
 async function getDbClient() {
   if (pgClient) return pgClient;
   
-  const databaseUrl = process.env.DATABASE_URL || process.env.NEON_POSTGRES_DATABASE_URL;
+  // 尝试多种环境变量名，支持 Netlify 和 Vercel 的格式
+  let databaseUrl = process.env.DATABASE_URL || 
+                    process.env.NETLIFY_DATABASE_URL || 
+                    process.env.NEON_POSTGRES_DATABASE_URL;
+  
   if (!databaseUrl) {
     console.log('[DB] Database URL not configured');
     return null;
   }
+  
+  // 处理 Netlify 的 psql 格式: psql 'postgresql://...'
+  if (databaseUrl.startsWith("psql '")) {
+    databaseUrl = databaseUrl.replace(/^psql '/, '').replace(/'$/, '');
+  }
+  
+  console.log('[DB] Connecting to database...');
   
   try {
     const { Client } = await import('pg');

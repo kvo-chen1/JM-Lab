@@ -48,6 +48,24 @@ console.log('[Config] OAuth 配置:', {
   alipay: process.env.ALIPAY_APPID ? '已配置' : '未配置'
 })
 
+// 简单的内存缓存
+const cache = new Map()
+const CACHE_TTL = 5 * 60 * 1000 // 5 分钟缓存
+
+function getCache(key) {
+  const item = cache.get(key)
+  if (!item) return null
+  if (Date.now() - item.timestamp > CACHE_TTL) {
+    cache.delete(key)
+    return null
+  }
+  return item.data
+}
+
+function setCache(key, data) {
+  cache.set(key, { data, timestamp: Date.now() })
+}
+
 import pathModule from 'path'
 import { Readable } from 'stream'
 import http from 'http'
@@ -2017,17 +2035,37 @@ async function route(req, res, u, path) {
   // 获取成就排行榜
   if (req.method === 'GET' && path === '/api/leaderboard/achievements') {
     try {
-      // 获取积分排行前10的用户
+      // 检查缓存
+      const cacheKey = 'leaderboard_achievements'
+      const cached = getCache(cacheKey)
+      if (cached) {
+        console.log('[API] Returning cached leaderboard')
+        sendJson(res, 200, { code: 0, data: cached })
+        return
+      }
+      
+      // 使用简化的查询，避免复杂的 JOIN 操作
       const db = await getDB()
+      
+      // 使用单个简单查询获取排行榜数据
       const { rows } = await db.query(`
         SELECT u.id, u.username, u.avatar_url,
-               COALESCE(SUM(pr.points), 0) as total_points,
-               COUNT(DISTINCT ua.achievement_id) as achievements_count
+               COALESCE(pr.total_points, 0) as total_points,
+               COALESCE(ua.achievements_count, 0) as achievements_count
         FROM users u
-        LEFT JOIN points_records pr ON u.id = pr.user_id
-        LEFT JOIN user_achievements ua ON u.id = ua.user_id AND ua.is_unlocked = true
-        GROUP BY u.id, u.username, u.avatar_url
-        HAVING COALESCE(SUM(pr.points), 0) > 0
+        LEFT JOIN (
+          SELECT user_id, SUM(points) as total_points
+          FROM points_records
+          GROUP BY user_id
+          HAVING SUM(points) > 0
+        ) pr ON u.id = pr.user_id
+        LEFT JOIN (
+          SELECT user_id, COUNT(DISTINCT achievement_id) as achievements_count
+          FROM user_achievements
+          WHERE is_unlocked = true
+          GROUP BY user_id
+        ) ua ON u.id = ua.user_id
+        WHERE pr.total_points IS NOT NULL
         ORDER BY total_points DESC
         LIMIT 10
       `)
@@ -2040,6 +2078,9 @@ async function route(req, res, u, path) {
         achievementsCount: parseInt(row.achievements_count) || 0,
         totalPoints: parseInt(row.total_points) || 0
       }))
+      
+      // 存入缓存
+      setCache(cacheKey, leaderboard)
 
       sendJson(res, 200, { code: 0, data: leaderboard })
     } catch (e) {

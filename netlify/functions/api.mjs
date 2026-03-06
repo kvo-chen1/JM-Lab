@@ -39,6 +39,31 @@ async function getDbClient() {
   }
 }
 
+// 确保用户表存在
+async function ensureUsersTable() {
+  try {
+    const client = await getDbClient();
+    if (!client) return false;
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(255) PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        username VARCHAR(255),
+        avatar_url TEXT,
+        points INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('[DB] Users table ready');
+    return true;
+  } catch (error) {
+    console.error('[DB] Users table creation error:', error.message);
+    return false;
+  }
+}
+
 // 确保验证码表存在
 async function ensureVerificationTable() {
   try {
@@ -61,6 +86,58 @@ async function ensureVerificationTable() {
   } catch (error) {
     console.error('[DB] Table creation error:', error.message);
     return false;
+  }
+}
+
+// 保存或更新用户
+async function saveUser(user) {
+  try {
+    const client = await getDbClient();
+    if (!client) return user;
+    
+    await ensureUsersTable();
+    
+    // 使用 UPSERT 语法保存用户
+    await client.query(`
+      INSERT INTO users (id, email, username, avatar_url, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+      ON CONFLICT (email) 
+      DO UPDATE SET 
+        username = EXCLUDED.username,
+        avatar_url = EXCLUDED.avatar_url,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `, [user.id, user.email, user.username, user.avatar_url, user.created_at]);
+    
+    console.log('[DB] User saved:', user.email);
+    return user;
+  } catch (error) {
+    console.error('[DB] Save user error:', error.message);
+    return user;
+  }
+}
+
+// 根据ID获取用户
+async function getUserById(userId) {
+  try {
+    const client = await getDbClient();
+    if (!client) return null;
+    
+    await ensureUsersTable();
+    
+    const result = await client.query(
+      'SELECT * FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return null;
+    }
+    
+    return result.rows[0];
+  } catch (error) {
+    console.error('[DB] Get user error:', error.message);
+    return null;
   }
 }
 
@@ -521,6 +598,9 @@ async function handleAuthRequest(request, path, headers) {
         created_at: new Date().toISOString()
       };
 
+      // 保存用户到数据库
+      await saveUser(user);
+
       // 生成 JWT Token
       const token = generateToken(user);
 
@@ -580,18 +660,93 @@ async function handleDbRequest(request, context, headers) {
     // 解析请求体
     const body = await request.json().catch(() => ({}));
     
-    const { operation, table, data, query } = body;
+    const { operation, table, data, query, params } = body;
 
-    return new Response(
-      JSON.stringify({
-        code: 0,
-        message: 'Database proxy - operation received',
-        operation,
-        table,
-        timestamp: new Date().toISOString()
-      }), 
-      { status: 200, headers }
-    );
+    console.log('[Netlify DB] Operation:', operation, 'Table:', table);
+
+    // 获取数据库连接
+    const client = await getDbClient();
+    if (!client) {
+      return new Response(
+        JSON.stringify({ 
+          code: 1, 
+          message: 'Database connection failed'
+        }), 
+        { status: 503, headers }
+      );
+    }
+
+    // 处理不同的数据库操作
+    let result;
+    
+    switch (operation) {
+      case 'select':
+        result = await client.query(query || `SELECT * FROM ${table}`, params || []);
+        return new Response(
+          JSON.stringify({
+            code: 0,
+            message: 'Query successful',
+            data: result.rows
+          }), 
+          { status: 200, headers }
+        );
+        
+      case 'insert':
+        const columns = Object.keys(data).join(', ');
+        const values = Object.values(data);
+        const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+        result = await client.query(
+          `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`,
+          values
+        );
+        return new Response(
+          JSON.stringify({
+            code: 0,
+            message: 'Insert successful',
+            data: result.rows[0]
+          }), 
+          { status: 200, headers }
+        );
+        
+      case 'update':
+        const setClause = Object.keys(data).map((key, i) => `${key} = $${i + 1}`).join(', ');
+        const updateValues = [...Object.values(data), ...(params || [])];
+        result = await client.query(
+          `UPDATE ${table} SET ${setClause} ${query || ''} RETURNING *`,
+          updateValues
+        );
+        return new Response(
+          JSON.stringify({
+            code: 0,
+            message: 'Update successful',
+            data: result.rows
+          }), 
+          { status: 200, headers }
+        );
+        
+      case 'delete':
+        result = await client.query(
+          `DELETE FROM ${table} ${query || ''} RETURNING *`,
+          params || []
+        );
+        return new Response(
+          JSON.stringify({
+            code: 0,
+            message: 'Delete successful',
+            data: result.rows
+          }), 
+          { status: 200, headers }
+        );
+        
+      default:
+        return new Response(
+          JSON.stringify({
+            code: 1,
+            message: 'Unknown operation: ' + operation
+          }), 
+          { status: 400, headers }
+        );
+    }
 
   } catch (error) {
     console.error('[Netlify DB] Error:', error);

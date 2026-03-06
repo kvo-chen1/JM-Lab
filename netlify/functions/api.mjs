@@ -4,6 +4,9 @@
 // 设置内存限制
 process.env.NODE_OPTIONS = '--max-old-space-size=512';
 
+// 内存中存储验证码（生产环境应该使用数据库）
+const verificationCodes = new Map();
+
 // 邮件发送函数 - 使用动态导入
 async function sendEmail(to, subject, htmlContent) {
   const {
@@ -20,7 +23,6 @@ async function sendEmail(to, subject, htmlContent) {
     console.log('[Email] Email not configured, logging email instead:');
     console.log('[Email] To:', to);
     console.log('[Email] Subject:', subject);
-    console.log('[Email] Content:', htmlContent);
     return { success: true, message: 'Email logged (email not configured)' };
   }
 
@@ -98,6 +100,24 @@ function generateVerificationEmailTemplate(code, expireMinutes = 10) {
     </body>
     </html>
   `;
+}
+
+// 生成 JWT Token
+function generateToken(user) {
+  const header = JSON.stringify({ alg: 'HS256', typ: 'JWT' });
+  const payload = JSON.stringify({
+    ...user,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // 7天过期
+  });
+  
+  const base64Header = btoa(header).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const base64Payload = btoa(payload).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  
+  // 简化版 JWT，实际应该使用加密签名
+  const signature = btoa(process.env.JWT_SECRET || 'default-secret').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  
+  return `${base64Header}.${base64Payload}.${signature}`;
 }
 
 export default async (request, context) => {
@@ -220,6 +240,16 @@ async function handleAuthRequest(request, path, headers) {
 
         console.log('[Netlify Auth] Email result:', emailResult);
 
+        // 保存验证码到内存（带过期时间）
+        const expiresAt = Date.now() + (10 * 60 * 1000); // 10分钟过期
+        verificationCodes.set(email, {
+          code,
+          expiresAt,
+          attempts: 0
+        });
+
+        console.log('[Netlify Auth] Code saved for', email);
+
         return new Response(
           JSON.stringify({
             code: 0,
@@ -246,7 +276,7 @@ async function handleAuthRequest(request, path, headers) {
     }
 
     // 处理登录请求
-    if (path === '/auth/login') {
+    if (path === '/auth/login' || path === '/auth/login-with-email-code') {
       const { email, code } = body;
       
       if (!email || !code) {
@@ -259,17 +289,81 @@ async function handleAuthRequest(request, path, headers) {
         );
       }
 
+      console.log('[Netlify Auth] Login attempt:', email, 'Code:', code);
+
+      // 验证验证码
+      const storedData = verificationCodes.get(email);
+      
+      if (!storedData) {
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: '验证码已过期，请重新获取'
+          }), 
+          { status: 400, headers }
+        );
+      }
+
+      // 检查是否过期
+      if (Date.now() > storedData.expiresAt) {
+        verificationCodes.delete(email);
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: '验证码已过期，请重新获取'
+          }), 
+          { status: 400, headers }
+        );
+      }
+
+      // 检查尝试次数
+      if (storedData.attempts >= 5) {
+        verificationCodes.delete(email);
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: '验证码错误次数过多，请重新获取'
+          }), 
+          { status: 400, headers }
+        );
+      }
+
+      // 验证验证码
+      if (storedData.code !== code) {
+        storedData.attempts++;
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: '验证码错误'
+          }), 
+          { status: 400, headers }
+        );
+      }
+
+      // 验证码正确，删除已使用的验证码
+      verificationCodes.delete(email);
+
+      // 生成用户信息
+      const user = {
+        id: 'user_' + Date.now(),
+        email,
+        username: email.split('@')[0],
+        avatar_url: null,
+        created_at: new Date().toISOString()
+      };
+
+      // 生成 JWT Token
+      const token = generateToken(user);
+
+      console.log('[Netlify Auth] Login successful:', email);
+
       return new Response(
         JSON.stringify({
           code: 0,
           message: '登录成功',
           data: {
-            token: 'mock_token_' + Date.now(),
-            user: {
-              id: 'user_' + Date.now(),
-              email,
-              username: email.split('@')[0]
-            }
+            token,
+            user
           }
         }), 
         { status: 200, headers }

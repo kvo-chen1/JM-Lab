@@ -52,7 +52,9 @@ export default function CreateLayout() {
         const response = await fetch(imageUrl);
         const blob = await response.blob();
         const file = new File([blob], `image-${Date.now()}.png`, { type: blob.type || 'image/png' });
-        return await uploadImage(file);
+        const uploadedUrl = await uploadImage(file);
+        console.log('[CreateLayout] Data URL uploaded successfully:', uploadedUrl);
+        return uploadedUrl;
       }
       
       // 下载远程图片并上传
@@ -62,11 +64,13 @@ export default function CreateLayout() {
       }
       const blob = await response.blob();
       const file = new File([blob], `image-${Date.now()}.png`, { type: blob.type || 'image/png' });
-      return await uploadImage(file);
+      const uploadedUrl = await uploadImage(file);
+      console.log('[CreateLayout] Remote image uploaded successfully:', uploadedUrl);
+      return uploadedUrl;
     } catch (error) {
       console.error('[CreateLayout] Failed to upload remote image:', error);
-      // 上传失败时返回原始 URL
-      return imageUrl;
+      // 上传失败时抛出错误，而不是返回原始 URL
+      throw new Error('图片上传失败: ' + (error instanceof Error ? error.message : '未知错误'));
     }
   };
 

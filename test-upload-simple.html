@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单上传测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>简单上传测试</h1>
+    
+    <input type="file" id="fileInput" accept="image/*">
+    <button onclick="testUpload()">测试上传</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const resultDiv = document.getElementById('result');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                resultDiv.innerHTML = '<div class="result error">请先选择文件</div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="result">上传中...</div>';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const xhr = new XMLHttpRequest();
+                
+                xhr.addEventListener('load', () => {
+                    console.log('XHR Status:', xhr.status);
+                    console.log('XHR Response:', xhr.responseText);
+                    
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            if (response.success && response.data?.url) {
+                                resultDiv.innerHTML = `
+                                    <div class="result success">
+                                        <h3>上传成功！</h3>
+                                        <p>URL: ${response.data.url}</p>
+                                        <img src="http://localhost:3005${response.data.url}" style="max-width: 300px; margin-top: 10px;">
+                                    </div>
+                                `;
+                            } else {
+                                resultDiv.innerHTML = `<div class="result error">上传失败: ${response.error || '未知错误'}</div>`;
+                            }
+                        } catch (e) {
+                            resultDiv.innerHTML = `<div class="result error">解析响应失败: ${xhr.responseText}</div>`;
+                        }
+                    } else {
+                        resultDiv.innerHTML = `<div class="result error">HTTP 错误: ${xhr.status} - ${xhr.responseText}</div>`;
+                    }
+                });
+
+                xhr.addEventListener('error', () => {
+                    resultDiv.innerHTML = '<div class="result error">网络错误</div>';
+                });
+
+                xhr.addEventListener('abort', () => {
+                    resultDiv.innerHTML = '<div class="result error">上传已取消</div>';
+                });
+
+                const uploadUrl = '/api/storage/works';
+                console.log('Uploading to:', uploadUrl);
+                xhr.open('POST', uploadUrl, true);
+                xhr.send(formData);
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">错误: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

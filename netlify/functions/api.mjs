@@ -4,16 +4,22 @@
 // 设置内存限制
 process.env.NODE_OPTIONS = '--max-old-space-size=512';
 
+// 内存中存储验证码（作为数据库的备选）
+const verificationCodes = new Map();
+
 // 数据库连接
 let pgClient = null;
+let dbAvailable = false;
 
 // 获取数据库连接
 async function getDbClient() {
   if (pgClient) return pgClient;
+  if (!dbAvailable) return null;
   
   const databaseUrl = process.env.DATABASE_URL || process.env.NEON_POSTGRES_DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error('Database not configured');
+    console.log('[DB] Database URL not configured');
+    return null;
   }
   
   try {
@@ -24,10 +30,12 @@ async function getDbClient() {
     });
     await pgClient.connect();
     console.log('[DB] Connected to Neon database');
+    dbAvailable = true;
     return pgClient;
   } catch (error) {
-    console.error('[DB] Connection error:', error);
-    throw error;
+    console.error('[DB] Connection error:', error.message);
+    dbAvailable = false;
+    return null;
   }
 }
 
@@ -35,6 +43,8 @@ async function getDbClient() {
 async function ensureVerificationTable() {
   try {
     const client = await getDbClient();
+    if (!client) return false;
+    
     await client.query(`
       CREATE TABLE IF NOT EXISTS verification_codes (
         id SERIAL PRIMARY KEY,
@@ -47,15 +57,28 @@ async function ensureVerificationTable() {
       )
     `);
     console.log('[DB] Verification table ready');
+    return true;
   } catch (error) {
-    console.error('[DB] Table creation error:', error);
+    console.error('[DB] Table creation error:', error.message);
+    return false;
   }
 }
 
-// 保存验证码到数据库
+// 保存验证码（优先数据库，失败则使用内存）
 async function saveVerificationCode(email, code, expiresAt) {
+  // 先保存到内存
+  verificationCodes.set(email, {
+    code,
+    expiresAt,
+    attempts: 0
+  });
+  console.log('[Memory] Code saved for', email);
+  
+  // 尝试保存到数据库
   try {
     const client = await getDbClient();
+    if (!client) return;
+    
     await ensureVerificationTable();
     
     // 删除旧的验证码
@@ -71,17 +94,30 @@ async function saveVerificationCode(email, code, expiresAt) {
     );
     
     console.log('[DB] Code saved for', email);
-    return true;
   } catch (error) {
-    console.error('[DB] Save code error:', error);
-    throw error;
+    console.error('[DB] Save code error:', error.message);
+    // 数据库失败不影响功能，内存中已保存
   }
 }
 
-// 从数据库获取验证码
+// 从数据库或内存获取验证码
 async function getVerificationCode(email) {
+  // 先尝试从内存获取
+  const memoryData = verificationCodes.get(email);
+  if (memoryData) {
+    console.log('[Memory] Code found for', email);
+    return {
+      code: memoryData.code,
+      expires_at: new Date(memoryData.expiresAt),
+      attempts: memoryData.attempts
+    };
+  }
+  
+  // 尝试从数据库获取
   try {
     const client = await getDbClient();
+    if (!client) return null;
+    
     await ensureVerificationTable();
     
     const result = await client.query(
@@ -93,37 +129,54 @@ async function getVerificationCode(email) {
       return null;
     }
     
+    console.log('[DB] Code found for', email);
     return result.rows[0];
   } catch (error) {
-    console.error('[DB] Get code error:', error);
-    throw error;
+    console.error('[DB] Get code error:', error.message);
+    return null;
   }
 }
 
 // 更新验证码尝试次数
 async function incrementAttempts(email) {
+  // 更新内存
+  const memoryData = verificationCodes.get(email);
+  if (memoryData) {
+    memoryData.attempts++;
+  }
+  
+  // 尝试更新数据库
   try {
     const client = await getDbClient();
+    if (!client) return;
+    
     await client.query(
       'UPDATE verification_codes SET attempts = attempts + 1 WHERE email = $1',
       [email]
     );
   } catch (error) {
-    console.error('[DB] Increment attempts error:', error);
+    console.error('[DB] Increment attempts error:', error.message);
   }
 }
 
 // 删除验证码
 async function deleteVerificationCode(email) {
+  // 删除内存中的验证码
+  verificationCodes.delete(email);
+  console.log('[Memory] Code deleted for', email);
+  
+  // 尝试删除数据库中的验证码
   try {
     const client = await getDbClient();
+    if (!client) return;
+    
     await client.query(
       'DELETE FROM verification_codes WHERE email = $1',
       [email]
     );
     console.log('[DB] Code deleted for', email);
   } catch (error) {
-    console.error('[DB] Delete code error:', error);
+    console.error('[DB] Delete code error:', error.message);
   }
 }
 
@@ -360,11 +413,11 @@ async function handleAuthRequest(request, path, headers) {
 
         console.log('[Netlify Auth] Email result:', emailResult);
 
-        // 保存验证码到数据库
+        // 保存验证码（内存+数据库）
         const expiresAt = Date.now() + (10 * 60 * 1000); // 10分钟过期
         await saveVerificationCode(email, code, expiresAt);
 
-        console.log('[Netlify Auth] Code saved to database for', email);
+        console.log('[Netlify Auth] Code saved for', email);
 
         return new Response(
           JSON.stringify({
@@ -407,7 +460,7 @@ async function handleAuthRequest(request, path, headers) {
 
       console.log('[Netlify Auth] Login attempt:', email, 'Code:', code);
 
-      // 从数据库获取验证码
+      // 获取验证码（内存或数据库）
       const storedData = await getVerificationCode(email);
       
       if (!storedData) {

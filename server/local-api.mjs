@@ -89,29 +89,7 @@ import { generateOAuthUrl, handleOAuthCallback, getConfiguredProviders, isOAuthC
 // 内存中存储验证码 (email -> { code, expiresAt })
 const verificationCodes = new Map();
 
-// 简单的内存缓存机制 - 用于减少数据库查询频率
-// 注意：Vercel Serverless 环境下缓存不会在请求间共享，但仍可减少单个请求内的重复查询
-const apiCache = new Map();
-const CACHE_TTL = 30000; // 30秒缓存时间
-
-// 缓存辅助函数
-function getCache(key) {
-  const cached = apiCache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data;
-  }
-  apiCache.delete(key);
-  return null;
-}
-
-function setCache(key, data) {
-  apiCache.set(key, { data, timestamp: Date.now() });
-}
-
-// 清除缓存
-function invalidateCache(key) {
-  apiCache.delete(key);
-}
+// 注意：缓存函数已在文件顶部定义
 
 // 端口配置 - 默认3023与Vite代理配置保持一致
 const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3023

@@ -14,7 +14,6 @@ let dbAvailable = false;
 // 获取数据库连接
 async function getDbClient() {
   if (pgClient) return pgClient;
-  if (!dbAvailable) return null;
   
   const databaseUrl = process.env.DATABASE_URL || process.env.NEON_POSTGRES_DATABASE_URL;
   if (!databaseUrl) {
@@ -35,6 +34,7 @@ async function getDbClient() {
   } catch (error) {
     console.error('[DB] Connection error:', error.message);
     dbAvailable = false;
+    pgClient = null;
     return null;
   }
 }

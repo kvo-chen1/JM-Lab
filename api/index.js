@@ -342,6 +342,11 @@ export default async function handler(req, res) {
       return handleUserStats(req, res);
     }
 
+    // 头像上传API
+    if (path === '/upload/avatar' && req.method === 'POST') {
+      return handleUploadAvatar(req, res);
+    }
+
     // 其他 API 返回未实现
     return res.status(501).json({ code: 1, message: 'API endpoint not implemented: ' + path });
 
@@ -740,5 +745,94 @@ async function handleUserStats(req, res) {
         favorites_count: 0
       }
     });
+  }
+}
+
+// 处理头像上传
+async function handleUploadAvatar(req, res) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const body = await parseRequestBody(req);
+    const { fileData, fileName, fileType } = body;
+
+    console.log('[API] Avatar upload: Received file:', fileName, 'type:', fileType);
+
+    if (!fileData) {
+      return res.status(400).json({ code: 1, error: 'BAD_REQUEST', message: '缺少文件数据' });
+    }
+
+    // 验证文件类型
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(fileType)) {
+      return res.status(400).json({ code: 1, error: 'BAD_REQUEST', message: '不支持的文件类型' });
+    }
+
+    // 解码base64并检查文件大小
+    let base64Data;
+    if (fileData.startsWith('data:')) {
+      base64Data = fileData.split(',')[1];
+    } else {
+      base64Data = fileData;
+    }
+
+    const fileBuffer = Buffer.from(base64Data, 'base64');
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (fileBuffer.length > maxSize) {
+      return res.status(413).json({ code: 1, error: 'PAYLOAD_TOO_LARGE', message: '图片过大，请使用小于2MB的图片' });
+    }
+
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(503).json({ code: 1, message: 'Database not available' });
+    }
+
+    // 创建头像存储表
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_avatars (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) UNIQUE NOT NULL,
+        avatar_data TEXT NOT NULL,
+        file_type VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const userId = decoded.userId || decoded.id || decoded.sub;
+    const dataUrl = `data:${fileType};base64,${base64Data}`;
+
+    // 保存头像到数据库
+    await client.query(`
+      INSERT INTO user_avatars (user_id, avatar_data, file_type)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        avatar_data = EXCLUDED.avatar_data,
+        file_type = EXCLUDED.file_type,
+        updated_at = CURRENT_TIMESTAMP
+    `, [userId, dataUrl, fileType]);
+
+    // 同时更新users表的avatar_url字段
+    await client.query(`
+      UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
+    `, [dataUrl, userId]);
+
+    console.log('[API] Avatar upload: Saved to database for user:', userId);
+
+    return res.status(200).json({
+      code: 0,
+      message: '头像上传成功',
+      data: {
+        url: dataUrl,
+        path: `/api/avatar/${userId}`
+      }
+    });
+  } catch (error) {
+    console.error('[API] Avatar upload error:', error);
+    return res.status(500).json({ code: 1, message: '头像上传失败', error: error.message });
   }
 }

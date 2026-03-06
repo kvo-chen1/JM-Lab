@@ -113,7 +113,7 @@ export function processImageUrl(url: string, options: ImageProcessingOptions = {
       return url;
     }
     
-    // 直接返回相对路径
+    // 直接返回相对路径（本地存储的图片）
     if (url.startsWith('/')) {
       return url;
     }
@@ -152,6 +152,13 @@ export function processImageUrl(url: string, options: ImageProcessingOptions = {
         console.warn('Failed to parse proxy URL, returning original:', url, error);
         return url;
       }
+    }
+    
+    // 检测 Supabase Storage URL（已无法访问）
+    if (url.includes('supabase.co/storage')) {
+      console.warn('[processImageUrl] Supabase Storage URL detected (deprecated):', url.substring(0, 50));
+      // 返回空字符串，让调用方使用 fallback 图片
+      return '';
     }
     
     // 其他所有URL直接返回

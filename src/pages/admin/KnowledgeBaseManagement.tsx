@@ -2,11 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import { supabaseAdmin } from '@/lib/supabaseClient';
 import { Upload, X, Plus, Search, Edit2, Trash2, Eye, Image as ImageIcon, Tag, Save, AlertCircle, Database, RefreshCw } from 'lucide-react';
 import tianjinCultureService from '@/services/tianjinCultureService';
 import { knowledgeBaseService } from '@/services/knowledgeBaseService';
 import { getPicsumUrl } from '@/utils/templateImageGenerator';
+import { uploadImage } from '@/services/storageServiceNew';
 
 // 知识库条目类型定义
 interface KnowledgeItem {
@@ -456,19 +456,8 @@ export default function KnowledgeBaseManagement() {
 
     setUploadingImage(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `knowledge-base/${fileName}`;
-
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from('cultural-assets')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabaseAdmin.storage
-        .from('cultural-assets')
-        .getPublicUrl(filePath);
+      // 使用新的存储服务上传图片
+      const publicUrl = await uploadImage(file, 'knowledge');
 
       setFormData(prev => ({ ...prev, imageUrl: publicUrl }));
       toast.success('图片上传成功');

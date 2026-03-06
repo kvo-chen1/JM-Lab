@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { supabaseAdmin } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabase';
 
 // AI反馈类型
 export type AIFeedbackType = 'satisfaction' | 'quality' | 'accuracy' | 'helpfulness' | 'other';

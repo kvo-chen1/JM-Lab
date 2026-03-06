@@ -33,12 +33,18 @@ export default function CreateLayout() {
     return result.video ? [result.video] : [result.thumbnail];
   };
 
-  // 辅助函数：将远程图片上传到 Supabase Storage
+  // 辅助函数：将远程图片上传到存储服务
   const uploadRemoteImage = async (imageUrl: string): Promise<string> => {
     try {
-      // 如果已经是 Supabase Storage 的 URL，直接返回
-      if (imageUrl.includes('supabase.co/storage')) {
+      // 如果已经是本地存储的 URL（以 /uploads 开头），直接返回
+      if (imageUrl.startsWith('/uploads/')) {
         return imageUrl;
+      }
+      
+      // 如果是 Supabase Storage 的 URL（旧的，已无法访问），需要重新上传
+      if (imageUrl.includes('supabase.co/storage')) {
+        console.warn('[CreateLayout] Old Supabase URL detected, will upload to new storage:', imageUrl);
+        // 继续执行上传逻辑
       }
       
       // 如果是 data URL，转换为文件并上传
@@ -73,27 +79,36 @@ export default function CreateLayout() {
     const isVideo = selectedItem?.type === 'video' || selectedItem?.video;
     
     try {
-      // 上传缩略图到 Supabase Storage（如果不是视频）
+      // 上传缩略图到存储服务（如果不是视频）
       let thumbnailUrl = selectedItem?.thumbnail || data.images?.[0] || 'https://images.unsplash.com/photo-1558655146-d09347e0c766?q=80&w=2560&auto=format&fit=crop';
       
-      if (!isVideo && thumbnailUrl && !thumbnailUrl.includes('supabase.co/storage')) {
-        console.log('[CreateLayout] Uploading thumbnail to Supabase Storage...');
-        thumbnailUrl = await uploadRemoteImage(thumbnailUrl);
-        console.log('[CreateLayout] Thumbnail uploaded:', thumbnailUrl);
+      if (!isVideo && thumbnailUrl) {
+        // 如果已经是本地存储 URL，跳过上传
+        if (thumbnailUrl.startsWith('/uploads/')) {
+          console.log('[CreateLayout] Thumbnail is already local URL:', thumbnailUrl);
+        } else {
+          console.log('[CreateLayout] Uploading thumbnail to storage...');
+          thumbnailUrl = await uploadRemoteImage(thumbnailUrl);
+          console.log('[CreateLayout] Thumbnail uploaded:', thumbnailUrl);
+        }
       }
       
-      // 处理视频 URL：如果不是 Supabase Storage 的 URL，需要上传
+      // 处理视频 URL：如果不是本地存储的 URL，需要上传
       let videoUrl = isVideo ? selectedItem?.video : undefined;
-      if (isVideo && videoUrl && !videoUrl.includes('supabase.co/storage')) {
-        console.log('[CreateLayout] Video URL is not from Supabase Storage, uploading...');
-        console.log('[CreateLayout] Original video URL:', videoUrl);
-        try {
-          videoUrl = await downloadAndUploadVideo(videoUrl);
-          console.log('[CreateLayout] Video uploaded to Supabase Storage:', videoUrl);
-        } catch (videoError) {
-          console.error('[CreateLayout] Failed to upload video:', videoError);
-          toast.error('视频上传失败，请重试');
-          return;
+      if (isVideo && videoUrl) {
+        if (videoUrl.startsWith('/uploads/')) {
+          console.log('[CreateLayout] Video is already local URL:', videoUrl);
+        } else {
+          console.log('[CreateLayout] Video URL is not from local storage, uploading...');
+          console.log('[CreateLayout] Original video URL:', videoUrl);
+          try {
+            videoUrl = await downloadAndUploadVideo(videoUrl);
+            console.log('[CreateLayout] Video uploaded to storage:', videoUrl);
+          } catch (videoError) {
+            console.error('[CreateLayout] Failed to upload video:', videoError);
+            toast.error('视频上传失败，请重试');
+            return;
+          }
         }
       }
       

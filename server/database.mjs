@@ -84,6 +84,12 @@ const getPostgresConnectionString = () => {
     return 'postgres://postgres.pptqdicaaewtnaiflfcs:csh200506207837@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
   }
   
+  // 6. 尝试使用无密码认证连接 Neon 数据库
+  if (process.env.DB_TYPE === 'postgresql') {
+    console.log('[DB] Using passwordless connection for Neon');
+    return process.env.NEON_URL || process.env.NEON_DATABASE_URL || 'postgres://neon_owner@ep-rough-star-a2j3o23k.us-east-2.aws.neon.tech:5432/neondb';
+  }
+  
   return null
 }
 
@@ -129,8 +135,8 @@ const config = {
       min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '0'),
       // 空闲连接超时：快速释放不用的连接
       idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '10000'),
-      // 连接超时：Vercel环境使用更短的超时（5秒），避免函数超时
-      connectionTimeoutMillis: isVercel ? 5000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '10000'),
+      // 连接超时：增加超时时间以适应 Neon 数据库连接较慢的情况
+      connectionTimeoutMillis: isVercel ? 10000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '30000'),
       // 连接最大生命周期：防止连接长时间不释放
       maxLifetime: parseInt(process.env.POSTGRES_MAX_LIFETIME || '300000'), // 5分钟
       // SSL 配置：Supabase 通常需要 SSL。本地开发可能不需要。
@@ -292,32 +298,60 @@ async function initPostgreSQL() {
     })
     
     // 验证连接
-    const client = await pool.connect()
-    await client.query('SELECT 1')
-    client.release()
-    
-    // 初始化表结构（仅在非Vercel环境执行，避免Serverless冷启动超时）
-    if (!isVercel) {
-      await createPostgreSQLTables(pool)
-    } else {
-      console.log('[DB] Vercel环境：跳过表结构初始化，假设表已存在')
-    }
-    
-    // 标记连接状态
-    connectionStatus.postgresql = {
-      connected: true,
-      lastConnected: Date.now(),
-      error: null,
-      poolStatus: {
-        totalCount: pool.totalCount,
-        idleCount: pool.idleCount,
-        waitingCount: pool.waitingCount
+    try {
+      const client = await pool.connect()
+      await client.query('SELECT 1')
+      client.release()
+      
+      // 初始化表结构（仅在非Vercel环境执行，避免Serverless冷启动超时）
+      // 改为异步执行，不阻塞服务器启动
+      if (!isVercel) {
+        console.log('[DB] Starting table initialization in background...')
+        createPostgreSQLTables(pool).then(() => {
+          console.log('[DB] Table initialization completed')
+        }).catch(err => {
+          console.error('[DB] Table initialization failed:', err.message)
+        })
+      } else {
+        console.log('[DB] Vercel环境：跳过表结构初始化，假设表已存在')
       }
+      
+      // 标记连接状态
+      connectionStatus.postgresql = {
+        connected: true,
+        lastConnected: Date.now(),
+        error: null,
+        poolStatus: {
+          totalCount: pool.totalCount,
+          idleCount: pool.idleCount,
+          waitingCount: pool.waitingCount
+        }
+      }
+      retryCounts.postgresql = 0
+      
+      log('PostgreSQL initialized successfully')
+      return pool
+    } catch (connectionError) {
+      log(`PostgreSQL connection failed: ${connectionError.message}`, 'ERROR')
+      log('Database connection failed, but server will continue to run', 'WARNING')
+      
+      // 标记连接状态为失败
+      connectionStatus.postgresql = {
+        connected: false,
+        lastConnected: null,
+        error: connectionError.message,
+        poolStatus: {}
+      }
+      retryCounts.postgresql++
+      
+      // 返回一个空的pool对象，允许服务器继续运行
+      return {
+        connect: () => Promise.reject(new Error('Database connection failed')),
+        query: () => Promise.reject(new Error('Database connection failed')),
+        release: () => {},
+        end: () => Promise.resolve()
+      };
     }
-    retryCounts.postgresql = 0
-    
-    log('PostgreSQL initialized successfully')
-    return pool
   } catch (error) {
     connectionStatus.postgresql = {
       connected: false,
@@ -327,8 +361,16 @@ async function initPostgreSQL() {
     }
     retryCounts.postgresql++
     
-    log(`PostgreSQL connection failed: ${error.message}`, 'ERROR')
-    throw error;
+    log(`PostgreSQL initialization failed: ${error.message}`, 'ERROR')
+    log('Database initialization failed, but server will continue to run', 'WARNING')
+    
+    // 返回一个空的pool对象，允许服务器继续运行
+    return {
+      connect: () => Promise.reject(new Error('Database initialization failed')),
+      query: () => Promise.reject(new Error('Database initialization failed')),
+      release: () => {},
+      end: () => Promise.resolve()
+    };
   }
 }
 
@@ -4424,18 +4466,37 @@ export const notificationDB = {
   }
 }
 
+// 社区列表缓存
+let communitiesCache = {
+  data: null,
+  timestamp: 0,
+  ttl: 30000 // 30秒缓存
+}
+
 export const communityDB = {
   async getAllCommunities(includeInactive = false) {
+    const cacheKey = includeInactive ? 'all' : 'active'
+    const now = Date.now()
+    
+    // 检查缓存是否有效
+    if (communitiesCache.data && communitiesCache[cacheKey] && (now - communitiesCache.timestamp) < communitiesCache.ttl) {
+      console.log('[communityDB] Returning cached communities:', communitiesCache[cacheKey].length)
+      return communitiesCache[cacheKey]
+    }
+    
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     let communities
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL:
-        if (includeInactive) {
-          communities = (await db.query('SELECT * FROM communities ORDER BY member_count DESC')).rows
-        } else {
-          communities = (await db.query('SELECT * FROM communities WHERE is_active = true ORDER BY member_count DESC')).rows
-        }
+        // 添加查询超时控制
+        const queryPromise = includeInactive 
+          ? db.query('SELECT * FROM communities ORDER BY member_count DESC LIMIT 100')
+          : db.query('SELECT * FROM communities WHERE is_active = true ORDER BY member_count DESC LIMIT 100')
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Query timeout')), 5000)
+        )
+        communities = (await Promise.race([queryPromise, timeoutPromise])).rows
         break
       case DB_TYPE.MEMORY:
         communities = [...(memoryStore.communities || [])]
@@ -4447,6 +4508,10 @@ export const communityDB = {
       default:
         return []
     }
+    
+    // 更新缓存
+    communitiesCache.timestamp = now
+    communitiesCache[cacheKey] = communities
     
     // 转换数据库字段为前端期望的格式（使用下划线命名以兼容现有前端代码）
     return communities.map(community => ({

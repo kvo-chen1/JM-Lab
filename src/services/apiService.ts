@@ -362,6 +362,32 @@ class ApiService {
       throw error;
     }
   }
+
+  /**
+   * 检查用户是否点赞了帖子
+   */
+  async checkPostLiked(postId: string): Promise<{ liked: boolean }> {
+    try {
+      const response = await this.get<{ liked: boolean }>(`/api/posts/${postId}/liked`);
+      return response;
+    } catch (error) {
+      console.error('[ApiService.checkPostLiked] Error:', error);
+      return { liked: false };
+    }
+  }
+
+  /**
+   * 检查用户是否关注了另一个用户
+   */
+  async checkUserFollowing(targetUserId: string): Promise<{ isFollowing: boolean }> {
+    try {
+      const response = await this.get<{ isFollowing: boolean }>('/api/follows/check', { targetUserId });
+      return response;
+    } catch (error) {
+      console.error('[ApiService.checkUserFollowing] Error:', error);
+      return { isFollowing: false };
+    }
+  }
 }
 
 // 作品服务

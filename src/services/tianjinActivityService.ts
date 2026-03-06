@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase';
 import { generateTemplatePrompt } from '@/utils/templatePromptGenerator';
 import { getTemplateImageUrl, getTemplatePreviewImages } from '@/utils/templateImageGenerator';
 

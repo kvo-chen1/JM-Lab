@@ -1,5 +1,5 @@
 // 管理后台数据服务
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 export interface DashboardStats {
   totalUsers: number;

@@ -3,7 +3,7 @@
  * 用于收集和上报用户行为数据
  */
 
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase';
 
 // 导出类型定义
 export type MetricType = 'views' | 'likes' | 'comments' | 'shares' | 'favorites' | 'followers' | 'engagement';

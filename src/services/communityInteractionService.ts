@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { behaviorAnalysisService } from '@/services/behaviorAnalysisService';
 

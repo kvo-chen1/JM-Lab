@@ -3,7 +3,7 @@
  * 用于管理首页推荐内容的配置、排序和预览
  */
 
-import { supabaseAdmin } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 // 推荐项数据类型

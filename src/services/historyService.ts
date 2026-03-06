@@ -1,5 +1,5 @@
 
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase';
 
 export interface HistoryItem {
   id?: string;

@@ -1,58 +1,27 @@
-// Supabase Storage 图片上传服务
-import { supabase, supabaseAdmin } from '../lib/supabase';
+// 存储服务 - 替代 Supabase Storage
+import { uploadFile, uploadImage, deleteFile, getPublicUrl } from './storageServiceNew';
 
-// Storage bucket 名称
-const BUCKET_NAME = 'images';
-
-/**
- * 获取用于上传的 Supabase 客户端
- * 优先使用 admin 客户端绕过 RLS
- */
-function getUploadClient() {
-  // 优先使用 admin 客户端（有 service role key，可以绕过 RLS）
-  if (supabaseAdmin) {
-    return supabaseAdmin;
-  }
-  return supabase;
-}
+// 默认 bucket 名称（现在作为文件夹使用）
+const DEFAULT_FOLDER = 'images';
 
 /**
- * 上传图片到 Supabase Storage
+ * 上传图片到存储服务
  * @param file 图片文件
  * @param path 存储路径（如 'works/123/thumbnail.jpg'）
  * @returns 图片的公共 URL
  */
-export async function uploadImage(
+export async function uploadImageToStorage(
   file: File,
   path: string
 ): Promise<{ url: string; error?: string }> {
   try {
-    const client = getUploadClient();
+    // 从路径中提取文件夹
+    const folder = path.split('/').slice(0, -1).join('/') || DEFAULT_FOLDER;
     
-    // 检查 Supabase 是否配置
-    if (!client) {
-      return { url: '', error: 'Supabase 未配置' };
-    }
-
-    // 上传文件
-    const { data, error } = await client.storage
-      .from(BUCKET_NAME)
-      .upload(path, file, {
-        cacheControl: '3600',
-        upsert: true, // 如果存在则覆盖
-      });
-
-    if (error) {
-      console.error('[Storage] 上传失败:', error);
-      return { url: '', error: error.message };
-    }
-
-    // 获取公共 URL（使用普通客户端即可）
-    const { data: publicUrlData } = supabase.storage
-      .from(BUCKET_NAME)
-      .getPublicUrl(data.path);
-
-    return { url: publicUrlData.publicUrl };
+    // 使用新的存储服务上传
+    const url = await uploadImage(file, folder);
+    
+    return { url };
   } catch (err: any) {
     console.error('[Storage] 上传异常:', err);
     return { url: '', error: err.message };
@@ -60,7 +29,7 @@ export async function uploadImage(
 }
 
 /**
- * 上传 Base64 图片到 Supabase Storage
+ * 上传 Base64 图片到存储服务
  * @param base64String Base64 图片字符串
  * @param path 存储路径
  * @returns 图片的公共 URL
@@ -84,11 +53,10 @@ export async function uploadBase64Image(
     const blob = new Blob([byteArray], { type: mimeType });
 
     // 创建 File 对象
-    const file = new File([blob], path.split('/').pop() || 'image.jpg', {
-      type: mimeType,
-    });
+    const fileName = path.split('/').pop() || 'image.jpg';
+    const file = new File([blob], fileName, { type: mimeType });
 
-    return await uploadImage(file, path);
+    return await uploadImageToStorage(file, path);
   } catch (err: any) {
     console.error('[Storage] Base64 上传异常:', err);
     return { url: '', error: err.message };
@@ -101,22 +69,16 @@ export async function uploadBase64Image(
  */
 export async function deleteImage(path: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const client = getUploadClient();
+    // 从 URL 中提取路径
+    const pathMatch = path.match(/\/uploads\/(.+)/);
+    if (pathMatch) {
+      const success = await deleteFile(pathMatch[1]);
+      return { success };
+    }
     
-    if (!client) {
-      return { success: false, error: 'Supabase 未配置' };
-    }
-
-    const { error } = await client.storage
-      .from(BUCKET_NAME)
-      .remove([path]);
-
-    if (error) {
-      console.error('[Storage] 删除失败:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
+    // 直接尝试删除
+    const success = await deleteFile(path);
+    return { success };
   } catch (err: any) {
     console.error('[Storage] 删除异常:', err);
     return { success: false, error: err.message };
@@ -128,15 +90,20 @@ export async function deleteImage(path: string): Promise<{ success: boolean; err
  * @param path 图片路径
  */
 export function getImageUrl(path: string): string {
-  if (!supabase) {
-    return '';
+  if (!path) return '';
+  
+  // 如果已经是完整 URL，直接返回
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
   }
-
-  const { data } = supabase.storage
-    .from(BUCKET_NAME)
-    .getPublicUrl(path);
-
-  return data.publicUrl;
+  
+  // 如果已经是 /uploads 开头的路径，直接返回
+  if (path.startsWith('/uploads/')) {
+    return path;
+  }
+  
+  // 构建完整 URL
+  return `/uploads/${path}`;
 }
 
 /**
@@ -151,16 +118,16 @@ export function generateFilePath(workId: string, fileName: string): string {
 }
 
 // Storage 服务类
-class SupabaseStorageService {
+class StorageService {
   /**
-   * 上传文件到指定 bucket
-   * @param bucketName bucket 名称
+   * 上传文件到指定文件夹
+   * @param folderName 文件夹名称
    * @param path 存储路径
    * @param file 文件对象
    * @param options 上传选项
    */
   async uploadFile(
-    bucketName: string,
+    folderName: string,
     path: string,
     file: File,
     options: {
@@ -169,28 +136,11 @@ class SupabaseStorageService {
     } = {}
   ): Promise<{ success: boolean; path?: string; error?: string }> {
     try {
-      const client = getUploadClient();
+      // 使用新的存储服务上传
+      const folder = path.split('/').slice(0, -1).join('/') || folderName;
+      const url = await uploadFile(file, folder);
       
-      if (!client) {
-        return { success: false, error: 'Supabase 未配置' };
-      }
-
-      const { upsert = true } = options;
-
-      // 上传文件
-      const { data, error } = await client.storage
-        .from(bucketName)
-        .upload(path, file, {
-          cacheControl: '3600',
-          upsert,
-        });
-
-      if (error) {
-        console.error('[Storage] 上传失败:', error);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, path: data.path };
+      return { success: true, path: url };
     } catch (err: any) {
       console.error('[Storage] 上传异常:', err);
       return { success: false, error: err.message };
@@ -198,28 +148,14 @@ class SupabaseStorageService {
   }
 
   /**
-   * 从指定 bucket 删除文件
-   * @param bucketName bucket 名称
+   * 从指定文件夹删除文件
+   * @param folderName 文件夹名称
    * @param path 文件路径
    */
-  async deleteFile(bucketName: string, path: string): Promise<{ success: boolean; error?: string }> {
+  async deleteFileFromFolder(folderName: string, path: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const client = getUploadClient();
-      
-      if (!client) {
-        return { success: false, error: 'Supabase 未配置' };
-      }
-
-      const { error } = await client.storage
-        .from(bucketName)
-        .remove([path]);
-
-      if (error) {
-        console.error('[Storage] 删除失败:', error);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true };
+      const success = await deleteFile(`${folderName}/${path}`);
+      return { success };
     } catch (err: any) {
       console.error('[Storage] 删除异常:', err);
       return { success: false, error: err.message };
@@ -228,20 +164,15 @@ class SupabaseStorageService {
 
   /**
    * 获取文件的公共 URL
-   * @param bucketName bucket 名称
+   * @param folderName 文件夹名称
    * @param path 文件路径
    */
-  getPublicUrl(bucketName: string, path: string): string {
-    if (!supabase) {
-      return '';
-    }
-
-    const { data } = supabase.storage
-      .from(bucketName)
-      .getPublicUrl(path);
-
-    return data.publicUrl;
+  getPublicUrl(folderName: string, path: string): string {
+    return `/uploads/${folderName}/${path}`;
   }
 }
 
-export const supabaseStorageService = new SupabaseStorageService();
+export const storageService = new StorageService();
+
+// 为了保持向后兼容，保留旧的导出名称
+export const supabaseStorageService = storageService;

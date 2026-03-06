@@ -2,7 +2,7 @@
  * 内容评分服务 - 用于计算和更新作品的真实性、AI风险、垃圾内容评分
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 export interface ContentScores {
   authenticity_score: number;

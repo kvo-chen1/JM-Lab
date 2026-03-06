@@ -185,11 +185,10 @@ class UploadService {
 
       if (upload) {
         // 从存储中删除文件
-        const filePath = upload.file_url.split('/').pop();
-        if (filePath) {
-          await supabaseAdmin.storage
-            .from('works')
-            .remove([`user-uploads/${filePath}`]);
+        const { deleteFile } = await import('./storageServiceNew');
+        const pathMatch = upload.file_url.match(/\/uploads\/(.+)/);
+        if (pathMatch) {
+          await deleteFile(pathMatch[1]);
         }
       }
 

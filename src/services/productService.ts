@@ -2,7 +2,7 @@
  * 商品服务 - 提供商品管理和积分兑换功能 (Supabase 版本)
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 // 商品类型定义
 export interface Product {

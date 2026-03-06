@@ -3,7 +3,7 @@
  * 优先从 Supabase 获取数据，失败时使用 localStorage 作为降级方案
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 // 游戏积分数据存储键
 const STORAGE_KEYS = {

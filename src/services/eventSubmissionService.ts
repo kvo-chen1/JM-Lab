@@ -1,5 +1,6 @@
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { supabaseStorageService } from './supabaseStorageService';
+import { storageService, supabaseStorageService } from './supabaseStorageService';
+import { uploadFile } from './storageServiceNew';
 
 // 提交文件接口
 export interface SubmissionFile {
@@ -230,27 +231,10 @@ class EventSubmissionService {
     onProgress?: (progress: number) => void
   ): Promise<{ success: boolean; fileData?: SubmissionFile; error?: string }> {
     try {
-      const filePath = `${eventId}/${userId}/${Date.now()}_${file.name}`;
+      const folder = `events/${eventId}/${userId}`;
       
-      const result = await supabaseStorageService.uploadFile(
-        BUCKET_NAME,
-        filePath,
-        file,
-        {
-          onProgress,
-          upsert: true,
-        }
-      );
-
-      if (!result.success) {
-        return { success: false, error: result.error };
-      }
-
-      // 获取文件URL
-      const { data: { publicUrl } } = supabase
-        .storage
-        .from(BUCKET_NAME)
-        .getPublicUrl(filePath);
+      // 使用新的存储服务上传
+      const publicUrl = await uploadFile(file, folder);
 
       const fileData: SubmissionFile = {
         id: `${Date.now()}_${file.name}`,

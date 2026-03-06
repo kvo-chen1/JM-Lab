@@ -1,6 +1,6 @@
 // 主办方数据分析服务
 
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase';
 
 // 时间范围类型
 export type TimeRange = 'today' | '7d' | '30d' | '90d' | '1y' | 'all';

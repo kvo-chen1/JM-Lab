@@ -8,7 +8,7 @@ import { AuthContext } from '@/contexts/authContext';
 import { llmService } from '@/services/llmService';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { Loader2, Sparkles } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { uploadFile } from '@/services/storageServiceNew';
 
 interface PatternPanelProps {
   onSelectPattern?: (pattern: TraditionalPattern | UserPattern) => void;
@@ -155,27 +155,13 @@ const PatternPanel: React.FC<PatternPanelProps> = ({ onSelectPattern }) => {
       }
       
       // 生成文件名
-      const fileName = `ai-fusion/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
       console.log('[PatternPanel] Uploading to:', fileName);
       
-      // 上传到 Supabase
-      const { data, error } = await supabase.storage
-        .from('event-submissions')
-        .upload(fileName, blob, {
-          contentType: 'image/jpeg',
-          upsert: false
-        });
-      
-      if (error) {
-        console.error('[PatternPanel] Supabase upload error:', error);
-        toast.error(`上传失败: ${error.message}`);
-        return null;
-      }
-      
-      // 获取公开 URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('event-submissions')
-        .getPublicUrl(fileName);
+      // 使用新的存储服务上传
+      const file = new File([blob], fileName, { type: 'image/jpeg' });
+      const folder = 'patterns';
+      const publicUrl = await uploadFile(file, folder);
       
       console.log('[PatternPanel] Upload successful, public URL:', publicUrl.substring(0, 80));
       return publicUrl;

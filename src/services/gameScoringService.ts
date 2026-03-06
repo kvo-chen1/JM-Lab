@@ -3,7 +3,7 @@
  * 管理游戏分数、成就解锁和排行榜
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 // 游戏类型

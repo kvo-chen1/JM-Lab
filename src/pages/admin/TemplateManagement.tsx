@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import { supabaseAdmin } from '@/lib/supabaseClient';
 import { Upload, X, Plus, Search, Edit2, Trash2, Eye, Image as ImageIcon, Tag, Save, AlertCircle, Layout, Star, Copy } from 'lucide-react';
 import templateService, { Template, TEMPLATE_CATEGORIES } from '@/services/templateService';
+import { uploadImage } from '@/services/storageServiceNew';
 
 // 模板分类配置
 const CATEGORY_CONFIG: Record<string, { name: string; color: string; bgColor: string }> = {
@@ -249,19 +249,8 @@ export default function TemplateManagement() {
 
     setUploadingImage(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `templates/${fileName}`;
-
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from('cultural-assets')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabaseAdmin.storage
-        .from('cultural-assets')
-        .getPublicUrl(filePath);
+      // 使用新的存储服务上传图片
+      const publicUrl = await uploadImage(file, 'templates');
 
       setFormData(prev => ({ ...prev, thumbnail: publicUrl }));
       toast.success('图片上传成功');

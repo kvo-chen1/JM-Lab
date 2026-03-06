@@ -568,6 +568,16 @@ export async function apiRequest<TResp, TBody = unknown>(
                } catch (e) {}
              }
           }
+          
+          // 特别处理 Neon Data API 的认证
+          if (!token && url.includes('neon.tech')) {
+            // 从环境变量获取 Neon JWT 或使用 Supabase service key
+            const neonToken = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+            if (neonToken) {
+              console.log('[API Client] 使用 Supabase Service Key 访问 Neon Data API');
+              token = neonToken;
+            }
+          }
         } catch (error) {
           console.warn('Failed to get token:', error)
         }

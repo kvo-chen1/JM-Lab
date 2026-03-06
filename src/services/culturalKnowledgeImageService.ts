@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { uploadFile } from './storageServiceNew';
 
 export interface CulturalKnowledge {
   id: number;
@@ -98,7 +99,7 @@ export async function generateImageWithTraeAPI(
 }
 
 /**
- * 上传图片到 Supabase Storage
+ * 上传图片到存储服务
  * @param blob 图片Blob数据
  * @param knowledgeId 文化知识ID
  * @returns 公开访问URL
@@ -108,32 +109,15 @@ export async function uploadImageToStorage(
   knowledgeId: number
 ): Promise<string | null> {
   try {
-    if (!supabaseAdmin) {
-      throw new Error('Supabase admin client 未初始化');
-    }
-    
+    // 创建 File 对象
     const fileName = `${knowledgeId}.jpg`;
-    const filePath = `cultural-knowledge/${fileName}`;
+    const file = new File([blob], fileName, { type: 'image/jpeg' });
     
-    // 上传到 Storage
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from('cultural-knowledge')
-      .upload(filePath, blob, {
-        contentType: 'image/jpeg',
-        cacheControl: '3600',
-        upsert: true
-      });
+    // 使用新的存储服务上传
+    const folder = 'knowledge';
+    const publicUrl = await uploadFile(file, folder);
     
-    if (uploadError) {
-      throw new Error(`上传失败: ${uploadError.message}`);
-    }
-    
-    // 获取公开URL
-    const { data } = supabaseAdmin.storage
-      .from('cultural-knowledge')
-      .getPublicUrl(filePath);
-    
-    return data.publicUrl;
+    return publicUrl;
   } catch (error) {
     console.error('[CulturalKnowledgeImage] 上传图片失败:', error);
     return null;

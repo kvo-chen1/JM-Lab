@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { uploadFile, deleteFile } from '@/services/storageServiceNew';
 import { toast } from 'sonner';
 
 // 文件信息接口
@@ -46,8 +47,8 @@ interface UseDraftWithFilesReturn<T> {
  * 
  * 功能：
  * 1. 自动保存表单数据到 localStorage
- * 2. 自动上传文件到 Supabase Storage
- * 3. 恢复时从 Supabase Storage 下载文件
+ * 2. 自动上传文件到存储服务
+ * 3. 恢复时从存储服务下载文件
  */
 export function useDraftWithFiles<T extends Record<string, any>>({
   key,
@@ -98,7 +99,7 @@ export function useDraftWithFiles<T extends Record<string, any>>({
   }, [key]);
 
   /**
-   * 上传文件到 Supabase Storage
+   * 上传文件到存储服务
    */
   const uploadFiles = useCallback(async (filesToUpload: File[]): Promise<DraftFile[]> => {
     if (!userId || filesToUpload.length === 0) return [];
@@ -107,13 +108,6 @@ export function useDraftWithFiles<T extends Record<string, any>>({
     const uploadedFiles: DraftFile[] = [];
 
     try {
-      // 首先检查 bucket 是否存在
-      const { data: bucketData, error: bucketError } = await supabase.storage.getBucket('draft-files');
-      if (bucketError) {
-        console.warn('draft-files bucket 不存在，跳过文件上传:', bucketError.message);
-        return [];
-      }
-
       for (const file of filesToUpload) {
         // 检查文件是否已上传
         const existingFile = uploadedFilesRef.current.find(
@@ -126,34 +120,19 @@ export function useDraftWithFiles<T extends Record<string, any>>({
         }
 
         const fileId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const filePath = `drafts/${userId}/${key}/${fileId}_${file.name}`;
+        const folder = `drafts/${userId}/${key}`;
 
         try {
-          // 上传文件到 Supabase Storage
-          const { data, error } = await supabase.storage
-            .from('draft-files')
-            .upload(filePath, file, {
-              cacheControl: '3600',
-              upsert: false
-            });
-
-          if (error) {
-            console.error('文件上传失败:', error);
-            continue;
-          }
-
-          // 获取文件 URL
-          const { data: { publicUrl } } = supabase.storage
-            .from('draft-files')
-            .getPublicUrl(filePath);
-
+          // 上传文件到新的存储服务
+          const publicUrl = await uploadFile(file, folder);
+          
           const draftFile: DraftFile = {
             id: fileId,
             name: file.name,
             size: file.size,
             type: file.type,
             url: publicUrl,
-            path: filePath,
+            path: `${folder}/${file.name}`,
             lastModified: file.lastModified
           };
 
@@ -328,16 +307,18 @@ export function useDraftWithFiles<T extends Record<string, any>>({
 
     try {
       // 删除 Supabase Storage 中的文件
+      // 删除已上传的文件（从新的存储服务）
       if (userId) {
-        const { data: files } = await supabase.storage
-          .from('draft-files')
-          .list(`drafts/${userId}/${key}`);
-
-        if (files && files.length > 0) {
-          const paths = files.map(f => `drafts/${userId}/${key}/${f.name}`);
-          await supabase.storage
-            .from('draft-files')
-            .remove(paths);
+        for (const file of uploadedFilesRef.current) {
+          try {
+            // 从 URL 中提取路径
+            const pathMatch = file.url.match(/\/uploads\/(.+)/);
+            if (pathMatch) {
+              await deleteFile(pathMatch[1]);
+            }
+          } catch (deleteError) {
+            console.error(`删除文件 ${file.name} 失败:`, deleteError);
+          }
         }
       }
 

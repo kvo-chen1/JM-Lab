@@ -1,13 +1,16 @@
-// Supabase 客户端配置
+// Supabase 客户端配置 - 使用 Neon 数据库（通过本地代理）
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// 从环境变量获取配置
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
+// 强制使用本地 API 代理（Neon 数据库）
+const localApiUrl = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3023'
+const supabaseUrl = `${localApiUrl}/api/db`
+const supabaseAnonKey = 'local-proxy-key'
+const supabaseServiceKey = 'local-proxy-key'
+
+console.log('[Supabase] Using Neon database via local proxy:', supabaseUrl)
 
 // 导出配置供其他模块使用
-export { supabaseUrl, supabaseAnonKey }
+export { supabaseUrl, supabaseAnonKey as supabaseAnonKey }
 
 // 检查是否在浏览器环境
 const isBrowser = typeof window !== 'undefined'
@@ -30,133 +33,73 @@ const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit, ret
   }
 };
 
-// 创建模拟客户端的工厂函数
-const createMockClient = (reason: string): SupabaseClient => {
-  const mockError = new Error(`${reason} - 请检查 Supabase 配置`)
-
-  return {
-    from: () => ({
-      select: () => ({ eq: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: mockError }) }) }) }),
-      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: mockError }) }) }),
-      update: () => ({ eq: () => Promise.resolve({ error: mockError }) }),
-      delete: () => ({ eq: () => Promise.resolve({ error: mockError }) }),
-      upsert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: mockError }) }) }),
-    }),
-    rpc: () => Promise.resolve({ data: null, error: mockError }),
-    channel: () => ({
-      on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
-      subscribe: () => ({ unsubscribe: () => {} }),
-    }),
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: null }, error: mockError }),
-      getUser: () => Promise.resolve({ data: { user: null }, error: mockError }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-      signInWithPassword: () => Promise.resolve({ data: { user: null, session: null }, error: mockError }),
-      signInWithOtp: () => Promise.resolve({ data: { user: null, session: null }, error: mockError }),
-      verifyOtp: () => Promise.resolve({ data: { user: null, session: null }, error: mockError }),
-      signUp: () => Promise.resolve({ data: { user: null, session: null }, error: mockError }),
-      signOut: () => Promise.resolve({ error: null }),
-      updateUser: () => Promise.resolve({ data: { user: null }, error: mockError }),
-      resetPasswordForEmail: () => Promise.resolve({ data: {}, error: mockError }),
-    },
-    storage: {
-      from: () => ({
-        upload: () => Promise.resolve({ data: null, error: mockError }),
-        download: () => Promise.resolve({ data: null, error: mockError }),
-        getPublicUrl: () => ({ data: { publicUrl: '' } }),
-        remove: () => Promise.resolve({ data: null, error: mockError }),
-      }),
-    },
-  } as unknown as SupabaseClient
-}
-
-// 服务角色密钥（用于绕过 RLS 的管理员操作）
-// 注意：这个密钥有完全的数据库访问权限，只能在服务器端或受信任的环境中使用
-// 必须通过环境变量 VITE_SUPABASE_SERVICE_ROLE_KEY 注入
-
-// 创建 Supabase 客户端 - 带错误处理
+// 创建 Supabase 客户端 - 指向本地代理
 export let supabase: SupabaseClient
 export let supabaseAdmin: SupabaseClient
 
 try {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    // 如果环境变量不存在，创建一个安全的模拟客户端
-    console.warn('[Supabase] 环境变量未配置，使用模拟客户端')
-    supabase = createMockClient('Supabase 环境变量未配置')
-    supabaseAdmin = supabase
-  } else {
-    // 验证 URL 格式
-    try {
-      new URL(supabaseUrl)
-    } catch {
-      console.error('[Supabase] URL 格式无效:', supabaseUrl)
-      supabase = createMockClient('Supabase URL 格式无效')
-      supabaseAdmin = supabase
-    }
-
-    supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        storageKey: 'sb-auth-token',
-      },
-      global: {
-        headers: {
-          'x-application-name': 'creator-community'
-        },
-        fetch: fetchWithRetry
-      },
-      db: {
-        schema: 'public'
-      },
-      realtime: {
-        params: {
-          eventsPerSecond: 10
-        }
-      }
-    })
-
-    // 创建管理员客户端（绕过 RLS）
-    if (supabaseServiceKey) {
-      supabaseAdmin = createClient(
-        supabaseUrl,
-        supabaseServiceKey,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      )
-    } else {
-      supabaseAdmin = supabase
-    }
-
-    // 将 supabase 暴露到 window 对象以便调试（仅开发环境）
-    if (isBrowser && import.meta.env.DEV) {
-      (window as any).supabase = supabase
-    }
-
-    console.log('[Supabase] 客户端初始化成功')
+  // 验证 URL 格式
+  try {
+    new URL(supabaseUrl)
+  } catch {
+    console.error('[Supabase] URL 格式无效:', supabaseUrl)
+    throw new Error('Invalid Supabase URL')
   }
+
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: 'sb-auth-token',
+    },
+    global: {
+      headers: {
+        'x-application-name': 'creator-community'
+      },
+      fetch: fetchWithRetry
+    },
+    db: {
+      schema: 'public'
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10
+      }
+    }
+  })
+
+  // 创建管理员客户端（绕过 RLS）
+  supabaseAdmin = createClient(
+    supabaseUrl,
+    supabaseServiceKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  )
+
+  // 将 supabase 暴露到 window 对象以便调试（仅开发环境）
+  if (isBrowser && import.meta.env.DEV) {
+    (window as any).supabase = supabase
+  }
+
+  console.log('[Supabase] 客户端初始化成功 (Neon database)')
 } catch (error) {
   console.error('[Supabase] 客户端初始化失败:', error)
-  supabase = createMockClient('Supabase 客户端初始化失败')
-  supabaseAdmin = supabase
+  throw error
 }
 
 // 导出配置检查函数
 export const isSupabaseConfigured = (): boolean => {
-  return !!(supabaseUrl && supabaseAnonKey)
+  return true // 总是已配置，因为我们使用本地代理
 }
 
 // 导出连接测试函数
 export const testSupabaseConnection = async (): Promise<{ success: boolean; error?: string }> => {
   try {
-    if (!isSupabaseConfigured()) {
-      return { success: false, error: 'Supabase 未配置' }
-    }
     const { error } = await supabase.from('users').select('count', { count: 'exact', head: true })
     if (error) {
       return { success: false, error: error.message }

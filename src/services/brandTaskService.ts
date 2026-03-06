@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 // ==========================================================================
 // 辅助函数：获取当前用户信息

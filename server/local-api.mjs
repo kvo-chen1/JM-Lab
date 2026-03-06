@@ -57,11 +57,15 @@ import { generateToken, verifyToken } from './jwt.mjs'
 import { userDB, workDB, favoriteDB, achievementDB, friendDB, messageDB, communityDB, notificationDB, eventDB, getDB } from './database.mjs'
 import { sendLoginEmailCode } from './emailService.mjs'
 import { randomUUID } from 'crypto'
-import { supabaseServer } from './supabase-server.mjs'
+// import { supabaseServer } from './supabase-server.mjs'
 import membershipRoutes from './routes/membership.mjs'
 import searchRoutes from './routes/search.mjs'
 import paymentRoutes from './routes/payment.mjs'
 import moderationRoutes from './routes/moderation.mjs'
+import authRoutes from './routes/auth.mjs'
+import notificationRoutes from './routes/notifications.mjs'
+import handleStorageRoute from './routes/storage-simple.mjs'
+import handleDbProxy from './routes/db-proxy-simple.mjs'
 import { generateOAuthUrl, handleOAuthCallback, getConfiguredProviders, isOAuthConfigured } from './oauth-providers.mjs'
 
 // 内存中存储验证码 (email -> { code, expiresAt })
@@ -91,8 +95,8 @@ function invalidateCache(key) {
   apiCache.delete(key);
 }
 
-// 端口配置 - 默认3022与Vite代理配置保持一致
-const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3022
+// 端口配置 - 默认3023与Vite代理配置保持一致
+const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3023
 const ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*'
 
 // 豆包模型基础配置
@@ -337,65 +341,27 @@ async function uploadLocalImageToSupabase(localUrl) {
     const uniqueName = `${Date.now()}-${randomUUID()}${fileExt}`;
     const storagePath = `temp/${uniqueName}`;
     
-    console.log('[uploadLocalImageToSupabase] Uploading to Supabase:', storagePath);
+    console.log('[uploadLocalImageToSupabase] Using local storage:', storagePath);
     
-    // 上传到 Supabase Storage
-    if (!supabaseServer || !supabaseServer.storage) {
-      throw new Error('Supabase server client not initialized');
+    // 使用本地存储作为临时解决方案
+    const uploadDir = pathModule.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
     
-    // 尝试上传到 'works' bucket，如果不存在则尝试创建
-    let uploadResult = await supabaseServer.storage
-      .from('works')
-      .upload(storagePath, fileBuffer, {
-        contentType: `image/${fileExt.replace('.', '')}` || 'image/jpeg',
-        cacheControl: '3600',
-        upsert: false
-      });
-    
-    // 如果 bucket 不存在，尝试创建它
-    if (uploadResult.error && uploadResult.error.message?.includes('Bucket not found')) {
-      console.log('[uploadLocalImageToSupabase] Bucket not found, creating...');
-      
-      // 创建 bucket
-      const { error: createError } = await supabaseServer.storage.createBucket('works', {
-        public: true,
-        fileSizeLimit: 10485760, // 10MB
-      });
-      
-      if (createError) {
-        console.error('[uploadLocalImageToSupabase] Failed to create bucket:', createError);
-        throw new Error(`Failed to create bucket: ${createError.message}`);
-      }
-      
-      console.log('[uploadLocalImageToSupabase] Bucket created, retrying upload...');
-      
-      // 重新上传
-      uploadResult = await supabaseServer.storage
-        .from('works')
-        .upload(storagePath, fileBuffer, {
-          contentType: `image/${fileExt.replace('.', '')}` || 'image/jpeg',
-          cacheControl: '3600',
-          upsert: false
-        });
+    const fullPath = pathModule.join(uploadDir, storagePath);
+    const dirPath = pathModule.dirname(fullPath);
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
     }
     
-    if (uploadResult.error) {
-      console.error('[uploadLocalImageToSupabase] Upload error:', uploadResult.error);
-      throw new Error(`Failed to upload to Supabase: ${uploadResult.error.message}`);
-    }
+    fs.writeFileSync(fullPath, fileBuffer);
     
-    // 获取公网 URL
-    const { data: publicUrlData } = supabaseServer.storage
-      .from('works')
-      .getPublicUrl(storagePath);
+    // 返回本地访问 URL
+    const publicUrl = `http://localhost:${process.env.LOCAL_API_PORT || 3023}/uploads/${storagePath}`;
     
-    if (!publicUrlData || !publicUrlData.publicUrl) {
-      throw new Error('Failed to get public URL from Supabase');
-    }
-    
-    console.log('[uploadLocalImageToSupabase] Public URL:', publicUrlData.publicUrl);
-    return publicUrlData.publicUrl;
+    console.log('[uploadLocalImageToSupabase] Public URL:', publicUrl);
+    return publicUrl;
     
   } catch (error) {
     console.error('[uploadLocalImageToSupabase] Error:', error.message);
@@ -746,6 +712,53 @@ async function route(req, res, u, path) {
 
   console.log('[Route] Processing:', req.method, path)
 
+  // 数据库代理路由 - 替代 Supabase
+  if (path.startsWith('/api/db/')) {
+    console.log('[Route] Delegating to DB proxy:', path)
+    await handleDbProxy(req, res, path)
+    return
+  }
+
+  // 文件存储路由 - 替代 Supabase Storage
+  if (path.startsWith('/api/storage/')) {
+    console.log('[Route] Delegating to storage route:', path)
+    await handleStorageRoute(req, res, path)
+    return
+  }
+
+  // 静态文件服务 - 上传的文件
+  if (path.startsWith('/uploads/')) {
+    try {
+      const filePath = pathModule.join(projectRoot, 'public', path)
+      if (fs.existsSync(filePath)) {
+        const ext = pathModule.extname(filePath).toLowerCase()
+        const contentTypeMap = {
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.gif': 'image/gif',
+          '.webp': 'image/webp',
+          '.svg': 'image/svg+xml',
+          '.mp4': 'video/mp4',
+          '.webm': 'video/webm'
+        }
+        res.setHeader('Content-Type', contentTypeMap[ext] || 'application/octet-stream')
+        res.setHeader('Cache-Control', 'public, max-age=86400')
+        const fileBuffer = fs.readFileSync(filePath)
+        res.statusCode = 200
+        res.end(fileBuffer)
+        return
+      } else {
+        sendJson(res, 404, { error: 'NOT_FOUND', message: '文件不存在' })
+        return
+      }
+    } catch (e) {
+      console.error('[Route] Static file error:', e)
+      sendJson(res, 500, { error: 'SERVER_ERROR', message: '读取文件失败' })
+      return
+    }
+  }
+
   // 会员中心路由
   if (path.startsWith('/api/membership')) {
     console.log('[Route] Delegating to membership routes:', path)
@@ -771,6 +784,197 @@ async function route(req, res, u, path) {
   if (path.startsWith('/api/admin/moderation')) {
     console.log('[Route] Delegating to moderation routes:', path)
     await moderationRoutes(req, res)
+    return
+  }
+
+  // 发送邮箱验证码 - 必须在 authRoutes 之前处理
+  if (req.method === 'POST' && (path === '/api/auth/send-email-code' || path === '/api/auth/send-code')) {
+    console.log('[API] 收到发送验证码请求')
+    try {
+      const body = await readBody(req)
+      console.log('[API] 请求体:', body)
+      const email = body.email
+      
+      if (!email) {
+        console.log('[API] 邮箱为空')
+        sendJson(res, 400, { code: 1, message: '邮箱不能为空' })
+        return
+      }
+      
+      console.log(`[API] 准备为 ${email} 生成验证码`)
+      
+      // 生成 6 位随机验证码
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
+
+      // 存储验证码，5分钟过期
+      const expiresAt = Date.now() + 5 * 60 * 1000
+      verificationCodes.set(email, { code: verificationCode, expiresAt })
+
+      // 同时存储到数据库，确保持久化和多实例共享
+      let dbStoreSuccess = false
+      try {
+        console.log(`[验证码] 准备存储到数据库: ${email}`)
+        await userDB.updateEmailLoginCode(email, verificationCode, expiresAt)
+        console.log(`[验证码] 已存储到数据库: ${email}`)
+        dbStoreSuccess = true
+      } catch (dbError) {
+        console.error('[验证码] 存储到数据库失败:', dbError)
+        console.error('[验证码] 错误详情:', dbError.message, dbError.stack)
+        // Vercel环境下必须存储到数据库，因为内存无法共享
+        if (isVercel) {
+          sendJson(res, 500, { code: 1, message: '验证码存储失败，请稍后重试' })
+          return
+        }
+      }
+
+      console.log(`[验证码] 准备发送到 ${email}`)
+
+      // 发送邮件
+      let success = false
+      try {
+        success = await sendLoginEmailCode(email, verificationCode)
+        console.log(`[验证码] 邮件发送结果: ${success}`)
+      } catch (emailError) {
+        console.error('[验证码] 邮件发送异常:', emailError)
+        // 邮件发送失败，但仍然返回成功，因为验证码已存储
+        // 在开发/测试环境中，可以在控制台查看验证码
+        success = true
+      }
+      
+      if (success) {
+        sendJson(res, 200, {
+          code: 0,
+          message: '验证码发送成功',
+          data: {
+            expiresAt: new Date(expiresAt).toISOString()
+          }
+        })
+      } else {
+        console.error('[API] 邮件发送失败')
+        sendJson(res, 500, { code: 1, message: '邮件发送失败，请检查邮箱地址或稍后重试' })
+      }
+    } catch (error) {
+      console.error('[API] 发送验证码失败:', error)
+      console.error('[API] 错误堆栈:', error.stack)
+      sendJson(res, 500, { code: 1, message: '发送验证码失败: ' + (error.message || '未知错误') })
+    }
+    return
+  }
+
+  // 验证码登录 - 必须在 authRoutes 之前处理
+  if (req.method === 'POST' && (path === '/api/auth/login-with-email-code' || path === '/api/auth/login')) {
+    try {
+      console.log('[API] 收到登录请求');
+      const body = await readBody(req)
+      console.log('[API] 请求体:', { email: body.email, code: body.code ? '***' : 'empty' });
+      const email = body.email
+      const code = body.code
+      
+      if (!email || !code) {
+        console.log('[API] 邮箱或验证码为空');
+        sendJson(res, 400, { code: 1, message: '邮箱和验证码不能为空' })
+        return
+      }
+      
+      // 验证验证码
+      let isCodeValid = false;
+      
+      // 首先检查是否使用默认验证码（开发/测试环境）
+      if (code === '123456') {
+        console.log('[API] 使用默认验证码登录')
+        isCodeValid = true;
+      } else {
+        // 检查内存中的验证码记录
+        const record = verificationCodes.get(email)
+        if (record) {
+          if (Date.now() > record.expiresAt) {
+            verificationCodes.delete(email)
+            console.log('[API] 内存验证码已过期');
+          } else if (record.code === code) {
+            isCodeValid = true;
+            verificationCodes.delete(email);
+            console.log('[API] 内存验证码验证成功');
+          }
+        }
+        
+        // 如果内存验证失败，尝试从数据库获取验证码
+        if (!isCodeValid) {
+          try {
+            console.log(`[API] 尝试从数据库获取验证码，邮箱: ${email}`);
+            const emailLoginCode = await userDB.getEmailLoginCode(email);
+            
+            const storedCode = emailLoginCode?.email_login_code || emailLoginCode?.EMAIL_LOGIN_CODE;
+            const storedExpires = emailLoginCode?.email_login_expires || emailLoginCode?.EMAIL_LOGIN_EXPIRES;
+            
+            if (storedCode) {
+              const now = new Date();
+              const expiresAt = storedExpires ? new Date(storedExpires) : null;
+              
+              if (expiresAt && now > expiresAt) {
+                console.log('[API] 数据库验证码已过期');
+              } else if (storedCode === code) {
+                isCodeValid = true;
+                console.log('[API] 数据库验证码验证成功');
+              }
+            }
+          } catch (error) {
+            console.error('[API] 从数据库获取验证码失败:', error.message);
+          }
+        }
+      }
+      
+      if (!isCodeValid) {
+        console.log('[API] 验证码验证失败');
+        sendJson(res, 401, { code: 1, message: '验证码错误或已过期' });
+        return;
+      }
+      
+      console.log('[API] 验证码验证成功，开始登录流程');
+      
+      // 查找或创建用户
+      let user = await userDB.findByEmail(email);
+      
+      if (!user) {
+        console.log(`[API] 用户不存在，创建新用户: ${email}`);
+        // 创建新用户
+        const username = email.split('@')[0] + '_' + Math.floor(Math.random() * 10000);
+        user = await userDB.createUser({
+          email,
+          username,
+          password_hash: randomUUID(), // 随机密码
+          is_new_user: true
+        });
+        console.log(`[API] 新用户创建成功: ${user.id}`);
+      }
+      
+      // 生成JWT令牌
+      const token = generateToken({ userId: user.id, email: user.email });
+      
+      console.log(`[API] 登录成功: ${user.id}`);
+      sendJson(res, 200, {
+        code: 0,
+        message: '登录成功',
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            isNewUser: user.is_new_user || false
+          },
+          token
+        }
+      });
+    } catch (error) {
+      console.error('[API] 登录失败:', error);
+      sendJson(res, 500, { code: 1, message: '登录失败: ' + (error.message || '未知错误') });
+    }
+    return
+  }
+
+  // 认证路由
+  if (path.startsWith('/api/auth')) {
+    console.log('[Route] Delegating to auth routes:', path)
+    await authRoutes(req, res, path)
     return
   }
 
@@ -2740,6 +2944,50 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 检查用户是否点赞了帖子
+  if (req.method === 'GET' && path.match(/^\/api\/posts\/[^/]+\/liked$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      // 简化实现，直接返回默认值
+      sendJson(res, 200, { code: 0, data: { liked: false } })
+    } catch (e) {
+      console.error('[API] Check post liked status failed:', e)
+      sendJson(res, 200, { code: 0, data: { liked: false } })
+    }
+    return
+  }
+
+  // 检查用户是否关注了另一个用户
+  if (req.method === 'GET' && path === '/api/follows/check') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`)
+      const targetUserId = url.searchParams.get('targetUserId')
+      
+      if (!targetUserId) {
+        sendJson(res, 400, { code: 1, message: '目标用户ID不能为空' })
+        return
+      }
+
+      // 简化实现，直接返回默认值
+      sendJson(res, 200, { code: 0, data: { isFollowing: false } })
+    } catch (e) {
+      console.error('[API] Check follow status failed:', e)
+      sendJson(res, 200, { code: 0, data: { isFollowing: false } })
+    }
+    return
+  }
+
   // 获取用户积分记录
   if (req.method === 'GET' && path === '/api/user/points') {
     const decoded = verifyRequestToken(req)
@@ -2755,416 +3003,6 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Get points failed:', e)
       sendJson(res, 500, { code: 1, message: '获取积分失败' })
-    }
-    return
-  }
-
-  // 发送邮箱验证码 - 支持 /api/auth/send-email-code 路径
-  if (req.method === 'POST' && (path === '/api/auth/send-email-code' || path === '/api/auth/send-code')) {
-    console.log('[API] 收到发送验证码请求')
-    try {
-      const body = await readBody(req)
-      console.log('[API] 请求体:', body)
-      const email = body.email
-      
-      if (!email) {
-        console.log('[API] 邮箱为空')
-        sendJson(res, 400, { code: 1, message: '邮箱不能为空' })
-        return
-      }
-      
-      console.log(`[API] 准备为 ${email} 生成验证码`)
-      
-      // 生成 6 位随机验证码
-      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
-
-      // 存储验证码，5分钟过期
-      const expiresAt = Date.now() + 5 * 60 * 1000
-      verificationCodes.set(email, { code: verificationCode, expiresAt })
-
-      // 同时存储到数据库，确保持久化和多实例共享
-      let dbStoreSuccess = false
-      try {
-        console.log(`[验证码] 准备存储到数据库: ${email}`)
-        await userDB.updateEmailLoginCode(email, verificationCode, expiresAt)
-        console.log(`[验证码] 已存储到数据库: ${email}`)
-        dbStoreSuccess = true
-      } catch (dbError) {
-        console.error('[验证码] 存储到数据库失败:', dbError)
-        console.error('[验证码] 错误详情:', dbError.message, dbError.stack)
-        // Vercel环境下必须存储到数据库，因为内存无法共享
-        if (isVercel) {
-          sendJson(res, 500, { code: 1, message: '验证码存储失败，请稍后重试' })
-          return
-        }
-      }
-
-      console.log(`[验证码] 准备发送到 ${email}`)
-
-      // 发送邮件
-      let success = false
-      try {
-        success = await sendLoginEmailCode(email, verificationCode)
-        console.log(`[验证码] 邮件发送结果: ${success}`)
-      } catch (emailError) {
-        console.error('[验证码] 邮件发送异常:', emailError)
-        // 邮件发送失败，但仍然返回成功，因为验证码已存储
-        // 在开发/测试环境中，可以在控制台查看验证码
-        success = true
-      }
-      
-      if (success) {
-        sendJson(res, 200, {
-          code: 0,
-          message: '验证码发送成功',
-          data: {
-            expiresAt: new Date(expiresAt).toISOString()
-          }
-        })
-      } else {
-        console.error('[API] 邮件发送失败')
-        sendJson(res, 500, { code: 1, message: '邮件发送失败，请检查邮箱地址或稍后重试' })
-      }
-    } catch (error) {
-      console.error('[API] 发送验证码失败:', error)
-      console.error('[API] 错误堆栈:', error.stack)
-      sendJson(res, 500, { code: 1, message: '发送验证码失败: ' + (error.message || '未知错误') })
-    }
-    return
-  }
-
-  // 验证码登录 - 支持 /api/auth/login-with-email-code 路径
-  if (req.method === 'POST' && (path === '/api/auth/login-with-email-code' || path === '/api/auth/login')) {
-    try {
-      console.log('[API] 收到登录请求');
-      const body = await readBody(req)
-      console.log('[API] 请求体:', { email: body.email, code: body.code ? '***' : 'empty' });
-      const email = body.email
-      const code = body.code
-      
-      if (!email || !code) {
-        console.log('[API] 邮箱或验证码为空');
-        sendJson(res, 400, { code: 1, message: '邮箱和验证码不能为空' })
-        return
-      }
-      
-      // 验证验证码
-      // 注意：在 Vercel Serverless 环境下，内存中的 verificationCodes 无法在请求间共享
-      // 因此优先使用默认验证码，并尝试从数据库获取验证码
-      let isCodeValid = false;
-      
-      // 首先检查是否使用默认验证码（开发/测试环境）
-      if (code === '123456') {
-        console.log('[API] 使用默认验证码登录')
-        isCodeValid = true;
-      } else {
-        // 检查内存中的验证码记录
-        const record = verificationCodes.get(email)
-        if (record) {
-          // 检查验证码是否过期
-          if (Date.now() > record.expiresAt) {
-            verificationCodes.delete(email)
-            console.log('[API] 内存验证码已过期');
-          } else if (record.code === code) {
-            isCodeValid = true;
-            verificationCodes.delete(email);
-            console.log('[API] 内存验证码验证成功');
-          }
-        }
-        
-        // 如果内存验证失败，尝试从数据库获取验证码
-        if (!isCodeValid) {
-          try {
-            console.log(`[API] 尝试从数据库获取验证码，邮箱: ${email}, 输入验证码: ${code}`);
-            const emailLoginCode = await userDB.getEmailLoginCode(email);
-            console.log(`[API] 数据库返回的原始数据:`, JSON.stringify(emailLoginCode));
-            console.log(`[API] 数据库返回的字段:`, Object.keys(emailLoginCode || {}));
-            
-            // 检查可能的字段名（PostgreSQL可能返回小写）
-            const storedCode = emailLoginCode?.email_login_code || emailLoginCode?.EMAIL_LOGIN_CODE;
-            const storedExpires = emailLoginCode?.email_login_expires || emailLoginCode?.EMAIL_LOGIN_EXPIRES;
-            
-            console.log(`[API] 提取的验证码: ${storedCode}`);
-            console.log(`[API] 提取的过期时间: ${storedExpires}`);
-            
-            if (storedCode) {
-              console.log(`[API] 从数据库获取到验证码: ${storedCode}`);
-              
-              // 检查验证码是否过期
-              const now = new Date();
-              const expiresAt = storedExpires ? new Date(storedExpires) : null;
-              console.log(`[API] 当前时间: ${now.toISOString()}`);
-              console.log(`[API] 验证码过期时间: ${expiresAt ? expiresAt.toISOString() : 'null'}`);
-              
-              if (!expiresAt) {
-                console.log('[API] 验证码没有过期时间');
-              } else if (now > expiresAt) {
-                console.log('[API] 数据库验证码已过期');
-              } else if (storedCode === code) {
-                isCodeValid = true;
-                console.log('[API] 数据库验证码验证成功');
-              } else {
-                console.log(`[API] 验证码不匹配，数据库: ${storedCode}, 输入: ${code}`);
-              }
-            } else {
-              console.log('[API] 数据库中没有找到验证码');
-            }
-          } catch (error) {
-            console.error('[API] 从数据库获取验证码失败:', error.message);
-            console.error('[API] 错误详情:', error);
-          }
-        }
-      }
-      
-      // 验证验证码是否有效
-      if (!isCodeValid) {
-        console.log('[API] 验证码验证失败');
-        sendJson(res, 401, { code: 1, message: '验证码错误或已过期，请重新获取验证码' });
-        return;
-      }
-      
-      console.log('[API] 验证码验证成功');
-      
-      // 检查用户是否存在，如果不存在则创建
-      console.log(`[API] 开始登录流程，邮箱: ${email}`);
-      let user = null;
-      try {
-        user = await userDB.findByEmail(email);
-        console.log(`[API] findByEmail 结果:`, user ? '找到用户' : '未找到用户');
-      } catch (findError) {
-        console.error('[API] findByEmail 失败:', findError.message);
-        console.error('[API] 错误堆栈:', findError.stack);
-        throw findError;
-      }
-      console.log(`[API] 从 public.users 查询用户:`, user ? `找到用户 ID: ${user.id}` : '未找到用户');
-      
-      // 检查 Supabase Auth 中是否已有该邮箱的用户
-      let supabaseUserId = null;
-      try {
-        console.log(`[API] 检查 Supabase Auth 中的用户...`);
-        // 注意：listUsers API 可能不可用或需要特殊权限，使用 try-catch 包裹
-        let authData = null;
-        let authError = null;
-        
-        try {
-          const result = await supabaseServer.auth.admin.listUsers();
-          authData = result.data;
-          authError = result.error;
-        } catch (listError) {
-          console.warn('[API] listUsers API 调用失败:', listError.message);
-          // listUsers 失败不影响登录流程，继续使用数据库用户
-        }
-        
-        if (authError) {
-          console.error('[API] 获取 Supabase Auth 用户列表失败:', authError);
-        } else if (authData?.users) {
-          console.log(`[API] Supabase Auth 中共有 ${authData.users.length} 个用户`);
-          const existingAuthUser = authData.users.find(u => u.email === email);
-          if (existingAuthUser) {
-            supabaseUserId = existingAuthUser.id;
-            console.log(`[API] 在 Supabase Auth 中找到用户: ${email}, ID: ${supabaseUserId}`);
-          } else {
-            console.log(`[API] 在 Supabase Auth 中未找到用户: ${email}`);
-          }
-        }
-      } catch (supabaseError) {
-        console.warn('[API] 检查 Supabase Auth 用户失败:', supabaseError.message);
-      }
-      
-      // 如果 Supabase Auth 中没有该用户，尝试创建一个
-      // 注意：如果 createUser 也失败，我们仍然可以使用数据库用户继续登录
-      if (!supabaseUserId) {
-        try {
-          console.log(`[API] 尝试在 Supabase Auth 中创建用户: ${email}`);
-          const { data: newAuthUser, error: createAuthError } = await supabaseServer.auth.admin.createUser({
-            email: email,
-            password: randomUUID(), // 随机密码，用户通过验证码登录
-            email_confirm: true, // 自动确认邮箱
-            user_metadata: {
-              username: email.split('@')[0],
-              auth_provider: 'local'
-            }
-          });
-          
-          if (createAuthError) {
-            console.error('[API] 在 Supabase Auth 中创建用户失败:', createAuthError);
-            // 创建失败不阻止登录流程
-          } else if (newAuthUser?.user) {
-            supabaseUserId = newAuthUser.user.id;
-            console.log(`[API] 在 Supabase Auth 中创建用户成功，ID: ${supabaseUserId}`);
-          }
-        } catch (createError) {
-          console.error('[API] 在 Supabase Auth 中创建用户异常:', createError.message);
-          // 异常不阻止登录流程
-        }
-      }
-      
-      if (!user) {
-        // 创建新用户
-        console.log(`[API] 用户 ${email} 不存在，自动创建新用户`);
-        
-        // 使用 Supabase Auth 的 ID（如果创建成功），否则生成新的 UUID
-        const userId = supabaseUserId || randomUUID();
-        
-        const now = new Date().toISOString();
-        user = {
-          id: userId,
-          email: email,
-          username: email.split('@')[0],
-          password_hash: 'TEMP_HASH', // 临时密码哈希，后续用户可以设置真实密码
-          avatar_url: 'https://ui-avatars.com/api/?name=' + encodeURIComponent(email.split('@')[0]) + '&background=random',
-          membership_level: 'free',
-          membership_status: 'active',
-          auth_provider: 'local', // 标记为本地登录（邮箱验证码）
-          isNewUser: true, // 标记为新用户，需要完善个人信息
-          created_at: now,
-          updated_at: now
-        };
-        
-        // 保存用户到数据库
-        await userDB.createUser(user);
-        console.log(`[API] 新用户创建成功，ID: ${userId}`);
-      } else {
-        // 确保用户是通过邮箱验证码登录的
-        if (user.auth_provider && user.auth_provider !== 'local') {
-          console.warn(`[API] 用户 ${email} 不是通过邮箱验证码登录的，移除该用户`);
-          // 这里可以添加删除用户的逻辑，但为了安全起见，我们只标记为禁用
-          await userDB.updateById(user.id, { membership_status: 'inactive' });
-          sendJson(res, 401, { code: 1, message: '该账号不是通过邮箱验证码登录的，请使用邮箱验证码登录' });
-          return;
-        }
-        
-        // 如果 Supabase Auth 中有该用户，但 public.users 中的 ID 不一致，需要修复
-        if (supabaseUserId && user.id !== supabaseUserId) {
-          console.warn(`[API] 检测到用户ID不一致，正在修复:`, {
-            publicUsersId: user.id,
-            supabaseAuthId: supabaseUserId
-          });
-          
-          const oldUserId = user.id;
-          
-          // 使用事务更新用户 ID 及相关外键
-          try {
-            console.log(`[API] 开始更新用户ID从 ${oldUserId} 到 ${supabaseUserId}...`);
-            await userDB.updateUserId(oldUserId, supabaseUserId);
-            user.id = supabaseUserId;
-            console.log(`[API] 用户ID已修复为 Supabase Auth ID: ${supabaseUserId}`);
-            
-            // 同时更新社区的创建者ID
-            try {
-              console.log(`[API] 检查并更新社区的创建者ID...`);
-              const communities = await communityDB.getAllCommunities();
-              for (const community of communities) {
-                if (community.creator_id === oldUserId) {
-                  console.log(`[API] 更新社区 ${community.id} 的创建者ID从 ${oldUserId} 到 ${supabaseUserId}`);
-                  await communityDB.updateCommunityCreatorId(community.id, supabaseUserId);
-                }
-              }
-              console.log(`[API] 社区创建者ID更新完成`);
-            } catch (communityError) {
-              console.error('[API] 更新社区创建者ID失败:', communityError);
-            }
-            
-            // 同时更新活动的组织者ID
-            try {
-              console.log(`[API] 检查并更新活动的组织者ID...`);
-              const events = await eventDB.getEvents({});
-              for (const event of events) {
-                if (event.organizer_id === oldUserId) {
-                  console.log(`[API] 更新活动 ${event.id} 的组织者ID从 ${oldUserId} 到 ${supabaseUserId}`);
-                  await eventDB.updateEventOrganizerId(event.id, supabaseUserId);
-                }
-              }
-              console.log(`[API] 活动组织者ID更新完成`);
-            } catch (eventError) {
-              console.error('[API] 更新活动组织者ID失败:', eventError);
-            }
-          } catch (fixError) {
-            console.error('[API] 修复用户ID失败:', fixError);
-            // 如果无法修复，继续使用原来的 ID
-          }
-        } else if (supabaseUserId && user.id === supabaseUserId) {
-          console.log(`[API] 用户ID已与 Supabase Auth 同步: ${user.id}`);
-        } else {
-          console.log(`[API] 用户登录成功，ID: ${user.id} (未与 Supabase Auth 关联)`);
-        }
-      }
-      
-      // 生成JWT token
-      const token = generateToken({ userId: user.id, email: user.email })
-      
-      // 确保返回给前端的用户对象使用正确的字段名
-      const userForFrontend = {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        avatar: user.avatar || user.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.username) + '&background=random',
-        membership_level: user.membership_level || 'free',
-        membership_status: user.membership_status || 'active',
-        isNewUser: user.isNewUser || false // 标记是否为新用户
-      };
-      
-      // 获取 Supabase session（用于前端 RLS 查询）
-      let supabaseSession = null;
-      console.log(`[API] 准备获取 Supabase session，supabaseUserId: ${supabaseUserId}, supabaseServer: ${!!supabaseServer}`);
-      try {
-        if (supabaseUserId && supabaseServer) {
-          console.log(`[API] 尝试获取 Supabase session，用户ID: ${supabaseUserId}`);
-          // 使用 signInWithPassword 获取 session
-          // 注意：我们使用随机密码创建用户，需要重新设置密码
-          const tempPassword = randomUUID();
-          
-          // 先更新用户密码
-          const { error: updateError } = await supabaseServer.auth.admin.updateUserById(
-            supabaseUserId,
-            { password: tempPassword }
-          );
-          
-          if (updateError) {
-            console.warn('[API] 更新 Supabase 用户密码失败:', updateError.message);
-          } else {
-            // 使用新密码登录获取 session
-            const { data: signInData, error: signInError } = await supabaseServer.auth.signInWithPassword({
-              email: email,
-              password: tempPassword
-            });
-            
-            if (signInError) {
-              console.warn('[API] Supabase 登录获取 session 失败:', signInError.message);
-            } else if (signInData.session) {
-              supabaseSession = {
-                access_token: signInData.session.access_token,
-                refresh_token: signInData.session.refresh_token
-              };
-              console.log('[API] Supabase session 获取成功');
-            }
-          }
-        }
-      } catch (sessionError) {
-        console.warn('[API] 获取 Supabase session 失败:', sessionError.message);
-      }
-      
-      const responseData = {
-        user: userForFrontend,
-        token: token,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7天过期
-      };
-      
-      // 如果有 supabaseSession，添加到响应中
-      if (supabaseSession) {
-        responseData.supabaseSession = supabaseSession;
-      }
-      
-      sendJson(res, 200, {
-        code: 0,
-        message: '登录成功',
-        data: responseData
-      })
-    } catch (error) {
-      console.error('[API] 登录失败:', error);
-      console.error('[API] 错误详情:', error.message);
-      console.error('[API] 错误堆栈:', error.stack);
-      sendJson(res, 500, { code: 1, message: '登录失败: ' + (error.message || '未知错误') })
     }
     return
   }
@@ -3294,25 +3132,20 @@ async function route(req, res, u, path) {
     try {
       console.log(`[API] 获取品牌账户，用户ID: ${decoded.userId}`)
       
-      // 使用 supabaseServer (Service Role Key) 绕过 RLS
-      const { data, error } = await supabaseServer
-        .from('brand_accounts')
-        .select('*')
-        .eq('user_id', decoded.userId)
-        .single()
+      // 使用 Neon 数据库获取品牌账户
+      const db = await getDB()
+      const result = await db.query(
+        'SELECT * FROM brand_accounts WHERE user_id = $1',
+        [decoded.userId]
+      )
       
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // 记录不存在
-          sendJson(res, 200, { code: 0, data: null, message: '账户不存在' })
-          return
-        }
-        console.error('[API] 获取品牌账户失败:', error)
-        sendJson(res, 500, { code: 1, message: '获取品牌账户失败' })
+      if (result.result.rows.length === 0) {
+        // 记录不存在
+        sendJson(res, 200, { code: 0, data: null, message: '账户不存在' })
         return
       }
       
-      sendJson(res, 200, { code: 0, data })
+      sendJson(res, 200, { code: 0, data: result.result.rows[0] })
     } catch (error) {
       console.error('[API] 获取品牌账户异常:', error)
       sendJson(res, 500, { code: 1, message: '获取品牌账户失败' })
@@ -4175,6 +4008,39 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Get followers list failed:', e)
       sendJson(res, 500, { code: 1, message: '获取粉丝列表失败: ' + e.message })
+    }
+    return
+  }
+
+  // 检查用户是否关注了目标用户
+  if (req.method === 'GET' && path.match(/^\/api\/follows\/check$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`)
+      const targetUserId = url.searchParams.get('targetUserId')
+      
+      if (!targetUserId) {
+        sendJson(res, 400, { code: 1, message: '目标用户ID不能为空' })
+        return
+      }
+
+      const db = await getDB()
+      
+      // 检查用户是否关注了目标用户
+      const { rows } = await db.query(`
+        SELECT id FROM follows
+        WHERE follower_id = $1 AND following_id = $2
+      `, [decoded.userId, targetUserId])
+
+      sendJson(res, 200, { code: 0, data: { following: rows.length > 0 } })
+    } catch (e) {
+      console.error('[API] Check following status failed:', e)
+      sendJson(res, 500, { code: 1, message: '检查关注状态失败' })
     }
     return
   }
@@ -6796,6 +6662,90 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] File upload failed:', e)
       sendJson(res, 500, { code: 1, message: '文件上传失败: ' + e.message })
+    }
+    return
+  }
+
+  // 头像上传端点 - 上传到本地存储（避免 Supabase Storage 配额限制）
+  if (req.method === 'POST' && path === '/api/upload/avatar') {
+    console.log('[API] Received avatar upload request')
+    
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      console.log('[API] Avatar upload: Unauthorized')
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+    
+    console.log('[API] Avatar upload: User authorized, userId:', decoded.userId || decoded.sub || decoded.id)
+    
+    try {
+      // 解析请求体
+      const chunks = []
+      let totalSize = 0
+      const MAX_SIZE = 10 * 1024 * 1024 // 10MB 限制
+      
+      for await (const chunk of req) {
+        totalSize += chunk.length
+        if (totalSize > MAX_SIZE) {
+          console.log('[API] Avatar upload: Request body too large:', totalSize)
+          sendJson(res, 413, { error: 'PAYLOAD_TOO_LARGE', message: '请求体过大，请使用较小的图片' })
+          return
+        }
+        chunks.push(chunk)
+      }
+      
+      const body = JSON.parse(Buffer.concat(chunks).toString())
+      const { fileData, fileName, fileType } = body
+      
+      console.log('[API] Avatar upload: Received file:', fileName, 'type:', fileType, 'data length:', fileData?.length)
+      
+      if (!fileData) {
+        sendJson(res, 400, { error: 'BAD_REQUEST', message: '缺少文件数据' })
+        return
+      }
+      
+      // 生成唯一文件名
+      const ext = pathModule.extname(fileName) || '.jpg'
+      const uniqueName = `avatar-${Date.now()}-${randomUUID()}${ext}`
+      
+      // 解码 base64 数据
+      let fileBuffer
+      try {
+        if (fileData.startsWith('data:')) {
+          const base64Data = fileData.split(',')[1]
+          fileBuffer = Buffer.from(base64Data, 'base64')
+        } else {
+          fileBuffer = Buffer.from(fileData, 'base64')
+        }
+      } catch (decodeError) {
+        console.error('[API] Avatar upload: Base64 decode error:', decodeError)
+        sendJson(res, 400, { error: 'BAD_REQUEST', message: '文件数据格式错误' })
+        return
+      }
+      
+      console.log('[API] Avatar upload: Decoded file size:', fileBuffer.length, 'bytes')
+      
+      // 保存到本地存储
+      const uploadDir = pathModule.join(__dirname, 'uploads', 'avatars')
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true })
+        console.log('[API] Avatar upload: Created upload directory:', uploadDir)
+      }
+      
+      const filePath = pathModule.join(uploadDir, uniqueName)
+      fs.writeFileSync(filePath, fileBuffer)
+      console.log('[API] Avatar upload: File saved to:', filePath)
+      
+      // 返回本地访问 URL
+      const port = process.env.LOCAL_API_PORT || 3023
+      const fileUrl = `http://localhost:${port}/uploads/avatars/${uniqueName}`
+      
+      console.log('[API] Avatar uploaded to local storage:', fileUrl)
+      sendJson(res, 200, { code: 0, data: { url: fileUrl, path: `/uploads/avatars/${uniqueName}` } })
+    } catch (e) {
+      console.error('[API] Avatar upload failed:', e)
+      sendJson(res, 500, { code: 1, message: '头像上传失败: ' + e.message })
     }
     return
   }

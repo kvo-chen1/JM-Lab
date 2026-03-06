@@ -3,7 +3,7 @@
  * 用于收集和分析用户行为数据，为数据分析提供真实依据
  */
 
-import { supabaseAdmin } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabase';
 import { supabase } from '@/lib/supabase';
 
 // ==================== 类型定义 ====================

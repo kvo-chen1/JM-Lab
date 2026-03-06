@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { uploadImage } from './imageService';
+import { uploadFile } from './storageServiceNew';
 import { generatePlaceholderSvg } from '@/utils/imageUrlUtils';
 import { contentScoringService } from './contentScoringService';
 import { contentModerationService } from './contentModerationService';
@@ -1292,28 +1293,18 @@ async function downloadAndUploadImage(imageUrl: string, userId: string): Promise
       return null;
     }
 
-    const fileName = `works/${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
-
-    // 上传到 Supabase Storage
-    const { data, error } = await supabase.storage
-      .from('images')
-      .upload(fileName, blob, {
-        contentType: blob.type || 'image/png',
-        upsert: false
-      });
-
-    if (error) {
-      console.error('[downloadAndUploadImage] Upload error:', error);
+    // 使用新的存储服务上传
+    const folder = `works/${userId}`;
+    const file = new File([blob], `${Date.now()}-${Math.random().toString(36).substring(7)}.png`, { type: blob.type || 'image/png' });
+    
+    try {
+      const publicUrl = await uploadFile(file, folder);
+      console.log('[downloadAndUploadImage] Uploaded successfully:', publicUrl);
+      return publicUrl;
+    } catch (uploadError) {
+      console.error('[downloadAndUploadImage] Upload error:', uploadError);
       return null;
     }
-
-    // 获取公共 URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('images')
-      .getPublicUrl(data.path);
-
-    console.log('[downloadAndUploadImage] Uploaded successfully:', publicUrl);
-    return publicUrl;
   } catch (error) {
     console.error('[downloadAndUploadImage] Error:', error);
     // 任何错误都返回原始 URL 作为降级
@@ -2495,38 +2486,14 @@ export async function deleteWorkComment(commentId: string): Promise<void> {
   }
 }
 
-// 上传评论图片到 Supabase Storage
+// 上传评论图片到存储服务
 async function uploadCommentImage(file: File, userId: string): Promise<string> {
   try {
-    const { supabaseAdmin } = await import('@/lib/supabase');
-    
-    // 生成唯一文件名
-    const fileExt = file.name.split('.').pop() || 'jpg';
-    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    
-    // 使用 supabaseAdmin 上传到 comment-images bucket（绕过 RLS）
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from('comment-images')
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error('Comment image upload error:', uploadError);
-      throw new Error(`上传图片失败: ${uploadError.message}`);
-    }
-
-    // 获取公开 URL
-    const { data } = supabaseAdmin.storage
-      .from('comment-images')
-      .getPublicUrl(fileName);
-
-    if (!data.publicUrl) {
-      throw new Error('获取图片 URL 失败');
-    }
-
-    return data.publicUrl;
+    // 使用新的存储服务上传
+    const folder = `works/${userId}`;
+    const publicUrl = await uploadFile(file, folder);
+    console.log('[uploadCommentImage] Uploaded successfully:', publicUrl);
+    return publicUrl;
   } catch (error: any) {
     console.error('Upload comment image failed:', error);
     throw new Error('图片上传失败: ' + (error.message || '未知错误'));

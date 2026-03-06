@@ -8,7 +8,7 @@ import viteCompression from 'vite-plugin-compression'
 import path from 'path'
 // import { createRequire } from 'node:module'
 // const require = createRequire(import.meta.url)
-const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3022'
+const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3023'
 // 使用127.0.0.1而不是localhost，避免IPv6连接问题
 const LOCAL_API_TARGET = `http://127.0.0.1:${LOCAL_API_PORT}`
 
@@ -340,6 +340,19 @@ export default defineConfig({
           options.onProxyRes = (proxyRes, req, res) => {
             proxyRes.headers['Access-Control-Allow-Origin'] = '*';
           };
+        },
+      },
+      // 上传文件访问代理 - 头像等上传文件
+      '/uploads': {
+        target: LOCAL_API_TARGET,
+        changeOrigin: true,
+        configure: (proxy, options) => {
+          proxy.on('error', (err, req, res) => {
+            console.error('[Proxy Error]', err.message, req.url);
+          });
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log(`[Proxy] ${req.method} ${req.url} -> ${LOCAL_API_TARGET}${req.url}`);
+          });
         },
       },
       // 统一API代理 - 所有 /api/* 请求转发到本地API服务器

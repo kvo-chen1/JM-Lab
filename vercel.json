@@ -45,6 +45,14 @@
       "destination": "/api/proxy/video.js"
     },
     {
+      "source": "/api/upload/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/user/:path*",
+      "destination": "/api/index.js"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.js"
     },

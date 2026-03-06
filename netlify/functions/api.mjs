@@ -4,6 +4,14 @@
 // 设置内存限制
 process.env.NODE_OPTIONS = '--max-old-space-size=512';
 
+// 导入邮件服务
+let nodemailer;
+try {
+  nodemailer = require('nodemailer');
+} catch (e) {
+  console.log('[Netlify] Nodemailer not available, will use fetch API for email');
+}
+
 export default async (request, context) => {
   // 设置 CORS 头
   const headers = {
@@ -86,6 +94,125 @@ export default async (request, context) => {
   }
 };
 
+// 发送邮件函数
+async function sendEmail(to, subject, htmlContent) {
+  const {
+    SMTP_HOST,
+    SMTP_PORT,
+    SMTP_USER,
+    SMTP_PASS,
+    SMTP_FROM
+  } = process.env;
+
+  // 检查邮件配置
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    console.log('[Email] SMTP not configured, logging email instead:');
+    console.log('[Email] To:', to);
+    console.log('[Email] Subject:', subject);
+    console.log('[Email] Content:', htmlContent);
+    return { success: true, message: 'Email logged (SMTP not configured)' };
+  }
+
+  try {
+    if (nodemailer) {
+      // 使用 nodemailer 发送邮件
+      const transporter = nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: parseInt(SMTP_PORT || '587'),
+        secure: SMTP_PORT === '465',
+        auth: {
+          user: SMTP_USER,
+          pass: SMTP_PASS
+        }
+      });
+
+      const info = await transporter.sendMail({
+        from: SMTP_FROM || SMTP_USER,
+        to,
+        subject,
+        html: htmlContent
+      });
+
+      console.log('[Email] Sent:', info.messageId);
+      return { success: true, messageId: info.messageId };
+    } else {
+      // 如果没有 nodemailer，使用 Resend API（如果配置了）
+      const RESEND_API_KEY = process.env.RESEND_API_KEY;
+      if (RESEND_API_KEY) {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: SMTP_FROM || 'noreply@jinmai-lab.tech',
+            to,
+            subject,
+            html: htmlContent
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[Email] Sent via Resend:', data.id);
+          return { success: true, messageId: data.id };
+        } else {
+          throw new Error('Resend API error: ' + await response.text());
+        }
+      }
+      
+      // 如果没有配置任何邮件服务，只记录日志
+      console.log('[Email] To:', to);
+      console.log('[Email] Subject:', subject);
+      console.log('[Email] Content:', htmlContent);
+      return { success: true, message: 'Email logged (no email service configured)' };
+    }
+  } catch (error) {
+    console.error('[Email] Error:', error);
+    throw error;
+  }
+}
+
+// 生成验证码邮件模板
+function generateVerificationEmailTemplate(code, expireMinutes = 10) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+        .code { font-size: 32px; font-weight: bold; color: #667eea; text-align: center; padding: 20px; background: white; border-radius: 8px; margin: 20px 0; letter-spacing: 8px; }
+        .footer { text-align: center; color: #999; font-size: 12px; margin-top: 20px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>津脉智坊</h1>
+          <p>验证码登录</p>
+        </div>
+        <div class="content">
+          <p>您好！</p>
+          <p>您正在使用邮箱验证码登录津脉智坊平台。您的验证码是：</p>
+          <div class="code">${code}</div>
+          <p>此验证码将在 <strong>${expireMinutes} 分钟</strong> 后过期，请尽快使用。</p>
+          <p>如果您没有请求此验证码，请忽略此邮件。</p>
+        </div>
+        <div class="footer">
+          <p>此邮件由系统自动发送，请勿回复。</p>
+          <p>津脉智坊团队</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
 // 处理认证请求
 async function handleAuthRequest(request, path, headers) {
   try {
@@ -114,29 +241,62 @@ async function handleAuthRequest(request, path, headers) {
         );
       }
 
+      // 验证邮箱格式
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: '邮箱格式不正确'
+          }), 
+          { status: 400, headers }
+        );
+      }
+
       // 生成6位验证码
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       
-      // 这里应该调用邮件服务发送验证码
-      // 目前返回模拟成功响应
       console.log('[Netlify Auth] Generated code for', email, ':', code);
-      
-      // 在实际生产环境中，这里需要：
-      // 1. 将验证码保存到数据库（带过期时间）
-      // 2. 调用邮件服务（如 SendGrid、AWS SES 等）发送邮件
-      
-      return new Response(
-        JSON.stringify({
-          code: 0,
-          message: '验证码发送成功',
-          data: {
-            email,
-            // 注意：实际生产环境不要返回验证码！这里仅用于测试
-            debug_code: process.env.NODE_ENV === 'development' ? code : undefined
-          }
-        }), 
-        { status: 200, headers }
-      );
+
+      try {
+        // 发送邮件
+        const emailResult = await sendEmail(
+          email,
+          '津脉智坊 - 登录验证码',
+          generateVerificationEmailTemplate(code)
+        );
+
+        console.log('[Netlify Auth] Email result:', emailResult);
+
+        // 这里应该将验证码保存到数据库（带过期时间）
+        // 为了简化，暂时使用 Netlify 的环境变量存储（实际应该用数据库）
+        // 在生产环境中，应该：
+        // 1. 将验证码保存到 Neon 数据库
+        // 2. 设置过期时间（如 10 分钟）
+
+        return new Response(
+          JSON.stringify({
+            code: 0,
+            message: '验证码发送成功',
+            data: {
+              email,
+              // 仅在开发环境返回验证码用于测试
+              debug_code: process.env.NODE_ENV === 'development' ? code : undefined
+            }
+          }), 
+          { status: 200, headers }
+        );
+      } catch (emailError) {
+        console.error('[Netlify Auth] Email send error:', emailError);
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: '验证码发送失败，请稍后重试',
+            error: emailError.message
+          }), 
+          { status: 500, headers }
+        );
+      }
     }
 
     // 处理登录请求
@@ -155,6 +315,12 @@ async function handleAuthRequest(request, path, headers) {
 
       // 这里应该验证验证码
       // 目前返回模拟成功响应
+      // 在生产环境中，应该：
+      // 1. 从数据库查询验证码
+      // 2. 验证是否过期
+      // 3. 验证是否正确
+      // 4. 删除已使用的验证码
+
       return new Response(
         JSON.stringify({
           code: 0,

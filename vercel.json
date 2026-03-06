@@ -1,6 +1,34 @@
 {
   "rewrites": [
     {
+      "source": "/api/auth/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/db/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/rest/v1/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/works/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/events/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/follows/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/notifications/:path*",
+      "destination": "/api/index.js"
+    },
+    {
       "source": "/api/proxy/trae-api/:path*",
       "destination": "https://trae-api-sg.mchost.guru/:path*"
     },
@@ -79,7 +107,7 @@
   ],
   "functions": {
     "api/index.js": {
-      "maxDuration": 10,
+      "maxDuration": 30,
       "memory": 1024
     },
     "api/health/ping.js": {

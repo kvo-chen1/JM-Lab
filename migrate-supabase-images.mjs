@@ -125,7 +125,15 @@ async function migrateImages() {
     `);
     console.log(`📊 cultural_knowledge 表: ${knowledgeResult.rows.length} 条记录需要迁移`);
 
-    const totalRecords = worksResult.rows.length + usersResult.rows.length + knowledgeResult.rows.length;
+    // 检查 brand_tasks 表的 cover_image 字段
+    const brandTasksResult = await client.query(`
+      SELECT id, cover_image, title
+      FROM brand_tasks
+      WHERE cover_image LIKE '%supabase.co/storage%'
+    `);
+    console.log(`📊 brand_tasks 表: ${brandTasksResult.rows.length} 条记录需要迁移`);
+
+    const totalRecords = worksResult.rows.length + usersResult.rows.length + knowledgeResult.rows.length + brandTasksResult.rows.length;
     console.log(`\n📈 总计: ${totalRecords} 条记录需要迁移\n`);
 
     if (totalRecords === 0) {
@@ -216,6 +224,34 @@ async function migrateImages() {
       }
     }
     console.log(`  cultural_knowledge 表迁移完成: ${successCount} 成功, ${failCount} 失败\n`);
+
+    // 5. 迁移 brand_tasks 表的图片
+    console.log('🔄 开始迁移 brand_tasks 表...');
+    successCount = 0;
+    failCount = 0;
+    
+    for (const row of brandTasksResult.rows) {
+      try {
+        const filename = generateSafeFilename(row.cover_image);
+        const localPath = path.join(UPLOADS_DIR, filename);
+        const localUrl = generateLocalUrl(filename);
+        
+        console.log(`  下载: ${row.cover_image.substring(0, 60)}...`);
+        await downloadFile(row.cover_image, localPath);
+        
+        // 更新数据库
+        await client.query(`
+          UPDATE brand_tasks SET cover_image = $1 WHERE id = $2
+        `, [localUrl, row.id]);
+        
+        console.log(`  ✅ 成功: ${localUrl}`);
+        successCount++;
+      } catch (error) {
+        console.log(`  ❌ 失败: ${error.message}`);
+        failCount++;
+      }
+    }
+    console.log(`  brand_tasks 表迁移完成: ${successCount} 成功, ${failCount} 失败\n`);
 
     console.log('='.repeat(60));
     console.log('✅ 迁移完成！');

@@ -347,6 +347,24 @@ export default async function handler(req, res) {
       return handleUploadAvatar(req, res);
     }
 
+    // 作品相关API
+    if (path === '/works' && req.method === 'GET') {
+      return handleGetWorks(req, res);
+    }
+    if (path === '/works' && req.method === 'POST') {
+      return handleCreateWork(req, res);
+    }
+
+    // 关注相关API
+    if (path.startsWith('/follows/')) {
+      return handleFollows(req, res, path);
+    }
+
+    // 活动相关API
+    if (path.startsWith('/events')) {
+      return handleEvents(req, res, path);
+    }
+
     // 其他 API 返回未实现
     return res.status(501).json({ code: 1, message: 'API endpoint not implemented: ' + path });
 
@@ -834,5 +852,199 @@ async function handleUploadAvatar(req, res) {
   } catch (error) {
     console.error('[API] Avatar upload error:', error);
     return res.status(500).json({ code: 1, message: '头像上传失败', error: error.message });
+  }
+}
+
+// 处理获取作品列表
+async function handleGetWorks(req, res) {
+  try {
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(200).json({ code: 0, data: [], message: 'Database not available' });
+    }
+
+    // 创建works表
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS works (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        title VARCHAR(255),
+        description TEXT,
+        thumbnail TEXT,
+        video_url TEXT,
+        likes INTEGER DEFAULT 0,
+        views INTEGER DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'published',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const result = await client.query(
+      'SELECT * FROM works WHERE status = $1 ORDER BY created_at DESC LIMIT 50',
+      ['published']
+    );
+
+    const works = result.rows.map(work => ({
+      id: work.id,
+      title: work.title || '无标题',
+      description: work.description || '',
+      thumbnail: work.thumbnail || '',
+      videoUrl: work.video_url,
+      likes: work.likes || 0,
+      views: work.views || 0,
+      date: work.created_at ? new Date(work.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      author: {
+        id: work.user_id,
+        username: '用户' + work.user_id.substring(0, 8),
+        avatar: ''
+      }
+    }));
+
+    return res.status(200).json({ code: 0, data: works });
+  } catch (error) {
+    console.error('[API] Get works error:', error);
+    return res.status(200).json({ code: 0, data: [] });
+  }
+}
+
+// 处理创建作品
+async function handleCreateWork(req, res) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const body = await parseRequestBody(req);
+    const { title, description, thumbnail, videoUrl } = body;
+
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(503).json({ code: 1, message: 'Database not available' });
+    }
+
+    const userId = decoded.userId || decoded.id || decoded.sub;
+
+    const result = await client.query(`
+      INSERT INTO works (user_id, title, description, thumbnail, video_url, status)
+      VALUES ($1, $2, $3, $4, $5, 'published')
+      RETURNING *
+    `, [userId, title, description, thumbnail, videoUrl]);
+
+    return res.status(200).json({
+      code: 0,
+      message: '作品创建成功',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('[API] Create work error:', error);
+    return res.status(500).json({ code: 1, message: '创建作品失败', error: error.message });
+  }
+}
+
+// 处理关注相关请求
+async function handleFollows(req, res, path) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(200).json({ code: 0, data: { isFollowing: false, followers: 0, following: 0 } });
+    }
+
+    // 创建关注表
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS follows (
+        id SERIAL PRIMARY KEY,
+        follower_id VARCHAR(255) NOT NULL,
+        following_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(follower_id, following_id)
+      )
+    `);
+
+    const userId = decoded.userId || decoded.id || decoded.sub;
+
+    // 获取关注统计
+    if (path === '/follows/stats' || path === '/follows/counts') {
+      const followersResult = await client.query(
+        'SELECT COUNT(*) as count FROM follows WHERE following_id = $1',
+        [userId]
+      );
+      const followingResult = await client.query(
+        'SELECT COUNT(*) as count FROM follows WHERE follower_id = $1',
+        [userId]
+      );
+
+      return res.status(200).json({
+        code: 0,
+        data: {
+          followers: parseInt(followersResult.rows[0]?.count || 0),
+          following: parseInt(followingResult.rows[0]?.count || 0)
+        }
+      });
+    }
+
+    // 检查是否关注某个用户
+    if (path.startsWith('/follows/')) {
+      const targetUserId = path.replace('/follows/', '').split('/')[0];
+      if (targetUserId && targetUserId !== 'following' && targetUserId !== 'followers') {
+        const result = await client.query(
+          'SELECT * FROM follows WHERE follower_id = $1 AND following_id = $2',
+          [userId, targetUserId]
+        );
+        return res.status(200).json({
+          code: 0,
+          data: { isFollowing: result.rows.length > 0 }
+        });
+      }
+    }
+
+    return res.status(200).json({ code: 0, data: { isFollowing: false } });
+  } catch (error) {
+    console.error('[API] Follows error:', error);
+    return res.status(200).json({ code: 0, data: { isFollowing: false, followers: 0, following: 0 } });
+  }
+}
+
+// 处理活动相关请求
+async function handleEvents(req, res, path) {
+  try {
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+
+    // 创建活动表
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS events (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        image_url TEXT,
+        start_date TIMESTAMP,
+        end_date TIMESTAMP,
+        status VARCHAR(50) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 获取活动列表
+    if (req.method === 'GET') {
+      const result = await client.query(
+        'SELECT * FROM events WHERE status = $1 ORDER BY created_at DESC LIMIT 10',
+        ['active']
+      );
+      return res.status(200).json({ code: 0, data: result.rows });
+    }
+
+    return res.status(200).json({ code: 0, data: [] });
+  } catch (error) {
+    console.error('[API] Events error:', error);
+    return res.status(200).json({ code: 0, data: [] });
   }
 }

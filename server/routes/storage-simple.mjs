@@ -1,22 +1,28 @@
 /**
  * 文件存储路由 - 替代 Supabase Storage
- * 使用本地文件存储
+ * 支持本地文件存储和腾讯云 COS
  */
 
 import fs from 'fs'
 import pathModule from 'path'
 import { fileURLToPath } from 'url'
 import { randomUUID } from 'crypto'
+import { uploadToCOS, deleteFromCOS, extractKeyFromUrl, isCOSConfigured } from '../services/cosService.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = pathModule.dirname(__filename)
 const projectRoot = pathModule.resolve(__dirname, '../..')
 
 // 存储配置
+const STORAGE_TYPE = process.env.VITE_STORAGE_TYPE || process.env.STORAGE_TYPE || 'local'
 const LOCAL_STORAGE_PATH = process.env.LOCAL_STORAGE_PATH || pathModule.join(projectRoot, 'public', 'uploads')
 
-// 确保上传目录存在
+console.log('[Storage] 存储类型:', STORAGE_TYPE)
+
+// 确保上传目录存在（仅本地存储）
 function ensureUploadsDir() {
+  if (STORAGE_TYPE !== 'local') return
+  
   if (!fs.existsSync(LOCAL_STORAGE_PATH)) {
     fs.mkdirSync(LOCAL_STORAGE_PATH, { recursive: true })
     console.log('[Storage] 创建上传目录:', LOCAL_STORAGE_PATH)
@@ -136,6 +142,146 @@ async function parseMultipartFormData(req) {
   })
 }
 
+// 处理本地存储上传
+async function handleLocalUpload(req, res, folder, files) {
+  if (files.length === 0) {
+    res.statusCode = 400
+    res.end(JSON.stringify({ error: '没有上传文件' }))
+    return
+  }
+  
+  const file = files[0]
+  
+  // 验证文件类型
+  const allowedTypes = [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+    'image/jpg',
+    'video/mp4', 'video/webm', 'video/quicktime'
+  ]
+  
+  // 也检查文件扩展名
+  const ext = pathModule.extname(file.filename).toLowerCase()
+  const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.mp4', '.webm', '.mov']
+  
+  if (!allowedTypes.includes(file.contentType) && !allowedExts.includes(ext)) {
+    res.statusCode = 400
+    res.end(JSON.stringify({ error: `不支持的文件类型: ${file.contentType} (${ext})` }))
+    return
+  }
+  
+  // 确保目标目录存在
+  const destDir = pathModule.join(LOCAL_STORAGE_PATH, folder)
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true })
+  }
+  
+  // 生成唯一文件名
+  const newExt = ext || '.jpg'
+  const newFilename = `${Date.now()}-${randomUUID().slice(0, 8)}${newExt}`
+  const filePath = pathModule.join(destDir, newFilename)
+  
+  // 保存文件
+  fs.writeFileSync(filePath, file.buffer)
+  
+  // 验证文件是否成功写入
+  const stats = fs.statSync(filePath)
+  
+  // 构建访问 URL
+  const fileUrl = `/uploads/${folder}/${newFilename}`
+  
+  console.log('[Storage] 文件上传成功:', {
+    folder,
+    filename: newFilename,
+    originalName: file.filename,
+    size: stats.size,
+    url: fileUrl
+  })
+  
+  res.statusCode = 200
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({
+    success: true,
+    data: {
+      path: `${folder}/${newFilename}`,
+      url: fileUrl,
+      size: stats.size,
+      mimetype: file.contentType
+    }
+  }))
+}
+
+// 处理 COS 上传
+async function handleCOSUpload(req, res, folder, files) {
+  // 检查 COS 配置
+  if (!isCOSConfigured()) {
+    res.statusCode = 500
+    res.end(JSON.stringify({ error: 'COS 未配置，请检查环境变量' }))
+    return
+  }
+
+  if (files.length === 0) {
+    res.statusCode = 400
+    res.end(JSON.stringify({ error: '没有上传文件' }))
+    return
+  }
+  
+  const file = files[0]
+  
+  // 验证文件类型
+  const allowedTypes = [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+    'image/jpg',
+    'video/mp4', 'video/webm', 'video/quicktime'
+  ]
+  
+  const ext = pathModule.extname(file.filename).toLowerCase()
+  const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.mp4', '.webm', '.mov']
+  
+  if (!allowedTypes.includes(file.contentType) && !allowedExts.includes(ext)) {
+    res.statusCode = 400
+    res.end(JSON.stringify({ error: `不支持的文件类型: ${file.contentType} (${ext})` }))
+    return
+  }
+  
+  console.log('[Storage COS] 开始上传:', {
+    folder,
+    filename: file.filename,
+    size: file.buffer.length,
+    mimetype: file.contentType
+  })
+  
+  try {
+    // 上传到 COS
+    const result = await uploadToCOS(
+      file.buffer,
+      file.filename,
+      file.contentType,
+      folder
+    )
+    
+    console.log('[Storage COS] 上传成功:', {
+      url: result.url,
+      key: result.key
+    })
+    
+    res.statusCode = 200
+    res.setHeader('Content-Type', 'application/json')
+    res.end(JSON.stringify({
+      success: true,
+      data: {
+        path: result.key,
+        url: result.url,
+        size: result.size,
+        mimetype: result.mimeType
+      }
+    }))
+  } catch (error) {
+    console.error('[Storage COS] 上传失败:', error)
+    res.statusCode = 500
+    res.end(JSON.stringify({ error: '上传失败: ' + error.message }))
+  }
+}
+
 // 处理存储路由
 export default async function handleStorageRoute(req, res, path) {
   // 解析路径: /api/storage/:folder/:filename?
@@ -155,70 +301,11 @@ export default async function handleStorageRoute(req, res, path) {
     try {
       const files = await parseMultipartFormData(req)
       
-      if (files.length === 0) {
-        res.statusCode = 400
-        res.end(JSON.stringify({ error: '没有上传文件' }))
-        return
+      if (STORAGE_TYPE === 'cos') {
+        await handleCOSUpload(req, res, folder, files)
+      } else {
+        await handleLocalUpload(req, res, folder, files)
       }
-      
-      const file = files[0]
-      
-      // 验证文件类型
-      const allowedTypes = [
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-        'image/jpg',
-        'video/mp4', 'video/webm', 'video/quicktime'
-      ]
-      
-      // 也检查文件扩展名
-      const ext = pathModule.extname(file.filename).toLowerCase()
-      const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.mp4', '.webm', '.mov']
-      
-      if (!allowedTypes.includes(file.contentType) && !allowedExts.includes(ext)) {
-        res.statusCode = 400
-        res.end(JSON.stringify({ error: `不支持的文件类型: ${file.contentType} (${ext})` }))
-        return
-      }
-      
-      // 确保目标目录存在
-      const destDir = pathModule.join(LOCAL_STORAGE_PATH, folder)
-      if (!fs.existsSync(destDir)) {
-        fs.mkdirSync(destDir, { recursive: true })
-      }
-      
-      // 生成唯一文件名
-      const newExt = ext || '.jpg'
-      const newFilename = `${Date.now()}-${randomUUID().slice(0, 8)}${newExt}`
-      const filePath = pathModule.join(destDir, newFilename)
-      
-      // 保存文件
-      fs.writeFileSync(filePath, file.buffer)
-      
-      // 验证文件是否成功写入
-      const stats = fs.statSync(filePath)
-      
-      // 构建访问 URL
-      const fileUrl = `/uploads/${folder}/${newFilename}`
-      
-      console.log('[Storage] 文件上传成功:', {
-        folder,
-        filename: newFilename,
-        originalName: file.filename,
-        size: stats.size,
-        url: fileUrl
-      })
-      
-      res.statusCode = 200
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({
-        success: true,
-        data: {
-          path: `${folder}/${newFilename}`,
-          url: fileUrl,
-          size: stats.size,
-          mimetype: file.contentType
-        }
-      }))
     } catch (error) {
       console.error('[Storage] 上传失败:', error)
       res.statusCode = 500
@@ -227,8 +314,8 @@ export default async function handleStorageRoute(req, res, path) {
     return
   }
   
-  // GET /api/storage/:folder/:filename - 获取文件
-  if (req.method === 'GET' && filename) {
+  // GET /api/storage/:folder/:filename - 获取文件（仅本地存储）
+  if (req.method === 'GET' && filename && STORAGE_TYPE === 'local') {
     try {
       const filePath = pathModule.join(LOCAL_STORAGE_PATH, folder, filename)
       
@@ -278,31 +365,53 @@ export default async function handleStorageRoute(req, res, path) {
   // DELETE /api/storage/:folder/:filename - 删除文件
   if (req.method === 'DELETE' && filename) {
     try {
-      const filePath = pathModule.join(LOCAL_STORAGE_PATH, folder, filename)
-      
-      // 安全检查
-      const resolvedPath = pathModule.resolve(filePath)
-      const resolvedUploadsDir = pathModule.resolve(LOCAL_STORAGE_PATH)
-      
-      if (!resolvedPath.startsWith(resolvedUploadsDir)) {
-        res.statusCode = 403
-        res.end(JSON.stringify({ error: '访问被拒绝' }))
-        return
+      if (STORAGE_TYPE === 'cos') {
+        // COS 删除
+        if (!isCOSConfigured()) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: 'COS 未配置' }))
+          return
+        }
+        
+        const key = `${folder}/${filename}`
+        const success = await deleteFromCOS(key)
+        
+        if (success) {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ success: true, message: '文件已删除' }))
+        } else {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: '删除失败' }))
+        }
+      } else {
+        // 本地删除
+        const filePath = pathModule.join(LOCAL_STORAGE_PATH, folder, filename)
+        
+        // 安全检查
+        const resolvedPath = pathModule.resolve(filePath)
+        const resolvedUploadsDir = pathModule.resolve(LOCAL_STORAGE_PATH)
+        
+        if (!resolvedPath.startsWith(resolvedUploadsDir)) {
+          res.statusCode = 403
+          res.end(JSON.stringify({ error: '访问被拒绝' }))
+          return
+        }
+        
+        if (!fs.existsSync(filePath)) {
+          res.statusCode = 404
+          res.end(JSON.stringify({ error: '文件不存在' }))
+          return
+        }
+        
+        fs.unlinkSync(filePath)
+        
+        console.log('[Storage] 文件删除成功:', { folder, filename })
+        
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ success: true, message: '文件已删除' }))
       }
-      
-      if (!fs.existsSync(filePath)) {
-        res.statusCode = 404
-        res.end(JSON.stringify({ error: '文件不存在' }))
-        return
-      }
-      
-      fs.unlinkSync(filePath)
-      
-      console.log('[Storage] 文件删除成功:', { folder, filename })
-      
-      res.statusCode = 200
-      res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ success: true, message: '文件已删除' }))
     } catch (error) {
       console.error('[Storage] 删除失败:', error)
       res.statusCode = 500
@@ -313,23 +422,29 @@ export default async function handleStorageRoute(req, res, path) {
   
   // HEAD /api/storage/:folder/:filename - 获取文件信息
   if (req.method === 'HEAD' && filename) {
-    try {
-      const filePath = pathModule.join(LOCAL_STORAGE_PATH, folder, filename)
-      
-      if (!fs.existsSync(filePath)) {
-        res.statusCode = 404
-        res.end()
-        return
-      }
-      
-      const stats = fs.statSync(filePath)
-      res.setHeader('Content-Length', stats.size)
-      res.setHeader('Last-Modified', stats.mtime.toUTCString())
+    if (STORAGE_TYPE === 'cos') {
+      // COS 文件直接返回 200
       res.statusCode = 200
       res.end()
-    } catch (error) {
-      res.statusCode = 500
-      res.end()
+    } else {
+      try {
+        const filePath = pathModule.join(LOCAL_STORAGE_PATH, folder, filename)
+        
+        if (!fs.existsSync(filePath)) {
+          res.statusCode = 404
+          res.end()
+          return
+        }
+        
+        const stats = fs.statSync(filePath)
+        res.setHeader('Content-Length', stats.size)
+        res.setHeader('Last-Modified', stats.mtime.toUTCString())
+        res.statusCode = 200
+        res.end()
+      } catch (error) {
+        res.statusCode = 500
+        res.end()
+      }
     }
     return
   }

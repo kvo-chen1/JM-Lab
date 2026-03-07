@@ -131,7 +131,7 @@
   "crons": [
     {
       "path": "/api/health/ping",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "build": {

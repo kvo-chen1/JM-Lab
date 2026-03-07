@@ -74,7 +74,11 @@ async function handleAuthRequest(req, res, path) {
   if (req.method === 'GET' && path === '/auth/v1/user') {
     const user = verifyToken(req.headers.authorization)
     if (!user) {
-      return res.status(401).json({ error: 'Unauthorized', message: '未授权访问' })
+      return res.status(401).json({ 
+        error: 'Unauthorized', 
+        message: '未授权访问',
+        data: null 
+      })
     }
     
     try {
@@ -84,7 +88,11 @@ async function handleAuthRequest(req, res, path) {
       )
       
       if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'User not found', message: '用户不存在' })
+        return res.status(404).json({ 
+          error: 'User not found', 
+          message: '用户不存在',
+          data: null 
+        })
       }
       
       const userData = result.rows[0]
@@ -101,7 +109,11 @@ async function handleAuthRequest(req, res, path) {
       })
     } catch (error) {
       console.error('[DB Proxy] Auth error:', error.message)
-      return res.status(500).json({ error: 'Server error', message: error.message })
+      return res.status(500).json({ 
+        error: 'Server error', 
+        message: error.message,
+        data: null 
+      })
     }
   }
   
@@ -206,6 +218,7 @@ async function handleDbRequest(req, res, table, searchParams) {
           return res.status(200).setHeader('Content-Length', 0).end()
         }
         
+        // 返回 Supabase 标准格式
         return res.status(200).json(result.rows)
       }
       
@@ -328,7 +341,7 @@ export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey, x-client-info')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey, x-client-info, prefer, X-Request-Timestamp, X-Request-Signature, X-Request-Id')
   
   if (req.method === 'OPTIONS') {
     return res.status(200).end()

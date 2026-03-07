@@ -318,11 +318,6 @@ export default async function handler(req, res) {
       return handleAuthRequest(req, res, path);
     }
 
-    // 数据库代理
-    if (path.startsWith('/db') || path.startsWith('/rest/v1')) {
-      return handleDbRequest(req, res, path);
-    }
-
     // 用户成就相关API
     if (path === '/user/achievements' && req.method === 'GET') {
       return handleUserAchievements(req, res);

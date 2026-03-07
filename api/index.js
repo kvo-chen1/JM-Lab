@@ -12,8 +12,13 @@ let dbAvailable = false;
 async function getDbClient() {
   if (pgClient) return pgClient;
 
-  // 尝试多种环境变量名，支持 Netlify 和 Vercel 的格式
+  // 尝试多种环境变量名，支持 Netlify、Vercel 和 Neon 的格式
   let databaseUrl = process.env.DATABASE_URL ||
+                    process.env.NEON_DATABASE_URL ||
+                    process.env.NEON_DATABASE_URL_UNPOOLED ||
+                    process.env.POSTGRES_URL ||
+                    process.env.POSTGRES_URL_NON_POOLING ||
+                    process.env.NEON_POSTGRES_URL ||
                     process.env.NETLIFY_DATABASE_URL ||
                     process.env.NEON_POSTGRES_DATABASE_URL;
 

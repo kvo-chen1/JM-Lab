@@ -360,6 +360,16 @@ export default async function handler(req, res) {
       return handleEvents(req, res, path);
     }
 
+    // 数据库代理 API (Supabase/Neon)
+    if (path.startsWith('/db')) {
+      return handleDbProxy(req, res, path);
+    }
+
+    // Supabase REST API 代理
+    if (path.startsWith('/rest/v1')) {
+      return handleSupabaseRestProxy(req, res, path);
+    }
+
     // 其他 API 返回未实现
     return res.status(501).json({ code: 1, message: 'API endpoint not implemented: ' + path });
 
@@ -1041,5 +1051,167 @@ async function handleEvents(req, res, path) {
   } catch (error) {
     console.error('[API] Events error:', error);
     return res.status(200).json({ code: 0, data: [] });
+  }
+}
+
+// 处理数据库代理请求 (Supabase/Neon)
+async function handleDbProxy(req, res, path) {
+  try {
+    // 获取数据库连接
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(503).json({ 
+        code: 1, 
+        message: 'Database not configured',
+        hint: 'Please set DATABASE_URL environment variable'
+      });
+    }
+
+    // 解析请求体
+    const body = await parseRequestBody(req);
+    
+    console.log('[DB Proxy]', req.method, path, body);
+
+    // 处理不同的数据库操作
+    if (req.method === 'POST' && body) {
+      // 执行查询
+      if (body.query) {
+        try {
+          const result = await client.query(body.query, body.params || []);
+          return res.status(200).json({
+            code: 0,
+            data: result.rows,
+            rowCount: result.rowCount
+          });
+        } catch (queryError) {
+          console.error('[DB Proxy] Query error:', queryError);
+          return res.status(400).json({
+            code: 1,
+            message: 'Query failed',
+            error: queryError.message
+          });
+        }
+      }
+      
+      // RPC 调用
+      if (body.rpc) {
+        try {
+          const result = await client.query(
+            `SELECT * FROM ${body.rpc}($1)`,
+            [JSON.stringify(body.params || {})]
+          );
+          return res.status(200).json({
+            code: 0,
+            data: result.rows
+          });
+        } catch (rpcError) {
+          console.error('[DB Proxy] RPC error:', rpcError);
+          return res.status(400).json({
+            code: 1,
+            message: 'RPC call failed',
+            error: rpcError.message
+          });
+        }
+      }
+    }
+
+    // GET 请求 - 返回数据库状态
+    if (req.method === 'GET') {
+      try {
+        const result = await client.query('SELECT NOW() as time, version() as version');
+        return res.status(200).json({
+          code: 0,
+          status: 'connected',
+          serverTime: result.rows[0].time,
+          version: result.rows[0].version
+        });
+      } catch (error) {
+        return res.status(503).json({
+          code: 1,
+          message: 'Database connection error',
+          error: error.message
+        });
+      }
+    }
+
+    return res.status(405).json({
+      code: 1,
+      message: 'Method not allowed'
+    });
+
+  } catch (error) {
+    console.error('[DB Proxy] Error:', error);
+    return res.status(500).json({
+      code: 1,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+}
+
+// 处理 Supabase REST API 代理
+async function handleSupabaseRestProxy(req, res, path) {
+  try {
+    // 获取 Supabase 配置
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(503).json({
+        code: 1,
+        message: 'Supabase not configured',
+        hint: 'Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables'
+      });
+    }
+
+    // 构建目标 URL
+    const targetPath = path.replace(/^\/rest\/v1/, '');
+    const targetUrl = `${supabaseUrl}/rest/v1${targetPath}`;
+
+    console.log('[Supabase Proxy]', req.method, targetUrl);
+
+    // 转发请求到 Supabase
+    const headers = {
+      'apikey': supabaseKey,
+      'Authorization': req.headers.authorization || `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': req.headers.prefer || 'return=representation'
+    };
+
+    // 复制原始请求头
+    if (req.headers.accept) headers['Accept'] = req.headers.accept;
+    if (req.headers['accept-profile']) headers['Accept-Profile'] = req.headers['accept-profile'];
+    if (req.headers['content-profile']) headers['Content-Profile'] = req.headers['content-profile'];
+
+    const body = await parseRequestBody(req);
+    
+    const fetchOptions = {
+      method: req.method,
+      headers,
+      ...(body && { body: JSON.stringify(body) })
+    };
+
+    const response = await fetch(targetUrl, fetchOptions);
+    const data = await response.json().catch(() => null);
+
+    // 返回响应
+    res.status(response.status);
+    
+    // 复制响应头
+    response.headers.forEach((value, key) => {
+      if (key.toLowerCase() !== 'content-encoding' && key.toLowerCase() !== 'transfer-encoding') {
+        res.setHeader(key, value);
+      }
+    });
+
+    return res.json(data || { code: 0 });
+
+  } catch (error) {
+    console.error('[Supabase Proxy] Error:', error);
+    return res.status(500).json({
+      code: 1,
+      message: 'Proxy error',
+      error: error.message
+    });
   }
 }

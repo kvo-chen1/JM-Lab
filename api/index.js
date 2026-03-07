@@ -22,6 +22,13 @@ async function getDbClient() {
                     process.env.NETLIFY_DATABASE_URL ||
                     process.env.NEON_POSTGRES_DATABASE_URL;
 
+  console.log('[DB] Environment check:', {
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    hasNeonUrl: !!process.env.NEON_DATABASE_URL,
+    hasPostgresUrl: !!process.env.POSTGRES_URL,
+    finalUrl: databaseUrl ? 'configured' : 'not configured'
+  });
+
   if (!databaseUrl) {
     console.log('[DB] Database URL not configured');
     return null;
@@ -36,16 +43,35 @@ async function getDbClient() {
 
   try {
     const { Client } = await import('pg');
-    pgClient = new Client({
+    
+    // Neon 推荐的连接配置
+    const connectionConfig = {
       connectionString: databaseUrl,
-      ssl: { rejectUnauthorized: false }
+      ssl: {
+        rejectUnauthorized: false,
+        sslmode: 'require'
+      },
+      // Vercel Serverless 优化
+      connectionTimeoutMillis: 10000,
+      query_timeout: 30000,
+    };
+    
+    pgClient = new Client(connectionConfig);
+    
+    // 添加错误监听
+    pgClient.on('error', (err) => {
+      console.error('[DB] Client error:', err.message);
+      pgClient = null;
+      dbAvailable = false;
     });
+    
     await pgClient.connect();
-    console.log('[DB] Connected to Neon database');
+    console.log('[DB] Connected to Neon database successfully');
     dbAvailable = true;
     return pgClient;
   } catch (error) {
     console.error('[DB] Connection error:', error.message);
+    console.error('[DB] Error details:', error.stack);
     dbAvailable = false;
     pgClient = null;
     return null;

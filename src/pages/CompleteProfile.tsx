@@ -182,6 +182,13 @@ export default function CompleteProfile() {
     if (!isAuthenticated) {
       navigate('/login');
     } else if (user && !isReEditing) {
+      // 优先检查 isNewUser 字段，如果为 false 表示不是新用户，直接跳转到首页
+      if (user.isNewUser === false) {
+        navigate('/');
+        return;
+      }
+      
+      // 兼容逻辑：如果没有 isNewUser 字段，检查资料完整性
       const avatarValue = user.avatar_url || user.avatar;
       const isProfileComplete = user.username &&
         user.username.trim() !== '' &&

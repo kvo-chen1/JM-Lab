@@ -320,18 +320,9 @@ async function sendRealtimeNotification(
   recipientId: string,
   notification: any
 ): Promise<void> {
-  // 使用 Supabase Realtime 发送通知
-  const channel = supabase.channel(`user:${recipientId}`);
-  
-  await channel.subscribe(async (status) => {
-    if (status === 'SUBSCRIBED') {
-      await channel.send({
-        type: 'broadcast',
-        event: 'notification',
-        payload: notification,
-      });
-    }
-  });
+  // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+  // Realtime disabled - WebSocket not supported in local dev environment
+  console.log('[NotificationService] Realtime notification skipped (not supported in local environment)');
 }
 
 /**
@@ -341,17 +332,12 @@ function subscribeToNotifications(
   userId: string,
   callback: (notification: any) => void
 ): () => void {
-  const channel = supabase
-    .channel(`user:${userId}`)
-    .on('broadcast', { event: 'notification' }, (payload) => {
-      callback(payload.payload);
-    })
-    .subscribe();
+  // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+  // Realtime disabled - WebSocket not supported in local dev environment
+  console.log('[NotificationService] Realtime subscription skipped (not supported in local environment)');
 
-  // 返回取消订阅函数
-  return () => {
-    channel.unsubscribe();
-  };
+  // 返回空函数作为取消订阅的占位符
+  return () => {};
 }
 
 // ============================================

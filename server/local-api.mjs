@@ -87,16 +87,91 @@ class SupabaseQueryBuilder {
     this.conditions = []
     this.values = []
     this.paramIndex = 1
+    this.selectedColumns = '*'
+    this.countOptions = {}
+    this.isCountQuery = false
   }
 
-  select(columns = '*') {
-    this.query = `SELECT ${columns} FROM "${this.table}"`
+  select(columns = '*', options = {}) {
+    this.selectedColumns = columns
+    this.countOptions = options
+    
+    // 如果只需要计数（head: true），使用 COUNT 查询
+    if (options.count === 'exact' && options.head === true) {
+      this.query = `SELECT COUNT(*) as count FROM "${this.table}"`
+      this.isCountQuery = true
+    } else {
+      this.query = `SELECT ${columns} FROM "${this.table}"`
+      this.isCountQuery = false
+    }
     return this
   }
 
   eq(column, value) {
     this.conditions.push(`"${column}" = $${this.paramIndex++}`)
     this.values.push(value)
+    return this
+  }
+
+  neq(column, value) {
+    this.conditions.push(`"${column}" != $${this.paramIndex++}`)
+    this.values.push(value)
+    return this
+  }
+
+  gt(column, value) {
+    this.conditions.push(`"${column}" > $${this.paramIndex++}`)
+    this.values.push(value)
+    return this
+  }
+
+  gte(column, value) {
+    this.conditions.push(`"${column}" >= $${this.paramIndex++}`)
+    this.values.push(value)
+    return this
+  }
+
+  lt(column, value) {
+    this.conditions.push(`"${column}" < $${this.paramIndex++}`)
+    this.values.push(value)
+    return this
+  }
+
+  lte(column, value) {
+    this.conditions.push(`"${column}" <= $${this.paramIndex++}`)
+    this.values.push(value)
+    return this
+  }
+
+  in(column, values) {
+    if (!Array.isArray(values) || values.length === 0) {
+      return this
+    }
+    const placeholders = values.map(() => `$${this.paramIndex++}`).join(', ')
+    this.conditions.push(`"${column}" IN (${placeholders})`)
+    this.values.push(...values)
+    return this
+  }
+
+  is(column, value) {
+    if (value === null) {
+      this.conditions.push(`"${column}" IS NULL`)
+    } else {
+      this.conditions.push(`"${column}" IS $${this.paramIndex++}`)
+      this.values.push(value)
+    }
+    return this
+  }
+
+  like(column, pattern) {
+    this.conditions.push(`"${column}" LIKE $${this.paramIndex++}`)
+    this.values.push(pattern)
+    return this
+  }
+
+  ilike(column, pattern) {
+    this.conditions.push(`"${column}" ILIKE $${this.paramIndex++}`)
+    this.values.push(pattern)
     return this
   }
 
@@ -115,6 +190,29 @@ class SupabaseQueryBuilder {
     return this
   }
 
+  // 支持 .single() 方法 - 返回单行结果
+  async single() {
+    let finalQuery = this.query
+    if (this.conditions.length > 0) {
+      finalQuery += ' WHERE ' + this.conditions.join(' AND ')
+    }
+    // 限制只返回一行
+    if (!finalQuery.includes('LIMIT')) {
+      finalQuery += ' LIMIT 1'
+    }
+    try {
+      const result = await this.db.query(finalQuery, this.values)
+      return { data: result.rows[0] || null, error: null }
+    } catch (error) {
+      return { data: null, error }
+    }
+  }
+
+  // 支持直接 await
+  then(onfulfilled, onrejected) {
+    return this.execute().then(onfulfilled, onrejected)
+  }
+
   async execute() {
     let finalQuery = this.query
     if (this.conditions.length > 0) {
@@ -122,6 +220,13 @@ class SupabaseQueryBuilder {
     }
     try {
       const result = await this.db.query(finalQuery, this.values)
+      
+      // 如果是计数查询，返回 count
+      if (this.isCountQuery) {
+        const count = parseInt(result.rows[0]?.count || '0')
+        return { data: [], count, error: null }
+      }
+      
       return { data: result.rows, error: null }
     } catch (error) {
       return { data: null, error }
@@ -181,6 +286,96 @@ const supabaseServer = {
         }
       })
     }
+  },
+  // 添加 rpc 方法支持 - 用于调用数据库函数
+  rpc: (functionName, params = {}) => {
+    return {
+      single: async () => {
+        try {
+          const db = await getDB()
+          // 构建函数调用参数
+          const paramKeys = Object.keys(params)
+          const paramValues = Object.values(params)
+          const paramPlaceholders = paramKeys.map((_, i) => `$${i + 1}`).join(', ')
+          
+          const query = `SELECT * FROM ${functionName}(${paramPlaceholders})`
+          const result = await db.query(query, paramValues)
+          return { data: result.rows[0] || null, error: null }
+        } catch (error) {
+          console.error(`[supabaseServer] RPC call failed: ${functionName}`, error)
+          return { data: null, error }
+        }
+      },
+      // 支持直接 await 的 thenable 接口
+      then: async (onfulfilled, onrejected) => {
+        try {
+          const db = await getDB()
+          const paramKeys = Object.keys(params)
+          const paramValues = Object.values(params)
+          const paramPlaceholders = paramKeys.map((_, i) => `$${i + 1}`).join(', ')
+          
+          const query = `SELECT * FROM ${functionName}(${paramPlaceholders})`
+          const result = await db.query(query, paramValues)
+          const data = result.rows || []
+          return onfulfilled ? onfulfilled({ data, error: null }) : { data, error: null }
+        } catch (error) {
+          console.error(`[supabaseServer] RPC call failed: ${functionName}`, error)
+          if (onrejected) return onrejected(error)
+          return { data: null, error }
+        }
+      }
+    }
+  },
+  // 添加 storage 方法支持 - 用于文件上传
+  storage: {
+    from: (bucketName) => ({
+      upload: async (filePath, fileBuffer, options = {}) => {
+        // 本地存储实现 - 保存到 uploads 目录
+        try {
+          const fs = await import('fs')
+          const path = await import('path')
+          const { fileURLToPath } = await import('url')
+          
+          const __filename = fileURLToPath(import.meta.url)
+          const __dirname = path.dirname(__filename)
+          const uploadsDir = path.join(__dirname, '..', 'uploads', bucketName)
+          
+          // 确保目录存在
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true })
+          }
+          
+          const fullPath = path.join(uploadsDir, filePath)
+          const dir = path.dirname(fullPath)
+          
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true })
+          }
+          
+          fs.writeFileSync(fullPath, fileBuffer)
+          
+          return { 
+            data: { 
+              path: filePath,
+              fullPath: `${bucketName}/${filePath}`
+            }, 
+            error: null 
+          }
+        } catch (error) {
+          console.error(`[supabaseServer] Storage upload failed:`, error)
+          return { data: null, error }
+        }
+      },
+      getPublicUrl: (filePath) => {
+        // 返回本地访问 URL
+        const port = process.env.LOCAL_API_PORT || 3023
+        return {
+          data: {
+            publicUrl: `http://localhost:${port}/uploads/${bucketName}/${filePath}`
+          }
+        }
+      }
+    })
   }
 }
 import membershipRoutes from './routes/membership.mjs'
@@ -192,6 +387,15 @@ import notificationRoutes from './routes/notifications.mjs'
 import handleStorageRoute from './routes/storage-simple.mjs'
 import handleDbProxy from './routes/db-proxy-simple.mjs'
 import { generateOAuthUrl, handleOAuthCallback, getConfiguredProviders, isOAuthConfigured } from './oauth-providers.mjs'
+import {
+  testConnection,
+  getPoolStatus,
+  healthCheck,
+  checkTables,
+  getFullDiagnostics,
+  getConnectionString,
+  isNeonDatabase
+} from './connection-checker.mjs'
 
 // 内存中存储验证码 (email -> { code, expiresAt })
 const verificationCodes = new Map();
@@ -849,6 +1053,171 @@ function verifyRequestToken(req) {
   }
 }
 
+/**
+ * 健康检查路由处理
+ */
+async function handleHealthRoutes(req, res, path) {
+  const sendJson = (statusCode, data) => {
+    res.setHeader('Content-Type', 'application/json')
+    res.statusCode = statusCode
+    res.end(JSON.stringify(data))
+  }
+
+  // GET /api/health/ping - 简单的 ping 检查
+  if (req.method === 'GET' && path === '/api/health/ping') {
+    sendJson(200, {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      message: 'pong'
+    })
+    return
+  }
+
+  // GET /api/health - 基础健康检查
+  if (req.method === 'GET' && path === '/api/health') {
+    try {
+      const result = await healthCheck()
+      sendJson(result.healthy ? 200 : 503, {
+        status: result.healthy ? 'ok' : 'error',
+        timestamp: result.timestamp,
+        checkTime: result.totalCheckTime,
+        database: {
+          connected: result.connection.connected,
+          status: result.connection.status,
+          responseTime: result.connection.responseTime
+        }
+      })
+    } catch (error) {
+      sendJson(500, {
+        status: 'error',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      })
+    }
+    return
+  }
+
+  // GET /api/health/db - 数据库连接详细检查
+  if (req.method === 'GET' && path === '/api/health/db') {
+    try {
+      const result = await healthCheck()
+      sendJson(result.healthy ? 200 : 503, {
+        healthy: result.healthy,
+        status: result.status,
+        timestamp: result.timestamp,
+        totalCheckTime: result.totalCheckTime,
+        connection: {
+          connected: result.connection.connected,
+          status: result.connection.status,
+          responseTime: result.connection.responseTime,
+          latencyLevel: result.connection.latencyLevel,
+          error: result.connection.error,
+          errorCode: result.connection.errorCode,
+          database: result.connection.database
+        },
+        pool: result.pool
+      })
+    } catch (error) {
+      sendJson(500, {
+        healthy: false,
+        status: 'error',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      })
+    }
+    return
+  }
+
+  // GET /api/health/neon - Neon 数据库专门检查
+  if (req.method === 'GET' && path === '/api/health/neon') {
+    try {
+      const connectionString = getConnectionString()
+      const isNeon = isNeonDatabase(connectionString)
+
+      if (!isNeon) {
+        sendJson(400, {
+          status: 'warning',
+          message: '当前配置的不是 Neon 数据库',
+          databaseType: 'other',
+          timestamp: new Date().toISOString()
+        })
+        return
+      }
+
+      const [connectionResult, poolResult, tablesResult] = await Promise.all([
+        testConnection(),
+        getPoolStatus(),
+        checkTables()
+      ])
+
+      const response = {
+        status: connectionResult.connected ? 'ok' : 'error',
+        database: {
+          type: 'neon',
+          connected: connectionResult.connected
+        },
+        timestamp: new Date().toISOString()
+      }
+
+      if (connectionResult.connected) {
+        response.connection = {
+          status: connectionResult.status,
+          responseTime: connectionResult.responseTime,
+          latencyLevel: connectionResult.latencyLevel,
+          version: connectionResult.database.version,
+          serverTime: connectionResult.database.serverTime
+        }
+
+        if (poolResult.available) {
+          response.pool = {
+            ...poolResult.pool,
+            database: poolResult.database
+          }
+        }
+
+        if (!tablesResult.error) {
+          response.tables = {
+            total: tablesResult.totalTables,
+            criticalTables: tablesResult.criticalTables
+          }
+        }
+      } else {
+        response.error = {
+          message: connectionResult.error,
+          code: connectionResult.errorCode
+        }
+      }
+
+      sendJson(connectionResult.connected ? 200 : 503, response)
+    } catch (error) {
+      sendJson(500, {
+        status: 'error',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      })
+    }
+    return
+  }
+
+  // GET /api/health/diagnostics - 完整诊断信息
+  if (req.method === 'GET' && path === '/api/health/diagnostics') {
+    try {
+      const result = await getFullDiagnostics()
+      sendJson(200, result)
+    } catch (error) {
+      sendJson(500, {
+        status: 'error',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      })
+    }
+    return
+  }
+
+  // 未匹配的健康检查路由
+  sendJson(404, { error: 'NOT_FOUND', message: '健康检查接口不存在' })
+}
+
 async function route(req, res, u, path) {
   // 处理 OPTIONS 请求
   if (req.method === 'OPTIONS') {
@@ -1077,10 +1446,11 @@ async function route(req, res, u, path) {
       }
       
       console.log('[API] 验证码验证成功，开始登录流程');
-      
+
       // 查找或创建用户
       let user = await userDB.findByEmail(email);
-      
+      let isNewUser = false;
+
       if (!user) {
         console.log(`[API] 用户不存在，创建新用户: ${email}`);
         // 创建新用户
@@ -1092,12 +1462,23 @@ async function route(req, res, u, path) {
           is_new_user: true
         });
         console.log(`[API] 新用户创建成功: ${user.id}`);
+        isNewUser = true;
+      } else {
+        // 检查已存在用户是否缺少 username
+        if (!user.username || user.username.trim() === '') {
+          console.log(`[API] 已存在用户缺少 username，自动生成: ${email}`);
+          const generatedUsername = email.split('@')[0] + '_' + Math.floor(Math.random() * 10000);
+          user = await userDB.updateUser(user.id, { username: generatedUsername });
+          console.log(`[API] 用户 username 已更新: ${user.username}`);
+        }
+        // 使用数据库中的 is_new_user 标记
+        isNewUser = user.is_new_user || false;
       }
-      
+
       // 生成JWT令牌
       const token = generateToken({ userId: user.id, email: user.email });
-      
-      console.log(`[API] 登录成功: ${user.id}`);
+
+      console.log(`[API] 登录成功: ${user.id}, isNewUser: ${isNewUser}`);
       sendJson(res, 200, {
         code: 0,
         message: '登录成功',
@@ -1106,7 +1487,7 @@ async function route(req, res, u, path) {
             id: user.id,
             email: user.email,
             username: user.username,
-            isNewUser: user.is_new_user || false
+            isNewUser: isNewUser
           },
           token
         }
@@ -1115,6 +1496,118 @@ async function route(req, res, u, path) {
       console.error('[API] 登录失败:', error);
       sendJson(res, 500, { code: 1, message: '登录失败: ' + (error.message || '未知错误') });
     }
+    return
+  }
+
+  // 更新当前用户信息 (/api/auth/me) - 必须在 authRoutes 之前处理
+  if (req.method === 'PUT' && path === '/api/auth/me') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      console.log('[API] Update user request body:', { 
+        hasAvatar: body.avatar !== undefined, 
+        avatarLength: body.avatar?.length,
+        hasCoverImage: body.coverImage !== undefined 
+      })
+      
+      const user = await userDB.findById(decoded.userId)
+      if (!user) {
+        sendJson(res, 404, { code: 1, message: '用户不存在' })
+        return
+      }
+
+      // 构建更新数据
+      const updateData = {}
+      if (body.username !== undefined) updateData.username = body.username
+      // 手机号：只更新非空字符串，避免唯一约束冲突
+      if (body.phone !== undefined && body.phone !== '') updateData.phone = body.phone
+      if (body.age !== undefined) updateData.age = body.age
+      if (body.bio !== undefined) updateData.bio = body.bio
+      if (body.location !== undefined) updateData.location = body.location
+      if (body.occupation !== undefined) updateData.occupation = body.occupation
+      if (body.website !== undefined) updateData.website = body.website
+      if (body.github !== undefined) updateData.github = body.github
+      if (body.twitter !== undefined) updateData.twitter = body.twitter
+      if (body.interests !== undefined) updateData.interests = body.interests
+      if (body.tags !== undefined) updateData.tags = body.tags
+      if (body.avatar !== undefined) {
+        updateData.avatar_url = body.avatar
+        console.log('[API] Setting avatar_url:', body.avatar.substring(0, 50) + '...')
+      }
+      if (body.coverImage !== undefined) updateData.cover_image = body.coverImage
+      
+      // 处理 isNewUser 字段 - 更新 is_new_user 数据库字段
+      if (body.isNewUser !== undefined) {
+        updateData.is_new_user = body.isNewUser
+        console.log('[API] Setting is_new_user:', body.isNewUser)
+      }
+
+      // 更新 metadata
+      const metadata = {
+        ...(user.metadata || {}),
+        ...(body.metadata || {}),
+        username: body.username || user.username,
+        phone: body.phone !== undefined ? body.phone : user.phone,
+        age: body.age !== undefined ? body.age : user.age,
+        bio: body.bio !== undefined ? body.bio : user.bio,
+        location: body.location !== undefined ? body.location : user.location,
+        occupation: body.occupation !== undefined ? body.occupation : user.occupation,
+        website: body.website !== undefined ? body.website : user.website,
+        github: body.github !== undefined ? body.github : user.github,
+        twitter: body.twitter !== undefined ? body.twitter : user.twitter,
+        interests: body.interests !== undefined ? body.interests : user.interests,
+        tags: body.tags !== undefined ? body.tags : user.tags,
+        avatar: body.avatar !== undefined ? body.avatar : user.avatar_url,
+        coverImage: body.coverImage !== undefined ? body.coverImage : user.cover_image
+      }
+      updateData.metadata = metadata
+
+      const updatedUser = await userDB.updateById(decoded.userId, updateData)
+      if (!updatedUser) {
+        sendJson(res, 500, { code: 1, message: '更新用户信息失败' })
+        return
+      }
+
+      // 返回更新后的用户信息
+      const safeUser = {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        avatar: updatedUser.avatar_url || updatedUser.avatar,
+        phone: updatedUser.phone,
+        age: updatedUser.age,
+        bio: updatedUser.bio,
+        location: updatedUser.location,
+        occupation: updatedUser.occupation,
+        website: updatedUser.website,
+        github: updatedUser.github,
+        twitter: updatedUser.twitter,
+        interests: updatedUser.interests,
+        tags: updatedUser.tags,
+        coverImage: updatedUser.coverImage || updatedUser.cover_image,
+        membership_level: updatedUser.membership_level || 'free',
+        membership_status: updatedUser.membership_status || 'active',
+        isNewUser: updatedUser.is_new_user || false,
+        updated_at: updatedUser.updated_at
+      }
+
+      sendJson(res, 200, { code: 0, data: safeUser, message: '用户信息更新成功' })
+    } catch (error) {
+      console.error('[API] Update user info failed:', error)
+      sendJson(res, 500, { code: 1, message: '更新用户信息失败: ' + error.message })
+    }
+    return
+  }
+
+  // 健康检查路由 - 数据库连接检测
+  if (path.startsWith('/api/health')) {
+    console.log('[Route] Handling health check:', path)
+    await handleHealthRoutes(req, res, path)
     return
   }
 
@@ -1131,10 +1624,24 @@ async function route(req, res, u, path) {
     const offset = parseInt(u.searchParams.get('offset') || '0')
     const creatorId = u.searchParams.get('creator_id')
     const includePromoted = u.searchParams.get('include_promoted') !== 'false' // 默认包含推广作品
+    const skipCache = u.searchParams.get('skip_cache') === 'true' // 可选参数：跳过缓存
 
     // 设置响应超时保护
     const requestStartTime = Date.now()
     const MAX_REQUEST_TIME = 8000 // 8秒超时保护
+
+    // 缓存键
+    const cacheKey = `works_list_${creatorId || 'all'}_${limit}_${offset}`
+    
+    // 尝试从缓存获取（仅当不跳过缓存且不是第一页时）
+    if (!skipCache && offset === 0) {
+      const cached = getCache(cacheKey)
+      if (cached) {
+        console.log('[API] Returning cached works list')
+        sendJson(res, 200, { ok: true, data: cached, fromCache: true })
+        return
+      }
+    }
 
     try {
       let works
@@ -1151,76 +1658,89 @@ async function route(req, res, u, path) {
       // 获取活跃推广作品（用于插入到列表中）
       let promotedWorks = []
 
-      // 检查是否已超时
-      if (Date.now() - requestStartTime > MAX_REQUEST_TIME) {
+      // 检查是否已超时或应该跳过推广作品查询
+      const elapsedTime = Date.now() - requestStartTime
+      if (elapsedTime > MAX_REQUEST_TIME) {
         console.warn('[API] Request approaching timeout, skipping promoted works')
       } else if (includePromoted && !creatorId) {
+        // 使用更短的超时时间来获取推广作品，避免阻塞主请求
+        const PROMOTED_TIMEOUT = Math.max(1000, MAX_REQUEST_TIME - elapsedTime - 1000)
+        
         try {
-          const { data: activePromotedWorks, error: promotedError } = await supabaseServer
-            .rpc('get_active_promoted_works', { p_limit: 5, p_offset: 0 })
+          // 创建带超时的 Promise
+          const promotedPromise = (async () => {
+            const { data: activePromotedWorks, error: promotedError } = await supabaseServer
+              .rpc('get_active_promoted_works', { p_limit: 5, p_offset: 0 })
 
-          if (!promotedError && activePromotedWorks && activePromotedWorks.length > 0) {
-            // 获取推广作品的详细信息
-            const promotedWorkIds = activePromotedWorks.map(pw => pw.work_id)
-            const promotedUserIds = activePromotedWorks.map(pw => pw.user_id)
+            if (!promotedError && activePromotedWorks && activePromotedWorks.length > 0) {
+              // 获取推广作品的详细信息
+              const promotedWorkIds = activePromotedWorks.map(pw => pw.work_id)
+              const promotedUserIds = activePromotedWorks.map(pw => pw.user_id)
 
-            // 批量获取推广作品的信息
-            const promotedWorksData = works.filter(w => promotedWorkIds.includes(w.id))
+              // 批量获取推广作品的信息
+              const promotedWorksData = works.filter(w => promotedWorkIds.includes(w.id))
 
-            // 获取推广作者信息
-            // 注意：promoted_works.user_id 是 text 类型，users.id 是 uuid 类型
-            // 使用原始 SQL 查询，将 uuid 转换为 text 进行比较
-            let promotedUsers = []
-            try {
-              const db = await getDB()
-              const { rows } = await db.query(`
-                SELECT id, username, avatar_url
-                FROM users
-                WHERE id::text = ANY($1)
-              `, [promotedUserIds])
-              promotedUsers = rows || []
-            } catch (err) {
-              console.error('[API] Error fetching promoted users with SQL:', err)
-            }
-
-            const promotedUsersMap = new Map()
-            if (promotedUsers) {
-              promotedUsers.forEach(user => promotedUsersMap.set(user.id, user))
-            }
-
-            // 构建推广作品数据
-            promotedWorks = activePromotedWorks.map(pw => {
-              const workData = promotedWorksData.find(w => w.id === pw.work_id)
-              const userData = promotedUsersMap.get(pw.user_id)
-
-              if (!workData) return null
-
-              return {
-                ...workData,
-                thumbnail: workData.thumbnail || workData.cover_url || '',
-                videoUrl: workData.video_url,
-                date: workData.created_at ? new Date(workData.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                author: {
-                  id: pw.user_id,
-                  username: userData?.username || 'Unknown User',
-                  avatar: userData?.avatar_url || ''
-                },
-                // 推广相关字段
-                isPromoted: true,
-                promotedWorkId: pw.promoted_work_id,
-                promotionWeight: pw.promotion_weight,
-                priorityScore: pw.priority_score,
-                displayPosition: pw.display_position,
-                isFeatured: pw.is_featured,
-                packageType: pw.package_type,
-                remainingHours: pw.remaining_hours
+              // 获取推广作者信息
+              let promotedUsers = []
+              try {
+                const db = await getDB()
+                const { rows } = await db.query(`
+                  SELECT id, username, avatar_url
+                  FROM users
+                  WHERE id::text = ANY($1)
+                `, [promotedUserIds])
+                promotedUsers = rows || []
+              } catch (err) {
+                console.error('[API] Error fetching promoted users with SQL:', err)
               }
-            }).filter(Boolean)
 
-            console.log('[API] Found', promotedWorks.length, 'promoted works')
-          }
+              const promotedUsersMap = new Map()
+              if (promotedUsers) {
+                promotedUsers.forEach(user => promotedUsersMap.set(user.id, user))
+              }
+
+              // 构建推广作品数据
+              return activePromotedWorks.map(pw => {
+                const workData = promotedWorksData.find(w => w.id === pw.work_id)
+                const userData = promotedUsersMap.get(pw.user_id)
+
+                if (!workData) return null
+
+                return {
+                  ...workData,
+                  thumbnail: workData.thumbnail || workData.cover_url || '',
+                  videoUrl: workData.video_url,
+                  date: workData.created_at ? new Date(workData.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                  author: {
+                    id: pw.user_id,
+                    username: userData?.username || 'Unknown User',
+                    avatar: userData?.avatar_url || ''
+                  },
+                  isPromoted: true,
+                  promotedWorkId: pw.promoted_work_id,
+                  promotionWeight: pw.promotion_weight,
+                  priorityScore: pw.priority_score,
+                  displayPosition: pw.display_position,
+                  isFeatured: pw.is_featured,
+                  packageType: pw.package_type,
+                  remainingHours: pw.remaining_hours
+                }
+              }).filter(Boolean)
+            }
+            return []
+          })()
+
+          // 使用 Promise.race 添加超时
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Promoted works query timeout')), PROMOTED_TIMEOUT)
+          )
+
+          promotedWorks = await Promise.race([promotedPromise, timeoutPromise])
+          console.log('[API] Found', promotedWorks.length, 'promoted works')
         } catch (promotedErr) {
-          console.warn('[API] Error fetching promoted works:', promotedErr)
+          console.warn('[API] Error fetching promoted works:', promotedErr.message)
+          // 推广作品查询失败不影响主请求
+          promotedWorks = []
         }
       }
 
@@ -1277,6 +1797,13 @@ async function route(req, res, u, path) {
 
       // 简单的内存分页
       const paginatedWorks = mappedWorks.slice(offset, offset + limit)
+      
+      // 缓存结果（仅缓存第一页）
+      if (offset === 0 && !skipCache) {
+        setCache(cacheKey, paginatedWorks)
+        console.log('[API] Cached works list for', cacheKey)
+      }
+      
       sendJson(res, 200, { code: 0, data: paginatedWorks })
     } catch (e) {
       console.error('[API] Get works failed:', e)
@@ -2217,7 +2744,8 @@ async function route(req, res, u, path) {
   if (req.method === 'GET' && path === '/api/users/recommended') {
     try {
       const db = await getDB()
-      const limit = parseInt(query.limit) || 5
+      const url = new URL(req.url, `http://${req.headers.host}`)
+      const limit = parseInt(url.searchParams.get('limit') || '5')
       
       // 获取有作品的用户，按作品数和总点赞数排序
       const { rows } = await db.query(`
@@ -3310,6 +3838,7 @@ async function route(req, res, u, path) {
         membership_start: user.membership_start,
         membership_end: user.membership_end,
         is_verified: user.is_verified,
+        isNewUser: user.is_new_user || false,
         created_at: user.created_at,
         updated_at: user.updated_at,
         // 合并 metadata 中的字段
@@ -3650,110 +4179,6 @@ async function route(req, res, u, path) {
     } catch (error) {
       console.error('[API] Get user by ID failed:', error)
       sendJson(res, 500, { code: 1, message: '获取用户信息失败' })
-    }
-    return
-  }
-
-  // 更新当前用户信息 (/api/auth/me)
-  if (req.method === 'PUT' && path === '/api/auth/me') {
-    const decoded = verifyRequestToken(req)
-    if (!decoded) {
-      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
-      return
-    }
-
-    try {
-      const body = await readBody(req)
-      console.log('[API] Update user request body:', { 
-        hasAvatar: body.avatar !== undefined, 
-        avatarLength: body.avatar?.length,
-        hasCoverImage: body.coverImage !== undefined 
-      })
-      
-      const user = await userDB.findById(decoded.userId)
-      if (!user) {
-        sendJson(res, 404, { code: 1, message: '用户不存在' })
-        return
-      }
-
-      // 构建更新数据
-      const updateData = {}
-      if (body.username !== undefined) updateData.username = body.username
-      // 手机号：只更新非空字符串，避免唯一约束冲突
-      if (body.phone !== undefined && body.phone !== '') updateData.phone = body.phone
-      if (body.age !== undefined) updateData.age = body.age
-      if (body.bio !== undefined) updateData.bio = body.bio
-      if (body.location !== undefined) updateData.location = body.location
-      if (body.occupation !== undefined) updateData.occupation = body.occupation
-      if (body.website !== undefined) updateData.website = body.website
-      if (body.github !== undefined) updateData.github = body.github
-      if (body.twitter !== undefined) updateData.twitter = body.twitter
-      if (body.interests !== undefined) updateData.interests = body.interests
-      if (body.tags !== undefined) updateData.tags = body.tags
-      if (body.avatar !== undefined) {
-        updateData.avatar_url = body.avatar
-        console.log('[API] Setting avatar_url:', body.avatar.substring(0, 50) + '...')
-      }
-      if (body.coverImage !== undefined) updateData.cover_image = body.coverImage
-      
-      // 处理 isNewUser 字段 - 更新 is_new_user 数据库字段
-      if (body.isNewUser !== undefined) {
-        updateData.is_new_user = body.isNewUser
-        console.log('[API] Setting is_new_user:', body.isNewUser)
-      }
-
-      // 更新 metadata
-      const metadata = {
-        ...(user.metadata || {}),
-        ...(body.metadata || {}),
-        username: body.username || user.username,
-        phone: body.phone !== undefined ? body.phone : user.phone,
-        age: body.age !== undefined ? body.age : user.age,
-        bio: body.bio !== undefined ? body.bio : user.bio,
-        location: body.location !== undefined ? body.location : user.location,
-        occupation: body.occupation !== undefined ? body.occupation : user.occupation,
-        website: body.website !== undefined ? body.website : user.website,
-        github: body.github !== undefined ? body.github : user.github,
-        twitter: body.twitter !== undefined ? body.twitter : user.twitter,
-        interests: body.interests !== undefined ? body.interests : user.interests,
-        tags: body.tags !== undefined ? body.tags : user.tags,
-        avatar: body.avatar !== undefined ? body.avatar : user.avatar_url,
-        coverImage: body.coverImage !== undefined ? body.coverImage : user.cover_image
-      }
-      updateData.metadata = metadata
-
-      const updatedUser = await userDB.updateById(decoded.userId, updateData)
-      if (!updatedUser) {
-        sendJson(res, 500, { code: 1, message: '更新用户信息失败' })
-        return
-      }
-
-      // 返回更新后的用户信息
-      const safeUser = {
-        id: updatedUser.id,
-        username: updatedUser.username,
-        email: updatedUser.email,
-        avatar: updatedUser.avatar_url || updatedUser.avatar,
-        phone: updatedUser.phone,
-        age: updatedUser.age,
-        bio: updatedUser.bio,
-        location: updatedUser.location,
-        occupation: updatedUser.occupation,
-        website: updatedUser.website,
-        github: updatedUser.github,
-        twitter: updatedUser.twitter,
-        interests: updatedUser.interests,
-        tags: updatedUser.tags,
-        coverImage: updatedUser.coverImage || updatedUser.cover_image,
-        membership_level: updatedUser.membership_level || 'free',
-        membership_status: updatedUser.membership_status || 'active',
-        updated_at: updatedUser.updated_at
-      }
-
-      sendJson(res, 200, { code: 0, data: safeUser, message: '用户信息更新成功' })
-    } catch (error) {
-      console.error('[API] Update user info failed:', error)
-      sendJson(res, 500, { code: 1, message: '更新用户信息失败: ' + error.message })
     }
     return
   }
@@ -9397,16 +9822,50 @@ if (!isVercel) {
     process.exit(1)
   })
 
-  process.on('SIGINT', () => {
+  process.on('SIGINT', async () => {
     console.log('Received SIGINT, shutting down server...')
+    
+    // 清理 keep-alive interval
+    const { getDB } = await import('./database.mjs')
+    try {
+      const pool = await getDB()
+      if (pool && pool._keepAliveInterval) {
+        clearInterval(pool._keepAliveInterval)
+        console.log('Cleared keep-alive interval')
+      }
+      if (pool && pool.end) {
+        await pool.end()
+        console.log('Database pool closed')
+      }
+    } catch (err) {
+      console.error('Error closing database pool:', err.message)
+    }
+    
     server.close(() => {
       console.log('Server closed')
       process.exit(0)
     })
   })
 
-  process.on('SIGTERM', () => {
+  process.on('SIGTERM', async () => {
     console.log('Received SIGTERM, shutting down server...')
+    
+    // 清理 keep-alive interval
+    const { getDB } = await import('./database.mjs')
+    try {
+      const pool = await getDB()
+      if (pool && pool._keepAliveInterval) {
+        clearInterval(pool._keepAliveInterval)
+        console.log('Cleared keep-alive interval')
+      }
+      if (pool && pool.end) {
+        await pool.end()
+        console.log('Database pool closed')
+      }
+    } catch (err) {
+      console.error('Error closing database pool:', err.message)
+    }
+    
     server.close(() => {
       console.log('Server closed')
       process.exit(0)

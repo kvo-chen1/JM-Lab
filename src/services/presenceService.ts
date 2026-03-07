@@ -18,57 +18,16 @@ class PresenceService {
   private userId: string | null = null;
 
   initialize(user: { id: string; username?: string; avatar?: string }) {
-    if (this.userId === user.id && this.channel) return;
+    // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+    // Realtime disabled - WebSocket not supported in local dev environment
+    if (this.userId === user.id) return;
     this.userId = user.id;
-
-    if (this.channel) {
-      this.channel.unsubscribe();
-    }
-
-    this.channel = supabase.channel('global_presence', {
-      config: {
-        presence: {
-          key: user.id,
-        },
-      },
-    });
-
-    this.channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = this.channel?.presenceState() || {};
-        this.updateOnlineUsers(state);
-      })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        // console.log('User joined:', key, newPresences);
-      })
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        // console.log('User left:', key, leftPresences);
-      })
-      .subscribe(async (status, err) => {
-        if (status === 'SUBSCRIBED') {
-          await this.channel?.track({
-            user_id: user.id,
-            username: user.username || 'User',
-            avatar: user.avatar || '',
-            status: 'online',
-            online_at: new Date().toISOString(),
-            last_seen: new Date().toISOString()
-          });
-        }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('Presence channel error:', status, err);
-          // 简单的重连逻辑
-          setTimeout(() => {
-            console.log('Attempting to reconnect presence channel...');
-            this.reconnect(user);
-          }, 5000);
-        }
-      });
+    console.log('[PresenceService] Realtime presence skipped (not supported in local environment)');
   }
 
   async reconnect(user: { id: string; username?: string; avatar?: string }) {
-    await this.cleanup();
-    this.initialize(user);
+    // Realtime 功能已禁用
+    console.log('[PresenceService] Reconnect skipped (realtime not supported)');
   }
 
   private updateOnlineUsers(state: Record<string, any[]>) {

@@ -1,78 +1,109 @@
 // src/components/ui/Input.tsx
 
-import { InputHTMLAttributes, forwardRef, ReactNode } from 'react';
+import React, { InputHTMLAttributes, forwardRef } from 'react';
 import { clsx } from 'clsx';
-import { componentVariants } from '@/utils/designSystem';
 
 // 输入框变体类型
-export type InputVariant = keyof typeof componentVariants.input.variants.variant;
+export type InputVariant = 'default' | 'filled' | 'outlined' | 'ghost';
 
 // 输入框大小类型
-export type InputSize = keyof typeof componentVariants.input.variants.size;
+export type InputSize = 'small' | 'medium' | 'large';
 
 // 输入框形状类型
-export type InputShape = keyof typeof componentVariants.input.variants.shape;
+export type InputShape = 'rounded' | 'pill' | 'square';
 
 // 输入框属性接口
-interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
-  label?: string;
-  error?: string;
-  icon?: ReactNode;
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   variant?: InputVariant;
-  size?: InputSize;
+  inputSize?: InputSize;
   shape?: InputShape;
-  containerClassName?: string;
-  className?: string;
+  error?: boolean;
+  errorMessage?: string;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
+  fullWidth?: boolean;
 }
+
+// 变体样式映射
+const variantClasses: Record<InputVariant, string> = {
+  default: 'bg-white border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200',
+  filled: 'bg-gray-100 border-0 focus:bg-white focus:ring-2 focus:ring-blue-200',
+  outlined: 'bg-transparent border-2 border-gray-300 focus:border-blue-500',
+  ghost: 'bg-transparent border-0 focus:bg-gray-50'
+};
+
+// 大小样式映射
+const sizeClasses: Record<InputSize, string> = {
+  small: 'px-3 py-1.5 text-sm',
+  medium: 'px-4 py-2 text-base',
+  large: 'px-5 py-3 text-lg'
+};
+
+// 形状样式映射
+const shapeClasses: Record<InputShape, string> = {
+  rounded: 'rounded-md',
+  pill: 'rounded-full',
+  square: 'rounded-none'
+};
 
 // 输入框组件
 const Input = forwardRef<HTMLInputElement, InputProps>(({
-  label,
-  error,
-  icon,
   variant = 'default',
-  size = 'default',
-  shape = 'default',
-  containerClassName,
+  inputSize = 'medium',
+  shape = 'rounded',
+  error = false,
+  errorMessage,
+  leftIcon,
+  rightIcon,
+  fullWidth = false,
   className,
-  type,
+  disabled,
   ...props
 }, ref) => {
-  // 获取输入框变体样式
-  const variantConfig = componentVariants.input.variants.variant[variant];
-  const sizeConfig = componentVariants.input.variants.size[size];
-  const shapeConfig = componentVariants.input.variants.shape[shape];
+  const inputClasses = clsx(
+    'transition-all duration-200 outline-none',
+    variantClasses[variant],
+    sizeClasses[inputSize],
+    shapeClasses[shape],
+    error && 'border-red-500 focus:border-red-500 focus:ring-red-200',
+    disabled && 'opacity-50 cursor-not-allowed bg-gray-100',
+    fullWidth && 'w-full',
+    (leftIcon || rightIcon) && 'flex items-center gap-2',
+    className
+  );
 
   return (
-    <div className={clsx('space-y-2', containerClassName)}>
-      {label && (
-        <label className="text-sm font-medium text-foreground">
-          {label}
-        </label>
-      )}
-      <div className="relative">
-        {icon && (
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-            {icon}
+    <div className={clsx(fullWidth && 'w-full')}>
+      <div className={clsx('relative', fullWidth && 'w-full')}>
+        {/* 左侧图标 */}
+        {leftIcon && (
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+            {leftIcon}
           </div>
         )}
+        
         <input
           ref={ref}
-          type={type}
           className={clsx(
-            'w-full font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary',
-            variantConfig,
-            sizeConfig,
-            shapeConfig,
-            icon && 'pl-10',
-            error && 'border-destructive focus:ring-destructive',
-            className
+            inputClasses,
+            leftIcon && 'pl-10',
+            rightIcon && 'pr-10'
           )}
+          disabled={disabled}
           {...props}
         />
+        
+        {/* 右侧图标 */}
+        {rightIcon && (
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+            {rightIcon}
+          </div>
+        )}
       </div>
-      {error && (
-        <p className="text-xs text-destructive">{error}</p>
+      
+      {/* 错误信息 */}
+      {error && errorMessage && (
+        <p className="mt-1 text-sm text-red-500">{errorMessage}</p>
       )}
     </div>
   );
@@ -80,4 +111,5 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
 
 Input.displayName = 'Input';
 
+export { Input };
 export default Input;

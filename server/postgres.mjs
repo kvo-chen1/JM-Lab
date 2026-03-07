@@ -51,7 +51,13 @@ const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: isLocalhost ? false : {
     rejectUnauthorized: false
-  }
+  },
+  max: 5,
+  min: 1,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 60000,
+  statement_timeout: 30000,
+  query_timeout: 30000
 })
 
 // 添加连接池事件监听

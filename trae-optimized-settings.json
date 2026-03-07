@@ -1,0 +1,22 @@
+{
+  "typescript.tsserver.maxTsServerMemory": 3072,
+  "search.followSymlinks": false,
+  "telemetry.enableTelemetry": false,
+  "telemetry.enableCrashReporter": false,
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.next/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.git": true,
+    "**/.next": true
+  },
+  "editor.minimap.enabled": false,
+  "editor.smoothScrolling": false,
+  "workbench.enableExperiments": false
+}

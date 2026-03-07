@@ -2615,10 +2615,15 @@ export const communityService = {
 
   // 订阅帖子实时更新
   subscribeToPosts(callback: (payload: any) => void): RealtimeChannel {
-    const channel = supabase
-      .channel('posts_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, callback)
-      .subscribe();
-    return channel;
+    // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+    // Realtime disabled - WebSocket not supported in local dev environment
+    console.log('[CommunityService] Realtime subscription skipped (not supported in local environment)');
+    
+    // 返回一个模拟的 channel 对象，包含 unsubscribe 方法
+    return {
+      unsubscribe: () => {},
+      on: () => ({} as any),
+      subscribe: () => ({} as any),
+    } as RealtimeChannel;
   }
 };

@@ -8,12 +8,15 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 
                     process.env.NEON_DATABASE_URL || 
                     process.env.POSTGRES_URL_NON_POOLING ||
+                    process.env.NEON_POSTGRES_URL_NON_POOLING ||
                     'postgresql://neondb_owner:npg_fV0Tzot3RCxh@ep-shy-bar-ajp9o0kn-pooler.c-3.us-east-2.aws.neon.tech/neondb',
   ssl: { rejectUnauthorized: false },
-  max: 10,
-  min: 2,
-  idleTimeoutMillis: 60000,
-  connectionTimeoutMillis: 30000
+  max: 5,
+  min: 1,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 60000,
+  statement_timeout: 30000,
+  query_timeout: 30000
 })
 
 // 发送 JSON 响应的辅助函数

@@ -840,6 +840,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const sessionData = data.data?.session || {};
       
       // 创建用户对象
+      // 优先使用后端返回的 isNewUser，如果没有则根据 username 判断
+      const isNewUser = userData.isNewUser !== undefined 
+        ? userData.isNewUser 
+        : (!userData.username || userData.username.trim() === '');
+      
       const userWithMembership: User = {
         id: userData.id || userData.user_id || '',
         email: userData.email || normalizedEmail,
@@ -850,7 +855,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         metadata: userData.metadata || {},
         created_at: userData.created_at || new Date().toISOString(),
         updated_at: userData.updated_at || new Date().toISOString(),
-        isNewUser: !userData.username || userData.username.trim() === '',
+        isNewUser: isNewUser,
         membershipLevel: userData.membershipLevel || 'free',
         membershipStatus: userData.membershipStatus || 'active'
       };

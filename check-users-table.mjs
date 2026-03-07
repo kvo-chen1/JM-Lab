@@ -1,36 +1,77 @@
-import { getDB } from './server/database.mjs';
+/**
+ * 检查 users 表的列结构
+ */
+
+import pg from 'pg';
+const { Client } = pg;
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '.env.local' });
+
+const DATABASE_URL = process.env.DATABASE_URL || 
+                     process.env.NEON_DATABASE_URL;
 
 async function checkUsersTable() {
-  console.log('检查 users 表结构...');
-  
+  const client = new Client({
+    connectionString: DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+
   try {
-    const db = await getDB();
-    
-    // 获取 users 表结构
-    const { rows: columns } = await db.query(`
-      SELECT column_name, data_type, is_nullable, column_default
+    await client.connect();
+    console.log('🔍 检查 users 表结构\n');
+    console.log('='.repeat(70));
+
+    // 查询 users 表的列
+    const result = await client.query(`
+      SELECT column_name, data_type
       FROM information_schema.columns
       WHERE table_name = 'users'
       ORDER BY ordinal_position
     `);
-    
-    console.log('\nusers 表结构:');
-    columns.forEach(c => {
-      console.log(`  - ${c.column_name}: ${c.data_type} ${c.is_nullable === 'NO' ? 'NOT NULL' : ''} ${c.column_default ? `DEFAULT ${c.column_default}` : ''}`);
+
+    console.log('\n📋 users 表列结构:\n');
+    result.rows.forEach(col => {
+      console.log(`  ${col.column_name}: ${col.data_type}`);
     });
+
+    // 查找与头像相关的列
+    console.log('\n🔍 头像相关列:\n');
+    const avatarCols = result.rows.filter(col => 
+      col.column_name.includes('avatar') || 
+      col.column_name.includes('photo') ||
+      col.column_name.includes('image')
+    );
     
-    // 检查 cover_image 列是否存在
-    const coverImageColumn = columns.find(c => c.column_name === 'cover_image');
-    if (coverImageColumn) {
-      console.log('\ncover_image 列存在:', coverImageColumn);
+    if (avatarCols.length > 0) {
+      avatarCols.forEach(col => {
+        console.log(`  ✅ ${col.column_name}: ${col.data_type}`);
+      });
     } else {
-      console.log('\ncover_image 列不存在！');
+      console.log('  ⚠️ 未找到头像相关列');
     }
-    
-  } catch (err) {
-    console.error('检查失败:', err);
+
+    // 检查最近的用户的头像字段
+    console.log('\n👤 最近用户的头像信息:\n');
+    const usersResult = await client.query(`
+      SELECT id, username, avatar_url, metadata->>'avatar' as meta_avatar
+      FROM users
+      ORDER BY created_at DESC
+      LIMIT 3
+    `);
+
+    usersResult.rows.forEach(user => {
+      console.log(`  用户: ${user.username}`);
+      console.log(`    avatar_url: ${user.avatar_url || 'NULL'}`);
+      console.log(`    metadata.avatar: ${user.meta_avatar || 'NULL'}`);
+    });
+
+    console.log('\n' + '='.repeat(70));
+
+  } catch (error) {
+    console.error('❌ 查询失败:', error.message);
   } finally {
-    process.exit(0);
+    await client.end();
   }
 }
 

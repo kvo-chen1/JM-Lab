@@ -643,7 +643,8 @@ export default function AIAssistantPanel() {
 
     // 解析数据行
     const dataRows = tableLines.slice(2).map(row => {
-      return row.split('|').map(cell => cell.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1 || cell.trim());
+      const cells = row.split('|').map(cell => cell.trim());
+      return cells.filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
     });
 
     const table = (

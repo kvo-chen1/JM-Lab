@@ -294,70 +294,15 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
       fetchNotificationCounts();
     }, 30000);
 
-    // 设置 Supabase 实时订阅
-    const subscriptions: (() => void)[] = [];
-
-    // 订阅反馈表变化
-    const feedbackSubscription = supabase
-      .channel('feedback_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_feedback' },
-        () => fetchNotificationCounts()
-      )
-      .subscribe();
-    subscriptions.push(() => feedbackSubscription.unsubscribe());
-
-    // 订阅活动表变化
-    const eventsSubscription = supabase
-      .channel('events_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'events' },
-        () => fetchNotificationCounts()
-      )
-      .subscribe();
-    subscriptions.push(() => eventsSubscription.unsubscribe());
-
-    // 订阅内容审核表变化
-    const contentSubscription = supabase
-      .channel('content_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'content_moderation' },
-        () => fetchNotificationCounts()
-      )
-      .subscribe();
-    subscriptions.push(() => contentSubscription.unsubscribe());
-
-    // 订阅订单表变化（商品管理中的订单）
-    const ordersSubscription = supabase
-      .channel('exchange_records_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'exchange_records' },
-        () => fetchNotificationCounts()
-      )
-      .subscribe();
-    subscriptions.push(() => ordersSubscription.unsubscribe());
-
-    // 订阅推广用户申请表变化
-    const promotionUserSubscription = supabase
-      .channel('promotion_applications_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'promotion_applications' },
-        () => fetchNotificationCounts()
-      )
-      .subscribe();
-    subscriptions.push(() => promotionUserSubscription.unsubscribe());
+    // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+    // Realtime disabled - WebSocket not supported in local dev environment
+    console.log('[NavNotifications] Realtime subscriptions skipped (not supported in local environment)');
 
     // 清理函数
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
       }
-      subscriptions.forEach((unsubscribe) => unsubscribe());
     };
   }, [fetchNotificationCounts]);
 

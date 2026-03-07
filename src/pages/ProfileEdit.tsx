@@ -372,6 +372,12 @@ export default function ProfileEdit() {
           apiData.phone = updatedUser.phone;
         }
 
+        console.log('[ProfileEdit] 发送更新请求:', {
+          avatar: apiData.avatar?.substring(0, 50) + '...',
+          hasAvatar: !!apiData.avatar,
+          avatarLength: apiData.avatar?.length
+        });
+
         const response = await fetch('/api/auth/me', {
           method: 'PUT',
           headers: {

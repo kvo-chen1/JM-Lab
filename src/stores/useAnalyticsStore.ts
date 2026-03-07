@@ -115,58 +115,9 @@ export const useAnalyticsStore = create<AnalyticsState>()(
       },
 
       subscribeToRealtime: () => {
-        // 建立实时数据通道 (WebSocket/SSE)
-        // Setup Realtime Data Channel
-        const channel = supabase
-          .channel('analytics-realtime')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'analytics' },
-            (payload) => {
-              console.log('Realtime update received:', payload);
-              // 增量更新算法：收到新数据时，直接更新本地状态，避免全量刷新
-              // Incremental update: update local state directly on new data
-              const newData = payload.new as DataPoint;
-              if (newData) {
-                set((state) => {
-                  const updatedPoints = [...state.dataPoints, newData];
-                  
-                  // 增量聚合逻辑 (Incremental Aggregation)
-                  // 仅基于新数据更新统计指标，而不是全量重算
-                  // Only update stats based on new data, avoid full recalculation
-                  const prevStats = state.stats;
-                  const newTotal = prevStats.total + newData.value;
-                  const newCount = state.dataPoints.length + 1;
-                  const newAverage = newTotal / newCount;
-                  
-                  // 更新峰值和谷值
-                  const newPeak = Math.max(prevStats.peak, newData.value);
-                  const newTrough = Math.min(prevStats.trough, newData.value);
-                  
-                  // 趋势判断 (简单移动平均)
-                  // Trend detection (Simple Moving Average)
-                  const newTrend = newData.value > prevStats.average ? 'up' : newData.value < prevStats.average ? 'down' : 'stable';
-
-                  return {
-                    dataPoints: updatedPoints,
-                    stats: {
-                      ...prevStats,
-                      total: newTotal,
-                      average: newAverage,
-                      peak: newPeak,
-                      trough: newTrough,
-                      trend: newTrend
-                    }
-                  };
-                });
-              }
-            }
-          )
-          .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-              console.log('已连接到实时分析频道 (Connected to realtime analytics channel)');
-            }
-          });
+        // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+        // Realtime disabled - WebSocket not supported in local dev environment
+        console.log('[Analytics] Realtime subscription skipped (not supported in local environment)');
 
         // 监听网络状态
         window.addEventListener('online', () => get().setOnlineStatus(true));
@@ -174,7 +125,7 @@ export const useAnalyticsStore = create<AnalyticsState>()(
       },
 
       unsubscribeFromRealtime: () => {
-        supabase.channel('analytics-realtime').unsubscribe();
+        // Realtime 功能已禁用
         window.removeEventListener('online', () => get().setOnlineStatus(true));
         window.removeEventListener('offline', () => get().setOnlineStatus(false));
       },

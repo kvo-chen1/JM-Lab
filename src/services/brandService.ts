@@ -1,334 +1,416 @@
-import { supabase } from '@/lib/supabase';
+/**
+ * 品牌服务 - 管理品牌方入驻和授权
+ */
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { generateIdempotencyKey } from '@/lib/supabase';
 
-export interface BrandHistory {
+// 品牌方类型定义
+export interface Brand {
   id: string;
-  brandId: string;
-  brandName: string;
-  brandImage: string;
-  usageCount: number;
-  lastUsedAt: string;
-  createdAt: string;
+  user_id: string;
+  name: string;
+  logo?: string;
+  description?: string;
+  category?: string;
+  established_year?: number;
+  location?: string;
+  contact_person?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  website?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  verification_docs?: any[];
+  created_at: string;
+  updated_at: string;
 }
 
-export interface BrandFavorite {
+// 授权申请类型定义
+export interface BrandAuthorization {
   id: string;
-  brandId: string;
-  brandName: string;
-  brandImage: string;
-  notes?: string;
-  createdAt: string;
+  ip_asset_id: string;
+  brand_id: string;
+  applicant_id: string;
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+  application_reason?: string;
+  proposed_usage?: string;
+  proposed_duration?: number;
+  proposed_price?: number;
+  brand_response?: string;
+  contract_url?: string;
+  certificate_url?: string;
+  started_at?: string;
+  expired_at?: string;
+  created_at: string;
+  updated_at: string;
+  // 关联数据
+  brand?: Brand;
+  ip_asset?: {
+    id: string;
+    name: string;
+    thumbnail?: string;
+  };
+  applicant?: {
+    id: string;
+    username: string;
+    avatar_url?: string;
+  };
 }
 
-export interface BrandRating {
-  id: string;
-  brandId: string;
-  brandName: string;
-  rating: number;
-  review?: string;
-  createdAt: string;
-}
-
-export interface UserBrandStats {
-  totalUsed: number;
-  favoritesCount: number;
-  ratingsCount: number;
-  mostUsedBrand?: BrandHistory;
-  recentlyUsed: BrandHistory[];
-}
-
-export const brandService = {
-  // Record brand usage
-  async recordBrandUsage(brandId: string, brandName: string, brandImage: string): Promise<void> {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session?.session?.user) return;
-
-    const userId = session.session.user.id;
-
-    // Check if record exists
-    const { data: existing } = await supabase
-      .from('user_brand_history')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('brand_id', brandId)
-      .single();
-
-    if (existing) {
-      // Update existing record
-      await supabase
-        .from('user_brand_history')
-        .update({
-          usage_count: existing.usage_count + 1,
-          last_used_at: new Date().toISOString()
-        })
-        .eq('id', existing.id);
-    } else {
-      // Create new record
-      await supabase
-        .from('user_brand_history')
-        .insert({
-          user_id: userId,
-          brand_id: brandId,
-          brand_name: brandName,
-          brand_image: brandImage,
-          usage_count: 1,
-          last_used_at: new Date().toISOString()
-        });
-    }
-  },
-
-  // Get user's brand history
-  async getBrandHistory(): Promise<BrandHistory[]> {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session?.session?.user) return [];
-
+// 创建品牌方入驻申请
+export async function createBrandApplication(
+  brandData: Omit<Brand, 'id' | 'status' | 'created_at' | 'updated_at'>
+): Promise<{ data?: Brand; error?: string }> {
+  try {
     const { data, error } = await supabase
-      .from('user_brand_history')
-      .select('*')
-      .eq('user_id', session.session.user.id)
-      .order('last_used_at', { ascending: false });
-
-    if (error) {
-      console.error('Failed to get brand history:', error);
-      return [];
-    }
-
-    return data.map(item => ({
-      id: item.id,
-      brandId: item.brand_id,
-      brandName: item.brand_name,
-      brandImage: item.brand_image,
-      usageCount: item.usage_count,
-      lastUsedAt: item.last_used_at,
-      createdAt: item.created_at
-    }));
-  },
-
-  // Add brand to favorites
-  async addToFavorites(brandId: string, brandName: string, brandImage: string, notes?: string): Promise<void> {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session?.session?.user) return;
-
-    const { error } = await supabase
-      .from('user_favorites')
+      .from('brands')
       .insert({
-        user_id: session.session.user.id,
-        brand_id: brandId,
-        brand_name: brandName,
-        brand_image: brandImage,
-        notes
-      });
-
-    if (error) {
-      console.error('Failed to add favorite:', error);
-      throw error;
-    }
-  },
-
-  // Remove from favorites
-  async removeFromFavorites(brandId: string): Promise<void> {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session?.session?.user) return;
-
-    await supabase
-      .from('user_favorites')
-      .delete()
-      .eq('user_id', session.session.user.id)
-      .eq('brand_id', brandId);
-  },
-
-  // Get user's favorites
-  async getFavorites(): Promise<BrandFavorite[]> {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session?.session?.user) return [];
-
-    const { data, error } = await supabase
-      .from('user_favorites')
-      .select('*')
-      .eq('user_id', session.session.user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Failed to get favorites:', error);
-      return [];
-    }
-
-    return data.map(item => ({
-      id: item.id,
-      brandId: item.brand_id,
-      brandName: item.brand_name,
-      brandImage: item.brand_image,
-      notes: item.notes,
-      createdAt: item.created_at
-    }));
-  },
-
-  // Check if brand is favorited
-  async isFavorited(brandId: string): Promise<boolean> {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session?.session?.user) return false;
-
-    const { data } = await supabase
-      .from('user_favorites')
-      .select('id')
-      .eq('user_id', session.session.user.id)
-      .eq('brand_id', brandId)
+        ...brandData,
+        status: 'pending',
+      })
+      .select()
       .single();
 
-    return !!data;
-  },
+    if (error) throw error;
+    return { data };
+  } catch (err: any) {
+    console.error('创建品牌方申请失败:', err);
+    return { error: err.message || '创建品牌方申请失败' };
+  }
+}
 
-  // Rate a brand
-  async rateBrand(brandId: string, brandName: string, rating: number, review?: string): Promise<void> {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session?.session?.user) return;
+// 获取品牌方列表
+export async function getBrands(
+  options: {
+    status?: 'approved' | 'pending' | 'rejected';
+    category?: string;
+    limit?: number;
+    offset?: number;
+  } = {}
+): Promise<{ data?: Brand[]; count?: number; error?: string }> {
+  try {
+    let query = supabase.from('brands').select('*', { count: 'exact' });
 
-    const { error } = await supabase
-      .from('brand_ratings')
-      .upsert({
-        user_id: session.session.user.id,
-        brand_id: brandId,
-        brand_name: brandName,
-        rating,
-        review,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,brand_id'
-      });
-
-    if (error) {
-      console.error('Failed to rate brand:', error);
-      throw error;
-    }
-  },
-
-  // Get brand ratings
-  async getBrandRatings(brandId?: string): Promise<BrandRating[]> {
-    let query = supabase
-      .from('brand_ratings')
-      .select('*');
-
-    if (brandId) {
-      query = query.eq('brand_id', brandId);
+    if (options.status) {
+      query = query.eq('status', options.status);
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Failed to get ratings:', error);
-      return [];
+    if (options.category) {
+      query = query.eq('category', options.category);
     }
 
-    return data.map(item => ({
-      id: item.id,
-      brandId: item.brand_id,
-      brandName: item.brand_name,
-      rating: item.rating,
-      review: item.review,
-      createdAt: item.created_at
-    }));
-  },
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
 
-  // Get average rating for a brand
-  async getAverageRating(brandId: string): Promise<{ average: number; count: number }> {
+    if (options.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
+    }
+
+    const { data, error, count } = await query.order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data || [], count: count || 0 };
+  } catch (err: any) {
+    console.error('获取品牌方列表失败:', err);
+    return { error: err.message || '获取品牌方列表失败' };
+  }
+}
+
+// 获取品牌方详情
+export async function getBrandById(id: string): Promise<{ data?: Brand; error?: string }> {
+  try {
     const { data, error } = await supabase
-      .from('brand_ratings')
-      .select('rating')
-      .eq('brand_id', brandId);
+      .from('brands')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (error || !data || data.length === 0) {
-      return { average: 0, count: 0 };
+    if (error) throw error;
+    return { data };
+  } catch (err: any) {
+    console.error('获取品牌方详情失败:', err);
+    return { error: err.message || '获取品牌方详情失败' };
+  }
+}
+
+// 更新品牌方信息
+export async function updateBrand(
+  id: string,
+  updates: Partial<Brand>
+): Promise<{ data?: Brand; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('brands')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data };
+  } catch (err: any) {
+    console.error('更新品牌方信息失败:', err);
+    return { error: err.message || '更新品牌方信息失败' };
+  }
+}
+
+// 提交品牌授权申请
+export async function createAuthorizationApplication(
+  applicationData: Omit<BrandAuthorization, 'id' | 'status' | 'created_at' | 'updated_at'>
+): Promise<{ data?: BrandAuthorization; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('brand_authorizations')
+      .insert({
+        ...applicationData,
+        status: 'pending',
+      })
+      .select(`
+        *,
+        brand:brands(*),
+        ip_asset:ip_assets(id, name, thumbnail),
+        applicant:applicant_id(id, username, avatar_url)
+      `)
+      .single();
+
+    if (error) throw error;
+    return { data };
+  } catch (err: any) {
+    console.error('提交授权申请失败:', err);
+    return { error: err.message || '提交授权申请失败' };
+  }
+}
+
+// 获取授权申请列表
+export async function getAuthorizations(
+  options: {
+    applicant_id?: string;
+    brand_id?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  } = {}
+): Promise<{ data?: BrandAuthorization[]; count?: number; error?: string }> {
+  try {
+    let query = supabase.from('brand_authorizations').select(
+      `
+        *,
+        brand:brands(*),
+        ip_asset:ip_assets(id, name, thumbnail),
+        applicant:applicant_id(id, username, avatar_url)
+      `,
+      { count: 'exact' }
+    );
+
+    if (options.applicant_id) {
+      query = query.eq('applicant_id', options.applicant_id);
     }
 
-    const sum = data.reduce((acc, item) => acc + item.rating, 0);
+    if (options.brand_id) {
+      query = query.eq('brand_id', options.brand_id);
+    }
+
+    if (options.status) {
+      query = query.eq('status', options.status);
+    }
+
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+
+    if (options.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
+    }
+
+    const { data, error, count } = await query.order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data || [], count: count || 0 };
+  } catch (err: any) {
+    console.error('获取授权申请列表失败:', err);
+    return { error: err.message || '获取授权申请列表失败' };
+  }
+}
+
+// 获取授权申请详情
+export async function getAuthorizationById(
+  id: string
+): Promise<{ data?: BrandAuthorization; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('brand_authorizations')
+      .select(
+        `
+        *,
+        brand:brands(*),
+        ip_asset:ip_assets(id, name, thumbnail),
+        applicant:applicant_id(id, username, avatar_url)
+      `
+      )
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return { data };
+  } catch (err: any) {
+    console.error('获取授权申请详情失败:', err);
+    return { error: err.message || '获取授权申请详情失败' };
+  }
+}
+
+// 更新授权申请状态（品牌方操作）
+export async function updateAuthorizationStatus(
+  id: string,
+  status: 'approved' | 'rejected' | 'completed' | 'cancelled',
+  brandResponse?: string
+): Promise<{ data?: BrandAuthorization; error?: string }> {
+  try {
+    const updates: any = { status };
+    if (brandResponse) {
+      updates.brand_response = brandResponse;
+    }
+    if (status === 'approved') {
+      updates.started_at = new Date().toISOString();
+    }
+
+    const { data, error } = await supabase
+      .from('brand_authorizations')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data };
+  } catch (err: any) {
+    console.error('更新授权申请状态失败:', err);
+    return { error: err.message || '更新授权申请状态失败' };
+  }
+}
+
+// 检查用户是否有授权
+export async function checkUserBrandAuthorization(
+  userId: string,
+  brandId: string
+): Promise<{ hasAuthorization: boolean; authorization?: BrandAuthorization }> {
+  try {
+    const { data, error } = await supabase
+      .from('brand_authorizations')
+      .select('*')
+      .eq('applicant_id', userId)
+      .eq('brand_id', brandId)
+      .eq('status', 'approved')
+      .gte('expired_at', new Date().toISOString())
+      .maybeSingle();
+
+    if (error) throw error;
     return {
-      average: Math.round((sum / data.length) * 10) / 10,
-      count: data.length
+      hasAuthorization: !!data,
+      authorization: data || undefined,
     };
-  },
+  } catch (err) {
+    console.error('检查用户授权失败:', err);
+    return { hasAuthorization: false };
+  }
+}
 
-  // Get user's brand stats
-  async getUserBrandStats(): Promise<UserBrandStats> {
-    const { data: session } = await supabase.auth.getSession();
-    if (!session?.session?.user) {
-      return {
-        totalUsed: 0,
-        favoritesCount: 0,
-        ratingsCount: 0,
-        recentlyUsed: []
-      };
-    }
-
-    const userId = session.session.user.id;
-
-    // Get history
-    const { data: history } = await supabase
-      .from('user_brand_history')
+// 获取用户的品牌方信息
+export async function getUserBrand(userId: string): Promise<{ data?: Brand; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('brands')
       .select('*')
       .eq('user_id', userId)
-      .order('last_used_at', { ascending: false });
+      .maybeSingle();
 
-    // Get favorites count
-    const { count: favoritesCount } = await supabase
-      .from('user_favorites')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
+    if (error) throw error;
+    return { data: data || undefined };
+  } catch (err: any) {
+    console.error('获取用户品牌方信息失败:', err);
+    return { error: err.message || '获取用户品牌方信息失败' };
+  }
+}
 
-    // Get ratings count
-    const { count: ratingsCount } = await supabase
-      .from('brand_ratings')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
+// 管理员：审核品牌方入驻
+export async function adminReviewBrand(
+  brandId: string,
+  status: 'approved' | 'rejected',
+  adminNotes?: string
+): Promise<{ data?: Brand; error?: string }> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('brands')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', brandId)
+      .select()
+      .single();
 
-    const historyItems = (history || []).map(item => ({
-      id: item.id,
-      brandId: item.brand_id,
-      brandName: item.brand_name,
-      brandImage: item.brand_image,
-      usageCount: item.usage_count,
-      lastUsedAt: item.last_used_at,
-      createdAt: item.created_at
-    }));
+    if (error) throw error;
+    return { data };
+  } catch (err: any) {
+    console.error('审核品牌方失败:', err);
+    return { error: err.message || '审核品牌方失败' };
+  }
+}
 
-    return {
-      totalUsed: historyItems.length,
-      favoritesCount: favoritesCount || 0,
-      ratingsCount: ratingsCount || 0,
-      mostUsedBrand: historyItems.reduce((max, item) => 
-        item.usageCount > (max?.usageCount || 0) ? item : max, historyItems[0]),
-      recentlyUsed: historyItems.slice(0, 5)
-    };
-  },
+// 管理员：获取所有授权申请
+export async function adminGetAllAuthorizations(
+  options: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  } = {}
+): Promise<{ data?: BrandAuthorization[]; count?: number; error?: string }> {
+  try {
+    let query = supabaseAdmin.from('brand_authorizations').select(
+      `
+        *,
+        brand:brands(*),
+        ip_asset:ip_assets(id, name, thumbnail),
+        applicant:applicant_id(id, username, avatar_url)
+      `,
+      { count: 'exact' }
+    );
 
-  // Get popular brands (most used across all users)
-  async getPopularBrands(limit: number = 10): Promise<{ brandId: string; brandName: string; brandImage: string; totalUsage: number }[]> {
-    const { data, error } = await supabase
-      .from('user_brand_history')
-      .select('brand_id, brand_name, brand_image, usage_count')
-      .order('usage_count', { ascending: false })
-      .limit(limit);
-
-    if (error) {
-      console.error('Failed to get popular brands:', error);
-      return [];
+    if (options.status) {
+      query = query.eq('status', options.status);
     }
 
-    // Aggregate by brand
-    const brandMap = new Map();
-    data.forEach(item => {
-      if (brandMap.has(item.brand_id)) {
-        brandMap.get(item.brand_id).totalUsage += item.usage_count;
-      } else {
-        brandMap.set(item.brand_id, {
-          brandId: item.brand_id,
-          brandName: item.brand_name,
-          brandImage: item.brand_image,
-          totalUsage: item.usage_count
-        });
-      }
-    });
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
 
-    return Array.from(brandMap.values())
-      .sort((a, b) => b.totalUsage - a.totalUsage)
-      .slice(0, limit);
+    if (options.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
+    }
+
+    const { data, error, count } = await query.order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data || [], count: count || 0 };
+  } catch (err: any) {
+    console.error('获取所有授权申请失败:', err);
+    return { error: err.message || '获取所有授权申请失败' };
   }
+}
+
+const brandService = {
+  createBrandApplication,
+  getBrands,
+  getBrandById,
+  updateBrand,
+  createAuthorizationApplication,
+  getAuthorizations,
+  getAuthorizationById,
+  updateAuthorizationStatus,
+  checkUserBrandAuthorization,
+  getUserBrand,
+  adminReviewBrand,
+  adminGetAllAuthorizations,
 };
+
+export { brandService };
+export default brandService;

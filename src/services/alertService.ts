@@ -314,24 +314,12 @@ export async function checkAlert(
  * 订阅实时预警（使用 Supabase Realtime）
  */
 export function subscribeToAlerts(callback: (alert: AlertRecord) => void) {
-  const subscription = supabase
-    .channel('alert_records')
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'alert_records',
-      },
-      (payload) => {
-        callback(payload.new as AlertRecord);
-      }
-    )
-    .subscribe();
+  // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+  // Realtime disabled - WebSocket not supported in local dev environment
+  console.log('[AlertService] Realtime subscription skipped (not supported in local environment)');
 
-  return () => {
-    subscription.unsubscribe();
-  };
+  // 返回空函数作为取消订阅的占位符
+  return () => {};
 }
 
 /**

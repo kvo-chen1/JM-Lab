@@ -5227,33 +5227,15 @@ export default function DataAnalytics() {
         loadData(false);
       }, 30000);
 
-      // 设置 Supabase 实时订阅
-      subscriptionRef.current = supabase
-        .channel('analytics-changes')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'users' },
-          () => {
-            loadData(false);
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'works' },
-          () => {
-            loadData(false);
-          }
-        )
-        .subscribe();
+      // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+      // Realtime disabled - WebSocket not supported in local dev environment
+      console.log('[DataAnalytics] Realtime subscription skipped (not supported in local environment)');
     }
 
     return () => {
       // 清理定时器和订阅
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
-      }
-      if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe();
       }
     };
   }, [loadData, isRealtimeEnabled]);

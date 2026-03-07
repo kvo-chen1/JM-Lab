@@ -121,28 +121,31 @@ const config = {
   postgresql: {
     connectionString: connectionString,
     options: {
-      // 连接池大小：本地开发使用更大的连接池以提高性能
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '10'),
-      // 最小连接数：保持一些连接预热，减少连接建立开销
-      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '2'),
-      // 空闲连接超时：增加超时时间以保持连接
+      // 连接池大小：保持最小连接数以减少连接建立开销
+      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '3'),
+      // 最小连接数：保持1个空闲连接以避免冷启动延迟
+      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '1'),
+      // 空闲连接超时：增加超时时间以保持连接更久
       idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '60000'),
       // 连接超时：增加超时时间以适应 Neon 数据库连接较慢的情况
-      connectionTimeoutMillis: isVercel ? 10000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '30000'),
-      // 连接最大生命周期：防止连接长时间不释放
-      maxLifetime: parseInt(process.env.POSTGRES_MAX_LIFETIME || '300000'), // 5分钟
+      connectionTimeoutMillis: isVercel ? 30000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '60000'),
+      // 连接最大生命周期：增加生命周期以减少重新连接
+      maxLifetime: parseInt(process.env.POSTGRES_MAX_LIFETIME || '600000'), // 10分钟
       // SSL 配置：Supabase 通常需要 SSL。本地开发可能不需要。
       ssl: (connectionString && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) ? {
         rejectUnauthorized: false // 允许自签名证书 (Supabase 兼容性)
       } : false,
-      // 查询超时设置：Vercel环境使用更短的超时（5秒）
-      statement_timeout: isVercel ? 5000 : 30000,
+      // 查询超时设置：增加超时时间以适应 Neon
+      statement_timeout: isVercel ? 30000 : 60000,
       // 客户端编码设置
       client_encoding: 'UTF8',
+      // Keep-alive 设置：保持连接活跃
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       // 连接重试策略
       retry: {
-        maxRetries: isVercel ? 1 : 3,
-        delay: 500,
+        maxRetries: isVercel ? 2 : 3,
+        delay: 1000,
         backoff: 'exponential'
       }
     }
@@ -322,6 +325,22 @@ async function initPostgreSQL() {
       retryCounts.postgresql = 0
       
       log('PostgreSQL initialized successfully')
+      
+      // 启动连接保持机制 - 每30秒执行一次简单查询以保持连接活跃
+      const keepAliveInterval = setInterval(async () => {
+        try {
+          const client = await pool.connect()
+          await client.query('SELECT 1')
+          client.release()
+          // 静默执行，不记录日志以避免噪音
+        } catch (err) {
+          log(`Keep-alive query failed: ${err.message}`, 'WARNING')
+        }
+      }, 30000)
+      
+      // 将 interval 附加到 pool 对象以便后续清理
+      pool._keepAliveInterval = keepAliveInterval
+      
       return pool
     } catch (connectionError) {
       log(`PostgreSQL connection failed: ${connectionError.message}`, 'ERROR')
@@ -1726,7 +1745,7 @@ export const userDB = {
 
       case DB_TYPE.MONGODB:
         const updateObj = { updated_at: now }
-        if (username) updateObj.username = username
+        if (username !== undefined) updateObj.username = username
         if (email) updateObj.email = email
         if (password_hash) updateObj.password_hash = password_hash
         if (phone !== undefined) updateObj.phone = phone
@@ -1755,7 +1774,7 @@ export const userDB = {
            pgUpdateFields.push(`${field} = $${pgParams.length}`)
         }
 
-        if (username) addPgField('username', username)
+        if (username !== undefined) addPgField('username', username)
         if (email) addPgField('email', email)
         if (password_hash) addPgField('password_hash', password_hash)
         if (phone !== undefined) addPgField('phone', phone)
@@ -1828,6 +1847,15 @@ export const userDB = {
         if (email_verification_token !== undefined) { neonUpdateFields.push(`email_verification_token = $${neonParamIndex++}`); neonParams.push(email_verification_token) }
         if (email_verification_expires !== undefined) { neonUpdateFields.push(`email_verification_expires = $${neonParamIndex++}`); neonParams.push(email_verification_expires) }
         if (updateData.is_new_user !== undefined) { neonUpdateFields.push(`is_new_user = $${neonParamIndex++}`); neonParams.push(updateData.is_new_user) }
+        // 用户个人资料字段
+        if (bio !== undefined) { neonUpdateFields.push(`bio = $${neonParamIndex++}`); neonParams.push(bio) }
+        if (location !== undefined) { neonUpdateFields.push(`location = $${neonParamIndex++}`); neonParams.push(location) }
+        if (occupation !== undefined) { neonUpdateFields.push(`occupation = $${neonParamIndex++}`); neonParams.push(occupation) }
+        if (website !== undefined) { neonUpdateFields.push(`website = $${neonParamIndex++}`); neonParams.push(website) }
+        if (github !== undefined) { neonUpdateFields.push(`github = $${neonParamIndex++}`); neonParams.push(github) }
+        if (twitter !== undefined) { neonUpdateFields.push(`twitter = $${neonParamIndex++}`); neonParams.push(twitter) }
+        if (cover_image !== undefined) { neonUpdateFields.push(`cover_image = $${neonParamIndex++}`); neonParams.push(cover_image) }
+        if (metadata !== undefined) { neonUpdateFields.push(`metadata = $${neonParamIndex++}`); neonParams.push(metadata) }
         neonUpdateFields.push(`updated_at = $${neonParamIndex++}`)
         neonParams.push(now)
         neonParams.push(id)

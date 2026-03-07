@@ -1413,7 +1413,8 @@ async function createWorkViaBackend(p: Partial<Post>, currentUser: User): Promis
       updated_at: now,
       status: 'published',
       visibility: 'public',
-      published_at: now
+      published_at: now,
+      source: '津脉广场' // 设置作品来源为津脉广场
     }
     
     // 如果有视频URL，添加到数据中
@@ -1633,7 +1634,8 @@ async function addPostDirectToWorks(p: Partial<Post>, currentUser?: User): Promi
       views: 0,
       votes: 0,
       is_featured: false,
-      creator: currentUser?.username || 'User'
+      creator: currentUser?.username || 'User',
+      source: '津脉广场' // 设置作品来源为津脉广场
     };
 
     // 如果有视频URL，添加到数据中

@@ -78,8 +78,8 @@ interface RequestContext<TResp, TBody = unknown> {
   isCacheEnabled: boolean
 }
 
-const DEFAULT_TIMEOUT = 10000
-const DEFAULT_RETRIES = 1
+const DEFAULT_TIMEOUT = 30000
+const DEFAULT_RETRIES = 2
 const DEFAULT_CACHE_TTL = 60000 // 默认缓存时间1分钟
 const DEFAULT_DEBOUNCE_DELAY = 300 // 默认防抖延迟300ms
 const DEFAULT_THROTTLE_LIMIT = 1000 // 默认节流限制1秒

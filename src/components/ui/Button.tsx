@@ -2,16 +2,15 @@
 
 import { ReactNode, ButtonHTMLAttributes, forwardRef, useState } from 'react';
 import { clsx } from 'clsx';
-import { componentVariants } from '@/utils/designSystem';
 
 // 按钮变体类型
-export type ButtonVariant = keyof typeof componentVariants.button.variants.variant;
+export type ButtonVariant = 'default' | 'primary' | 'secondary' | 'danger' | 'ghost' | 'link';
 
 // 按钮大小类型
-export type ButtonSize = keyof typeof componentVariants.button.variants.size;
+export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
 
 // 按钮形状类型
-export type ButtonShape = keyof typeof componentVariants.button.variants.shape;
+export type ButtonShape = 'default' | 'rounded' | 'circle';
 
 // 按钮属性接口
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -27,6 +26,31 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string;
 }
 
+// 变体样式映射
+const variantStyles: Record<ButtonVariant, string> = {
+  default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+  primary: 'bg-blue-600 text-white hover:bg-blue-700',
+  secondary: 'bg-gray-200 text-gray-900 hover:bg-gray-300',
+  danger: 'bg-red-600 text-white hover:bg-red-700',
+  ghost: 'hover:bg-gray-100 text-gray-900',
+  link: 'text-blue-600 underline-offset-4 hover:underline',
+};
+
+// 大小样式映射
+const sizeStyles: Record<ButtonSize, string> = {
+  default: 'h-10 px-4 py-2',
+  sm: 'h-8 px-3 text-sm',
+  lg: 'h-12 px-6 text-lg',
+  icon: 'h-10 w-10 p-2',
+};
+
+// 形状样式映射
+const shapeStyles: Record<ButtonShape, string> = {
+  default: 'rounded-md',
+  rounded: 'rounded-lg',
+  circle: 'rounded-full',
+};
+
 // 按钮组件
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
   children,
@@ -37,7 +61,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
   loading = false,
   icon,
   iconPosition = 'left',
-  rippleEffect = true,
+  rippleEffect = false,
   className,
   disabled,
   onClick,
@@ -50,34 +74,34 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
     if (rippleEffect) {
       const button = e.currentTarget;
       const rect = button.getBoundingClientRect();
-      const size = Math.max(rect.width, rect.height);
-      const x = e.clientX - rect.left - size / 2;
-      const y = e.clientY - rect.top - size / 2;
+      const rippleSize = Math.max(rect.width, rect.height);
+      const x = e.clientX - rect.left - rippleSize / 2;
+      const y = e.clientY - rect.top - rippleSize / 2;
 
-      setRippleStyle({ display: 'block', left: `${x}px`, top: `${y}px`, width: `${size}px`, height: `${size}px` });
+      setRippleStyle({ 
+        display: 'block', 
+        left: `${x}px`, 
+        top: `${y}px`, 
+        width: `${rippleSize}px`, 
+        height: `${rippleSize}px` 
+      });
 
       setTimeout(() => {
         setRippleStyle({ display: 'none', left: '0px', top: '0px', width: '0px', height: '0px' });
       }, 600);
     }
 
-    // 调用原始点击事件
     if (onClick) {
       onClick(e);
     }
   };
 
-  // 获取按钮变体样式
-  const variantConfig = componentVariants.button.variants.variant[variant];
-  const sizeConfig = componentVariants.button.variants.size[size];
-  const shapeConfig = componentVariants.button.variants.shape[shape];
-
   // 构建完整的类名
   const buttonClasses = clsx(
-    'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary relative overflow-hidden',
-    variantConfig,
-    sizeConfig,
-    shapeConfig,
+    'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 relative overflow-hidden',
+    variantStyles[variant],
+    sizeStyles[size],
+    shapeStyles[shape],
     fullWidth && 'w-full',
     loading && 'opacity-70 cursor-not-allowed',
     disabled && 'opacity-50 cursor-not-allowed',
@@ -102,7 +126,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
 
       {/* 加载状态指示器 */}
       {loading && (
-        <i className="fas fa-spinner animate-spin mr-2"></i>
+        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
       )}
 
       {/* 图标 */}
@@ -123,4 +150,5 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
 
 Button.displayName = 'Button';
 
+export { Button };
 export default Button;

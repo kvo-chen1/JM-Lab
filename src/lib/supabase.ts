@@ -1,19 +1,18 @@
-// Supabase 客户端配置 - 使用 Neon 数据库（通过本地代理或生产环境）
+// 数据库客户端配置 - 使用 Neon PostgreSQL（通过本地代理）
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 // 根据环境选择 API 地址
 const isProduction = import.meta.env.PROD
+const isBrowser = typeof window !== 'undefined'
 
 // 生产环境使用当前域名，开发环境使用 localhost
 let apiBaseUrl: string
 if (isProduction) {
-  // 生产环境：使用相对路径或配置的域名
   const configuredUrl = import.meta.env.VITE_API_BASE_URL
   if (configuredUrl && configuredUrl.startsWith('http')) {
     apiBaseUrl = configuredUrl
   } else {
-    // 使用当前域名
-    apiBaseUrl = typeof window !== 'undefined' 
+    apiBaseUrl = typeof window !== 'undefined'
       ? `${window.location.protocol}//${window.location.host}`
       : ''
   }
@@ -22,47 +21,19 @@ if (isProduction) {
 }
 
 const supabaseUrl = `${apiBaseUrl}/api/db`
-const supabaseAnonKey = isProduction 
-  ? (import.meta.env.VITE_SUPABASE_ANON_KEY || 'local-proxy-key')
-  : 'local-proxy-key'
-const supabaseServiceKey = isProduction
-  ? (import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 'local-proxy-key')
-  : 'local-proxy-key'
+const supabaseAnonKey = 'neon-proxy-key'
+const supabaseServiceKey = 'neon-proxy-key'
 
-console.log('[Supabase] Environment:', isProduction ? 'production' : 'development')
-console.log('[Supabase] API Base URL:', apiBaseUrl)
-console.log('[Supabase] Using API URL:', supabaseUrl)
+console.log('[DB] Environment:', isProduction ? 'production' : 'development')
+console.log('[DB] API URL:', supabaseUrl)
 
 // 导出配置供其他模块使用
 export { supabaseUrl, supabaseAnonKey as supabaseAnonKey }
-
-// 检查是否在浏览器环境
-const isBrowser = typeof window !== 'undefined'
-
-// 在开发环境中禁用 Supabase Realtime WebSocket
-if (isBrowser && !isProduction) {
-  const originalWebSocket = window.WebSocket;
-  window.WebSocket = class extends WebSocket {
-    constructor(url: string | URL, protocols?: string | string[]) {
-      const urlString = url.toString();
-      // 拦截 Supabase Realtime WebSocket 连接
-      if (urlString.includes('/realtime/v1/websocket') || urlString.includes('/api/db/realtime')) {
-        console.log('[Supabase] Blocked realtime WebSocket connection:', urlString);
-        // 返回一个假的 WebSocket 对象，模拟连接成功但不做任何事
-        const fakeWs = new originalWebSocket('wss://echo.websocket.org'); // 连接到一个存在的 echo 服务器
-        fakeWs.close(); // 立即关闭
-        return fakeWs;
-      }
-      return new originalWebSocket(url, protocols);
-    }
-  } as typeof WebSocket;
-}
 
 // 增强的 fetch，带有重试逻辑
 const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit, retries = 3, backoff = 300): Promise<Response> => {
   try {
     const response = await fetch(url, options);
-    // 只有 5xx 错误或网络错误才重试，4xx 错误通常是客户端请求问题，不应重试
     if (!response.ok && retries > 0 && response.status >= 500) {
       throw new Error(`Server error: ${response.status}`);
     }
@@ -91,10 +62,9 @@ try {
 
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storageKey: 'sb-auth-token',
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
     },
     global: {
       headers: {
@@ -104,6 +74,9 @@ try {
     },
     db: {
       schema: 'public'
+    },
+    realtime: {
+      enabled: false
     }
   })
 
@@ -115,6 +88,9 @@ try {
       auth: {
         autoRefreshToken: false,
         persistSession: false
+      },
+      realtime: {
+        enabled: false
       }
     }
   )
@@ -131,12 +107,12 @@ try {
 }
 
 // 导出配置检查函数
-export const isSupabaseConfigured = (): boolean => {
+export const isDatabaseConfigured = (): boolean => {
   return true // 总是已配置，因为我们使用本地代理
 }
 
 // 导出连接测试函数
-export const testSupabaseConnection = async (): Promise<{ success: boolean; error?: string }> => {
+export const testDatabaseConnection = async (): Promise<{ success: boolean; error?: string }> => {
   try {
     const { error } = await supabase.from('users').select('count', { count: 'exact', head: true })
     if (error) {
@@ -147,6 +123,10 @@ export const testSupabaseConnection = async (): Promise<{ success: boolean; erro
     return { success: false, error: String(err) }
   }
 }
+
+// 保持向后兼容的别名
+export const isSupabaseConfigured = isDatabaseConfigured
+export const testSupabaseConnection = testDatabaseConnection
 
 // 数据库表类型定义
 export interface Database {

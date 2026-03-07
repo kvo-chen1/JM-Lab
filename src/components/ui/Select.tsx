@@ -1,118 +1,134 @@
-import * as React from "react"
-import { ChevronDown } from "lucide-react"
-import { cn } from "@/lib/utils"
+// src/components/ui/Select.tsx
+// Select 组件实现
 
+import * as React from 'react';
+import { clsx } from 'clsx';
+import { ChevronDown } from 'lucide-react';
+
+// Select 根组件
 interface SelectProps {
-  value?: string
-  onValueChange?: (value: string) => void
-  children: React.ReactNode
+  children: React.ReactNode;
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  disabled?: boolean;
 }
 
 const SelectContext = React.createContext<{
-  value?: string
-  onValueChange?: (value: string) => void
-  open: boolean
-  setOpen: (open: boolean) => void
-}>({ open: false, setOpen: () => {} })
+  value: string;
+  onValueChange: (value: string) => void;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+} | null>(null);
 
-export function Select({ value, onValueChange, children }: SelectProps) {
-  const [open, setOpen] = React.useState(false)
+const useSelect = () => {
+  const context = React.useContext(SelectContext);
+  if (!context) {
+    throw new Error('Select components must be used within a Select provider');
+  }
+  return context;
+};
+
+const Select: React.FC<SelectProps> = ({ children, value, defaultValue, onValueChange, disabled }) => {
+  const [internalValue, setInternalValue] = React.useState(defaultValue || '');
+  const [open, setOpen] = React.useState(false);
+  const isControlled = value !== undefined;
+  const currentValue = isControlled ? value : internalValue;
+
+  const handleValueChange = React.useCallback((newValue: string) => {
+    if (!isControlled) {
+      setInternalValue(newValue);
+    }
+    onValueChange?.(newValue);
+    setOpen(false);
+  }, [isControlled, onValueChange]);
 
   return (
-    <SelectContext.Provider value={{ value, onValueChange, open, setOpen }}>
+    <SelectContext.Provider value={{ value: currentValue, onValueChange: handleValueChange, open, setOpen }}>
       <div className="relative">{children}</div>
     </SelectContext.Provider>
-  )
+  );
+};
+
+// SelectTrigger 组件
+interface SelectTriggerProps {
+  children: React.ReactNode;
+  className?: string;
 }
 
-interface SelectTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {}
-
-export function SelectTrigger({ className, children, ...props }: SelectTriggerProps) {
-  const { open, setOpen } = React.useContext(SelectContext)
+const SelectTrigger: React.FC<SelectTriggerProps> = ({ children, className }) => {
+  const { open, setOpen } = useSelect();
 
   return (
     <button
       type="button"
       onClick={() => setOpen(!open)}
-      className={cn(
-        "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+      className={clsx(
+        'flex items-center justify-between w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
         className
       )}
-      {...props}
     >
       {children}
-      <ChevronDown className="h-4 w-4 opacity-50" />
+      <ChevronDown className="w-4 h-4 ml-2 text-gray-500" />
     </button>
-  )
+  );
+};
+
+// SelectValue 组件
+interface SelectValueProps {
+  placeholder?: string;
 }
 
-export function SelectValue({ placeholder }: { placeholder?: string }) {
-  const { value } = React.useContext(SelectContext)
-  return <span className="truncate">{value || placeholder}</span>
-}
+const SelectValue: React.FC<SelectValueProps> = ({ placeholder }) => {
+  const { value } = useSelect();
+  return <span className={clsx(!value && 'text-gray-400')}>{value || placeholder}</span>;
+};
 
+// SelectContent 组件
 interface SelectContentProps {
-  children: React.ReactNode
-  className?: string
+  children: React.ReactNode;
+  className?: string;
 }
 
-export function SelectContent({ children, className }: SelectContentProps) {
-  const { open, setOpen } = React.useContext(SelectContext)
-  const ref = React.useRef<HTMLDivElement>(null)
+const SelectContent: React.FC<SelectContentProps> = ({ children, className }) => {
+  const { open } = useSelect();
 
-  React.useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [open, setOpen])
-
-  if (!open) return null
+  if (!open) return null;
 
   return (
-    <div
-      ref={ref}
-      className={cn(
-        "absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 top-full mt-1 left-0 right-0",
-        className
-      )}
-    >
-      <div className="p-1">{children}</div>
-    </div>
-  )
-}
-
-interface SelectItemProps {
-  value: string
-  children: React.ReactNode
-  className?: string
-}
-
-export function SelectItem({ value, children, className }: SelectItemProps) {
-  const { value: selectedValue, onValueChange, setOpen } = React.useContext(SelectContext)
-  const isSelected = selectedValue === value
-
-  return (
-    <div
-      onClick={() => {
-        onValueChange?.(value)
-        setOpen(false)
-      }}
-      className={cn(
-        "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-        isSelected && "bg-accent text-accent-foreground",
-        className
-      )}
-    >
-      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-        {isSelected && <span className="h-2 w-2 rounded-full bg-primary" />}
-      </span>
+    <div className={clsx(
+      'absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto',
+      className
+    )}>
       {children}
     </div>
-  )
+  );
+};
+
+// SelectItem 组件
+interface SelectItemProps {
+  children: React.ReactNode;
+  value: string;
+  className?: string;
 }
+
+const SelectItem: React.FC<SelectItemProps> = ({ children, value, className }) => {
+  const { value: selectedValue, onValueChange } = useSelect();
+  const isSelected = selectedValue === value;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onValueChange(value)}
+      className={clsx(
+        'w-full px-3 py-2 text-sm text-left hover:bg-gray-100 focus:outline-none focus:bg-gray-100',
+        isSelected && 'bg-blue-50 text-blue-900',
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+};
+
+export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem };

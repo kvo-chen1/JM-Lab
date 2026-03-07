@@ -29,6 +29,59 @@ interface AvatarProps extends HTMLAttributes<HTMLDivElement> {
   children?: ReactNode; // 用于默认头像的文本或图标
 }
 
+// AvatarImage 组件
+interface AvatarImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+  src: string;
+  alt?: string;
+  className?: string;
+}
+
+const AvatarImage = forwardRef<HTMLImageElement, AvatarImageProps>(
+  ({ src, alt, className, ...props }, ref) => {
+    return (
+      <img
+        ref={ref}
+        src={src}
+        alt={alt || 'Avatar'}
+        className={clsx('w-full h-full object-cover', className)}
+        loading="lazy"
+        decoding="async"
+        {...props}
+      />
+    );
+  }
+);
+
+AvatarImage.displayName = 'AvatarImage';
+
+// AvatarFallback 组件
+interface AvatarFallbackProps extends HTMLAttributes<HTMLDivElement> {
+  children?: ReactNode;
+  className?: string;
+  delayMs?: number;
+}
+
+const AvatarFallback = forwardRef<HTMLDivElement, AvatarFallbackProps>(
+  ({ children, className, ...props }, ref) => {
+    return (
+      <div
+        ref={ref}
+        className={clsx(
+          'w-full h-full flex items-center justify-center bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+          className
+        )}
+        {...props}
+      >
+        {children || (
+          <i className="fas fa-user text-2xl"></i>
+        )}
+      </div>
+    );
+  }
+);
+
+AvatarFallback.displayName = 'AvatarFallback';
+
 // 头像组件
 const Avatar = forwardRef<HTMLDivElement, AvatarProps>(({
   src,
@@ -96,34 +149,25 @@ const Avatar = forwardRef<HTMLDivElement, AvatarProps>(({
       onClick={onClick}
       {...props}
     >
-      {/* 头像图片 */}
-      {src ? (
-        <img
-          src={src}
-          alt={alt || 'Avatar'}
-          className="w-full h-full object-cover"
-          loading="lazy"
-          decoding="async"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
-            if (children) {
-              const parent = target.parentElement;
-              if (parent) {
-                const defaultAvatar = document.createElement('div');
-                defaultAvatar.className = 'w-full h-full flex items-center justify-center bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
-                defaultAvatar.innerHTML = children as string;
-                parent.appendChild(defaultAvatar);
-              }
-            }
-          }}
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-          {children || (
+      {/* 头像内容 */}
+      {children || (
+        src ? (
+          <img
+            src={src}
+            alt={alt || 'Avatar'}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
             <i className="fas fa-user text-2xl"></i>
-          )}
-        </div>
+          </div>
+        )
       )}
 
       {/* 状态指示器 */}
@@ -144,7 +188,7 @@ const Avatar = forwardRef<HTMLDivElement, AvatarProps>(({
 Avatar.displayName = 'Avatar';
 
 // 同时提供命名导出
-export { Avatar };
+export { Avatar, AvatarImage, AvatarFallback };
 
 // 头像组属性接口
 interface AvatarGroupProps extends HTMLAttributes<HTMLDivElement> {

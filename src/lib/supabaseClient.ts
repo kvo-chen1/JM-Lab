@@ -1,3 +1,4 @@
+// 数据库客户端配置 - 使用 Neon PostgreSQL（通过本地代理）
 import { createClient } from '@supabase/supabase-js'
 
 // 根据环境选择 API 地址
@@ -6,12 +7,10 @@ const isProduction = import.meta.env.PROD
 // 生产环境使用当前域名，开发环境使用 localhost
 let apiBaseUrl: string
 if (isProduction) {
-  // 生产环境：使用相对路径或配置的域名
   const configuredUrl = import.meta.env.VITE_API_BASE_URL
   if (configuredUrl && configuredUrl.startsWith('http')) {
     apiBaseUrl = configuredUrl
   } else {
-    // 使用当前域名
     apiBaseUrl = typeof window !== 'undefined'
       ? `${window.location.protocol}//${window.location.host}`
       : ''
@@ -22,22 +21,13 @@ if (isProduction) {
 
 const proxyUrl = `${apiBaseUrl}/api/db`
 
-console.log(`🔄 [Supabase Client] Environment: ${isProduction ? 'production' : 'development'}`)
-console.log('🔄 [Supabase Client] API Base URL:', apiBaseUrl)
-console.log('🔄 [Supabase Client] Using API URL:', proxyUrl)
+console.log(`[DB Client] Environment: ${isProduction ? 'production' : 'development'}`)
+console.log('[DB Client] API URL:', proxyUrl)
 
-// 根据环境选择密钥
-const anonKey = isProduction
-  ? (import.meta.env.VITE_SUPABASE_ANON_KEY || 'local-proxy-key')
-  : 'local-proxy-key'
-const serviceKey = isProduction
-  ? (import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 'local-proxy-key')
-  : 'local-proxy-key'
-
-// 创建 Supabase 客户端，但指向 API 代理
-const supabaseClient = createClient(
+// 创建数据库客户端，指向本地代理
+const dbClient = createClient(
   proxyUrl,
-  anonKey,
+  'neon-proxy-key',
   {
     auth: {
       autoRefreshToken: false,
@@ -48,27 +38,33 @@ const supabaseClient = createClient(
         'X-Client-Info': 'neon-proxy-js/1.x',
       },
     },
-  }
-)
-
-export const supabase = supabaseClient
-
-// 服务角色客户端也使用代理
-export const supabaseAdmin = createClient(
-  proxyUrl,
-  serviceKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
+    realtime: {
+      enabled: false
     }
   }
 )
 
-// 将 supabase 暴露到 window 对象以便调试
+export const supabase = dbClient
+
+// 管理员客户端也使用代理
+export const supabaseAdmin = createClient(
+  proxyUrl,
+  'neon-proxy-key',
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    },
+    realtime: {
+      enabled: false
+    }
+  }
+)
+
+// 将客户端暴露到 window 对象以便调试
 if (typeof window !== 'undefined') {
   (window as any).supabase = supabase
-  console.log('[Supabase Client] Initialized with Neon database proxy:', proxyUrl)
+  console.log('[DB Client] Initialized with Neon database proxy:', proxyUrl)
 }
 
 // Type definitions for Supabase tables

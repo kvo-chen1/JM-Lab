@@ -65,6 +65,7 @@ export const entertainmentNavItems: NavItem[] = [
 
 // 商务与支持导航项
 export const businessNavItems: NavItem[] = [
+  { id: 'marketplace', path: '/marketplace', label: '文创商城', icon: 'fas fa-store', priority: 'high', badge: '新', description: '津门老字号文创产品交易平台' },
   { id: 'business', path: '/business', label: '商业合作', icon: 'fas fa-handshake', priority: 'medium' },
   { id: 'organizer', path: '/organizer', label: '主办方中心', icon: 'fas fa-building', priority: 'medium' },
   { id: 'ip-incubation', path: '/ip-incubation', label: 'IP孵化中心', icon: 'fas fa-lightbulb', priority: 'low' },
@@ -116,10 +117,10 @@ export const topNavItems: NavItem[] = [
 // 底部导航项 (移动端)
 export const bottomNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home' },
-  { id: 'square', path: '/square', label: '津脉广场', icon: 'fas fa-th-large' },
-  { id: 'ai-assistant', path: '/ai-assistant', label: '津小脉AI助手', icon: 'fas fa-robot' },
-  { id: 'community', path: '/community', label: '津脉社区', icon: 'fas fa-users' },
-  { id: 'dashboard', path: '/dashboard', label: '个人中心', icon: 'fas fa-user' }
+  { id: 'marketplace', path: '/marketplace', label: '商城', icon: 'fas fa-store' },
+  { id: 'square', path: '/square', label: '广场', icon: 'fas fa-th-large' },
+  { id: 'ai-assistant', path: '/ai-assistant', label: 'AI助手', icon: 'fas fa-robot' },
+  { id: 'dashboard', path: '/dashboard', label: '我的', icon: 'fas fa-user' }
 ];
 
 // 快捷键配置
@@ -130,11 +131,12 @@ export const keyboardShortcuts = {
   '?': '显示快捷键',
   '1': '首页',
   '2': '创作中心',
-  '3': '津脉广场',
-  '4': '津脉社区',
-  '5': '津脉作品',
-  '6': '积分商城',
-  '7': '个人中心'
+  '3': '文创商城',
+  '4': '津脉广场',
+  '5': '津脉社区',
+  '6': '津脉作品',
+  '7': '积分商城',
+  '8': '个人中心'
 };
 
 // 最近访问记录配置

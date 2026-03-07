@@ -1,18 +1,28 @@
-import { cn } from "@/lib/utils"
+// src/components/ui/Separator.tsx
 
-interface SeparatorProps {
-  className?: string
-  orientation?: "horizontal" | "vertical"
+import React, { HTMLAttributes, forwardRef } from 'react';
+import { clsx } from 'clsx';
+
+interface SeparatorProps extends HTMLAttributes<HTMLDivElement> {
+  orientation?: 'horizontal' | 'vertical';
 }
 
-export function Separator({ className, orientation = "horizontal" }: SeparatorProps) {
+const Separator = forwardRef<HTMLDivElement, SeparatorProps>((props, ref) => {
+  const { orientation = 'horizontal', className, ...rest } = props;
   return (
     <div
-      className={cn(
-        "shrink-0 bg-border",
-        orientation === "horizontal" ? "h-[1px] w-full" : "h-full w-[1px]",
+      ref={ref}
+      className={clsx(
+        'bg-gray-200',
+        orientation === 'horizontal' ? 'h-px w-full my-4' : 'w-px h-full mx-4',
         className
       )}
+      {...rest}
     />
-  )
-}
+  );
+});
+
+Separator.displayName = 'Separator';
+
+export { Separator };
+export default Separator;

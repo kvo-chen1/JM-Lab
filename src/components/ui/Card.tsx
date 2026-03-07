@@ -1,17 +1,16 @@
 // src/components/ui/Card.tsx
 
-import { ReactNode, HTMLAttributes } from 'react';
+import React, { ReactNode, HTMLAttributes, forwardRef } from 'react';
 import { clsx } from 'clsx';
-import { componentVariants } from '@/utils/designSystem';
 
 // 卡片变体类型
-export type CardVariant = keyof typeof componentVariants.card.variants.variant;
+export type CardVariant = 'default' | 'outlined' | 'elevated' | 'ghost';
 
 // 卡片大小类型
-export type CardSize = keyof typeof componentVariants.card.variants.size;
+export type CardSize = 'small' | 'medium' | 'large';
 
 // 卡片阴影类型
-export type CardShadow = keyof typeof componentVariants.card.variants.shadow;
+export type CardShadow = 'none' | 'sm' | 'md' | 'lg' | 'xl';
 
 // 卡片属性接口
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
@@ -19,118 +18,172 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   variant?: CardVariant;
   size?: CardSize;
   shadow?: CardShadow;
-  padding?: 'small' | 'medium' | 'large';
-  className?: string;
+  hoverable?: boolean;
+  clickable?: boolean;
+  onClick?: () => void;
 }
 
-// 卡片头部属性接口
-interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
-  children: ReactNode;
-  className?: string;
-}
+// 变体样式映射
+const variantClasses: Record<CardVariant, string> = {
+  default: 'bg-white border border-gray-200',
+  outlined: 'bg-transparent border-2 border-gray-300',
+  elevated: 'bg-white shadow-card border-0',
+  ghost: 'bg-transparent border-0'
+};
 
-// 卡片标题属性接口
-interface CardTitleProps extends Omit<HTMLAttributes<HTMLHeadingElement>, 'size'> {
-  children: ReactNode;
-  className?: string;
-  level?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
-}
+// 大小样式映射
+const sizeClasses: Record<CardSize, string> = {
+  small: 'p-4',
+  medium: 'p-6',
+  large: 'p-8'
+};
 
-// 卡片正文属性接口
-interface CardBodyProps extends HTMLAttributes<HTMLDivElement> {
-  children: ReactNode;
-  className?: string;
-}
-
-// 卡片底部属性接口
-interface CardFooterProps extends HTMLAttributes<HTMLDivElement> {
-  children: ReactNode;
-  className?: string;
-}
-
-// 卡片描述属性接口
-interface CardDescriptionProps extends HTMLAttributes<HTMLParagraphElement> {
-  children: ReactNode;
-  className?: string;
-}
+// 阴影样式映射
+const shadowClasses: Record<CardShadow, string> = {
+  none: 'shadow-none',
+  sm: 'shadow-sm',
+  md: 'shadow-md',
+  lg: 'shadow-lg',
+  xl: 'shadow-xl'
+};
 
 // 卡片组件
-const Card = ({ children, variant = 'default', size = 'default', shadow = 'default', padding = 'medium', className, ...props }: CardProps) => {
-  // 获取卡片变体样式
-  const variantConfig = componentVariants.card.variants.variant[variant];
-  const sizeConfig = componentVariants.card.variants.size[size];
-  const shadowConfig = componentVariants.card.variants.shadow[shadow];
+const Card = forwardRef<HTMLDivElement, CardProps>((props, ref) => {
+  const {
+    children,
+    variant = 'default',
+    size = 'medium',
+    shadow = 'none',
+    hoverable = false,
+    clickable = false,
+    onClick,
+    className,
+    ...rest
+  } = props;
 
-  // 内边距样式映射
-  const paddingClasses = {
-    small: 'p-4',
-    medium: 'p-6',
-    large: 'p-8'
-  };
+  const cardClasses = clsx(
+    'rounded-lg transition-all duration-200',
+    variantClasses[variant],
+    sizeClasses[size],
+    shadow !== 'none' && shadowClasses[shadow],
+    hoverable && 'hover:shadow-card-hover hover:-translate-y-1',
+    clickable && 'cursor-pointer',
+    className
+  );
 
   return (
-    <div className={clsx(
-      'transition-all duration-200',
-      variantConfig,
-      sizeConfig,
-      shadowConfig,
-      paddingClasses[padding],
-      className
-    )} {...props}>
+    <div
+      ref={ref}
+      className={cardClasses}
+      onClick={onClick}
+      {...rest}
+    >
       {children}
     </div>
   );
-};
+});
+
+Card.displayName = 'Card';
 
 // 卡片头部组件
-const CardHeader = ({ children, className, ...props }: CardHeaderProps) => {
+interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
+}
+
+const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>((props, ref) => {
+  const { children, className, ...rest } = props;
   return (
-    <div className={clsx('flex flex-col space-y-2', className)} {...props}>
+    <div
+      ref={ref}
+      className={clsx('mb-4', className)}
+      {...rest}
+    >
       {children}
     </div>
   );
-};
+});
+
+CardHeader.displayName = 'CardHeader';
 
 // 卡片标题组件
-const CardTitle = ({ children, className, level = 'h3', ...props }: CardTitleProps) => {
-  const Tag = level;
-  const headingClass = clsx('text-xl font-semibold text-foreground', className);
-  if (Tag === 'h1') return <h1 className={headingClass} {...props}>{children}</h1>;
-  if (Tag === 'h2') return <h2 className={headingClass} {...props}>{children}</h2>;
-  if (Tag === 'h3') return <h3 className={headingClass} {...props}>{children}</h3>;
-  if (Tag === 'h4') return <h4 className={headingClass} {...props}>{children}</h4>;
-  if (Tag === 'h5') return <h5 className={headingClass} {...props}>{children}</h5>;
-  return <h6 className={headingClass} {...props}>{children}</h6>;
-};
+interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
+  children: ReactNode;
+}
 
-// 卡片正文组件
-const CardBody = ({ children, className, ...props }: CardBodyProps) => {
+const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>((props, ref) => {
+  const { children, className, ...rest } = props;
   return (
-    <div className={clsx('space-y-4', className)} {...props}>
+    <h3
+      ref={ref}
+      className={clsx('text-lg font-semibold text-gray-900', className)}
+      {...rest}
+    >
       {children}
-    </div>
+    </h3>
   );
-};
+});
 
-// 卡片底部组件
-const CardFooter = ({ children, className, ...props }: CardFooterProps) => {
-  return (
-    <div className={clsx('flex items-center justify-between pt-4 border-t border-border', className)} {...props}>
-      {children}
-    </div>
-  );
-};
+CardTitle.displayName = 'CardTitle';
 
 // 卡片描述组件
-const CardDescription = ({ children, className, ...props }: CardDescriptionProps) => {
+interface CardDescriptionProps extends HTMLAttributes<HTMLParagraphElement> {
+  children: ReactNode;
+}
+
+const CardDescription = forwardRef<HTMLParagraphElement, CardDescriptionProps>((props, ref) => {
+  const { children, className, ...rest } = props;
   return (
-    <p className={clsx('text-sm text-muted-foreground', className)} {...props}>
+    <p
+      ref={ref}
+      className={clsx('text-sm text-gray-500 mt-1', className)}
+      {...rest}
+    >
       {children}
     </p>
   );
-};
+});
 
-// 导出卡片组件及其子组件
-export { Card, CardHeader, CardTitle, CardBody, CardFooter, CardDescription };
+CardDescription.displayName = 'CardDescription';
 
+// 卡片内容组件
+interface CardContentProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
+}
+
+const CardContent = forwardRef<HTMLDivElement, CardContentProps>((props, ref) => {
+  const { children, className, ...rest } = props;
+  return (
+    <div
+      ref={ref}
+      className={clsx('', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+});
+
+CardContent.displayName = 'CardContent';
+
+// 卡片底部组件
+interface CardFooterProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
+}
+
+const CardFooter = forwardRef<HTMLDivElement, CardFooterProps>((props, ref) => {
+  const { children, className, ...rest } = props;
+  return (
+    <div
+      ref={ref}
+      className={clsx('mt-4 flex items-center justify-between', className)}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+});
+
+CardFooter.displayName = 'CardFooter';
+
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter };
 export default Card;

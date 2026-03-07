@@ -260,6 +260,9 @@ const AdminAnalytics = createLazyComponent(() => import(/* webpackChunkName: "pa
 const ErrorMonitoringDashboard = createLazyComponent(() => import(/* webpackChunkName: "components-admin" */ "@/components/ErrorMonitoringDashboard"), {
   priority: ROUTE_PRIORITIES.LOW
 });
+const SystemStatus = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/SystemStatus"), {
+  priority: ROUTE_PRIORITIES.LOW
+});
 const LotteryManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/admin/LotteryManagement"), {
   priority: ROUTE_PRIORITIES.LOW,
   name: 'lottery-management'
@@ -462,6 +465,34 @@ const PromotionApplication = createLazyComponent(() => import(/* webpackChunkNam
 const TrendingCardDemo = createLazyComponent(() => import(/* webpackChunkName: "pages-demo" */ "@/pages/TrendingCardDemo"), {
   priority: ROUTE_PRIORITIES.LOW,
   name: 'trending-card-demo'
+});
+
+// ============================================
+// 文创商城相关页面 - 懒加载
+// ============================================
+const Marketplace = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'marketplace'
+});
+const ProductDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/ProductDetail"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'product-detail'
+});
+const Cart = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/Cart"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'cart'
+});
+const OrderConfirm = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/OrderConfirm"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'order-confirm'
+});
+
+// ============================================
+// 商城后台管理页面 - 懒加载
+// ============================================
+const MarketplaceAdmin = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-marketplace" */ "@/pages/admin/MarketplaceAdmin"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'marketplace-admin'
 });
 
 // 导入新的骨架屏组件
@@ -1007,6 +1038,14 @@ export default function App() {
           {/* 原创保护中心路由 */}
           <Route path="/original-protection" element={<LazyComponent><PrivateRoute><OriginalProtection /></PrivateRoute></LazyComponent>} />
           
+          {/* ============================================ */}
+          {/* 文创商城路由 */}
+          {/* ============================================ */}
+          <Route path="/marketplace" element={<LazyComponent><Marketplace /></LazyComponent>} />
+          <Route path="/marketplace/product/:id" element={<LazyComponent><ProductDetail /></LazyComponent>} />
+          <Route path="/marketplace/cart" element={<LazyComponent><PrivateRoute><Cart /></PrivateRoute></LazyComponent>} />
+          <Route path="/marketplace/order/confirm" element={<LazyComponent><PrivateRoute><OrderConfirm /></PrivateRoute></LazyComponent>} />
+          
           {/* 管理员路由 - 懒加载 */}
         </Route>
         
@@ -1016,7 +1055,11 @@ export default function App() {
         <Route path="/admin/lottery" element={<LazyComponent><AdminRoute component={LotteryManagement} /></LazyComponent>} />
         <Route path="/errors" element={<LazyComponent><AdminRoute component={ErrorMonitoringDashboard} /></LazyComponent>} />
         <Route path="/admin-analytics" element={<LazyComponent><AdminRoute component={AdminAnalytics} /></LazyComponent>} />
+        <Route path="/system-status" element={<LazyComponent><SystemStatus /></LazyComponent>} />
         <Route path="/admin/original-protection" element={<LazyComponent><AdminRoute component={OriginalProtectionManagement} /></LazyComponent>} />
+        
+        {/* 商城管理后台路由 */}
+        <Route path="/admin/marketplace" element={<LazyComponent><AdminRoute component={MarketplaceAdmin} /></LazyComponent>} />
         
         {/* 推广用户申请页面 */}
         <Route path="/promotion/apply" element={<LazyComponent><PromotionApplication /></LazyComponent>} />

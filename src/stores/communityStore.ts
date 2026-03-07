@@ -829,23 +829,15 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   
   // 初始化聊天实时订阅
   initChatSubscription: () => {
-    const { chatSubscription } = get()
-    if (chatSubscription) return // Already subscribed
-
-    // 这里可以添加聊天实时订阅逻辑
-    const sub = supabase.channel('chat-changes')
-      // 可以根据需要添加实时订阅
-    
-    set({ chatSubscription: sub })
+    // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+    // Realtime disabled - WebSocket not supported in local dev environment
+    console.log('[CommunityStore] Chat realtime subscription skipped (not supported in local environment)');
   },
   
   // 取消聊天订阅
   unsubscribeFromChat: () => {
-    const { chatSubscription } = get()
-    if (chatSubscription) {
-      chatSubscription.unsubscribe()
-      set({ chatSubscription: null })
-    }
+    // Realtime 功能已禁用
+    set({ chatSubscription: null })
   }
 }))
 

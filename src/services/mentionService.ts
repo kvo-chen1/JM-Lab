@@ -675,60 +675,12 @@ function subscribeToMentions(
   userId: string,
   callback: (mention: MentionNotification) => void
 ): () => void {
-  const channel = supabase
-    .channel(`mentions:${userId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'mentions',
-        filter: `receiver_id=eq.${userId}`,
-      },
-      async (payload) => {
-        const newMention = payload.new as any;
-        
-        // 获取发送者信息
-        const { data: sender } = await supabase
-          .from('users')
-          .select('username, avatar_url')
-          .eq('id', newMention.sender_id)
-          .single();
-
-        // 获取社群信息
-        let communityName: string | undefined;
-        if (newMention.community_id) {
-          const { data: community } = await supabase
-            .from('communities')
-            .select('name')
-            .eq('id', newMention.community_id)
-            .single();
-          communityName = community?.name;
-        }
-
-        const mentionNotification: MentionNotification = {
-          id: newMention.id,
-          senderId: newMention.sender_id,
-          senderUsername: sender?.username || '未知用户',
-          senderAvatar: sender?.avatar_url,
-          mentionType: newMention.mention_type,
-          contentId: newMention.content_id,
-          contentType: newMention.content_type,
-          contentPreview: newMention.content_preview,
-          communityId: newMention.community_id,
-          communityName,
-          notificationRead: newMention.notification_read,
-          createdAt: newMention.created_at,
-        };
-
-        callback(mentionNotification);
-      }
-    )
-    .subscribe();
-
-  return () => {
-    channel.unsubscribe();
-  };
+  // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
+  // Realtime disabled - WebSocket not supported in local dev environment
+  console.log('[MentionService] Realtime subscription skipped (not supported in local environment)');
+  
+  // 返回空函数作为取消订阅的占位符
+  return () => {};
 }
 
 // ============================================

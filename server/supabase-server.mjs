@@ -1,114 +1,358 @@
-import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
-import fs from 'fs'
+// 兼容层：将 Supabase 风格的调用转换为 PostgreSQL 查询
+// 用于替代原有的 Supabase 服务端客户端
+import { getDB } from './database.mjs'
 
-// 检查是否在 Vercel 环境（生产环境）
-const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
-
-if (!isVercel) {
-  // 本地开发环境：从文件加载环境变量
-  if (fs.existsSync('.env.local')) {
-    dotenv.config({ path: '.env.local' })
-  }
-  dotenv.config()
-} else {
-  console.log('[Supabase Server] Vercel 环境，使用平台注入的环境变量')
-}
-
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-
-// 调试：打印环境变量状态（不打印完整密钥）
-console.log('[Supabase Server] 环境变量检查:', {
-  SUPABASE_URL: process.env.SUPABASE_URL ? '已设置' : '未设置',
-  VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL ? '已设置' : '未设置',
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? `已设置(${process.env.SUPABASE_SERVICE_ROLE_KEY.length}字符)` : '未设置',
-  VITE_SUPABASE_SERVICE_ROLE_KEY: process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ? `已设置(${process.env.VITE_SUPABASE_SERVICE_ROLE_KEY.length}字符)` : '未设置',
-  最终URL: supabaseUrl ? '已设置' : '未设置',
-  最终KEY: supabaseServiceKey ? '已设置' : '未设置'
-})
-
-// 创建服务端 Supabase 客户端
-// 使用 Service Role Key，可以绕过 RLS，拥有完全数据库访问权限
-let supabaseServer = null
-
-try {
-  if (supabaseUrl && supabaseServiceKey) {
-    supabaseServer = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      },
-      db: {
-        schema: 'public'
-      }
-    })
-    console.log('[Supabase Server] 客户端创建成功:', supabaseUrl)
-  } else {
-    console.warn('[Supabase Server] 缺少环境变量，将使用模拟模式。请检查 Vercel 环境变量配置。')
-    // 创建一个模拟的客户端对象，避免服务崩溃
-    const mockError = new Error('Supabase 未配置')
-    supabaseServer = {
-      auth: {
-        admin: {
-          listUsers: async () => ({ data: { users: [] }, error: null }),
-          createUser: async () => ({ data: { user: null }, error: null })
-        }
-      },
-      from: () => ({
-        select: async () => ({ data: [], error: null })
-      }),
-      storage: {
-        from: () => ({
-          upload: async () => ({ data: null, error: mockError }),
-          getPublicUrl: () => ({ data: { publicUrl: '' } }),
-          download: async () => ({ data: null, error: mockError }),
-          remove: async () => ({ data: null, error: mockError })
-        })
-      }
-    }
-  }
-} catch (error) {
-  console.error('[Supabase Server] 创建客户端失败:', error.message)
-  // 创建模拟对象作为fallback
-  const mockError = new Error('Supabase 客户端初始化失败')
-  supabaseServer = {
+// 创建一个模拟 Supabase 接口的客户端
+function createMockSupabaseClient() {
+  return {
+    from: (table) => createTableQueryBuilder(table),
+    rpc: (fnName, params) => executeRPC(fnName, params),
     auth: {
       admin: {
         listUsers: async () => ({ data: { users: [] }, error: null }),
-        createUser: async () => ({ data: { user: null }, error: null })
+        createUser: async () => ({ data: { user: null }, error: null }),
+        deleteUser: async () => ({ data: {}, error: null })
       }
     },
-    from: () => ({
-      select: async () => ({ data: [], error: null })
-    }),
     storage: {
-      from: () => ({
-        upload: async () => ({ data: null, error: mockError }),
-        getPublicUrl: () => ({ data: { publicUrl: '' } }),
-        download: async () => ({ data: null, error: mockError }),
-        remove: async () => ({ data: null, error: mockError })
+      from: (bucket) => ({
+        upload: async () => ({ data: null, error: new Error('Storage not implemented') }),
+        getPublicUrl: (path) => ({ data: { publicUrl: path } }),
+        download: async () => ({ data: null, error: new Error('Storage not implemented') }),
+        remove: async () => ({ data: null, error: new Error('Storage not implemented') })
       })
     }
   }
 }
 
-// 测试连接
-export async function testConnection() {
-  try {
-    if (!supabaseServer || !supabaseServer.from) {
-      console.warn('[Supabase Server] 客户端未初始化')
-      return false
+// 创建表查询构建器
+function createTableQueryBuilder(table) {
+  let query = {
+    table,
+    selectColumns: '*',
+    filters: [],
+    orderColumn: null,
+    orderAscending: true,
+    limitValue: null,
+    singleValue: false,
+    rangeStart: null,
+    rangeEnd: null
+  }
+
+  const builder = {
+    select: (columns = '*') => {
+      query.selectColumns = columns
+      return builder
+    },
+
+    insert: (data, options = {}) => {
+      query.operation = 'insert'
+      query.insertData = Array.isArray(data) ? data : [data]
+      return builder
+    },
+
+    update: (data) => {
+      query.operation = 'update'
+      query.updateData = data
+      return builder
+    },
+
+    delete: () => {
+      query.operation = 'delete'
+      return builder
+    },
+
+    eq: (column, value) => {
+      query.filters.push({ type: 'eq', column, value })
+      return builder
+    },
+
+    neq: (column, value) => {
+      query.filters.push({ type: 'neq', column, value })
+      return builder
+    },
+
+    gt: (column, value) => {
+      query.filters.push({ type: 'gt', column, value })
+      return builder
+    },
+
+    gte: (column, value) => {
+      query.filters.push({ type: 'gte', column, value })
+      return builder
+    },
+
+    lt: (column, value) => {
+      query.filters.push({ type: 'lt', column, value })
+      return builder
+    },
+
+    lte: (column, value) => {
+      query.filters.push({ type: 'lte', column, value })
+      return builder
+    },
+
+    like: (column, pattern) => {
+      query.filters.push({ type: 'like', column, value: pattern })
+      return builder
+    },
+
+    ilike: (column, pattern) => {
+      query.filters.push({ type: 'ilike', column, value: pattern })
+      return builder
+    },
+
+    in: (column, values) => {
+      query.filters.push({ type: 'in', column, value: values })
+      return builder
+    },
+
+    is: (column, value) => {
+      query.filters.push({ type: 'is', column, value })
+      return builder
+    },
+
+    not: (column, operator, value) => {
+      query.filters.push({ type: 'not', column, operator, value })
+      return builder
+    },
+
+    or: (conditions) => {
+      query.filters.push({ type: 'or', conditions })
+      return builder
+    },
+
+    and: (conditions) => {
+      query.filters.push({ type: 'and', conditions })
+      return builder
+    },
+
+    order: (column, options = {}) => {
+      query.orderColumn = column
+      query.orderAscending = options.ascending !== false
+      return builder
+    },
+
+    limit: (count) => {
+      query.limitValue = count
+      return builder
+    },
+
+    range: (start, end) => {
+      query.rangeStart = start
+      query.rangeEnd = end
+      return builder
+    },
+
+    single: () => {
+      query.singleValue = true
+      return builder
+    },
+
+    count: (options = {}) => {
+      query.countOption = options
+      return builder
+    },
+
+    then: async (resolve, reject) => {
+      try {
+        const result = await executeQuery(query)
+        resolve(result)
+      } catch (error) {
+        reject(error)
+      }
     }
-    const { data, error } = await supabaseServer.from('users').select('count').limit(1)
-    if (error) throw error
-    console.log('[Supabase Server] 连接测试成功')
-    return true
+  }
+
+  return builder
+}
+
+// 执行查询
+async function executeQuery(query) {
+  const db = await getDB()
+
+  try {
+    let sql = ''
+    let params = []
+    let paramIndex = 1
+
+    switch (query.operation) {
+      case 'insert':
+        const columns = Object.keys(query.insertData[0])
+        const values = query.insertData.map(row => {
+          const rowValues = columns.map(col => {
+            params.push(row[col])
+            return `$${paramIndex++}`
+          })
+          return `(${rowValues.join(', ')})`
+        })
+        sql = `INSERT INTO ${query.table} (${columns.join(', ')}) VALUES ${values.join(', ')} RETURNING *`
+        break
+
+      case 'update':
+        const setClauses = Object.keys(query.updateData).map(key => {
+          params.push(query.updateData[key])
+          return `${key} = $${paramIndex++}`
+        })
+        sql = `UPDATE ${query.table} SET ${setClauses.join(', ')}`
+        break
+
+      case 'delete':
+        sql = `DELETE FROM ${query.table}`
+        break
+
+      default: // select
+        if (query.countOption) {
+          sql = `SELECT COUNT(*) as count FROM ${query.table}`
+        } else {
+          sql = `SELECT ${query.selectColumns} FROM ${query.table}`
+        }
+    }
+
+    // 构建 WHERE 子句
+    if (query.filters.length > 0) {
+      const whereClauses = query.filters.map(filter => {
+        switch (filter.type) {
+          case 'eq':
+            params.push(filter.value)
+            return `${filter.column} = $${paramIndex++}`
+          case 'neq':
+            params.push(filter.value)
+            return `${filter.column} != $${paramIndex++}`
+          case 'gt':
+            params.push(filter.value)
+            return `${filter.column} > $${paramIndex++}`
+          case 'gte':
+            params.push(filter.value)
+            return `${filter.column} >= $${paramIndex++}`
+          case 'lt':
+            params.push(filter.value)
+            return `${filter.column} < $${paramIndex++}`
+          case 'lte':
+            params.push(filter.value)
+            return `${filter.column} <= $${paramIndex++}`
+          case 'like':
+            params.push(filter.value)
+            return `${filter.column} LIKE $${paramIndex++}`
+          case 'ilike':
+            params.push(filter.value)
+            return `${filter.column} ILIKE $${paramIndex++}`
+          case 'in':
+            const inPlaceholders = filter.value.map(() => `$${paramIndex++}`).join(', ')
+            params.push(...filter.value)
+            return `${filter.column} IN (${inPlaceholders})`
+          case 'is':
+            if (filter.value === null) {
+              return `${filter.column} IS NULL`
+            }
+            params.push(filter.value)
+            return `${filter.column} IS $${paramIndex++}`
+          default:
+            return ''
+        }
+      }).filter(Boolean)
+
+      if (whereClauses.length > 0) {
+        sql += ` WHERE ${whereClauses.join(' AND ')}`
+      }
+    }
+
+    // 添加 ORDER BY
+    if (query.orderColumn && !query.countOption) {
+      sql += ` ORDER BY ${query.orderColumn} ${query.orderAscending ? 'ASC' : 'DESC'}`
+    }
+
+    // 添加 LIMIT
+    if (query.limitValue !== null) {
+      sql += ` LIMIT $${paramIndex++}`
+      params.push(query.limitValue)
+    }
+
+    // 添加 OFFSET (用于 range)
+    if (query.rangeStart !== null) {
+      sql += ` OFFSET $${paramIndex++}`
+      params.push(query.rangeStart)
+    }
+
+    const result = await db.query(sql, params)
+
+    if (query.countOption) {
+      return {
+        data: null,
+        count: parseInt(result.rows[0].count),
+        error: null
+      }
+    }
+
+    if (query.singleValue) {
+      return {
+        data: result.rows[0] || null,
+        error: null
+      }
+    }
+
+    return {
+      data: result.rows,
+      error: null
+    }
   } catch (error) {
-    console.warn('[Supabase Server] 连接测试失败:', error.message)
-    return false
+    console.error('[SupabaseServer] Query error:', error)
+    return {
+      data: null,
+      error: {
+        message: error.message,
+        code: error.code
+      }
+    }
   }
 }
 
-export { supabaseServer }
+// 执行 RPC 函数
+async function executeRPC(fnName, params = {}) {
+  const db = await getDB()
+
+  try {
+    const paramKeys = Object.keys(params)
+    const paramValues = Object.values(params)
+
+    let sql
+    if (paramKeys.length > 0) {
+      const placeholders = paramKeys.map((_, i) => `$${i + 1}`).join(', ')
+      sql = `SELECT * FROM ${fnName}(${placeholders})`
+    } else {
+      sql = `SELECT * FROM ${fnName}()`
+    }
+
+    const result = await db.query(sql, paramValues)
+
+    return {
+      data: result.rows,
+      error: null
+    }
+  } catch (error) {
+    console.error('[SupabaseServer] RPC error:', error)
+    return {
+      data: null,
+      error: {
+        message: error.message,
+        code: error.code
+      }
+    }
+  }
+}
+
+// 导出模拟的 Supabase 服务端客户端
+export const supabaseServer = createMockSupabaseClient()
+
+// 导出测试连接函数
+export async function testConnection() {
+  try {
+    const db = await getDB()
+    const result = await db.query('SELECT 1')
+    return { success: true, data: result.rows }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
 export default supabaseServer

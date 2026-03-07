@@ -391,6 +391,11 @@ export default async function handler(req, res) {
       return handleEvents(req, res, path);
     }
 
+    // 社区相关API
+    if (path.startsWith('/communities')) {
+      return handleCommunities(req, res, path);
+    }
+
     // 数据库代理 API (Supabase/Neon)
     if (path.startsWith('/db')) {
       return handleDbProxy(req, res, path);
@@ -1081,6 +1086,71 @@ async function handleEvents(req, res, path) {
     return res.status(200).json({ code: 0, data: [] });
   } catch (error) {
     console.error('[API] Events error:', error);
+    return res.status(200).json({ code: 0, data: [] });
+  }
+}
+
+// 处理社区相关请求
+async function handleCommunities(req, res, path) {
+  try {
+    const client = await getDbClient();
+    if (!client) {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+
+    // 获取精选社区
+    if (path === '/communities/featured' && req.method === 'GET') {
+      // 创建社区表（如果不存在）
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS communities (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          avatar_url TEXT,
+          cover_url TEXT,
+          member_count INTEGER DEFAULT 0,
+          is_official BOOLEAN DEFAULT false,
+          tags TEXT[],
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // 查询精选社区
+      const result = await client.query(
+        'SELECT * FROM communities ORDER BY member_count DESC LIMIT 6'
+      );
+
+      // 如果没有数据，返回默认数据
+      if (result.rows.length === 0) {
+        const defaultCommunities = [
+          { name: '天津文化', members: 12580, path: '/community/tianjin-culture', official: true, topic: '天津传统文化交流', tags: ['文化', '传统', '天津'], cover: '/images/communities/tianjin-culture.jpg', avatar: '/images/avatars/tianjin.jpg' },
+          { name: '创意灵感', members: 8920, path: '/community/creative-inspiration', official: true, topic: '创意设计与灵感分享', tags: ['设计', '创意', '灵感'], cover: '/images/communities/creative.jpg', avatar: '/images/avatars/creative.jpg' },
+          { name: '摄影爱好者', members: 6540, path: '/community/photography', official: false, topic: '摄影技巧与作品分享', tags: ['摄影', '艺术', '视觉'], cover: '/images/communities/photography.jpg', avatar: '/images/avatars/photo.jpg' },
+          { name: '文学创作', members: 4320, path: '/community/literature', official: false, topic: '文学创作与阅读交流', tags: ['文学', '写作', '阅读'], cover: '/images/communities/literature.jpg', avatar: '/images/avatars/literature.jpg' },
+          { name: '美食探店', members: 9870, path: '/community/food', official: false, topic: '天津美食推荐与探店', tags: ['美食', '探店', '天津'], cover: '/images/communities/food.jpg', avatar: '/images/avatars/food.jpg' },
+          { name: '旅行攻略', members: 7650, path: '/community/travel', official: false, topic: '旅行经验与攻略分享', tags: ['旅行', '攻略', '景点'], cover: '/images/communities/travel.jpg', avatar: '/images/avatars/travel.jpg' }
+        ];
+        return res.status(200).json({ code: 0, data: defaultCommunities });
+      }
+
+      // 转换数据格式
+      const communities = result.rows.map(row => ({
+        name: row.name,
+        members: row.member_count,
+        path: `/community/${row.id}`,
+        official: row.is_official,
+        topic: row.description,
+        tags: row.tags || [],
+        cover: row.cover_url,
+        avatar: row.avatar_url
+      }));
+
+      return res.status(200).json({ code: 0, data: communities });
+    }
+
+    return res.status(200).json({ code: 0, data: [] });
+  } catch (error) {
+    console.error('[API] Communities error:', error);
     return res.status(200).json({ code: 0, data: [] });
   }
 }

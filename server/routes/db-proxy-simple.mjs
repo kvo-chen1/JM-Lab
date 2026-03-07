@@ -156,11 +156,54 @@ async function handleAuthRequest(req, res, path) {
   return false
 }
 
+// 处理 RPC 调用
+async function handleRpcRequest(req, res, path) {
+  const rpcMatch = path.match(/\/api\/db\/rest\/v1\/rpc\/(.+)/)
+  if (!rpcMatch) return false
+  
+  const funcName = rpcMatch[1]
+  const body = await readBody(req)
+  
+  console.log('[DB Proxy] RPC call:', funcName, body)
+  
+  try {
+    // 构建函数调用参数
+    const paramKeys = Object.keys(body)
+    const paramValues = Object.values(body)
+    const paramPlaceholders = paramKeys.length > 0 
+      ? paramKeys.map((_, i) => `$${i + 1}`).join(', ')
+      : ''
+    
+    // 使用 SELECT * FROM 来支持返回 TABLE 的函数
+    const sql = paramPlaceholders 
+      ? `SELECT * FROM ${funcName}(${paramPlaceholders})`
+      : `SELECT * FROM ${funcName}()`
+    
+    console.log('[DB Proxy] RPC SQL:', sql, paramValues)
+    
+    const result = await pool.query(sql, paramValues)
+    
+    // 返回数组格式的结果，与 Supabase 客户端兼容
+    sendJson(res, 200, result.rows)
+    return true
+  } catch (error) {
+    console.error('[DB Proxy] RPC error:', error.message)
+    sendJson(res, 500, { error: error.message })
+    return true
+  }
+}
+
 // 主处理函数
 export default async function handleDbProxy(req, res, path) {
   // 首先处理认证相关的请求
   if (path.startsWith('/api/db/auth/')) {
     const handled = await handleAuthRequest(req, res, path)
+    if (handled) return
+  }
+  
+  // 处理 RPC 调用
+  if (path.includes('/rpc/')) {
+    const handled = await handleRpcRequest(req, res, path)
     if (handled) return
   }
   

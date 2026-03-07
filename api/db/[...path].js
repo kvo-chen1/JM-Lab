@@ -69,6 +69,17 @@ function parseFilter(key, value) {
   return { operator: '=', value: value, isArray: false }
 }
 
+// 处理值：将对象/数组转换为 JSON 字符串
+function processValue(value) {
+  if (value === null || value === undefined) {
+    return null
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value)
+  }
+  return value
+}
+
 // 处理认证请求
 async function handleAuthRequest(req, res, path) {
   if (req.method === 'GET' && path === '/auth/v1/user') {
@@ -235,7 +246,10 @@ async function handleDbRequest(req, res, table, searchParams) {
           `(${columns.map((_, colIndex) => `$${rowIndex * columns.length + colIndex + 1}`).join(', ')})`
         ).join(', ')
         
-        const values = data.flatMap(row => columns.map(col => row[col]))
+        // 处理值：将对象/数组转换为 JSON 字符串
+        const values = data.flatMap(row => 
+          columns.map(col => processValue(row[col]))
+        )
         
         let sql = `INSERT INTO "${table}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES ${placeholders}`
         
@@ -247,6 +261,9 @@ async function handleDbRequest(req, res, table, searchParams) {
         
         sql += ' RETURNING *'
         
+        console.log('[DB Proxy] INSERT SQL:', sql.replace(/\$\d+/g, '?'))
+        console.log('[DB Proxy] INSERT Values:', JSON.stringify(values, null, 2))
+        
         const result = await pool.query(sql, values)
         return res.status(201).json(result.rows)
       }
@@ -254,7 +271,7 @@ async function handleDbRequest(req, res, table, searchParams) {
       case 'PATCH': {
         const body = req.body
         const setColumns = Object.keys(body)
-        const setValues = Object.values(body)
+        const setValues = Object.values(body).map(processValue)
         
         let sql = `UPDATE "${table}" SET ${setColumns.map((col, i) => `"${col}" = $${i + 1}`).join(', ')}`
         const values = [...setValues]

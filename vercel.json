@@ -126,6 +126,12 @@
       "memory": 512
     }
   },
+  "crons": [
+    {
+      "path": "/api/health/ping",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "build": {
     "env": {
       "NODE_ENV": "production"

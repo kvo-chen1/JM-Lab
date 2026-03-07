@@ -811,4 +811,131 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- 47. 获取用户IP统计
+CREATE OR REPLACE FUNCTION get_user_ip_stats(p_user_id TEXT)
+RETURNS TABLE (
+    total_assets BIGINT,
+    completed_assets BIGINT,
+    in_progress_assets BIGINT,
+    total_partnerships BIGINT,
+    active_partnerships BIGINT,
+    total_estimated_value DECIMAL
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        COUNT(DISTINCT a.id)::BIGINT as total_assets,
+        COUNT(DISTINCT CASE 
+            WHEN NOT EXISTS (
+                SELECT 1 FROM ip_stages s 
+                WHERE s.ip_asset_id = a.id AND s.completed = FALSE
+            ) AND EXISTS (
+                SELECT 1 FROM ip_stages s 
+                WHERE s.ip_asset_id = a.id
+            ) THEN a.id 
+        END)::BIGINT as completed_assets,
+        COUNT(DISTINCT CASE 
+            WHEN EXISTS (
+                SELECT 1 FROM ip_stages s 
+                WHERE s.ip_asset_id = a.id AND s.completed = FALSE
+            ) THEN a.id 
+        END)::BIGINT as in_progress_assets,
+        COUNT(DISTINCT p.id)::BIGINT as total_partnerships,
+        COUNT(DISTINCT CASE 
+            WHEN p.status IN ('approved', 'negotiating', 'pending') THEN p.id 
+        END)::BIGINT as active_partnerships,
+        COALESCE(SUM(a.commercial_value), 0)::DECIMAL as total_estimated_value
+    FROM ip_assets a
+    LEFT JOIN ip_partnerships p ON a.id = p.ip_asset_id
+    WHERE a.user_id = p_user_id::UUID
+      AND a.status = 'active';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 48. 创建IP资产及其阶段
+CREATE OR REPLACE FUNCTION create_ip_asset_with_stages(
+    p_user_id TEXT,
+    p_name TEXT,
+    p_description TEXT,
+    p_type TEXT,
+    p_original_work_id TEXT DEFAULT NULL,
+    p_commercial_value INTEGER DEFAULT 0,
+    p_thumbnail TEXT DEFAULT NULL,
+    p_stages JSONB DEFAULT '[]'::jsonb
+)
+RETURNS JSONB AS $$
+DECLARE
+    v_asset_id UUID;
+    v_stage JSONB;
+    v_result JSONB;
+BEGIN
+    -- 创建IP资产
+    INSERT INTO ip_assets (user_id, name, description, type, original_work_id, commercial_value, thumbnail, status, created_at, updated_at)
+    VALUES (p_user_id::UUID, p_name, p_description, p_type, p_original_work_id::UUID, p_commercial_value, p_thumbnail, 'active', NOW(), NOW())
+    RETURNING id INTO v_asset_id;
+    
+    -- 创建阶段
+    FOR v_stage IN SELECT * FROM jsonb_array_elements(p_stages)
+    LOOP
+        INSERT INTO ip_stages (ip_asset_id, name, description, order_index, completed, completed_at, created_at, updated_at)
+        VALUES (
+            v_asset_id,
+            v_stage->>'name',
+            v_stage->>'description',
+            COALESCE((v_stage->>'order_index')::INTEGER, 0),
+            COALESCE((v_stage->>'completed')::BOOLEAN, FALSE),
+            CASE WHEN (v_stage->>'completed')::BOOLEAN THEN NOW() ELSE NULL END,
+            NOW(),
+            NOW()
+        );
+    END LOOP;
+    
+    -- 返回结果
+    SELECT jsonb_build_object(
+        'id', v_asset_id,
+        'user_id', p_user_id,
+        'name', p_name,
+        'description', p_description,
+        'type', p_type,
+        'original_work_id', p_original_work_id,
+        'commercial_value', p_commercial_value,
+        'thumbnail', p_thumbnail,
+        'status', 'active',
+        'created_at', NOW(),
+        'updated_at', NOW(),
+        'stages', p_stages
+    ) INTO v_result;
+    
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 49. 更新阶段完成状态
+CREATE OR REPLACE FUNCTION update_stage_completion(
+    p_stage_id UUID,
+    p_completed BOOLEAN,
+    p_user_id TEXT
+)
+RETURNS BOOLEAN AS $$
+BEGIN
+    -- 验证用户是否有权限修改此阶段
+    IF NOT EXISTS (
+        SELECT 1 FROM ip_stages s
+        JOIN ip_assets a ON s.ip_asset_id = a.id
+        WHERE s.id = p_stage_id AND a.user_id = p_user_id::UUID
+    ) THEN
+        RAISE EXCEPTION 'Permission denied';
+    END IF;
+    
+    UPDATE ip_stages 
+    SET 
+        completed = p_completed,
+        completed_at = CASE WHEN p_completed THEN NOW() ELSE NULL END,
+        updated_at = NOW()
+    WHERE id = p_stage_id;
+    
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 SELECT '缺失的 RPC 函数创建完成!' as result;

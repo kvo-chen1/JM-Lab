@@ -216,7 +216,23 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
         </motion.button>
       </div>
 
-      <ErrorBoundary fallback={<div className="hidden">{t('aiAssistant.errors.fallback')}</div>}>
+      <ErrorBoundary fallback={
+        <div className="fixed bottom-4 right-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg shadow-lg max-w-sm z-[1001]">
+          <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-2">
+            <i className="fas fa-exclamation-circle"></i>
+            <span className="font-medium">AI助手加载失败</span>
+          </div>
+          <p className="text-sm text-red-600/80 dark:text-red-400/80 mb-3">
+            请尝试刷新页面或检查网络连接
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+          >
+            刷新页面
+          </button>
+        </div>
+      }>
         <AICollaborationPanel isOpen={isOpen} onClose={() => setIsOpen(false)} context={{ page: currentPage, path: currentPath }} />
       </ErrorBoundary>
     </>

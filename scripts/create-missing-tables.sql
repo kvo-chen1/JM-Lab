@@ -208,6 +208,42 @@ CREATE POLICY "Users can manage IP stages" ON ip_stages FOR ALL USING (
     EXISTS (SELECT 1 FROM ip_assets a WHERE a.id = ip_asset_id AND a.user_id = auth.uid())
 );
 
+-- 9. 创建 ip_partnerships 表（IP合作表）
+CREATE TABLE IF NOT EXISTS ip_partnerships (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ip_asset_id UUID NOT NULL REFERENCES ip_assets(id) ON DELETE CASCADE,
+    brand_id UUID,
+    brand_name TEXT,
+    brand_logo TEXT,
+    description TEXT,
+    reward TEXT,
+    status VARCHAR(50) DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_ip_partnerships_ip_asset_id ON ip_partnerships(ip_asset_id);
+CREATE INDEX IF NOT EXISTS idx_ip_partnerships_status ON ip_partnerships(status);
+CREATE INDEX IF NOT EXISTS idx_ip_partnerships_brand_id ON ip_partnerships(brand_id);
+
+-- 启用 RLS
+ALTER TABLE ip_partnerships ENABLE ROW LEVEL SECURITY;
+
+-- 创建 RLS 策略
+CREATE POLICY "Users can view own IP partnerships" ON ip_partnerships FOR SELECT USING (
+    EXISTS (SELECT 1 FROM ip_assets a WHERE a.id = ip_asset_id AND a.user_id = auth.uid())
+);
+CREATE POLICY "Users can create own IP partnerships" ON ip_partnerships FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM ip_assets a WHERE a.id = ip_asset_id AND a.user_id = auth.uid())
+);
+CREATE POLICY "Users can update own IP partnerships" ON ip_partnerships FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM ip_assets a WHERE a.id = ip_asset_id AND a.user_id = auth.uid())
+);
+CREATE POLICY "Users can delete own IP partnerships" ON ip_partnerships FOR DELETE USING (
+    EXISTS (SELECT 1 FROM ip_assets a WHERE a.id = ip_asset_id AND a.user_id = auth.uid())
+);
+
 -- ==========================================================================
 -- 完成
 -- ==========================================================================

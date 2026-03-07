@@ -2,6 +2,8 @@
   "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "installCommand": "pnpm install --frozen-lockfile --prefer-offline",
+  "regions": ["sin1"],
   "rewrites": [
     {
       "source": "/api/auth/:path*",

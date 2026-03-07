@@ -239,26 +239,36 @@ router.post('/rpc/:function', async (req, res) => {
     const { function: funcName } = req.params
     const params = req.body
 
+    console.log(`[RPC] Calling function: ${funcName}`, params)
+
     // 检查是否有自定义处理器
     if (rpcHandlers[funcName]) {
       const result = await rpcHandlers[funcName](params)
       return res.json(result)
     }
 
-    // 构建函数调用
+    // 构建函数调用 - 使用 SELECT * FROM 语法支持返回 TABLE 的函数
     const paramNames = Object.keys(params)
     const paramPlaceholders = paramNames.map((_, i) => `$${i + 1}`).join(', ')
     const values = Object.values(params)
 
-    const sql = `SELECT ${funcName}(${paramPlaceholders})`
+    // 使用 SELECT * FROM 来支持返回 TABLE 的函数
+    const sql = paramPlaceholders 
+      ? `SELECT * FROM ${funcName}(${paramPlaceholders})`
+      : `SELECT * FROM ${funcName}()`
+
+    console.log(`[RPC] Executing SQL: ${sql}`, values)
 
     const result = await pool.query(sql, values)
     
-    res.json(result.rows[0][funcName])
+    console.log(`[RPC] Result:`, result.rows)
+    
+    // 返回数组格式的结果，与 Supabase 客户端兼容
+    res.json(result.rows)
   } catch (error) {
-    console.error('RPC call error:', error)
-    // 返回默认值而不是错误
-    res.json(null)
+    console.error('[RPC] call error:', error)
+    // 返回空数组而不是 null，与 Supabase 行为一致
+    res.status(500).json({ error: error.message })
   }
 })
 

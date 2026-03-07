@@ -546,11 +546,6 @@ export async function apiRequest<TResp, TBody = unknown>(
         console.log(`API Client: 开始请求 ${method} ${target}`)
         console.log(`API Client: 请求参数`, options.body)
         
-        // 生成请求签名
-        const bodyString = options.body ? JSON.stringify(options.body) : ''
-        const signatureData = `${method}:${target}:${timestamp}:${bodyString}`
-        const signature = await securityService.generateSignature(signatureData, timestamp)
-        
         // 获取认证令牌
         let token = null
         try {
@@ -560,34 +555,16 @@ export async function apiRequest<TResp, TBody = unknown>(
           if (!token && typeof window !== 'undefined' && supabase) {
              const { data } = await supabase.auth.getSession();
              if (data?.session?.access_token) {
-               console.log('[API Client] 使用 Supabase Session Token 作为回退');
                token = data.session.access_token;
-               // 临时写入 localStorage 避免频繁调用 async getSession
-               try {
-                 localStorage.setItem('token', token);
-               } catch (e) {}
              }
-          }
-          
-          // 特别处理 Neon Data API 的认证
-          if (!token && url.includes('neon.tech')) {
-            // 从环境变量获取 Neon JWT 或使用 Supabase service key
-            const neonToken = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
-            if (neonToken) {
-              console.log('[API Client] 使用 Supabase Service Key 访问 Neon Data API');
-              token = neonToken;
-            }
           }
         } catch (error) {
           console.warn('Failed to get token:', error)
         }
         
-        // 添加安全头和认证头
-        const secureHeaders = {
-          ...headers,
-          'X-Request-Timestamp': timestamp.toString(),
-          'X-Request-Signature': signature,
-          'X-Request-Id': securityService.generateUUID(),
+        // 简化请求头，避免 REQUEST_HEADER_TOO_LARGE 错误
+        const secureHeaders: Record<string, string> = {
+          'Content-Type': 'application/json',
           ...(token && { 'Authorization': `Bearer ${token}` }),
         }
         

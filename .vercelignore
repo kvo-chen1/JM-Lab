@@ -1,7 +1,40 @@
-node_modules
-build
-dist
+# 开发文件
 .git
-.trae
-.log
-.figma
+.gitignore
+.vscode
+.idea
+*.md
+docs/
+
+# 测试文件
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+test-results/
+coverage/
+
+# 本地开发配置
+.env
+.env.local
+.env.*.local
+
+# 脚本文件（保留必要的）
+scripts/*.mjs
+!scripts/seed-data.sql
+
+# 文档和指南
+*.md
+docs/
+
+# 缓存和日志
+.cache/
+*.log
+npm-debug.log*
+
+# 其他
+.trae/
+.eslintrc
+.prettierrc
+tsconfig.node.json

@@ -474,7 +474,7 @@ const InspirationHub: React.FC = () => {
         if (error) throw error;
 
         // 转换为 TrendingTopic 格式
-        const mappedTopics: TrendingTopic[] = (brandTasks || []).map((task: any, index: number) => ({
+        let mappedTopics: TrendingTopic[] = (brandTasks || []).map((task: any, index: number) => ({
           id: task.id,
           title: task.title,
           description: task.description,
@@ -517,7 +517,7 @@ const InspirationHub: React.FC = () => {
         if (error) throw error;
 
         // 转换为 TrendingTopic 格式
-        const mappedTopics: TrendingTopic[] = (events || []).map((event: any, index: number) => ({
+        let mappedTopics: TrendingTopic[] = (events || []).map((event: any, index: number) => ({
           id: event.id,
           title: event.title,
           description: event.description,
@@ -556,7 +556,7 @@ const InspirationHub: React.FC = () => {
 
         if (error) throw error;
 
-        const mappedTopics: TrendingTopic[] = (templates || []).map((template: any, index: number) => ({
+        let mappedTopics: TrendingTopic[] = (templates || []).map((template: any, index: number) => ({
           id: `ai-${template.id}`,
           title: template.name,
           description: template.description,
@@ -596,7 +596,7 @@ const InspirationHub: React.FC = () => {
 
         if (error) throw error;
 
-        const mappedTopics: TrendingTopic[] = (templates || []).map((template: any, index: number) => ({
+        let mappedTopics: TrendingTopic[] = (templates || []).map((template: any, index: number) => ({
           id: `template-${template.id}`,
           title: template.name,
           description: template.description,

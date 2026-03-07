@@ -17,7 +17,9 @@ export default defineConfig({
   plugins: [
     react(), 
     tsconfigPaths(),
-    ViteImageOptimizer({
+    // ViteImageOptimizer 在 Vercel 构建环境中可能导致 sharp 依赖问题
+    // 仅在非 Vercel 环境中启用
+    ...(process.env.VERCEL !== '1' ? [ViteImageOptimizer({
       // 启用WebP和AVIF格式转换
       png: {
         quality: 75,
@@ -63,7 +65,7 @@ export default defineConfig({
       include: /\.(png|jpe?g|gif|svg|webp|avif)$/i,
       // 排除node_modules目录和有问题的图片
       exclude: [/node_modules/, /placeholder-image\.jpg$/]
-    }),
+    })] : []),
     VitePWA({
       injectRegister: false,
       selfDestroying: true,

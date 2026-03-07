@@ -134,35 +134,59 @@ export default function CompleteProfile() {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
 
-  // 表单数据状态
+  // 表单数据状态 - 从 user 对象预填充所有已有数据
   const [formData, setFormData] = useState<FormData>({
     username: user?.username || '',
-    avatar: user?.avatar || '',
+    avatar: user?.avatar_url || user?.avatar || '',
     phone: user?.phone || '',
-    gender: '',
-    interests: [],
-    bio: '',
-    location: '',
-    birthday: '',
+    gender: user?.gender || '',
+    interests: user?.interests || [],
+    bio: user?.bio || '',
+    location: user?.location || '',
+    birthday: user?.birthday || '',
     email: user?.email || '',
-    website: '',
-    occupation: ''
+    website: user?.website || '',
+    occupation: user?.occupation || ''
   });
 
   // UI 状态
-  const [avatarPreview, setAvatarPreview] = useState<string>('');
+  const [avatarPreview, setAvatarPreview] = useState<string>(user?.avatar_url || user?.avatar || '');
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
+
+  // 当 user 数据加载或变化时，更新表单数据
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        username: user.username || prev.username || '',
+        avatar: user.avatar_url || user.avatar || prev.avatar || '',
+        phone: user.phone || prev.phone || '',
+        gender: user.gender || prev.gender || '',
+        interests: user.interests || prev.interests || [],
+        bio: user.bio || prev.bio || '',
+        location: user.location || prev.location || '',
+        birthday: user.birthday || prev.birthday || '',
+        email: user.email || prev.email || '',
+        website: user.website || prev.website || '',
+        occupation: user.occupation || prev.occupation || ''
+      }));
+      setAvatarPreview(user.avatar_url || user.avatar || '');
+    }
+  }, [user]);
 
   // 检查用户认证状态
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
     } else if (user && !isReEditing) {
-      const isProfileComplete = user.username && user.username.trim() !== '' &&
-        user.avatar && user.avatar.trim() !== '';
+      const avatarValue = user.avatar_url || user.avatar;
+      const isProfileComplete = user.username &&
+        user.username.trim() !== '' &&
+        avatarValue &&
+        avatarValue.trim() !== '';
       if (isProfileComplete) {
         navigate('/');
       }

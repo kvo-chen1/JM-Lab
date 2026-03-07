@@ -8,6 +8,7 @@ import postsApi from '@/services/postService';
 import {
   Image,
   Eye,
+  EyeOff,
   Heart,
   Trash2,
   Edit3,
@@ -36,6 +37,7 @@ interface Work {
   likes: number;
   comments: number;
   created_at: string;
+  hidden_in_square?: boolean;
 }
 
 export default function MyWorks() {
@@ -109,7 +111,8 @@ export default function MyWorks() {
                   views: w.views || 0,
                   likes: w.likes || 0,
                   comments: w.comments || 0,
-                  created_at: w.created_at
+                  created_at: w.created_at,
+                  hidden_in_square: w.hidden_in_square || false
                 };
               });
             }
@@ -147,7 +150,8 @@ export default function MyWorks() {
               views: w.views || 0,
               likes: w.likes || 0,
               comments: w.comments || 0,
-              created_at: w.created_at
+              created_at: w.created_at,
+              hidden_in_square: w.hidden_in_square || false
             };
           });
         }
@@ -282,6 +286,100 @@ export default function MyWorks() {
     navigate(`/square/${workId}`);
   };
 
+  // 切换作品在津脉广场的显示/隐藏
+  const toggleHiddenInSquare = async (workId: string, currentHidden: boolean) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('请先登录');
+        return;
+      }
+
+      const response = await fetch(`/api/works/${workId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ hidden_in_square: !currentHidden })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          setWorks(prev => prev.map(w =>
+            w.id === workId ? { ...w, hidden_in_square: !currentHidden } : w
+          ));
+          toast.success(currentHidden ? '作品已显示在津脉广场' : '作品已隐藏在津脉广场');
+        } else {
+          toast.error(result.message || '操作失败');
+        }
+      } else {
+        toast.error('操作失败');
+      }
+    } catch (error) {
+      console.error('切换隐藏状态失败:', error);
+      toast.error('操作失败');
+    }
+  };
+
+  // 批量隐藏/显示作品
+  const handleBatchToggleHidden = async (hidden: boolean) => {
+    if (selectedWorks.size === 0) {
+      toast.error('请选择要操作的作品');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('请先登录');
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const workId of selectedWorks) {
+      try {
+        const response = await fetch(`/api/works/${workId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ hidden_in_square: hidden })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.code === 0) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } else {
+          failCount++;
+        }
+      } catch (error) {
+        failCount++;
+      }
+    }
+
+    // 更新本地状态
+    setWorks(prev => prev.map(w =>
+      selectedWorks.has(w.id) ? { ...w, hidden_in_square: hidden } : w
+    ));
+    setSelectedWorks(new Set());
+    setIsBatchMode(false);
+
+    if (successCount > 0) {
+      toast.success(hidden ? `成功隐藏 ${successCount} 个作品` : `成功显示 ${successCount} 个作品`);
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount} 个作品操作失败`);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#0a0a0f]' : 'bg-[#f8f9fc]'}`}>
@@ -325,15 +423,47 @@ export default function MyWorks() {
                 管理您的所有作品，共 {works.length} 个
               </p>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate('/create')}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-2xl font-medium shadow-lg shadow-red-500/25"
-            >
-              <Plus className="w-5 h-5" />
-              创建新作品
-            </motion.button>
+            <div className="flex items-center gap-3">
+              {!isBatchMode ? (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setIsBatchMode(true)}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-medium shadow-lg ${isDark
+                    ? 'bg-gray-700 text-white border border-gray-600 hover:bg-gray-600'
+                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <CheckSquare className="w-5 h-5" />
+                  批量管理
+                </motion.button>
+              ) : (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setIsBatchMode(false);
+                    setSelectedWorks(new Set());
+                  }}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-medium shadow-lg ${isDark
+                    ? 'bg-gray-700 text-white border border-gray-600 hover:bg-gray-600'
+                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                  退出批量
+                </motion.button>
+              )}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/create')}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-2xl font-medium shadow-lg shadow-red-500/25"
+              >
+                <Plus className="w-5 h-5" />
+                创建新作品
+              </motion.button>
+            </div>
           </div>
         </motion.div>
 
@@ -447,6 +577,28 @@ export default function MyWorks() {
                       className={`px-4 py-2 rounded-xl ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
                     >
                       取消
+                    </button>
+                    <button
+                      onClick={() => handleBatchToggleHidden(true)}
+                      disabled={selectedWorks.size === 0}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed ${isDark
+                        ? 'bg-orange-500/20 hover:bg-orange-500/30 text-orange-400'
+                        : 'bg-orange-50 hover:bg-orange-100 text-orange-600'
+                      }`}
+                    >
+                      <EyeOff className="w-4 h-4" />
+                      批量隐藏 ({selectedWorks.size})
+                    </button>
+                    <button
+                      onClick={() => handleBatchToggleHidden(false)}
+                      disabled={selectedWorks.size === 0}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed ${isDark
+                        ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+                        : 'bg-green-50 hover:bg-green-100 text-green-600'
+                      }`}
+                    >
+                      <Eye className="w-4 h-4" />
+                      批量显示 ({selectedWorks.size})
                     </button>
                     <button
                       onClick={handleBatchDelete}
@@ -596,6 +748,16 @@ export default function MyWorks() {
                     <span>{work.date}</span>
                   </div>
 
+                  {/* 隐藏状态标签 */}
+                  {work.hidden_in_square && (
+                    <div className={`text-xs mb-2 ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
+                      <span className="flex items-center gap-1">
+                        <EyeOff className="w-3 h-3" />
+                        已在津脉广场隐藏
+                      </span>
+                    </div>
+                  )}
+
                   {/* 操作按钮 */}
                   <div className={`flex items-center gap-2 ${viewMode === 'grid' ? '' : 'mt-0'}`}>
                     <button
@@ -619,6 +781,21 @@ export default function MyWorks() {
                       编辑
                     </button>
                     <button
+                      onClick={() => toggleHiddenInSquare(work.id, work.hidden_in_square || false)}
+                      className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${work.hidden_in_square
+                        ? (isDark
+                          ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+                          : 'bg-green-50 hover:bg-green-100 text-green-600')
+                        : (isDark
+                          ? 'bg-orange-500/20 hover:bg-orange-500/30 text-orange-400'
+                          : 'bg-orange-50 hover:bg-orange-100 text-orange-600')
+                      }`}
+                      title={work.hidden_in_square ? '显示在津脉广场' : '隐藏在津脉广场'}
+                    >
+                      {work.hidden_in_square ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                      {work.hidden_in_square ? '显示' : '隐藏'}
+                    </button>
+                    <button
                       onClick={() => handleDelete(work.id)}
                       className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${isDark
                         ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
@@ -635,21 +812,6 @@ export default function MyWorks() {
           </motion.div>
         )}
 
-        {/* 批量操作浮动按钮 */}
-        {!isBatchMode && filteredWorks.length > 0 && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={() => setIsBatchMode(true)}
-            className={`fixed bottom-8 right-8 flex items-center gap-2 px-6 py-3 rounded-full shadow-lg ${isDark
-              ? 'bg-gray-800 text-white border border-gray-700'
-              : 'bg-white text-gray-900 border border-gray-200'
-            }`}
-          >
-            <CheckSquare className="w-5 h-5" />
-            批量管理
-          </motion.button>
-        )}
       </div>
     </div>
   );

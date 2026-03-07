@@ -324,7 +324,17 @@ export class InspirationMindMapService {
     } = nodeData as any;
 
     // 清理 content 字段中的 undefined 值
-    const cleanedContent = this.cleanUndefinedValues(cleanNodeData.content);
+    // 确保 content 是有效的 JSON 对象，如果不是则包装在对象中
+    let cleanedContent = this.cleanUndefinedValues(cleanNodeData.content);
+    if (cleanedContent === null || cleanedContent === undefined) {
+      cleanedContent = {};
+    } else if (typeof cleanedContent === 'string') {
+      // 如果 content 是字符串，将其包装为对象
+      cleanedContent = { text: cleanedContent };
+    } else if (typeof cleanedContent !== 'object') {
+      // 其他非对象类型也包装为对象
+      cleanedContent = { value: cleanedContent };
+    }
 
     const nodeDbData = {
       map_id: mapId,
@@ -343,12 +353,12 @@ export class InspirationMindMapService {
       ai_results: cleanNodeData.aiResults || null,
       position: cleanNodeData.position || null,
       version: 1,
-      history: [{
+      history: JSON.stringify([{
         version: 1,
         timestamp: now,
         action: 'create',
         changes: ['创建节点'],
-      }],
+      }]),
     };
 
     console.log('[InspirationMindMapService] Adding node to map:', mapId);
@@ -391,7 +401,17 @@ export class InspirationMindMapService {
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
     if (updates.category !== undefined) dbUpdates.category = updates.category;
-    if (updates.content !== undefined) dbUpdates.content = this.cleanUndefinedValues(updates.content);
+    if (updates.content !== undefined) {
+      let cleanedContent = this.cleanUndefinedValues(updates.content);
+      if (cleanedContent === null || cleanedContent === undefined) {
+        cleanedContent = {};
+      } else if (typeof cleanedContent === 'string') {
+        cleanedContent = { text: cleanedContent };
+      } else if (typeof cleanedContent !== 'object') {
+        cleanedContent = { value: cleanedContent };
+      }
+      dbUpdates.content = cleanedContent;
+    }
     if (updates.aiPrompt !== undefined) dbUpdates.ai_prompt = updates.aiPrompt;
     if (updates.aiGeneratedContent !== undefined) dbUpdates.ai_generated_content = updates.aiGeneratedContent;
     if (updates.userNote !== undefined) dbUpdates.user_note = updates.userNote;

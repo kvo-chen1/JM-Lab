@@ -363,7 +363,7 @@ export default function MobileWorkDetail() {
             </div>
             <div className="text-center">
               <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {submission.avgRating.toFixed(1)}
+                {typeof submission.avgRating === 'number' ? submission.avgRating.toFixed(1) : parseFloat(submission.avgRating || 0).toFixed(1)}
               </p>
               <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>评分</p>
             </div>

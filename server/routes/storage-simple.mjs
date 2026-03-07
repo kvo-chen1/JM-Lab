@@ -13,25 +13,44 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = pathModule.dirname(__filename)
 const projectRoot = pathModule.resolve(__dirname, '../..')
 
-// 存储配置
-const STORAGE_TYPE = process.env.VITE_STORAGE_TYPE || process.env.STORAGE_TYPE || 'local'
-const LOCAL_STORAGE_PATH = process.env.LOCAL_STORAGE_PATH || pathModule.join(projectRoot, 'public', 'uploads')
+// 获取存储配置（延迟获取，确保环境变量已加载）
+function getStorageConfig() {
+  return {
+    type: process.env.VITE_STORAGE_TYPE || process.env.STORAGE_TYPE || 'local',
+    localPath: process.env.LOCAL_STORAGE_PATH || pathModule.join(projectRoot, 'public', 'uploads')
+  }
+}
 
-console.log('[Storage] 存储类型:', STORAGE_TYPE)
+// 在第一次请求时打印配置
+let configLogged = false
+function logStorageConfig() {
+  if (!configLogged) {
+    const config = getStorageConfig()
+    console.log('[Storage] 存储类型:', config.type)
+    console.log('[Storage] COS 配置状态:', {
+      secretId: process.env.COS_SECRET_ID ? '已设置' : '未设置',
+      secretKey: process.env.COS_SECRET_KEY ? '已设置' : '未设置',
+      bucket: process.env.COS_BUCKET,
+      region: process.env.COS_REGION
+    })
+    configLogged = true
+  }
+}
 
 // 确保上传目录存在（仅本地存储）
 function ensureUploadsDir() {
-  if (STORAGE_TYPE !== 'local') return
+  const config = getStorageConfig()
+  if (config.type !== 'local') return
   
-  if (!fs.existsSync(LOCAL_STORAGE_PATH)) {
-    fs.mkdirSync(LOCAL_STORAGE_PATH, { recursive: true })
-    console.log('[Storage] 创建上传目录:', LOCAL_STORAGE_PATH)
+  if (!fs.existsSync(config.localPath)) {
+    fs.mkdirSync(config.localPath, { recursive: true })
+    console.log('[Storage] 创建上传目录:', config.localPath)
   }
   
   // 创建子目录
   const subdirs = ['works', 'avatars', 'drafts', 'temp', 'patterns', 'knowledge']
   subdirs.forEach(dir => {
-    const dirPath = pathModule.join(LOCAL_STORAGE_PATH, dir)
+    const dirPath = pathModule.join(config.localPath, dir)
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true })
     }
@@ -144,6 +163,8 @@ async function parseMultipartFormData(req) {
 
 // 处理本地存储上传
 async function handleLocalUpload(req, res, folder, files) {
+  const config = getStorageConfig()
+  
   if (files.length === 0) {
     res.statusCode = 400
     res.end(JSON.stringify({ error: '没有上传文件' }))
@@ -170,7 +191,7 @@ async function handleLocalUpload(req, res, folder, files) {
   }
   
   // 确保目标目录存在
-  const destDir = pathModule.join(LOCAL_STORAGE_PATH, folder)
+  const destDir = pathModule.join(config.localPath, folder)
   if (!fs.existsSync(destDir)) {
     fs.mkdirSync(destDir, { recursive: true })
   }
@@ -284,8 +305,15 @@ async function handleCOSUpload(req, res, folder, files) {
 
 // 处理存储路由
 export default async function handleStorageRoute(req, res, path) {
+  // 记录配置（仅在第一次请求时）
+  logStorageConfig()
+  
+  console.log('[Storage Route] Request:', { method: req.method, path })
+  
   // 解析路径: /api/storage/:folder/:filename?
   const pathParts = path.replace('/api/storage/', '').split('/').filter(Boolean)
+  
+  console.log('[Storage Route] Path parts:', pathParts)
   
   if (pathParts.length === 0) {
     res.statusCode = 400
@@ -295,13 +323,17 @@ export default async function handleStorageRoute(req, res, path) {
   
   const folder = pathParts[0]
   const filename = pathParts[1]
+  const config = getStorageConfig()
+  
+  console.log('[Storage Route] Parsed:', { folder, filename, method: req.method })
   
   // POST /api/storage/:folder - 上传文件
-  if (req.method === 'POST' && !filename) {
+  // 注意：只要方法是 POST，就处理为上传，忽略 filename
+  if (req.method === 'POST') {
     try {
       const files = await parseMultipartFormData(req)
       
-      if (STORAGE_TYPE === 'cos') {
+      if (config.type === 'cos') {
         await handleCOSUpload(req, res, folder, files)
       } else {
         await handleLocalUpload(req, res, folder, files)
@@ -315,13 +347,13 @@ export default async function handleStorageRoute(req, res, path) {
   }
   
   // GET /api/storage/:folder/:filename - 获取文件（仅本地存储）
-  if (req.method === 'GET' && filename && STORAGE_TYPE === 'local') {
+  if (req.method === 'GET' && filename && config.type === 'local') {
     try {
-      const filePath = pathModule.join(LOCAL_STORAGE_PATH, folder, filename)
+      const filePath = pathModule.join(config.localPath, folder, filename)
       
       // 安全检查
       const resolvedPath = pathModule.resolve(filePath)
-      const resolvedUploadsDir = pathModule.resolve(LOCAL_STORAGE_PATH)
+      const resolvedUploadsDir = pathModule.resolve(config.localPath)
       
       if (!resolvedPath.startsWith(resolvedUploadsDir)) {
         res.statusCode = 403
@@ -365,7 +397,7 @@ export default async function handleStorageRoute(req, res, path) {
   // DELETE /api/storage/:folder/:filename - 删除文件
   if (req.method === 'DELETE' && filename) {
     try {
-      if (STORAGE_TYPE === 'cos') {
+      if (config.type === 'cos') {
         // COS 删除
         if (!isCOSConfigured()) {
           res.statusCode = 500
@@ -386,11 +418,11 @@ export default async function handleStorageRoute(req, res, path) {
         }
       } else {
         // 本地删除
-        const filePath = pathModule.join(LOCAL_STORAGE_PATH, folder, filename)
+        const filePath = pathModule.join(config.localPath, folder, filename)
         
         // 安全检查
         const resolvedPath = pathModule.resolve(filePath)
-        const resolvedUploadsDir = pathModule.resolve(LOCAL_STORAGE_PATH)
+        const resolvedUploadsDir = pathModule.resolve(config.localPath)
         
         if (!resolvedPath.startsWith(resolvedUploadsDir)) {
           res.statusCode = 403
@@ -422,13 +454,13 @@ export default async function handleStorageRoute(req, res, path) {
   
   // HEAD /api/storage/:folder/:filename - 获取文件信息
   if (req.method === 'HEAD' && filename) {
-    if (STORAGE_TYPE === 'cos') {
+    if (config.type === 'cos') {
       // COS 文件直接返回 200
       res.statusCode = 200
       res.end()
     } else {
-      try {
-        const filePath = pathModule.join(LOCAL_STORAGE_PATH, folder, filename)
+      try {// 本地文件信息
+        const filePath = pathModule.join(config.localPath, folder, filename)
         
         if (!fs.existsSync(filePath)) {
           res.statusCode = 404

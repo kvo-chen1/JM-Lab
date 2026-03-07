@@ -224,17 +224,39 @@ export default function Home() {
       
       setPopularCreators(creatorsArray);
       
-      // 缓存数据
-      const dataToCache = {
-        works: worksData,
-        creators: creatorsArray
-      };
-      localStorage.setItem('homePageData', JSON.stringify(dataToCache));
-      localStorage.setItem('homePageDataTimestamp', now.toString());
+      // 缓存数据（带配额检查）
+      try {
+        const dataToCache = {
+          works: worksData,
+          creators: creatorsArray
+        };
+        const cacheString = JSON.stringify(dataToCache);
+        // 检查数据大小（大约 5MB 限制）
+        if (cacheString.length < 4 * 1024 * 1024) {
+          localStorage.setItem('homePageData', cacheString);
+          localStorage.setItem('homePageDataTimestamp', now.toString());
+        } else {
+          console.warn('缓存数据太大，跳过缓存');
+        }
+      } catch (storageErr) {
+        console.warn('缓存数据失败（可能是存储配额不足）:', storageErr);
+        // 尝试清理旧数据
+        try {
+          localStorage.removeItem('homePageData');
+          localStorage.removeItem('works');
+        } catch (e) {
+          // 忽略清理错误
+        }
+      }
       
-      // 同时保存到推荐系统使用的 key (works)
+      // 同时保存到推荐系统使用的 key (works) - 限制数量避免超出配额
       if (Array.isArray(worksData) && worksData.length > 0) {
-        localStorage.setItem('works', JSON.stringify(worksData));
+        try {
+          const limitedWorks = worksData.slice(0, 50); // 只缓存前50条
+          localStorage.setItem('works', JSON.stringify(limitedWorks));
+        } catch (storageErr) {
+          console.warn('缓存作品数据失败:', storageErr);
+        }
       }
     } catch (err) {
       console.error('获取数据失败:', err);

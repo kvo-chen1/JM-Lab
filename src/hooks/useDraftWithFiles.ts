@@ -312,9 +312,11 @@ export function useDraftWithFiles<T extends Record<string, any>>({
         for (const file of uploadedFilesRef.current) {
           try {
             // 从 URL 中提取路径
-            const pathMatch = file.url.match(/\/uploads\/(.+)/);
-            if (pathMatch) {
-              await deleteFile(pathMatch[1]);
+            if (file.url) {
+              const pathMatch = file.url.match(/\/uploads\/(.+)/);
+              if (pathMatch) {
+                await deleteFile(pathMatch[1]);
+              }
             }
           } catch (deleteError) {
             console.error(`删除文件 ${file.name} 失败:`, deleteError);

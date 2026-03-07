@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test COS Image</title>
+</head>
+<body>
+    <h1>测试腾讯云 COS 图片访问</h1>
+    
+    <h2>图片 1 (88.jpg)</h2>
+    <img src="https://jinmai-images-1349848433.cos.ap-beijing.myqcloud.com/user-uploads/1772854078468-a2b04723.jpg" 
+         width="300" 
+         onload="console.log('Image 1 loaded successfully')"
+         onerror="console.error('Image 1 failed to load')">
+    
+    <h2>图片 2 (778.jpg)</h2>
+    <img src="https://jinmai-images-1349848433.cos.ap-beijing.myqcloud.com/user-uploads/1772851499265-a127e020.jpg" 
+         width="300"
+         onload="console.log('Image 2 loaded successfully')"
+         onerror="console.error('Image 2 failed to load')">
+    
+    <h2>图片 3 (789.jpg)</h2>
+    <img src="https://jinmai-images-1349848433.cos.ap-beijing.myqcloud.com/user-uploads/1772851071714-c696c41f.jpg" 
+         width="300"
+         onload="console.log('Image 3 loaded successfully')"
+         onerror="console.error('Image 3 failed to load')">
+    
+    <script>
+        console.log('Testing COS images...');
+    </script>
+</body>
+</html>

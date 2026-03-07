@@ -638,6 +638,15 @@ class AdminService {
       rawData.forEach((item, index) => {
         // 处理数字时间戳（毫秒或秒）
         let createdAt = item.created_at;
+
+        // 跳过无效的时间数据
+        if (!createdAt || createdAt === null || createdAt === undefined) {
+          if (index < 3) {
+            console.log(`[getTrendData] ${metric} - 数据${index}: 跳过无效时间`, item);
+          }
+          return;
+        }
+
         if (typeof createdAt === 'number') {
           if (createdAt < 1e12) {
             createdAt = createdAt * 1000;
@@ -645,6 +654,14 @@ class AdminService {
         }
 
         const itemDate = new Date(createdAt);
+
+        // 检查日期是否有效
+        if (isNaN(itemDate.getTime())) {
+          if (index < 3) {
+            console.log(`[getTrendData] ${metric} - 数据${index}: 无效日期`, { created_at: item.created_at });
+          }
+          return;
+        }
 
         // 只统计在日期范围内的数据
         if (itemDate >= startDate && itemDate <= now) {

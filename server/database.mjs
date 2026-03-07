@@ -788,6 +788,7 @@ async function createPostgreSQLTables(pool) {
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS event_id TEXT;`)
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS score INTEGER DEFAULT 0;`)
       await client.query(`ALTER TABLE IF EXISTS works ADD COLUMN IF NOT EXISTS community_id TEXT;`)
+      await ensureColumn('works', 'hidden_in_square', 'BOOLEAN DEFAULT FALSE')
       
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_creator_id ON works(creator_id);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_works_created_at ON works(created_at);')
@@ -3354,6 +3355,7 @@ export const workDB = {
             AND COALESCE(w.thumbnail, w.cover_url, '') <> ''
             AND COALESCE(w.thumbnail, w.cover_url, '') <> 'EMPTY'
             AND LOWER(COALESCE(w.thumbnail, w.cover_url, '')) NOT LIKE '%empty%'
+            AND (w.hidden_in_square = FALSE OR w.hidden_in_square IS NULL)
           ORDER BY w.created_at DESC 
           LIMIT $1 OFFSET $2
         `, [limit, offset])).rows
@@ -3419,6 +3421,47 @@ export const workDB = {
           console.error('[workDB.getWorkById] Error:', error)
           throw error
         }
+      default: return null
+    }
+  },
+
+  async updateWork(workId, updateData) {
+    const db = await getDB()
+    const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
+    switch (typeKey) {
+      case DB_TYPE.MEMORY:
+        const workIndex = (memoryStore.works || []).findIndex(w => w.id === workId)
+        if (workIndex === -1) return null
+        memoryStore.works[workIndex] = { ...memoryStore.works[workIndex], ...updateData }
+        return memoryStore.works[workIndex]
+      case DB_TYPE.POSTGRESQL:
+        // 构建动态更新语句
+        const allowedFields = ['title', 'description', 'thumbnail', 'cover_url', 'category', 'tags', 'status', 'hidden_in_square']
+        const updates = []
+        const values = []
+        let paramIndex = 1
+
+        for (const [key, value] of Object.entries(updateData)) {
+          if (allowedFields.includes(key)) {
+            updates.push(`${key} = $${paramIndex}`)
+            values.push(value)
+            paramIndex++
+          }
+        }
+
+        if (updates.length === 0) {
+          throw new Error('没有可更新的字段')
+        }
+
+        values.push(workId)
+        const query = `
+          UPDATE works 
+          SET ${updates.join(', ')}, updated_at = extract(epoch from now())
+          WHERE id = $${paramIndex}
+          RETURNING *
+        `
+        const { rows } = await db.query(query, values)
+        return rows[0] || null
       default: return null
     }
   },

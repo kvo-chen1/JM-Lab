@@ -30,7 +30,17 @@ class WebSocketService {
       // 忽略访问 process 时的错误
     }
     
-    return 'ws://localhost:3023/ws';
+    // 根据环境返回正确的 WebSocket URL
+    const isProduction = import.meta.env.PROD;
+    if (isProduction) {
+      // 生产环境使用相同域名，协议升级为 wss
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${protocol}//${window.location.host}/ws`;
+    }
+    
+    // 开发环境使用本地 API 端口（与后端一致）
+    const apiPort = import.meta.env.VITE_LOCAL_API_PORT || '3023';
+    return `ws://localhost:${apiPort}/ws`;
   }
 
   // 连接WebSocket

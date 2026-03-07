@@ -54,29 +54,38 @@ function parseFilter(key, value) {
     'is': 'IS',
     'in': 'IN'
   }
-  
+
+  // 检查 value 是否有效
+  if (value === undefined || value === null) {
+    console.warn(`[DB Proxy] Invalid value for key "${key}":`, value)
+    return { operator: '=', value: '', isArray: false }
+  }
+
+  // 确保 value 是字符串
+  const valueStr = String(value)
+
   // 检查是否包含操作符前缀
   for (const [op, sqlOp] of Object.entries(operators)) {
     const prefix = `${op}.`
-    if (value.startsWith(prefix)) {
-      const actualValue = value.slice(prefix.length)
-      
+    if (valueStr.startsWith(prefix)) {
+      const actualValue = valueStr.slice(prefix.length)
+
       if (op === 'in') {
         // 处理 IN 操作符: in.(value1,value2)
         const values = actualValue.replace(/[()]/g, '').split(',').map(v => v.trim())
         return { operator: sqlOp, value: values, isArray: true }
       }
-      
+
       if (op === 'is' && actualValue === 'null') {
         return { operator: 'IS', value: null, isNull: true }
       }
-      
+
       return { operator: sqlOp, value: actualValue, isArray: false }
     }
   }
-  
+
   // 默认使用等于
-  return { operator: '=', value: value, isArray: false }
+  return { operator: '=', value: valueStr, isArray: false }
 }
 
 // 验证 JWT token 的辅助函数

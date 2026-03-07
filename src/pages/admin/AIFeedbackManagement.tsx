@@ -233,7 +233,7 @@ export default function AIFeedbackManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>平均评分</p>
-              <p className="text-2xl font-bold">{stats.avgRating.toFixed(1)}</p>
+              <p className="text-2xl font-bold">{typeof stats.avgRating === 'number' ? stats.avgRating.toFixed(1) : parseFloat(stats.avgRating || 0).toFixed(1)}</p>
             </div>
             <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
               <Star className="w-6 h-6 text-yellow-600" />

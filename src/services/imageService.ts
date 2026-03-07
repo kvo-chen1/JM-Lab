@@ -1006,7 +1006,12 @@ async function uploadToBackend(file: File): Promise<string> {
     console.log('[uploadToBackend] Upload successful:', result.data.url);
     
     // 返回完整的 URL
-    return `${window.location.origin}${result.data.url}`;
+    // 如果服务器返回的是完整 URL（如 COS URL），直接使用；否则拼接 origin
+    const url = result.data.url;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    return `${window.location.origin}${url}`;
   } catch (error) {
     console.error('[uploadToBackend] Upload failed:', error);
     // 如果后端上传也失败，使用 Blob URL 作为最终备用方案

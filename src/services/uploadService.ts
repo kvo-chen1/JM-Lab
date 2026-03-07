@@ -183,7 +183,7 @@ class UploadService {
         .eq('user_id', targetUserId)
         .single();
 
-      if (upload) {
+      if (upload && upload.file_url) {
         // 从存储中删除文件
         const { deleteFile } = await import('./storageServiceNew');
         const pathMatch = upload.file_url.match(/\/uploads\/(.+)/);

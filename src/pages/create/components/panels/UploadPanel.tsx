@@ -21,6 +21,9 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
   const [selectedUpload, setSelectedUpload] = useState<UserUpload | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingUpload, setEditingUpload] = useState<UserUpload | null>(null);
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [selectedUploads, setSelectedUploads] = useState<Set<string>>(new Set());
+  const [showBatchPreview, setShowBatchPreview] = useState(false);
 
   // 获取 create store 的方法
   const generatedResults = useCreateStore((state) => state.generatedResults);
@@ -214,11 +217,97 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
   const handlePublish = (upload: UserUpload) => {
     // 先将作品添加到预览区
     handlePreviewInCanvas(upload);
-    
+
     // 打开发布弹窗
     updateState({ showPublishModal: true });
-    
+
     toast.success('作品已加载，请填写发布信息');
+  };
+
+  // 切换批量管理模式
+  const toggleBatchMode = () => {
+    setIsBatchMode(!isBatchMode);
+    setSelectedUploads(new Set());
+  };
+
+  // 切换选中状态
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedUploads);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedUploads(newSelected);
+  };
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    if (selectedUploads.size === uploads.length) {
+      setSelectedUploads(new Set());
+    } else {
+      setSelectedUploads(new Set(uploads.map(u => u.id)));
+    }
+  };
+
+  // 批量删除
+  const handleBatchDelete = async () => {
+    if (selectedUploads.size === 0) {
+      toast.error('请先选择要删除的作品');
+      return;
+    }
+
+    if (!confirm(`确定要删除选中的 ${selectedUploads.size} 个作品吗？此操作不可恢复。`)) return;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of selectedUploads) {
+      try {
+        const { success } = await uploadService.deleteUpload(id, user?.id);
+        if (success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (error) {
+        failCount++;
+      }
+    }
+
+    // 更新列表
+    setUploads(prev => prev.filter(u => !selectedUploads.has(u.id)));
+    setSelectedUploads(new Set());
+
+    if (successCount > 0) {
+      toast.success(`成功删除 ${successCount} 个作品`);
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount} 个作品删除失败`);
+    }
+  };
+
+  // 批量预览 - 添加到画布
+  const handleBatchPreview = () => {
+    if (selectedUploads.size === 0) {
+      toast.error('请先选择要预览的作品');
+      return;
+    }
+
+    const selectedItems = uploads.filter(u => selectedUploads.has(u.id));
+    let addedCount = 0;
+
+    selectedItems.forEach((upload, index) => {
+      setTimeout(() => {
+        handlePreviewInCanvas(upload);
+        addedCount++;
+        if (addedCount === selectedItems.length) {
+          toast.success(`已将 ${selectedItems.length} 个作品添加到预览区`);
+          setIsBatchMode(false);
+          setSelectedUploads(new Set());
+        }
+      }, index * 100);
+    });
   };
 
   // 未登录提示
@@ -256,33 +345,110 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
               管理您上传的设计作品
             </p>
           </div>
-          <label className={`cursor-pointer ${isUploading ? 'pointer-events-none' : ''}`}>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={isUploading}
-            />
-            <motion.div
-              whileHover={isUploading ? undefined : { scale: 1.02 }}
-              whileTap={isUploading ? undefined : { scale: 0.98 }}
-              className={`px-4 py-2 bg-[#C02C38] text-white rounded-lg text-sm font-medium flex items-center gap-2 ${isUploading ? 'opacity-50' : ''}`}
+          <div className="flex items-center gap-2">
+            {/* 批量管理按钮 */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={toggleBatchMode}
+              className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${
+                isBatchMode
+                  ? 'bg-[#C02C38] text-white'
+                  : isDark
+                    ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
-              {isUploading ? (
-                <>
-                  <i className="fas fa-spinner fa-spin"></i>
-                  上传中...
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-plus"></i>
-                  上传新作品
-                </>
-              )}
-            </motion.div>
-          </label>
+              <i className={`fas ${isBatchMode ? 'fa-check' : 'fa-tasks'}`}></i>
+              {isBatchMode ? '完成' : '批量管理'}
+            </motion.button>
+
+            <label className={`cursor-pointer ${isUploading ? 'pointer-events-none' : ''}`}>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={isUploading}
+              />
+              <motion.div
+                whileHover={isUploading ? undefined : { scale: 1.02 }}
+                whileTap={isUploading ? undefined : { scale: 0.98 }}
+                className={`px-4 py-2 bg-[#C02C38] text-white rounded-lg text-sm font-medium flex items-center gap-2 ${isUploading ? 'opacity-50' : ''}`}
+              >
+                {isUploading ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i>
+                    上传中...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-plus"></i>
+                    上传新作品
+                  </>
+                )}
+              </motion.div>
+            </label>
+          </div>
         </div>
+
+        {/* 批量操作工具栏 */}
+        {isBatchMode && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`flex items-center justify-between p-3 mb-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}
+          >
+            <div className="flex items-center gap-3">
+              <button
+                onClick={toggleSelectAll}
+                className={`text-sm font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
+                  isDark
+                    ? 'text-gray-300 hover:bg-gray-700'
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <i className={`fas ${selectedUploads.size === uploads.length ? 'fa-check-square' : 'fa-square'} text-[#C02C38]`}></i>
+                {selectedUploads.size === uploads.length ? '取消全选' : '全选'}
+              </button>
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                已选择 {selectedUploads.size} 个作品
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBatchPreview}
+                disabled={selectedUploads.size === 0}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  selectedUploads.size === 0
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                } ${isDark
+                  ? 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30'
+                  : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                }`}
+              >
+                <i className="fas fa-eye"></i>
+                批量预览
+              </button>
+              <button
+                onClick={handleBatchDelete}
+                disabled={selectedUploads.size === 0}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  selectedUploads.size === 0
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                } ${isDark
+                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                  : 'bg-red-50 text-red-600 hover:bg-red-100'
+                }`}
+              >
+                <i className="fas fa-trash"></i>
+                批量删除
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {/* 搜索框 */}
         <div className="relative">
@@ -331,16 +497,35 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className={`group relative rounded-lg overflow-hidden border cursor-pointer ${isDark
+                className={`group relative rounded-lg overflow-hidden border ${isBatchMode ? 'cursor-pointer' : 'cursor-pointer'} ${isDark
                   ? 'bg-gray-800 border-gray-700 hover:border-gray-600'
                   : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}
+                } ${selectedUploads.has(upload.id) ? 'ring-2 ring-[#C02C38]' : ''}`}
                 onClick={() => {
-                  setSelectedUpload(upload);
-                  setShowDetailModal(true);
-                  onSelectUpload?.(upload);
+                  if (isBatchMode) {
+                    toggleSelect(upload.id);
+                  } else {
+                    setSelectedUpload(upload);
+                    setShowDetailModal(true);
+                    onSelectUpload?.(upload);
+                  }
                 }}
               >
+                {/* 批量选择框 */}
+                {isBatchMode && (
+                  <div className="absolute top-2 left-2 z-10">
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      selectedUploads.has(upload.id)
+                        ? 'bg-[#C02C38] border-[#C02C38]'
+                        : isDark ? 'border-gray-500 bg-gray-800/80' : 'border-gray-400 bg-white/80'
+                    }`}>
+                      {selectedUploads.has(upload.id) && (
+                        <i className="fas fa-check text-white text-xs"></i>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* 图片预览 */}
                 <div className="aspect-square relative">
                   <img
@@ -351,57 +536,59 @@ const UploadPanel: React.FC<UploadPanelProps> = ({ onSelectUpload }) => {
                       (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300?text=No+Image';
                     }}
                   />
-                  {/* 悬停遮罩 */}
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
-                    {/* 主要操作按钮 */}
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePreviewInCanvas(upload);
-                        }}
-                        className="px-2 py-1.5 bg-[#C02C38] rounded text-white text-[10px] font-medium hover:bg-[#A0232F] flex items-center gap-1"
-                        title="在左侧预览区打开，进行二创加工"
-                      >
-                        <i className="fas fa-eye text-[10px]"></i>
-                        预览
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePublish(upload);
-                        }}
-                        className="px-2 py-1.5 bg-indigo-600 rounded text-white text-[10px] font-medium hover:bg-indigo-700 flex items-center gap-1"
-                        title="发布到广场"
-                      >
-                        <i className="fas fa-globe text-[10px]"></i>
-                        发布
-                      </button>
+                  {/* 悬停遮罩 - 仅在非批量模式下显示 */}
+                  {!isBatchMode && (
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
+                      {/* 主要操作按钮 */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePreviewInCanvas(upload);
+                          }}
+                          className="px-2 py-1.5 bg-[#C02C38] rounded text-white text-[10px] font-medium hover:bg-[#A0232F] flex items-center gap-1"
+                          title="在左侧预览区打开，进行二创加工"
+                        >
+                          <i className="fas fa-eye text-[10px]"></i>
+                          预览
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePublish(upload);
+                          }}
+                          className="px-2 py-1.5 bg-indigo-600 rounded text-white text-[10px] font-medium hover:bg-indigo-700 flex items-center gap-1"
+                          title="发布到广场"
+                        >
+                          <i className="fas fa-globe text-[10px]"></i>
+                          发布
+                        </button>
+                      </div>
+                      {/* 次要操作按钮 */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingUpload(upload);
+                          }}
+                          className="p-1.5 bg-white/90 rounded-full text-gray-800 hover:bg-white"
+                          title="编辑信息"
+                        >
+                          <i className="fas fa-edit text-[10px]"></i>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(upload.id);
+                          }}
+                          className="p-1.5 bg-red-500/90 rounded-full text-white hover:bg-red-500"
+                          title="删除"
+                        >
+                          <i className="fas fa-trash text-[10px]"></i>
+                        </button>
+                      </div>
                     </div>
-                    {/* 次要操作按钮 */}
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingUpload(upload);
-                        }}
-                        className="p-1.5 bg-white/90 rounded-full text-gray-800 hover:bg-white"
-                        title="编辑信息"
-                      >
-                        <i className="fas fa-edit text-[10px]"></i>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(upload.id);
-                        }}
-                        className="p-1.5 bg-red-500/90 rounded-full text-white hover:bg-red-500"
-                        title="删除"
-                      >
-                        <i className="fas fa-trash text-[10px]"></i>
-                      </button>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* 信息 */}

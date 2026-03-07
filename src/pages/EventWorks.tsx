@@ -620,7 +620,9 @@ export default function EventWorks() {
                       </div>
                       <div className="text-center">
                         <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {selectedSubmission.avgRating.toFixed(1)}
+                          {typeof selectedSubmission.avgRating === 'number' 
+                            ? selectedSubmission.avgRating.toFixed(1) 
+                            : parseFloat(selectedSubmission.avgRating || 0).toFixed(1)}
                         </p>
                         <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>评分</p>
                       </div>

@@ -79,10 +79,15 @@ export async function uploadToCOS(fileBuffer, originalName, mimeType, folder = '
       ACL: 'public-read',
     });
 
-    console.log('[COS] 上传成功:', result.Location || `${config.domain}/${key}`);
-
-    // 返回文件 URL
-    const url = result.Location || `${config.domain}/${key}`;
+    // 构建完整的 URL
+    let url = result.Location || `${config.domain}/${key}`;
+    
+    // 确保 URL 有 https:// 前缀
+    if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+    }
+    
+    console.log('[COS] 上传成功:', url);
     
     return {
       url,

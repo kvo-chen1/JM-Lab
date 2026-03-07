@@ -599,46 +599,66 @@ async function dashscopeVideoGenerate(params) {
 
 async function dashscopeImageGenerate(params) {
   const { prompt, size, n, authKey, model, refImage, refStrength, refMode } = params
-  const base = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1'
-  // 统一使用文生图接口，支持参考图片功能
-  const endpoint = `${base}/services/aigc/text2image/image-synthesis`
-  const normalizedSize = String(size || '1024x1024').replace('x', '*')
-  try {
-    console.log('[DashScope] Starting async image generation...', refImage ? '(with ref image)' : '(text only)');
+  
+  // 判断使用哪个模型 - 使用有免费额度的 qwen-image-2.0
+  const modelName = model || 'qwen-image-2.0';
+  // qwen-image-2.0 系列使用同步调用（不支持异步）
+  const isQwenImage2 = modelName.startsWith('qwen-image-2');
+  
+  // qwen-image-2.0 系列使用同步调用，其他使用异步调用
+  const base = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1';
+  const endpoint = `${base}/services/aigc/text2image/image-synthesis`;
     
-    // 构建请求体 - 优先使用传入的 model 参数，参考图片时使用 wanx-v1
-    // 使用 qwen-image-2.0 模型（有免费额度）
+  const normalizedSize = String(size || '1024x1024').replace('x', '*');
+  
+  try {
+    console.log(`[DashScope] Starting image generation with model: ${modelName}...`, refImage ? '(with ref image)' : '(text only)');
+    
+    // 构建请求体
     const requestBody = {
-      model: refImage ? 'wanx-v1' : (model || 'qwen-image-2.0'),
-      input: { prompt },
+      model: modelName,
+      input: { 
+        prompt,
+        negative_prompt: ' '  // 添加空格作为默认反向提示词
+      },
       parameters: { 
         size: normalizedSize, 
         n: n || 1,
-        style: '<auto>'  // 自动风格
+        prompt_extend: true,   // 开启智能改写
+        watermark: false       // 不添加水印
       }
+    };
+    
+    // 构建请求头
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authKey}`,
+    };
+    
+    // 只有非 qwen-image-2.0 系列才需要异步头
+    if (!isQwenImage2) {
+      headers['X-DashScope-Async'] = 'enable';
     }
     
-    // 如果有参考图片，直接传递URL（不需要下载转Base64）
-    if (refImage) {
+    // 如果有参考图片 (仅旧模型支持)
+    if (refImage && !isQwenImage2) {
       console.log('[DashScope] Using ref image:', refImage.substring(0, 80));
       requestBody.input.ref_img = refImage;
-      // 参考图强度和模式
       requestBody.parameters.ref_strength = refStrength || 0.7;
       requestBody.parameters.ref_mode = refMode || 'repaint';
     }
     
-    // 1. Submit async task
+    console.log('[DashScope] Request body:', JSON.stringify(requestBody, null, 2));
+    
+    // 发送请求
     const createResp = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authKey}`,
-        'X-DashScope-Async': 'enable' // Enable async mode
-      },
+      headers,
       body: JSON.stringify(requestBody)
     })
     
     const createData = await createResp.json()
+    console.log('[DashScope] Response:', JSON.stringify(createData, null, 2));
     
     if (!createResp.ok) {
       console.error('[DashScope] Image generation submission failed:', createData)
@@ -649,6 +669,30 @@ async function dashscopeImageGenerate(params) {
       }
     }
 
+    // qwen-image-2.0 系列是同步调用，直接返回结果
+    if (isQwenImage2) {
+      if (createData.output?.results && createData.output.results.length > 0) {
+        const images = createData.output.results.map((item) => {
+          const url = item?.url || item?.image_url || item?.image || ''
+          return { url, revised_prompt: prompt }
+        }).filter((it) => !!it.url)
+        
+        console.log('[DashScope] Sync generation successful, images:', images);
+        
+        return {
+          status: 200,
+          ok: true,
+          data: {
+            created: Date.now(),
+            data: images
+          }
+        }
+      } else {
+        throw new Error('No image results in sync response');
+      }
+    }
+    
+    // 旧模型是异步调用，需要轮询
     const taskId = createData.output?.task_id;
     if (!taskId) {
         throw new Error('No task_id returned from async image submission');
@@ -721,7 +765,7 @@ function proxyStream(resp, res) {
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', ORIGIN)
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', '*')
 }
 
@@ -1088,24 +1132,32 @@ async function route(req, res, u, path) {
     const creatorId = u.searchParams.get('creator_id')
     const includePromoted = u.searchParams.get('include_promoted') !== 'false' // 默认包含推广作品
 
+    // 设置响应超时保护
+    const requestStartTime = Date.now()
+    const MAX_REQUEST_TIME = 8000 // 8秒超时保护
+
     try {
       let works
       if (creatorId) {
         // 如果指定了 creator_id，只返回该用户的作品
-        console.log('[API] Get works by creator_id:', creatorId)
-        works = await workDB.getWorksByUserId(creatorId)
+        console.log('[API] Get works by creator_id:', creatorId, 'limit:', limit, 'offset:', offset)
+        works = await workDB.getWorksByUserId(creatorId, limit, offset)
       } else {
-        // 否则返回所有作品
-        console.log('[API] Get all works')
-        works = await workDB.getAllWorks()
+        // 否则返回所有作品（使用分页）
+        console.log('[API] Get works limit:', limit, 'offset:', offset)
+        works = await workDB.getWorks(limit, offset)
       }
 
       // 获取活跃推广作品（用于插入到列表中）
       let promotedWorks = []
-      if (includePromoted && !creatorId) {
+
+      // 检查是否已超时
+      if (Date.now() - requestStartTime > MAX_REQUEST_TIME) {
+        console.warn('[API] Request approaching timeout, skipping promoted works')
+      } else if (includePromoted && !creatorId) {
         try {
           const { data: activePromotedWorks, error: promotedError } = await supabaseServer
-            .rpc('get_active_promoted_works', { p_limit: 10, p_offset: 0 })
+            .rpc('get_active_promoted_works', { p_limit: 5, p_offset: 0 })
 
           if (!promotedError && activePromotedWorks && activePromotedWorks.length > 0) {
             // 获取推广作品的详细信息
@@ -1172,63 +1224,11 @@ async function route(req, res, u, path) {
         }
       }
 
-      // 获取所有作者ID（确保是有效的UUID格式）
-      const creatorIds = [...new Set(works.map(w => w.creator_id).filter(id => id && typeof id === 'string'))]
-      console.log('[API] Creator IDs:', creatorIds)
-
-      // 批量获取作者信息
-      let usersData = []
-      let usersError = null
-
-      if (creatorIds.length > 0) {
-        // 使用 PostgreSQL 的 UUID 数组查询
-        // 注意：feeds.user_id 是 text 类型，users.id 是 uuid 类型
-        // 使用原始 SQL 查询，将 uuid 转换为 text 进行比较
-        try {
-          const db = await getDB()
-          const { rows } = await db.query(`
-            SELECT id, username, avatar_url
-            FROM users
-            WHERE id::text = ANY($1)
-          `, [creatorIds])
-          usersData = rows || []
-        } catch (err) {
-          usersError = err
-          console.error('[API] Error fetching users with SQL:', err)
-        }
-      }
-
-      if (usersError) {
-        console.error('[API] Error fetching users:', usersError)
-      }
-
-      const usersMap = new Map()
-      if (usersData) {
-        usersData.forEach(user => {
-          usersMap.set(user.id, user)
-        })
-      }
-      console.log('[API] Users map size:', usersMap.size)
-      console.log('[API] First creator_id:', creatorIds[0], 'type:', typeof creatorIds[0])
-      console.log('[API] First user in map:', usersData?.[0] ? { id: usersData[0].id, type: typeof usersData[0].id } : null)
-
       // 字段映射，将数据库字段转换为前端期望的格式
+      // 注意：getWorks 已经通过 LEFT JOIN 获取了作者信息 (username, avatar_url)
       let mappedWorks = works.map(work => {
-        const user = usersMap.get(work.creator_id)
         // 优先使用 thumbnail，如果没有则使用 cover_url
         const thumbnailUrl = work.thumbnail || work.cover_url || ''
-        console.log('[API] Mapping work:', {
-          id: work.id,
-          creator_id: work.creator_id,
-          user: user ? { id: user.id, username: user.username } : null,
-          thumbnail: thumbnailUrl?.substring(0, 50),
-          cover_url: work.cover_url?.substring(0, 50),
-          video_url: work.video_url?.substring(0, 50),
-          type: work.type,
-          hasVideoUrl: !!work.video_url,
-          views: work.view_count,
-          likes: work.likes
-        });
         return {
           ...work,
           // 确保 thumbnail 字段包含有效的图片URL
@@ -1238,8 +1238,8 @@ async function route(req, res, u, path) {
           date: work.created_at ? new Date(work.created_at * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           author: {
             id: work.creator_id,
-            username: user?.username || 'Unknown User',
-            avatar: user?.avatar_url || ''
+            username: work.username || 'Unknown User',
+            avatar: work.avatar_url || ''
           },
           isPromoted: false
         };
@@ -1388,6 +1388,44 @@ async function route(req, res, u, path) {
     } catch (e) {
       console.error('[API] Create work failed:', e)
       sendJson(res, 500, { code: 1, message: '创建作品失败: ' + e.message })
+    }
+    return
+  }
+
+  // 更新作品 (PATCH /api/works/:id)
+  if (req.method === 'PATCH' && path.startsWith('/api/works/') && path.split('/').length === 4) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const workId = path.split('/')[3]
+      const body = await readBody(req)
+      const userId = decoded.userId || decoded.sub || decoded.id
+
+      console.log('[API] Update work:', { workId, userId, body })
+
+      // 先检查作品是否存在且属于当前用户
+      const existingWork = await workDB.getWorkById(workId)
+      if (!existingWork) {
+        sendJson(res, 404, { code: 1, message: '作品不存在' })
+        return
+      }
+
+      if (existingWork.creator_id !== userId) {
+        sendJson(res, 403, { code: 1, message: '无权修改此作品' })
+        return
+      }
+
+      // 更新作品
+      const updatedWork = await workDB.updateWork(workId, body)
+      console.log('[API] Work updated:', updatedWork)
+      sendJson(res, 200, { code: 0, data: updatedWork, message: '更新成功' })
+    } catch (e) {
+      console.error('[API] Update work failed:', e)
+      sendJson(res, 500, { code: 1, message: '更新作品失败: ' + e.message })
     }
     return
   }
@@ -2673,7 +2711,48 @@ async function route(req, res, u, path) {
       
       console.log('[API] Downloading image from:', imageUrl)
       
-      // 下载图片
+      // 处理相对路径 - 如果是 /uploads/ 开头的路径，直接从本地文件系统读取
+      if (imageUrl.startsWith('/uploads/')) {
+        const fs = await import('fs')
+        const path = await import('path')
+        const { fileURLToPath } = await import('url')
+        
+        const __filename = fileURLToPath(import.meta.url)
+        const __dirname = path.dirname(__filename)
+        const filePath = path.join(__dirname, '..', 'public', imageUrl)
+        
+        console.log('[API] Reading local file:', filePath)
+        
+        if (fs.existsSync(filePath)) {
+          const buffer = fs.readFileSync(filePath)
+          const ext = path.extname(filePath).toLowerCase()
+          const contentTypeMap = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.svg': 'image/svg+xml'
+          }
+          const contentType = contentTypeMap[ext] || 'image/jpeg'
+          const base64Data = buffer.toString('base64')
+          const base64 = `data:${contentType};base64,${base64Data}`
+          
+          sendJson(res, 200, {
+            code: 0,
+            data: {
+              base64,
+              type: contentType,
+              size: buffer.length
+            }
+          })
+          return
+        } else {
+          throw new Error('本地文件不存在: ' + filePath)
+        }
+      }
+      
+      // 下载远程图片
       const response = await fetch(imageUrl, {
         method: 'GET',
         headers: {
@@ -9341,7 +9420,7 @@ if (!isVercel) {
 export default async function handler(req, res) {
   // 设置CORS头
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   
   // 处理OPTIONS请求

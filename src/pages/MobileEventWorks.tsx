@@ -733,7 +733,7 @@ function MobileWorkCard({ submission, interaction, onClick, index, isDark }: Mob
               isDark ? 'bg-amber-500/90 text-white' : 'bg-amber-400 text-white'
             }`}>
               <Star className="w-3 h-3 fill-current" />
-              {submission.avgRating.toFixed(1)}
+              {typeof submission.avgRating === 'number' ? submission.avgRating.toFixed(1) : parseFloat(submission.avgRating || 0).toFixed(1)}
             </span>
           </div>
         )}

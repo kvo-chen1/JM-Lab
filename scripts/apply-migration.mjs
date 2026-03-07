@@ -1,28 +1,66 @@
-// 使用 Supabase Management API 执行 SQL
-// 请访问 https://supabase.com/dashboard/project/pptqdicaaewtnaiflfcs/sql/new
-// 复制粘贴 supabase/migrations/20260211000000_enhance_event_participation.sql 内容执行
+#!/usr/bin/env node
+/**
+ * 执行 SQL 迁移脚本
+ */
 
-import fs from 'fs';
-import path from 'path';
+import { Pool } from 'pg'
+import fs from 'fs'
+import path from 'path'
+import dotenv from 'dotenv'
 
-const sqlFilePath = path.join(process.cwd(), 'supabase', 'migrations', '20260211000000_enhance_event_participation.sql');
-const sqlContent = fs.readFileSync(sqlFilePath, 'utf-8');
+dotenv.config()
+dotenv.config({ path: '.env.local', override: true })
 
-console.log('='.repeat(80));
-console.log('Supabase 数据库迁移 SQL');
-console.log('='.repeat(80));
-console.log('\n请按以下步骤执行迁移：\n');
-console.log('1. 访问 Supabase Dashboard:');
-console.log('   https://supabase.com/dashboard/project/pptqdicaaewtnaiflfcs/sql/new\n');
-console.log('2. 复制以下内容并粘贴到 SQL 编辑器中：\n');
-console.log('-'.repeat(80));
-console.log(sqlContent);
-console.log('-'.repeat(80));
-console.log('\n3. 点击 "Run" 按钮执行 SQL\n');
-console.log('注意：执行可能需要 1-2 分钟，请耐心等待。');
-console.log('='.repeat(80));
+const getConnectionString = () => {
+  return process.env.POSTGRES_URL_NON_POOLING ||
+         process.env.DATABASE_URL ||
+         process.env.POSTGRES_URL ||
+         process.env.NEON_DATABASE_URL ||
+         process.env.NEON_URL
+}
 
-// 同时保存到临时文件方便复制
-const tempFilePath = path.join(process.cwd(), 'scripts', 'migration-to-apply.sql');
-fs.writeFileSync(tempFilePath, sqlContent);
-console.log(`\nSQL 内容已保存到: ${tempFilePath}`);
+const connectionString = getConnectionString()
+
+if (!connectionString) {
+  console.error('❌ 错误: 找不到数据库连接字符串')
+  process.exit(1)
+}
+
+const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false }
+})
+
+async function executeSql(filePath) {
+  const client = await pool.connect()
+  try {
+    console.log(`📄 执行: ${filePath}`)
+    const sql = fs.readFileSync(filePath, 'utf8')
+    await client.query(sql)
+    console.log(`✅ ${filePath} 执行成功`)
+  } catch (error) {
+    console.error(`❌ ${filePath} 执行失败:`, error.message)
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+async function main() {
+  try {
+    // 执行表创建脚本
+    await executeSql('scripts/create-missing-tables.sql')
+    
+    // 执行函数创建脚本
+    await executeSql('scripts/create-missing-functions.sql')
+    
+    console.log('\n✅ 所有迁移执行完成!')
+  } catch (error) {
+    console.error('❌ 迁移失败:', error)
+    process.exit(1)
+  } finally {
+    await pool.end()
+  }
+}
+
+main()

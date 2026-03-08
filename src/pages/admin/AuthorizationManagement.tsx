@@ -1,5 +1,5 @@
 /**
- * 授权管理组件
+ * 授权管理组件 - 深色主题
  */
 import React, { useState } from 'react';
 import { useAuthorizations, useUpdateAuthorizationStatus } from '@/hooks/useBrands';
@@ -48,91 +48,99 @@ const AuthorizationManagement: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge className="bg-yellow-500">待审核</Badge>;
+        return <Badge className="bg-amber-500 border-0">待审核</Badge>;
       case 'approved':
-        return <Badge className="bg-green-500">已批准</Badge>;
+        return <Badge className="bg-emerald-500 border-0">已批准</Badge>;
       case 'rejected':
-        return <Badge className="bg-red-500">已拒绝</Badge>;
+        return <Badge className="bg-red-500 border-0">已拒绝</Badge>;
       case 'completed':
-        return <Badge className="bg-blue-500">已完成</Badge>;
+        return <Badge className="bg-blue-500 border-0">已完成</Badge>;
       default:
-        return <Badge>{status}</Badge>;
+        return <Badge className="border-0">{status}</Badge>;
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* 页面标题 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-white">授权管理</h2>
+          <p className="text-sm text-gray-500 mt-0.5">管理品牌方IP授权申请</p>
+        </div>
+      </div>
+
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a]">
           <p className="text-sm text-gray-500">申请总数</p>
-          <p className="text-2xl font-bold">{count}</p>
+          <p className="text-2xl font-bold text-white">{count}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a]">
           <p className="text-sm text-gray-500">待审核</p>
-          <p className="text-2xl font-bold text-yellow-600">
+          <p className="text-2xl font-bold text-amber-400">
             {authorizations.filter((a) => a.status === 'pending').length}
           </p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a]">
           <p className="text-sm text-gray-500">已批准</p>
-          <p className="text-2xl font-bold text-green-600">
+          <p className="text-2xl font-bold text-emerald-400">
             {authorizations.filter((a) => a.status === 'approved').length}
           </p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a]">
           <p className="text-sm text-gray-500">已完成</p>
-          <p className="text-2xl font-bold text-blue-600">
+          <p className="text-2xl font-bold text-blue-400">
             {authorizations.filter((a) => a.status === 'completed').length}
           </p>
         </div>
       </div>
 
       {/* 筛选栏 */}
-      <div className="bg-white rounded-xl p-4 shadow-sm flex flex-wrap gap-4">
+      <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a] flex flex-wrap gap-4">
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <Input
               placeholder="搜索品牌方或IP资产..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="pl-10"
+              className="pl-10 bg-[#1a1a1a] border-[#2a2a2a] text-white placeholder:text-gray-500"
             />
           </div>
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="border rounded-lg px-3 py-2"
+          className="border border-[#2a2a2a] rounded-lg px-3 py-2 bg-[#1a1a1a] text-white"
         >
-          <option value="all">全部状态</option>
-          <option value="pending">待审核</option>
-          <option value="approved">已批准</option>
-          <option value="rejected">已拒绝</option>
-          <option value="completed">已完成</option>
+          <option value="all" className="bg-[#1a1a1a]">全部状态</option>
+          <option value="pending" className="bg-[#1a1a1a]">待审核</option>
+          <option value="approved" className="bg-[#1a1a1a]">已批准</option>
+          <option value="rejected" className="bg-[#1a1a1a]">已拒绝</option>
+          <option value="completed" className="bg-[#1a1a1a]">已完成</option>
         </select>
       </div>
 
       {/* 授权申请列表 */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>品牌方</TableHead>
-              <TableHead>IP资产</TableHead>
-              <TableHead>申请者</TableHead>
-              <TableHead>期望价格</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>申请时间</TableHead>
-              <TableHead>操作</TableHead>
+            <TableRow className="border-[#2a2a2a] hover:bg-transparent">
+              <TableHead className="text-gray-400">品牌方</TableHead>
+              <TableHead className="text-gray-400">IP资产</TableHead>
+              <TableHead className="text-gray-400">申请者</TableHead>
+              <TableHead className="text-gray-400">期望价格</TableHead>
+              <TableHead className="text-gray-400">状态</TableHead>
+              <TableHead className="text-gray-400">申请时间</TableHead>
+              <TableHead className="text-gray-400">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-white" />
                 </TableCell>
               </TableRow>
             ) : filteredAuthorizations.length === 0 ? (
@@ -143,15 +151,15 @@ const AuthorizationManagement: React.FC = () => {
               </TableRow>
             ) : (
               filteredAuthorizations.map((auth) => (
-                <TableRow key={auth.id}>
-                  <TableCell className="font-medium">{auth.brand?.name || '-'}</TableCell>
-                  <TableCell>{auth.ip_asset?.name || '-'}</TableCell>
-                  <TableCell>{auth.applicant?.username || '-'}</TableCell>
-                  <TableCell>
+                <TableRow key={auth.id} className="border-[#2a2a2a]">
+                  <TableCell className="font-medium text-white">{auth.brand?.name || '-'}</TableCell>
+                  <TableCell className="text-gray-300">{auth.ip_asset?.name || '-'}</TableCell>
+                  <TableCell className="text-gray-300">{auth.applicant?.username || '-'}</TableCell>
+                  <TableCell className="text-white">
                     {auth.proposed_price ? `¥${auth.proposed_price.toLocaleString()}` : '-'}
                   </TableCell>
                   <TableCell>{getStatusBadge(auth.status)}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-gray-400">
                     {new Date(auth.created_at).toLocaleDateString('zh-CN')}
                   </TableCell>
                   <TableCell>
@@ -161,15 +169,17 @@ const AuthorizationManagement: React.FC = () => {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleReview(auth.id, 'approved')}
+                          className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
                         >
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-4 h-4" />
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => handleReview(auth.id, 'rejected')}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                         >
-                          <XCircle className="w-4 h-4 text-red-500" />
+                          <XCircle className="w-4 h-4" />
                         </Button>
                       </div>
                     )}

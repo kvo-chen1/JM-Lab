@@ -113,6 +113,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const [isPinned, setIsPinned] = useState<boolean>(false)
   // 主题下拉菜单状态
   const [showThemeDropdown, setShowThemeDropdown] = useState<boolean>(false)
+  // 悬浮分组状态（用于收起时显示子菜单）
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null)
   
   // 在客户端挂载后从localStorage加载保存的状态
   useEffect(() => {
@@ -854,8 +856,8 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       {/* 仅在桌面端显示侧边栏 */}
       <aside
         ref={sidebarRef}
-        className={`hidden md:flex flex-col ${isDark ? 'bg-gradient-to-b from-[#0F172A] via-[#1E3A5F] to-[#0F172A] backdrop-blur-xl border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]' : theme === 'pink' ? 'bg-white/90 backdrop-blur-sm border-pink-200' : 'bg-white border-gray-200'} border-r relative ring-1 z-10 ${isDark ? 'ring-blue-500/30' : theme === 'pink' ? 'ring-pink-200' : 'ring-gray-200'}`}
-        style={{ width: collapsed ? 80 : width, transition: 'width 0.2s ease-in-out' }}
+        className={`hidden md:flex flex-col ${isDark ? 'bg-gradient-to-b from-[#0F172A] via-[#1E3A5F] to-[#0F172A] backdrop-blur-xl border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]' : theme === 'pink' ? 'bg-white/90 backdrop-blur-sm border-pink-200' : 'bg-white border-gray-200'} border-r relative ring-1 ${isDark ? 'ring-blue-500/30' : theme === 'pink' ? 'ring-pink-200' : 'ring-gray-200'}`}
+        style={{ width: collapsed ? 80 : width, transition: 'width 0.2s ease-in-out', overflow: 'visible', zIndex: 9999 }}
         role="navigation"
         aria-label={t('sidebar.navigation')}
       >
@@ -867,7 +869,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           <div className="flex items-center justify-center">
             {/* 展开/收缩按钮 */}
             <button
-              className={`${collapsed ? 'p-3' : 'p-2'} rounded-xl transition-all bg-gradient-to-br from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/30 hover:shadow-red-500/50 hover:scale-105 active:scale-95`}
+              className={`${collapsed ? 'w-14 h-14' : 'p-2'} rounded-xl transition-all bg-gradient-to-br from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/30 hover:shadow-red-500/50 hover:scale-105 active:scale-95 flex items-center justify-center`}
               onClick={() => {
                 setCollapsed(!collapsed);
               }}
@@ -880,54 +882,170 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           </div>
         </div>
 
-        <nav className={`px-2 pt-2 pb-4 ${collapsed ? 'space-y-1.5' : 'space-y-3'}`}>
-          {navigationGroups.map((group) => (
+        <nav className={`flex-1 px-2 py-4 ${collapsed ? 'space-y-1' : 'space-y-5'} overflow-y-visible overflow-x-visible`}>
+          {navigationGroups.map((group, groupIndex) => (
             <motion.div
               key={group.id}
-              className={`rounded-xl ${isDark ? 'bg-blue-900/20 backdrop-blur-md border border-blue-500/30' : 'bg-gray-50 border border-gray-100'} ${collapsed ? 'p-2' : 'p-3'} transition-all duration-300 hover:shadow-md dark:hover:shadow-lg hover:shadow-gray-100/50 dark:hover:shadow-blue-900/30`}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: getDuration(0.3), delay: getDelay(0.1) }}
+              className="relative"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ 
+                duration: getDuration(0.3), 
+                delay: getDelay(groupIndex * 0.05)
+              }}
             >
-              {!collapsed && (
-                <motion.h3
-                  className={`${isDark ? 'text-[11px] text-blue-300/80' : 'text-[12px] text-blue-600'} font-medium mb-2.5 flex items-center transition-all duration-300 ease-in-out opacity-100`}
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: getDuration(0.2), delay: getDelay(0.1) }}
+              {collapsed ? (
+                // 收起状态：只显示分组图标
+                <div 
+                  className="relative z-[100]"
+                  onMouseEnter={() => setHoveredGroup(group.id)}
+                  onMouseLeave={() => setHoveredGroup(null)}
                 >
-                  <span className="mr-1.5 w-1 h-1 rounded-full bg-blue-400/60"></span>
-                  <span className="tracking-wide">{t(navGroupIdToTranslationKey[group.id] || group.title)}</span>
-                </motion.h3>
-              )}
-              <div className={`${collapsed ? 'space-y-1' : 'space-y-1.5'}`}>
-                {group.items.map((item, index) => (
                   <NavLink
-                    key={item.id}
-                    to={`${item.path}${item.search || ''}`}
-                    title={collapsed ? item.label : undefined}
-                    onMouseEnter={() => debouncedPrefetch(item.id)}
-                    className={({ isActive }) => `${navItemClass} ${isActive ? activeClass : (isDark ? 'text-white' : 'text-gray-700')} relative overflow-hidden group ${collapsed ? 'justify-center px-2 py-2' : ''}`}
-                    end
+                    to={group.items[0]?.path || '/'}
+                    className={({ isActive }) => `
+                      group relative flex items-center justify-center w-14 h-14 mx-auto rounded-xl transition-all duration-200
+                      ${isActive 
+                        ? (isDark 
+                            ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30' 
+                            : 'bg-gradient-to-br from-red-500 to-rose-500 text-white shadow-lg shadow-red-500/30')
+                        : (isDark 
+                            ? 'text-gray-400 hover:bg-white/10 hover:text-white' 
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900')
+                      }
+                    `}
                   >
-                    <i className={`fas ${item.icon} ${collapsed ? 'mr-0 text-xl' : 'mr-3 text-base'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 ${isDark ? 'text-white' : 'text-current'} ${collapsed ? 'w-8' : 'w-5'} text-center flex-shrink-0`}></i>
-                    {!collapsed && (
-                      <span
-                        className="flex-1 transition-all duration-300 ease-in-out opacity-100 font-medium text-[13px] leading-tight"
-                      >
-                        {navItemIdToTranslationKey[item.id] ? t(navItemIdToTranslationKey[item.id]) : item.label}
-                      </span>
-                    )}
-                    {item.badge && !collapsed && (
-                      <span
-                        className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] rounded ${isDark ? 'bg-blue-500/30 text-blue-300 border border-blue-500/30' : 'bg-red-50 text-red-600 border border-red-200'} font-medium ml-auto`}
-                      >
-                        {item.badge}
-                      </span>
+                    {({ isActive }) => (
+                      <>
+                        <i className={`fas ${group.icon} text-xl transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}></i>
+                        {/* 分组内有 NEW 标记时显示小红点 */}
+                        {group.items.some(item => item.badge) && (
+                          <div className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 border-2 ${isDark ? 'border-[#0F172A]' : 'border-white'}`}></div>
+                        )}
+                      </>
                     )}
                   </NavLink>
-                ))}
-              </div>
+                  
+                  {/* 悬浮菜单 */}
+                  {hoveredGroup === group.id && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      exit={{ opacity: 0, x: -10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className={`absolute left-full top-0 z-[9999] min-w-[180px] rounded-xl shadow-2xl overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}
+                      style={{ left: '56px', top: '0' }}
+                    >
+                      {/* 分组标题 */}
+                      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700 bg-gray-800/80' : 'border-gray-100 bg-gray-50/80'}`}>
+                        <h3 className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {t(navGroupIdToTranslationKey[group.id] || group.title)}
+                        </h3>
+                      </div>
+                      {/* 子菜单项 */}
+                      <div className="py-1">
+                        {group.items.map((item, itemIndex) => (
+                          <NavLink
+                            key={item.id}
+                            to={`${item.path}${item.search || ''}`}
+                            onMouseEnter={() => debouncedPrefetch(item.id)}
+                            className={({ isActive }) => `
+                              flex items-center px-4 py-2.5 text-sm transition-all duration-150
+                              ${isActive 
+                                ? (isDark 
+                                    ? 'bg-blue-500/20 text-blue-300' 
+                                    : 'bg-red-50 text-red-600')
+                                : (isDark 
+                                    ? 'text-gray-300 hover:bg-white/5 hover:text-white' 
+                                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900')
+                              }
+                            `}
+                          >
+                            <i className={`fas ${item.icon} w-5 text-center mr-3 ${({ isActive }: { isActive: boolean }) => isActive ? 'text-current' : 'text-gray-400'}`}></i>
+                            <span className="flex-1">{navItemIdToTranslationKey[item.id] ? t(navItemIdToTranslationKey[item.id]) : item.label}</span>
+                            {item.badge && (
+                              <span className={`
+                                ml-2 px-1.5 py-0.5 text-[9px] font-bold rounded
+                                ${item.badge === 'NEW' || item.badge === '新'
+                                  ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white'
+                                  : (isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-red-100 text-red-600')
+                                }
+                              `}>
+                                {item.badge}
+                              </span>
+                            )}
+                          </NavLink>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              ) : (
+                // 展开状态：显示分组标题和子项
+                <div className="px-2">
+                  <motion.div
+                    className="flex items-center gap-2 mb-2"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: getDuration(0.3), delay: getDelay(groupIndex * 0.05) }}
+                  >
+                    <div className={`w-1 h-4 rounded-full ${isDark ? 'bg-gradient-to-b from-blue-400 to-purple-500' : 'bg-gradient-to-b from-red-500 to-rose-400'}`}></div>
+                    <h3 className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {t(navGroupIdToTranslationKey[group.id] || group.title)}
+                    </h3>
+                  </motion.div>
+                  <div className="space-y-0.5">
+                    {group.items.map((item, itemIndex) => (
+                      <NavLink
+                        key={item.id}
+                        to={`${item.path}${item.search || ''}`}
+                        onMouseEnter={() => debouncedPrefetch(item.id)}
+                        className={({ isActive }) => `
+                          group relative flex items-center rounded-lg transition-all duration-150
+                          px-3 py-2
+                          ${isActive 
+                            ? (isDark 
+                                ? 'bg-gradient-to-r from-blue-600/80 to-blue-500/60 text-white shadow-md' 
+                                : 'bg-gradient-to-r from-red-500 to-rose-400 text-white shadow-md')
+                            : (isDark 
+                                ? 'text-gray-300 hover:bg-white/5 hover:text-white' 
+                                : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900')
+                          }
+                        `}
+                        end
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <div className={`
+                              w-7 h-7 flex items-center justify-center rounded-md mr-2 transition-all duration-150
+                              ${isActive ? 'bg-white/20' : 'bg-transparent'}
+                            `}>
+                              <i className={`fas ${item.icon} text-[13px] ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-current'}`}></i>
+                            </div>
+                            <span className="flex-1 text-[13px] font-medium">{navItemIdToTranslationKey[item.id] ? t(navItemIdToTranslationKey[item.id]) : item.label}</span>
+                            {item.badge && (
+                              <motion.span
+                                className={`
+                                  ml-2 px-1.5 py-0.5 text-[9px] font-bold rounded
+                                  ${item.badge === 'NEW' || item.badge === '新'
+                                    ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white'
+                                    : (isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-red-100 text-red-600')
+                                  }
+                                `}
+                                initial={{ scale: 0.8 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                              >
+                                {item.badge}
+                              </motion.span>
+                            )}
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
           ))}
         </nav>
@@ -945,7 +1063,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       </aside>
       {/* 中文注释：恢复点击自动收起功能，但优化实现方式避免跳动 */}
       <div 
-        className="flex-1 min-w-0 md:pb-0 pb-16 flex flex-col overflow-y-auto relative z-10"
+        className={`flex-1 min-w-0 flex flex-col relative z-10 ${location.pathname.startsWith('/create/agent') ? 'overflow-hidden' : 'overflow-y-auto md:pb-0 pb-16'}`}
         onClick={(e) => {
           // 确保点击的不是内部的可交互元素
           const target = e.target as HTMLElement;
@@ -955,7 +1073,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
           }
         }}
       >
-        {/* 中文注释：暗色头部采用蓝色渐变背景与毛玻璃 - 在管理后台页面隐藏 */}
+        {/* 中文注释：暗色头部采用蓝色渐变背景与毛玻璃 - 在管理后台隐藏 */}
         {!location.pathname.startsWith('/admin') && (
         <motion.header
           className={`sticky top-0 z-[60] ${isDark ? 'bg-gradient-to-r from-[#0F172A]/98 via-[#1E3A5F]/95 to-[#0F172A]/98 backdrop-blur-xl text-blue-50 shadow-[0_4px_20px_rgba(59,130,246,0.15)]' : theme === 'pink' ? 'bg-white/80 backdrop-blur-sm' : 'bg-white'} border-b ${isDark ? 'border-blue-500/50' : theme === 'pink' ? 'border-pink-200' : 'border-gray-200'} px-4 py-3`}

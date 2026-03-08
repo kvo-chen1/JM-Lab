@@ -391,12 +391,12 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 overflow-y-auto p-4 sm:p-8 bg-gray-50 dark:bg-gray-950"
+              className="absolute inset-0 overflow-y-auto p-4 sm:p-8 bg-black"
             >
               {/* 传统画廊预览模式 */}
               <div className="w-full flex flex-col items-center z-0 pb-6">
                 {/* Focus View - 支持智能排版 - 全屏沉浸式 */}
-                <div className="w-full flex items-center justify-center min-h-[400px] max-h-[70vh] mb-8 px-4">
+                <div className="w-full flex items-center justify-center min-h-[400px] max-h-[70vh] mb-8 px-4 bg-black rounded-2xl">
                   {selectedResult ? (
                     <div className="relative w-full max-w-5xl max-h-full">
                       <SmartLayoutCanvas

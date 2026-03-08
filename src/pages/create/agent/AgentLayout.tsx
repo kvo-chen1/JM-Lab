@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore } from './hooks/useAgentStore';
-import { PanelLeft, PanelRight, Sparkles } from 'lucide-react';
+import { useConversationStore } from './hooks/useConversationStore';
+import { PanelLeft, Sparkles, History } from 'lucide-react';
+import ConversationSidebar from './components/ConversationSidebar';
 
 interface AgentLayoutProps {
   children: {
@@ -13,29 +15,45 @@ interface AgentLayoutProps {
 
 export default function AgentLayout({ children }: AgentLayoutProps) {
   const { isDark } = useTheme();
-  const { isChatCollapsed, toggleChatCollapsed, currentAgent, currentTask } = useAgentStore();
+  const { isChatCollapsed, currentAgent, currentTask } = useAgentStore();
+  const { currentSessionId, getCurrentSession, createSession } = useConversationStore();
+  const [isConversationSidebarOpen, setIsConversationSidebarOpen] = useState(true);
+
+  // 初始化时如果没有会话，自动创建一个
+  useEffect(() => {
+    if (!currentSessionId) {
+      const agentStore = useAgentStore.getState();
+      // 如果有现有对话内容，保存为会话
+      if (agentStore.messages.length > 1 || agentStore.currentTask) {
+        createSession(agentStore.currentTask?.title || '未命名会话');
+      }
+    }
+  }, []);
+
+  const currentSession = getCurrentSession();
 
   return (
     <div className={`flex flex-col h-screen overflow-hidden ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
-      {/* 顶部边距 - 避开搜索框 */}
-      <div className="h-3"></div>
-      
-      {/* Header */}
-      <header className={`h-14 px-4 flex items-center justify-between border-b backdrop-blur-md z-20 ${
+      {/* Header - 添加 mt-3 为 SidebarLayout 的顶部导航栏留出空间 */}
+      <header className={`h-14 px-4 mt-3 flex items-center justify-between border-b backdrop-blur-md z-20 ${
         isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'
       }`}>
         <div className="flex items-center gap-3">
-          {/* 折叠按钮 */}
+          {/* 会话侧边栏切换按钮 */}
           <motion.button
-            onClick={toggleChatCollapsed}
+            onClick={() => setIsConversationSidebarOpen(!isConversationSidebarOpen)}
             className={`p-2 rounded-lg transition-colors ${
               isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
             }`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            title={isChatCollapsed ? '展开对话面板' : '收起对话面板'}
+            title={isConversationSidebarOpen ? '收起会话列表' : '展开会话列表'}
           >
-            {isChatCollapsed ? <PanelRight className="w-5 h-5" /> : <PanelLeft className="w-5 h-5" />}
+            {isConversationSidebarOpen ? (
+              <PanelLeft className="w-5 h-5" />
+            ) : (
+              <History className="w-5 h-5" />
+            )}
           </motion.button>
 
           {/* Logo和标题 */}
@@ -48,7 +66,7 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
                 津小脉Agent
               </h1>
               <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                {currentTask ? currentTask.title : '智能设计助手'}
+                {currentSession?.title || (currentTask ? currentTask.title : '智能设计助手')}
               </p>
             </div>
           </div>
@@ -71,24 +89,30 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Chat Panel */}
+      <div className="flex-1 flex min-h-0">
+        {/* Conversation Sidebar */}
+        <ConversationSidebar
+          isOpen={isConversationSidebarOpen}
+          onToggle={() => setIsConversationSidebarOpen(!isConversationSidebarOpen)}
+        />
+
+        {/* Chat Panel - 固定高度 */}
         <motion.div
           initial={false}
           animate={{
-            width: isChatCollapsed ? 0 : 400,
+            width: isChatCollapsed ? 0 : 560,
             opacity: isChatCollapsed ? 0 : 1
           }}
           transition={{ duration: 0.3, ease: 'easeInOut' }}
-          className="flex-shrink-0 overflow-hidden"
+          className="flex-shrink-0 h-full"
         >
-          <div className="w-[400px] h-full">
+          <div className="w-[560px] h-full">
             {children.chatPanel}
           </div>
         </motion.div>
 
-        {/* Canvas Panel */}
-        <div className="flex-1 min-w-0">
+        {/* Canvas Panel - 可滚动 */}
+        <div className="flex-1 min-w-0 h-full overflow-y-auto">
           {children.canvasPanel}
         </div>
       </div>

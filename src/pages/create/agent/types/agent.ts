@@ -1,9 +1,25 @@
 // Agent类型定义
 
-export type AgentRole = 'user' | 'director' | 'designer' | 'system';
-export type MessageType = 'text' | 'image' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'thinking';
+// 扩展后的 Agent 类型
+export type AgentType =
+  | 'director'      // 设计总监 - 统筹全局、需求分析、任务分配
+  | 'designer'      // 品牌设计师 - 视觉设计、图像生成
+  | 'illustrator'   // 插画师 - 手绘风格、角色设计
+  | 'copywriter'    // 文案策划 - 品牌文案、标语创作
+  | 'animator'      // 动画师 - 动效设计、视频制作
+  | 'researcher'    // 研究员 - 市场调研、竞品分析
+  | 'system'
+  | 'user';
+
+// 为了向后兼容，保留 AgentRole
+export type AgentRole = AgentType;
+
+export type MessageType = 'text' | 'image' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'thinking' | 'delegation' | 'collaboration';
 export type TaskType = 'ip-character' | 'brand-packaging' | 'poster' | 'custom';
 export type TaskStage = 'requirement' | 'design' | 'review' | 'derivative' | 'completed';
+
+// Agent 决策动作类型
+export type AgentAction = 'respond' | 'delegate' | 'collaborate' | 'handoff' | 'chain';
 
 export interface AgentMessage {
   id: string;
@@ -17,7 +33,24 @@ export interface AgentMessage {
     thinking?: string;
     toolCalls?: ToolCall[];
     derivativeOptions?: DerivativeOption[];
+    delegationInfo?: DelegationInfo;
+    collaborationInfo?: CollaborationInfo;
   };
+}
+
+// 委派信息
+export interface DelegationInfo {
+  fromAgent: AgentType;
+  toAgent: AgentType;
+  taskDescription: string;
+  reasoning: string;
+}
+
+// 协作信息
+export interface CollaborationInfo {
+  participatingAgents: AgentType[];
+  taskDescription: string;
+  progress: number;
 }
 
 export interface StyleOption {
@@ -30,7 +63,7 @@ export interface StyleOption {
 
 export interface ToolCall {
   id: string;
-  tool: 'search' | 'generate-image' | 'generate-video' | 'analyze';
+  tool: 'search' | 'generate-image' | 'generate-video' | 'analyze' | 'research' | 'write-copy';
   status: 'pending' | 'running' | 'completed' | 'error';
   result?: any;
 }
@@ -41,6 +74,34 @@ export interface DerivativeOption {
   description: string;
   icon: string;
   type: 'video' | 'short-film' | 'merchandise' | 'poster' | 'animation';
+}
+
+// 委派任务记录
+export interface DelegationTask {
+  id: string;
+  fromAgent: AgentType;
+  toAgent: AgentType;
+  taskDescription: string;
+  context: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  createdAt: number;
+  completedAt?: number;
+  result?: string;
+}
+
+// Agent 决策结果
+export interface AgentDecision {
+  action: AgentAction;
+  targetAgent?: AgentType;
+  targetAgents?: AgentType[];  // 用于 collaborate 动作
+  reasoning: string;
+  taskContext?: {
+    taskType: string;
+    requirements: string;
+    priority: 'low' | 'medium' | 'high';
+  };
+  requiresUserConfirmation?: boolean;
+  message?: string;  // 给用户的说明消息
 }
 
 export interface DesignTask {
@@ -70,51 +131,63 @@ export interface GeneratedOutput {
   style?: string;
   createdAt: number;
   metadata?: Record<string, any>;
+  agentType?: AgentType;  // 记录是哪个 Agent 生成的
 }
 
 export interface AgentState {
   // 对话状态
   messages: AgentMessage[];
-  currentAgent: 'director' | 'designer';
+  currentAgent: AgentType;
   isTyping: boolean;
-  
+
   // 设计任务状态
   currentTask: DesignTask | null;
   taskStage: TaskStage;
-  
+
   // 生成内容
   generatedOutputs: GeneratedOutput[];
   selectedOutput: string | null;
   selectedStyle: string | null;
-  
+
   // 画布状态
   canvasZoom: number;
   canvasPosition: { x: number; y: number };
   selectedTool: 'select' | 'move' | 'hand';
-  
+
   // UI状态
   showStyleSelector: boolean;
   showSatisfactionModal: boolean;
   showThinkingProcess: boolean;
   isChatCollapsed: boolean;
-  
+
   // 工具调用状态
   activeToolCalls: ToolCall[];
+
+  // Agent 编排相关状态
+  agentQueue: AgentType[];              // Agent 执行队列
+  delegationHistory: DelegationTask[];  // 委派历史
+  isCollaborating: boolean;             // 是否协作中
+  collaborationAgents: AgentType[];     // 当前协作的 Agents
+  currentDelegation: DelegationTask | null; // 当前正在进行的委派
+}
+
+// Agent 配置项
+export interface AgentConfigItem {
+  name: string;
+  avatar: string;
+  color: string;
+  description: string;
+  capabilities: string[];
+  tools: string[];
 }
 
 export interface AgentConfig {
-  director: {
-    name: string;
-    avatar: string;
-    color: string;
-    description: string;
-  };
-  designer: {
-    name: string;
-    avatar: string;
-    color: string;
-    description: string;
-  };
+  director: AgentConfigItem;
+  designer: AgentConfigItem;
+  illustrator: AgentConfigItem;
+  copywriter: AgentConfigItem;
+  animator: AgentConfigItem;
+  researcher: AgentConfigItem;
 }
 
 // 预设风格选项
@@ -222,12 +295,90 @@ export const AGENT_CONFIG: AgentConfig = {
     name: '津脉设计总监',
     avatar: '总',
     color: 'from-amber-500 to-orange-600',
-    description: '统领全局，理解需求，协调资源'
+    description: '统领全局，理解需求，协调资源',
+    capabilities: ['需求分析', '任务分配', '项目管理', '质量把控'],
+    tools: ['delegate', 'review', 'coordinate']
   },
   designer: {
     name: '津脉品牌设计师',
     avatar: '设',
     color: 'from-cyan-500 to-blue-600',
-    description: '专注设计执行，调用AI工具创作'
+    description: '专注设计执行，调用AI工具创作',
+    capabilities: ['视觉设计', '图像生成', '品牌设计', '包装设计'],
+    tools: ['generate-image', 'style-analysis', 'design-review']
+  },
+  illustrator: {
+    name: '津脉插画师',
+    avatar: '绘',
+    color: 'from-pink-500 to-rose-600',
+    description: '擅长手绘风格，角色设计与插画创作',
+    capabilities: ['角色设计', '插画绘制', '手绘风格', '概念设计'],
+    tools: ['sketch', 'illustrate', 'character-design']
+  },
+  copywriter: {
+    name: '津脉文案策划',
+    avatar: '文',
+    color: 'from-emerald-500 to-teal-600',
+    description: '品牌文案、标语创作与故事编写',
+    capabilities: ['品牌文案', '标语创作', '故事编写', '内容策划'],
+    tools: ['write-copy', 'create-slogan', 'brand-story']
+  },
+  animator: {
+    name: '津脉动画师',
+    avatar: '动',
+    color: 'from-violet-500 to-purple-600',
+    description: '动效设计与视频制作专家',
+    capabilities: ['动画制作', '视频编辑', '动效设计', '表情包制作'],
+    tools: ['create-animation', 'edit-video', 'motion-design']
+  },
+  researcher: {
+    name: '津脉研究员',
+    avatar: '研',
+    color: 'from-slate-500 to-gray-600',
+    description: '市场调研、竞品分析与趋势研究',
+    capabilities: ['市场调研', '竞品分析', '趋势研究', '数据分析'],
+    tools: ['market-research', 'competitor-analysis', 'trend-study']
   }
 };
+
+// 辅助函数：获取 Agent 配置
+export function getAgentConfig(agentType: AgentType): AgentConfigItem | null {
+  if (agentType === 'system' || agentType === 'user') return null;
+  return AGENT_CONFIG[agentType] || null;
+}
+
+// 辅助函数：检查是否为有效的专业 Agent
+export function isProfessionalAgent(agentType: AgentType): boolean {
+  return ['director', 'designer', 'illustrator', 'copywriter', 'animator', 'researcher'].includes(agentType);
+}
+
+// ============ 会话记录相关类型 ============
+
+export interface ConversationSession {
+  id: string;
+  title: string;
+  description?: string;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+  // 会话状态快照
+  stateSnapshot: AgentStateSnapshot;
+}
+
+// 会话状态快照（用于保存和恢复会话）
+export interface AgentStateSnapshot {
+  messages: AgentMessage[];
+  currentAgent: AgentType;
+  currentTask: DesignTask | null;
+  taskStage: TaskStage;
+  generatedOutputs: GeneratedOutput[];
+  selectedOutput: string | null;
+  selectedStyle: string | null;
+  delegationHistory: DelegationTask[];
+}
+
+// 会话列表状态
+export interface ConversationState {
+  sessions: ConversationSession[];
+  currentSessionId: string | null;
+}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import type { Community } from '@/services/communityService';
+import { queryCache } from '@/utils/queryCache';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
 import { 
   Users, 
@@ -339,21 +340,42 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
     const fetchCommunityStats = async () => {
       if (!community?.id) return;
 
+      const cacheKey = `community_stats_${community.id}`;
+      
       try {
-        // 先更新用户在社区的活跃时间（标记在线）
+        // 先更新用户在社区的活跃时间（标记在线）- 每5分钟更新一次
         const { data: { session } } = await import('@/lib/supabase').then(m => m.supabase.auth.getSession());
         if (session?.user?.id) {
-          const { supabaseAdmin } = await import('@/lib/supabaseClient');
+          const lastActiveKey = `last_active_${community.id}_${session.user.id}`;
+          const lastActive = queryCache.get<number>(lastActiveKey);
           const now = Math.floor(Date.now() / 1000);
-          const { error: updateError } = await supabaseAdmin
-            .from('community_members')
-            .update({ last_active: now })
-            .eq('community_id', community.id)
-            .eq('user_id', session.user.id);
           
-          if (updateError) {
-            console.error('[CommunityInfoSidebar] Failed to update last_active:', updateError);
+          // 每5分钟才更新一次活跃时间
+          if (!lastActive || now - lastActive > 300) {
+            const { supabaseAdmin } = await import('@/lib/supabaseClient');
+            const { error: updateError } = await supabaseAdmin
+              .from('community_members')
+              .update({ last_active: now })
+              .eq('community_id', community.id)
+              .eq('user_id', session.user.id);
+            
+            if (updateError) {
+              console.error('[CommunityInfoSidebar] Failed to update last_active:', updateError);
+            } else {
+              queryCache.set(lastActiveKey, now, 300000); // 缓存5分钟
+            }
           }
+        }
+
+        // 使用缓存获取统计数据（缓存2分钟）
+        const cachedStats = queryCache.get<{weeklyVisitors: number; weeklyInteractions: number; onlineCount: number}>(cacheKey);
+        if (cachedStats) {
+          setCommunityStats({
+            weeklyVisitors: cachedStats.weeklyVisitors,
+            weeklyInteractions: cachedStats.weeklyInteractions
+          });
+          setOnlineCountState(cachedStats.onlineCount);
+          return;
         }
 
         const response = await fetch(`/api/communities/${community.id}/stats`);
@@ -361,12 +383,18 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
           const result = await response.json();
           if (result.code === 0 && result.data) {
             console.log('[CommunityInfoSidebar] Community stats:', result.data);
-            setCommunityStats({
+            const stats = {
               weeklyVisitors: result.data.weekly_visitors || 0,
-              weeklyInteractions: result.data.weekly_interactions || 0
+              weeklyInteractions: result.data.weekly_interactions || 0,
+              onlineCount: result.data.online_count || 0
+            };
+            setCommunityStats({
+              weeklyVisitors: stats.weeklyVisitors,
+              weeklyInteractions: stats.weeklyInteractions
             });
-            // 更新在线人数
-            setOnlineCountState(result.data.online_count || 0);
+            setOnlineCountState(stats.onlineCount);
+            // 缓存统计数据2分钟
+            queryCache.set(cacheKey, stats, 120000);
           }
         }
       } catch (error) {
@@ -376,8 +404,8 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
 
     fetchCommunityStats();
 
-    // 每1秒更新一次统计数据
-    const interval = setInterval(fetchCommunityStats, 1000);
+    // 每30秒更新一次统计数据（降低频率以节省数据库流量）
+    const interval = setInterval(fetchCommunityStats, 30000);
     return () => clearInterval(interval);
   }, [community.id]);
 
@@ -385,6 +413,15 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
   useEffect(() => {
     const fetchRealMemberCount = async () => {
       if (!community?.id) return;
+
+      const cacheKey = `member_count_${community.id}`;
+      
+      // 先检查缓存
+      const cachedCount = queryCache.get<number>(cacheKey);
+      if (cachedCount !== null) {
+        setRealMemberCount(cachedCount);
+        return;
+      }
 
       try {
         const { supabase } = await import('@/lib/supabaseClient');
@@ -401,6 +438,8 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
         if (count !== null && count !== undefined) {
           console.log('[CommunityInfoSidebar] Real member count:', count);
           setRealMemberCount(count);
+          // 缓存成员数量5分钟
+          queryCache.set(cacheKey, count, 300000);
         }
       } catch (error) {
         console.error('[CommunityInfoSidebar] Error fetching member count:', error);

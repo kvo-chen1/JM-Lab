@@ -11,8 +11,10 @@ import {
   TrendingUp, 
   ChevronRight,
   Package,
-  Store
+  Store,
+  Award
 } from 'lucide-react';
+import LicensedProductSection from '@/components/marketplace/LicensedProductSection';
 
 // 布局组件
 import ThreeColumnLayout from '@/components/layout/ThreeColumnLayout';
@@ -291,6 +293,21 @@ const MarketplacePage: React.FC = () => {
             />
           </motion.section>
         )}
+
+        {/* 授权IP产品 */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+        >
+          <LicensedProductSection
+            title="授权IP产品"
+            subtitle="正版授权，品质保证，支持原创作者"
+            type="hot"
+            limit={8}
+            showViewAll={true}
+          />
+        </motion.section>
 
         {/* 全部商品 */}
         <motion.section

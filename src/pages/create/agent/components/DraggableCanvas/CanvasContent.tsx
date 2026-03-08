@@ -4,24 +4,24 @@ import { useTheme } from '@/hooks/useTheme';
 
 interface CanvasContentProps {
   children: React.ReactNode;
-  zoom: number;
-  position: { x: number; y: number };
-  onPositionChange: (position: { x: number; y: number }) => void;
-  selectedTool: 'select' | 'move' | 'hand';
-  isDragging: boolean;
-  onDragStart: () => void;
-  onDragEnd: () => void;
+  zoom?: number;
+  position?: { x: number; y: number };
+  onPositionChange?: (position: { x: number; y: number }) => void;
+  selectedTool?: 'select' | 'move' | 'hand';
+  isDragging?: boolean;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }
 
-const CanvasContent = React.memo(function CanvasContent({ 
-  children, 
-  zoom, 
-  position, 
-  onPositionChange, 
-  selectedTool, 
-  isDragging, 
-  onDragStart, 
-  onDragEnd 
+const CanvasContent = React.memo(function CanvasContent({
+  children,
+  zoom = 100,
+  position = { x: 0, y: 0 },
+  onPositionChange = () => {},
+  selectedTool = 'select',
+  isDragging = false,
+  onDragStart = () => {},
+  onDragEnd = () => {}
 }: CanvasContentProps) {
   const { isDark } = useTheme();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -110,7 +110,7 @@ const CanvasContent = React.memo(function CanvasContent({
   return (
     <div
       ref={canvasRef}
-      className="relative w-full h-full overflow-hidden"
+      className="relative w-full h-full"
       style={cursorStyle}
     >
       <motion.div

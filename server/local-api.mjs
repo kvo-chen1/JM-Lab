@@ -386,6 +386,8 @@ import authRoutes from './routes/auth.mjs'
 import notificationRoutes from './routes/notifications.mjs'
 import handleStorageRoute from './routes/storage-simple.mjs'
 import handleDbProxy from './routes/db-proxy-simple.mjs'
+import ipRoutes from './routes/ip.mjs'
+import copyrightLicenseRoutes from './routes/copyright-license.mjs'
 import { generateOAuthUrl, handleOAuthCallback, getConfiguredProviders, isOAuthConfigured } from './oauth-providers.mjs'
 import {
   testConnection,
@@ -676,6 +678,50 @@ async function uploadLocalImageToSupabase(localUrl) {
   }
 }
 
+// 下载远程图片并保存到本地
+async function downloadImageToLocal(imageUrl, subDir = 'generated') {
+  try {
+    console.log('[downloadImageToLocal] Downloading:', imageUrl.substring(0, 80));
+    
+    // 下载图片
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download image: ${response.status}`);
+    }
+    
+    const buffer = await response.arrayBuffer();
+    
+    // 确定文件扩展名
+    const contentType = response.headers.get('content-type') || '';
+    let ext = '.jpg';
+    if (contentType.includes('png')) ext = '.png';
+    else if (contentType.includes('gif')) ext = '.gif';
+    else if (contentType.includes('webp')) ext = '.webp';
+    
+    // 生成唯一文件名
+    const uniqueName = `${Date.now()}-${randomUUID()}${ext}`;
+    
+    // 确保上传目录存在
+    const uploadDir = pathModule.join(projectRoot, 'public', 'uploads', subDir);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    
+    const filePath = pathModule.join(uploadDir, uniqueName);
+    fs.writeFileSync(filePath, Buffer.from(buffer));
+    
+    // 返回本地访问 URL
+    const localUrl = `/uploads/${subDir}/${uniqueName}`;
+    console.log('[downloadImageToLocal] Saved to:', filePath);
+    console.log('[downloadImageToLocal] Local URL:', localUrl);
+    
+    return localUrl;
+  } catch (error) {
+    console.error('[downloadImageToLocal] Error:', error.message);
+    throw error;
+  }
+}
+
 async function dashscopeVideoGenerate(params) {
   const { prompt, imageUrl, authKey, model, aspectRatio } = params;
   const endpoint = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis';
@@ -804,12 +850,11 @@ async function dashscopeVideoGenerate(params) {
 async function dashscopeImageGenerate(params) {
   const { prompt, size, n, authKey, model, refImage, refStrength, refMode } = params
   
-  // 判断使用哪个模型 - 使用有免费额度的 qwen-image-2.0
-  const modelName = model || 'qwen-image-2.0';
-  // qwen-image-2.0 系列使用同步调用（不支持异步）
-  const isQwenImage2 = modelName.startsWith('qwen-image-2');
+  // 使用 wanx-v1 模型（万相文生图）
+  // 注意：qwen-image-2.0 系列是视觉理解模型，不是文生图模型
+  const modelName = model || 'wanx-v1';
   
-  // qwen-image-2.0 系列使用同步调用，其他使用异步调用
+  // 文生图 API 端点
   const base = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1';
   const endpoint = `${base}/services/aigc/text2image/image-synthesis`;
     
@@ -818,34 +863,27 @@ async function dashscopeImageGenerate(params) {
   try {
     console.log(`[DashScope] Starting image generation with model: ${modelName}...`, refImage ? '(with ref image)' : '(text only)');
     
-    // 构建请求体
+    // 构建请求体 - 参考阿里云官方文档
     const requestBody = {
       model: modelName,
       input: { 
-        prompt,
-        negative_prompt: ' '  // 添加空格作为默认反向提示词
+        prompt
       },
       parameters: { 
         size: normalizedSize, 
-        n: n || 1,
-        prompt_extend: true,   // 开启智能改写
-        watermark: false       // 不添加水印
+        n: n || 1
       }
     };
     
-    // 构建请求头
+    // 构建请求头 - 文生图需要使用异步模式
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${authKey}`,
+      'X-DashScope-Async': 'enable'  // 文生图必须使用异步模式
     };
     
-    // 只有非 qwen-image-2.0 系列才需要异步头
-    if (!isQwenImage2) {
-      headers['X-DashScope-Async'] = 'enable';
-    }
-    
-    // 如果有参考图片 (仅旧模型支持)
-    if (refImage && !isQwenImage2) {
+    // 如果有参考图片
+    if (refImage) {
       console.log('[DashScope] Using ref image:', refImage.substring(0, 80));
       requestBody.input.ref_img = refImage;
       requestBody.parameters.ref_strength = refStrength || 0.7;
@@ -873,30 +911,7 @@ async function dashscopeImageGenerate(params) {
       }
     }
 
-    // qwen-image-2.0 系列是同步调用，直接返回结果
-    if (isQwenImage2) {
-      if (createData.output?.results && createData.output.results.length > 0) {
-        const images = createData.output.results.map((item) => {
-          const url = item?.url || item?.image_url || item?.image || ''
-          return { url, revised_prompt: prompt }
-        }).filter((it) => !!it.url)
-        
-        console.log('[DashScope] Sync generation successful, images:', images);
-        
-        return {
-          status: 200,
-          ok: true,
-          data: {
-            created: Date.now(),
-            data: images
-          }
-        }
-      } else {
-        throw new Error('No image results in sync response');
-      }
-    }
-    
-    // 旧模型是异步调用，需要轮询
+    // 文生图是异步调用，需要轮询获取结果
     const taskId = createData.output?.task_id;
     if (!taskId) {
         throw new Error('No task_id returned from async image submission');
@@ -910,17 +925,61 @@ async function dashscopeImageGenerate(params) {
     // 3. Extract results
     console.log('[DashScope] Task result:', JSON.stringify(result, null, 2));
     
+    let images = [];
+    
     if (result?.output?.results) {
       const results = result.output.results
       const list = Array.isArray(results) ? results : []
-      const images = list.map((item) => {
+      images = list.map((item) => {
         if (typeof item === 'string') return { url: item, revised_prompt: prompt }
         const url = item?.url || item?.image_url || item?.image || ''
         return { url, revised_prompt: prompt }
       }).filter((it) => !!it.url)
+    } else if (result?.output?.image) {
+      images = [{
+        url: result.output.image,
+        revised_prompt: prompt
+      }];
+    }
+    
+    if (images.length === 0) {
+      throw new Error('No image results found in completed task');
+    }
+    
+    console.log('[DashScope] Extracted images:', images);
+    
+    // 4. 下载图片到本地存储，避免跨域问题
+    try {
+      const localImages = await Promise.all(
+        images.map(async (img) => {
+          try {
+            const localUrl = await downloadImageToLocal(img.url, 'generated');
+            return {
+              ...img,
+              original_url: img.url,  // 保留原始 URL
+              url: localUrl           // 使用本地 URL
+            };
+          } catch (downloadError) {
+            console.error('[DashScope] Failed to download image:', downloadError.message);
+            // 如果下载失败，仍然返回原始 URL
+            return img;
+          }
+        })
+      );
       
-      console.log('[DashScope] Extracted images:', images);
+      console.log('[DashScope] Local images:', localImages);
       
+      return {
+        status: 200,
+        ok: true,
+        data: {
+          created: Date.now(),
+          data: localImages
+        }
+      }
+    } catch (error) {
+      console.error('[DashScope] Error processing images:', error);
+      // 如果处理失败，返回原始图片
       return {
         status: 200,
         ok: true,
@@ -929,21 +988,6 @@ async function dashscopeImageGenerate(params) {
           data: images
         }
       }
-    } else if (result?.output?.image) {
-      // 处理单个图片的情况 (fallback for different response structures)
-      return {
-        status: 200,
-        ok: true,
-        data: {
-          created: Date.now(),
-          data: [{
-            url: result.output.image,
-            revised_prompt: prompt
-          }]
-        }
-      }
-    } else {
-        throw new Error('No image results found in completed task');
     }
   } catch (error) {
     console.error('[DashScope] Image generation error:', error)
@@ -1300,6 +1344,20 @@ async function route(req, res, u, path) {
   if (path.startsWith('/api/admin/moderation')) {
     console.log('[Route] Delegating to moderation routes:', path)
     await moderationRoutes(req, res)
+    return
+  }
+
+  // IP孵化中心路由
+  if (path.startsWith('/api/ip')) {
+    console.log('[Route] Delegating to IP incubation routes:', path)
+    await ipRoutes(req, res)
+    return
+  }
+
+  // 版权授权路由
+  if (path.startsWith('/api/copyright')) {
+    console.log('[Route] Delegating to copyright license routes:', path)
+    await copyrightLicenseRoutes(req, res)
     return
   }
 
@@ -5152,7 +5210,7 @@ async function route(req, res, u, path) {
         size: b.size || '1024x1024',
         n: b.n || 1,
         authKey,
-        model: b.model || 'qwen-image-2.0'
+        model: b.model || 'wanx-v1'
       })
       
       if (!r.ok) {
@@ -7465,7 +7523,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'qwen-image-2.0'
+        model: 'wanx-v1'
       })
       
       if (!result.ok) {
@@ -7518,7 +7576,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'qwen-image-2.0',
+        model: 'wanx-v1',
         refImage: b.imageUrl  // 传入原图URL进行图生图
       })
       
@@ -7571,7 +7629,7 @@ async function route(req, res, u, path) {
         size: ratio > 1.5 ? '1440x1024' : '1024x1024',
         n: 1,
         authKey,
-        model: 'qwen-image-2.0'
+        model: 'wanx-v1'
       })
       
       if (!result.ok) {
@@ -7694,7 +7752,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'qwen-image-2.0'
+        model: 'wanx-v1'
       })
       
       if (!result.ok) {

@@ -224,6 +224,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
         const result = await response.json();
         if (result.code === 0 && Array.isArray(result.data)) {
           // 过滤：只保留有有效缩略图或视频的作品（排除 posts 表的数据）
+          // 同时过滤掉在津脉广场隐藏的作品
           const validWorks = result.data.filter((w: any) => {
             const thumbnail = w.thumbnail || w.cover_url || w.image_url || w.thumbnail_url;
             const hasVideo = w.videoUrl || w.video_url;
@@ -233,7 +234,9 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
                                      thumbnail.trim().length > 0 && 
                                      thumbnail !== 'EMPTY' &&
                                      !thumbnail.toLowerCase().includes('empty');
-            return hasValidThumbnail || hasVideo;
+            // 检查作品是否在津脉广场隐藏
+            const isHiddenInSquare = w.hidden_in_square === true;
+            return (hasValidThumbnail || hasVideo) && !isHiddenInSquare;
           });
           console.log('Backend API returned:', result.data.length, 'items, filtered to:', validWorks.length, 'valid works');
           

@@ -45,6 +45,8 @@ export interface Product {
   view_count: number;
   created_at: string;
   updated_at: string;
+  // 积分商城专用字段（用于积分兑换）
+  points?: number;
   // 关联数据
   brand?: {
     id: string;
@@ -99,6 +101,22 @@ export interface ProductReview {
     username: string;
     avatar_url?: string;
   };
+}
+
+// 兑换记录类型
+export interface ExchangeRecord {
+  id: string;
+  product_id: string;
+  user_id: string;
+  quantity: number;
+  points_used: number;
+  status: 'pending' | 'processing' | 'completed' | 'cancelled';
+  shipping_address?: string;
+  tracking_number?: string;
+  created_at: string;
+  updated_at: string;
+  // 关联数据
+  product?: Product;
 }
 
 // 获取商品分类列表
@@ -627,9 +645,445 @@ export async function adminGetAllProducts(
   }
 }
 
+// 积分商城商品类型
+export interface PointsProduct {
+  id: string;
+  name: string;
+  description?: string;
+  points: number;
+  stock: number;
+  category: 'virtual' | 'physical' | 'service' | 'rights' | 'experience';
+  image_url?: string;
+  imageUrl?: string; // 前端兼容字段
+  tags: string[];
+  status: 'active' | 'inactive' | 'sold_out';
+  is_featured: boolean;
+  isFeatured?: boolean; // 前端兼容字段
+  is_limited: boolean;
+  limit_per_user: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 获取所有积分商城商品
+export async function getAllProducts(
+  category?: string,
+  searchQuery?: string
+): Promise<PointsProduct[]> {
+  try {
+    let query = supabase
+      .from('points_products')
+      .select('*')
+      .order('sort_order', { ascending: true });
+
+    // 如果指定了分类，筛选分类
+    if (category && category !== 'all') {
+      query = query.eq('category', category);
+    }
+
+    // 如果指定了搜索词，搜索商品名称和描述
+    if (searchQuery) {
+      query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    // 映射字段以兼容前端
+    return (data || []).map(product => ({
+      ...product,
+      imageUrl: product.image_url,
+      isFeatured: product.is_featured,
+      tags: Array.isArray(product.tags) ? product.tags : [],
+    }));
+  } catch (error) {
+    console.error('获取积分商城商品失败:', error);
+    return [];
+  }
+}
+
+// 兑换商品
+export async function exchangeProduct(productId: string, userId: string, quantity: number = 1): Promise<{ success: boolean; errorMessage?: string; data?: any }> {
+  try {
+    // 调用数据库 RPC 函数兑换商品
+    const { data, error } = await supabase.rpc('exchange_product', {
+      p_user_id: userId,
+      p_product_id: productId,
+      p_quantity: quantity
+    });
+    
+    if (error) throw error;
+    
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('兑换商品失败:', error);
+    return { success: false, errorMessage: error.message || '兑换失败' };
+  }
+}
+
+// 获取用户兑换记录
+export async function getUserExchangeRecords(userId: string): Promise<ExchangeRecord[]> {
+  try {
+    const { data, error } = await supabase
+      .from('exchange_records')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('获取兑换记录失败:', error);
+    return [];
+  }
+}
+
+// 订单统计接口
+export interface OrderStats {
+  total: number;
+  pending: number;
+  processing: number;
+  completed: number;
+  cancelled: number;
+  refunded: number;
+  totalPoints: number;
+  todayOrders: number;
+}
+
+// 获取订单统计
+export async function getOrderStats(): Promise<OrderStats> {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    // 获取各种状态的订单数量
+    const { data: allOrders, error } = await supabase
+      .from('exchange_records')
+      .select('status, points, created_at');
+
+    if (error) throw error;
+
+    const orders = allOrders || [];
+    const todayOrders = orders.filter(o => o.created_at?.startsWith(today));
+
+    return {
+      total: orders.length,
+      pending: orders.filter(o => o.status === 'pending').length,
+      processing: orders.filter(o => o.status === 'processing').length,
+      completed: orders.filter(o => o.status === 'completed').length,
+      cancelled: orders.filter(o => o.status === 'cancelled').length,
+      refunded: orders.filter(o => o.status === 'refunded').length,
+      totalPoints: orders
+        .filter(o => o.status === 'completed')
+        .reduce((sum, o) => sum + (o.points || 0), 0),
+      todayOrders: todayOrders.length
+    };
+  } catch (error) {
+    console.error('获取订单统计失败:', error);
+    return {
+      total: 0,
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      cancelled: 0,
+      refunded: 0,
+      totalPoints: 0,
+      todayOrders: 0
+    };
+  }
+}
+
+// 获取所有兑换记录（带分页和筛选）
+export async function getAllExchangeRecords(options: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ records: any[]; total: number }> {
+  try {
+    let query = supabase
+      .from('exchange_records')
+      .select('*', { count: 'exact' });
+
+    if (options.status) {
+      query = query.eq('status', options.status);
+    }
+
+    query = query.order('created_at', { ascending: false });
+
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+
+    if (options.offset !== undefined && options.limit) {
+      query = query.range(options.offset, options.offset + options.limit - 1);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) throw error;
+
+    // 转换记录格式以匹配前端期望
+    const records = (data || []).map(record => ({
+      id: record.id,
+      productId: record.product_id,
+      productName: record.product_name || '未知商品',
+      userId: record.user_id,
+      userName: record.user_name || '未知用户',
+      points: record.points,
+      quantity: record.quantity || 1,
+      status: record.status,
+      date: record.created_at,
+      productImage: record.product_image,
+      userEmail: record.user_email,
+      contactPhone: record.contact_phone,
+      shippingAddress: record.shipping_address,
+      adminNotes: record.admin_notes,
+      processedAt: record.processed_at,
+      processedBy: record.processed_by
+    }));
+
+    return {
+      records,
+      total: count || 0
+    };
+  } catch (error) {
+    console.error('获取所有兑换记录失败:', error);
+    return { records: [], total: 0 };
+  }
+}
+
+// 获取销售趋势
+export async function getSalesTrend(days: number = 7): Promise<{ date: string; count: number; points: number }[]> {
+  try {
+    const result: { date: string; count: number; points: number }[] = [];
+
+    // 生成最近N天的日期
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      // 查询该日期的订单
+      const { data, error } = await supabase
+        .from('exchange_records')
+        .select('points, status')
+        .gte('created_at', `${dateStr}T00:00:00`)
+        .lt('created_at', `${dateStr}T23:59:59`);
+
+      if (error) throw error;
+
+      const orders = data || [];
+      result.push({
+        date: dateStr,
+        count: orders.length,
+        points: orders
+          .filter(o => o.status === 'completed')
+          .reduce((sum, o) => sum + (o.points || 0), 0)
+      });
+    }
+
+    return result;
+  } catch (error) {
+    console.error('获取销售趋势失败:', error);
+    return [];
+  }
+}
+
+// 获取热销商品
+export async function getTopSellingProducts(limit: number = 5): Promise<{
+  productId: string;
+  productName: string;
+  productImage: string;
+  points: number;
+  totalSold: number;
+}[]> {
+  try {
+    // 查询兑换记录并按商品分组统计
+    const { data, error } = await supabase
+      .from('exchange_records')
+      .select('product_id, product_name, product_image, points, quantity, status')
+      .eq('status', 'completed');
+
+    if (error) throw error;
+
+    // 按商品分组统计
+    const productMap = new Map<string, {
+      productId: string;
+      productName: string;
+      productImage: string;
+      points: number;
+      totalSold: number;
+    }>();
+
+    (data || []).forEach(record => {
+      const id = record.product_id;
+      if (productMap.has(id)) {
+        const item = productMap.get(id)!;
+        item.totalSold += record.quantity || 1;
+      } else {
+        productMap.set(id, {
+          productId: id,
+          productName: record.product_name || '未知商品',
+          productImage: record.product_image || '',
+          points: record.points || 0,
+          totalSold: record.quantity || 1
+        });
+      }
+    });
+
+    // 转换为数组并按销量排序
+    return Array.from(productMap.values())
+      .sort((a, b) => b.totalSold - a.totalSold)
+      .slice(0, limit);
+  } catch (error) {
+    console.error('获取热销商品失败:', error);
+    return [];
+  }
+}
+
+// 添加积分商城商品
+export async function addProduct(productData: Partial<PointsProduct>): Promise<PointsProduct | null> {
+  try {
+    const dbData = {
+      name: productData.name,
+      description: productData.description,
+      points: productData.points || 0,
+      stock: productData.stock || 0,
+      category: productData.category || 'physical',
+      image_url: productData.imageUrl || productData.image_url,
+      tags: productData.tags || [],
+      status: productData.status || 'active',
+      is_featured: productData.isFeatured || productData.is_featured || false,
+      is_limited: productData.is_limited || false,
+      limit_per_user: productData.limit_per_user || 0,
+      sort_order: productData.sort_order || 0,
+    };
+
+    const { data, error } = await supabase
+      .from('points_products')
+      .insert(dbData)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      ...data,
+      imageUrl: data.image_url,
+      isFeatured: data.is_featured,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+    };
+  } catch (error) {
+    console.error('添加积分商城商品失败:', error);
+    return null;
+  }
+}
+
+// 更新积分商城商品
+export async function updatePointsProduct(
+  id: string,
+  updates: Partial<PointsProduct>
+): Promise<PointsProduct | null> {
+  try {
+    const dbData: any = {};
+
+    if (updates.name !== undefined) dbData.name = updates.name;
+    if (updates.description !== undefined) dbData.description = updates.description;
+    if (updates.points !== undefined) dbData.points = updates.points;
+    if (updates.stock !== undefined) dbData.stock = updates.stock;
+    if (updates.category !== undefined) dbData.category = updates.category;
+    if (updates.imageUrl !== undefined || updates.image_url !== undefined) {
+      dbData.image_url = updates.imageUrl || updates.image_url;
+    }
+    if (updates.tags !== undefined) dbData.tags = updates.tags;
+    if (updates.status !== undefined) dbData.status = updates.status;
+    if (updates.isFeatured !== undefined || updates.is_featured !== undefined) {
+      dbData.is_featured = updates.isFeatured || updates.is_featured;
+    }
+    if (updates.is_limited !== undefined) dbData.is_limited = updates.is_limited;
+    if (updates.limit_per_user !== undefined) dbData.limit_per_user = updates.limit_per_user;
+    if (updates.sort_order !== undefined) dbData.sort_order = updates.sort_order;
+
+    const { data, error } = await supabase
+      .from('points_products')
+      .update(dbData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      ...data,
+      imageUrl: data.image_url,
+      isFeatured: data.is_featured,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+    };
+  } catch (error) {
+    console.error('更新积分商城商品失败:', error);
+    return null;
+  }
+}
+
+// 更新订单状态
+export async function updateOrderStatus(
+  orderId: string,
+  newStatus: string,
+  adminNotes?: string,
+  processedBy?: string
+): Promise<boolean> {
+  try {
+    const updates: any = {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (adminNotes) {
+      updates.admin_notes = adminNotes;
+    }
+
+    if (processedBy) {
+      updates.processed_by = processedBy;
+    }
+
+    if (newStatus === 'completed' || newStatus === 'processing') {
+      updates.processed_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase
+      .from('exchange_records')
+      .update(updates)
+      .eq('id', orderId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('更新订单状态失败:', error);
+    return false;
+  }
+}
+
+// 删除积分商城商品
+export async function deletePointsProduct(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('points_products')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('删除积分商城商品失败:', error);
+    return false;
+  }
+}
+
 export default {
   getProductCategories,
   getProducts,
+  getAllProducts,
   getProductById,
   createProduct,
   updateProduct,
@@ -647,4 +1101,14 @@ export default {
   checkIsFavorite,
   adminReviewProduct,
   adminGetAllProducts,
+  exchangeProduct,
+  getUserExchangeRecords,
+  getOrderStats,
+  getAllExchangeRecords,
+  getSalesTrend,
+  getTopSellingProducts,
+  addProduct,
+  updateOrderStatus,
+  updatePointsProduct,
+  deletePointsProduct,
 };

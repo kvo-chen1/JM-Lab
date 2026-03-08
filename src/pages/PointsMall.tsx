@@ -102,7 +102,7 @@ const PointsMall: React.FC = () => {
       return;
     }
     
-    if (product.status !== 'active') {
+    if (product.status !== 'on_sale') {
       toast.error('该商品暂时无法兑换');
       return;
     }
@@ -110,7 +110,7 @@ const PointsMall: React.FC = () => {
       toast.error('该商品已售罄');
       return;
     }
-    if (currentPoints < product.points) {
+    if (currentPoints < product.price) {
       toast.error('积分不足，快去完成任务获取积分吧！');
       return;
     }
@@ -204,9 +204,9 @@ const PointsMall: React.FC = () => {
   // 获取状态文本
   const getStatusText = (status: Product['status']) => {
     switch (status) {
-      case 'active':
+      case 'on_sale':
         return '可兑换';
-      case 'inactive':
+      case 'off_shelf':
         return '已下架';
       case 'sold_out':
         return '已售罄';
@@ -353,7 +353,7 @@ const PointsMall: React.FC = () => {
                     <div className={`absolute bottom-3 left-3 px-3 py-1 rounded-full text-sm font-bold ${
                       isDark ? 'bg-gray-900/80 text-yellow-400' : 'bg-white/90 text-yellow-600'
                     }`}>
-                      {product.points} 积分
+                      {product.price} 积分
                     </div>
                   </div>
                   
@@ -386,9 +386,9 @@ const PointsMall: React.FC = () => {
                       </div>
                       <button
                         onClick={() => openExchangeDialog(product)}
-                        disabled={product.status !== 'active' || product.stock <= 0 || !userId}
+                        disabled={product.status !== 'on_sale' || product.stock <= 0 || !userId}
                         className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                          product.status !== 'active' || product.stock <= 0
+                          product.status !== 'on_sale' || product.stock <= 0
                             ? isDark 
                               ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
@@ -396,7 +396,7 @@ const PointsMall: React.FC = () => {
                               ? isDark
                                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                            : currentPoints < product.points
+                            : currentPoints < product.price
                               ? isDark
                                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
@@ -405,13 +405,13 @@ const PointsMall: React.FC = () => {
                                 : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg shadow-red-500/30'
                         }`}
                       >
-                        {product.status !== 'active' 
+                        {product.status !== 'on_sale' 
                           ? '已下架' 
                           : product.stock <= 0 
                             ? '已售罄' 
                             : !userId
                               ? '请登录'
-                              : currentPoints < product.points 
+                              : currentPoints < product.price 
                                 ? '积分不足'
                                 : '立即兑换'
                         }

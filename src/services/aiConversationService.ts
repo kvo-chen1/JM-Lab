@@ -5,12 +5,32 @@
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+// 媒体内容类型定义
+export interface MediaContent {
+  type: 'image' | 'video';
+  url: string;
+  thumbnail?: string;
+  prompt?: string;
+}
+
+// 快捷操作卡片类型定义
+export interface QuickActionCard {
+  type: 'generate-image' | 'generate-video' | 'optimize-prompt' | 'creative-idea';
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  gradient: string;
+}
+
 // 消息类型
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
   isError?: boolean;
+  media?: MediaContent[]; // 可选的媒体内容
+  quickAction?: QuickActionCard; // 可选的快捷操作卡片
 }
 
 // 对话会话类型
@@ -113,7 +133,9 @@ class AIConversationService {
           role: message.role,
           content: message.content,
           timestamp: new Date(message.timestamp).toISOString(),
-          is_error: message.isError || false
+          is_error: message.isError || false,
+          media: message.media || null,
+          quick_action: message.quickAction || null
         });
 
       if (error) {
@@ -233,7 +255,9 @@ class AIConversationService {
         role: item.role as 'user' | 'assistant' | 'system',
         content: item.content,
         timestamp: new Date(item.timestamp).getTime(),
-        isError: item.is_error
+        isError: item.is_error,
+        media: item.media,
+        quickAction: item.quick_action
       }));
     } catch (error) {
       console.error('[AIConversation] Error getting messages:', error);

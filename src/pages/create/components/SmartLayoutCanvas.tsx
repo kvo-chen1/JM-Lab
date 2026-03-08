@@ -68,7 +68,7 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
       case 'light': return 'bg-gray-100 dark:bg-gray-200';
       case 'dark': return 'bg-gray-800 dark:bg-gray-900';
       case 'gradient': return 'bg-gradient-to-br from-blue-400 to-purple-400 dark:from-blue-600 dark:to-purple-800';
-      default: return '';
+      default: return 'bg-black';
     }
   };
   
@@ -114,7 +114,7 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
         width: '100%',
         height: '100%',
         maxHeight: '55vh',
-        objectFit: 'cover',
+        objectFit: 'contain',
         borderRadius: '16px',
         filter: getFilterStyle(),
       }
@@ -122,7 +122,7 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
         width: '100%',
         height: '100%',
         maxHeight: '55vh',
-        objectFit: 'cover',
+        objectFit: 'contain',
         borderRadius: '16px',
         filter: getFilterStyle(),
       };
@@ -160,7 +160,7 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
           controls
           autoPlay
           loop
-          className={selectedBackground === 'transparent' ? 'bg-gray-100 dark:bg-gray-900' : ''}
+          className={selectedBackground === 'transparent' ? 'bg-black' : ''}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
@@ -170,7 +170,7 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
         <motion.img 
           src={selectedItem?.thumbnail || 'https://via.placeholder.com/800x600?text=No+Image'} 
           alt="选中的作品" 
-          className={selectedBackground === 'transparent' ? 'bg-gray-100 dark:bg-gray-900' : ''}
+          className={selectedBackground === 'transparent' ? 'bg-black' : ''}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}

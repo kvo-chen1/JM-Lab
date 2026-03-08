@@ -98,7 +98,25 @@
     "aboutUs": "关于我们",
     "helpCenter": "帮助中心",
     "activityManagement": "活动管理",
-    "createActivity": "创建活动"
+    "createActivity": "创建活动",
+    "agent": "津小脉 Agent",
+    "aiWriter": "AI智作文案",
+    "brandWizard": "品牌向导",
+    "square": "津脉广场",
+    "mindMap": "津脉脉络",
+    "lottery": "幸运抽奖",
+    "marketplace": "文创商城",
+    "creatorCenter": "创作者中心",
+    "merchant": "商家工作台",
+    "organizer": "主办方中心",
+    "group": {
+      "home": "平台首页",
+      "creation": "创作中心",
+      "discover": "发现与探索",
+      "culture": "津门文化",
+      "rewards": "福利中心",
+      "business": "商业服务"
+    }
   },
   "header": {
     "searchPlaceholder": "搜索作品、素材或用户",

@@ -56,6 +56,9 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
   // 打字效果相关状态
   const [typingMessage, setTypingMessage] = useState<string>('');
   const [isTyping, setIsTyping] = useState(false);
+  // 流式响应相关状态
+  const [streamingContent, setStreamingContent] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -660,61 +663,101 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         return;
       }
       
-      // 使用增强的AI助手服务处理消息
-      const aiResponse = await aiAssistantService.processMessage(message, currentPath);
+      // 使用增强的AI助手服务处理消息，支持流式响应
+      setIsStreaming(true);
+      setStreamingContent('');
+      
+      let streamedResponse = '';
+      const aiResponse = await aiAssistantService.processMessage(
+        message,
+        currentPath,
+        (chunk: string) => {
+          // 流式回调：实时更新响应内容
+          streamedResponse += chunk;
+          setStreamingContent(streamedResponse);
+          scrollToBottom();
+        }
+      );
+      
+      // 流式响应结束
+      setIsStreaming(false);
+      setStreamingContent('');
       
       if (aiResponse.type === 'navigation' && aiResponse.target) {
-        // 导航响应
-        await addTypingEffect(aiResponse.content, () => {
-          setIsGenerating(false);
-          // 延迟跳转，让用户看到反馈
-          setTimeout(() => {
-            navigate(aiResponse.target!.path);
-          }, 1000);
-        });
+        // 导航响应 - 直接添加完整消息
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: aiResponse.content,
+          timestamp: Date.now()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        setIsGenerating(false);
+        // 延迟跳转，让用户看到反馈
+        setTimeout(() => {
+          navigate(aiResponse.target!.path);
+        }, 1000);
         return;
       }
       
       if (aiResponse.type === 'guide') {
-        // 操作指导响应
-        await addTypingEffect(aiResponse.content);
+        // 操作指导响应 - 直接添加完整消息
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: aiResponse.content,
+          timestamp: Date.now()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
         setIsGenerating(false);
         return;
       }
       
       if (aiResponse.type === 'cultural') {
-        // 文化专家响应
-        await addTypingEffect(aiResponse.content, () => {
-          setIsGenerating(false);
-          // 保存交互式操作按钮
-          if (aiResponse.actions && aiResponse.actions.length > 0) {
-            setMessageActions(prev => ({
-              ...prev,
-              [messages.length]: aiResponse.actions!
-            }));
-          }
-        });
+        // 文化专家响应 - 直接添加完整消息
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: aiResponse.content,
+          timestamp: Date.now()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        setIsGenerating(false);
+        // 保存交互式操作按钮
+        if (aiResponse.actions && aiResponse.actions.length > 0) {
+          setMessageActions(prev => ({
+            ...prev,
+            [messages.length]: aiResponse.actions!
+          }));
+        }
         return;
       }
       
       if (aiResponse.type === 'review') {
-        // 作品点评响应
-        await addTypingEffect(aiResponse.content, () => {
-          setIsGenerating(false);
-          // 保存交互式操作按钮
-          if (aiResponse.actions && aiResponse.actions.length > 0) {
-            setMessageActions(prev => ({
-              ...prev,
-              [messages.length]: aiResponse.actions!
-            }));
-          }
-        });
+        // 作品点评响应 - 直接添加完整消息
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: aiResponse.content,
+          timestamp: Date.now()
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        setIsGenerating(false);
+        // 保存交互式操作按钮
+        if (aiResponse.actions && aiResponse.actions.length > 0) {
+          setMessageActions(prev => ({
+            ...prev,
+            [messages.length]: aiResponse.actions!
+          }));
+        }
         return;
       }
       
       if (aiResponse.type === 'chat' || aiResponse.type === 'error') {
-        // 普通聊天响应或错误响应
-        await addTypingEffect(aiResponse.content, undefined, aiResponse.type === 'error');
+        // 普通聊天响应或错误响应 - 直接添加完整消息
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: aiResponse.content,
+          timestamp: Date.now(),
+          isError: aiResponse.type === 'error'
+        };
+        setMessages(prev => [...prev, assistantMessage]);
         setIsGenerating(false);
         return;
       }
@@ -1456,8 +1499,25 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                       </div>
                     ))}
 
-                    {/* 正在生成指示器 */}
-                    {isGenerating && (
+                    {/* 流式响应消息显示 */}
+                    {isStreaming && streamingContent && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex justify-start"
+                      >
+                        <div className={`max-w-[88%] p-4.5 rounded-2xl ${isDark ? 'bg-gray-700/90 text-gray-200 border border-gray-600/50' : 'bg-gray-100/90 text-gray-800 border border-gray-200/50'}`}>
+                          <div className="whitespace-pre-wrap">
+                            {streamingContent}
+                            {/* 闪烁光标效果 */}
+                            <span className="inline-block w-2 h-4 ml-0.5 align-middle bg-blue-500 animate-pulse rounded-sm" />
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* 正在生成指示器（仅在非流式状态下显示） */}
+                    {isGenerating && !isStreaming && (
                       <motion.div
                         className="flex justify-start"
                         initial={{ opacity: 0 }}

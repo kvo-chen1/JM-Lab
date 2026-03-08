@@ -14,6 +14,7 @@ import achievementService from '@/services/achievementService';
 import { supabaseAdmin } from '@/lib/supabaseClient';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useNavNotifications, type NavItemType } from '@/hooks/useNavNotifications';
+import { getTimeSeriesData, getBaseStats, getWeeklyComparisonData, getRealtimeStats, clearDashboardCache } from './dashboardDataService';
 
 // 懒加载数据分析页面
 const DataAnalytics = lazy(() => import('./DataAnalytics'));
@@ -52,10 +53,11 @@ const SearchRecordManagement = lazy(() => import('./SearchRecordManagement'));
 const OrderAudit = lazy(() => import('./OrderAudit'));
 const BrandOrderExecution = lazy(() => import('./BrandOrderExecution'));
 const HomeRecommendationManagement = lazy(() => import('./HomeRecommendationManagement'));
+const MarketplaceAdmin = lazy(() => import('./MarketplaceAdmin'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'lotteryManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement' | 'promotionOrderImplementation' | 'promotionAnalytics' | 'advancedAnalytics' | 'searchRecords' | 'orderAudit' | 'brandOrderExecution' | 'homeRecommendation';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'lotteryManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement' | 'promotionOrderImplementation' | 'promotionAnalytics' | 'advancedAnalytics' | 'searchRecords' | 'orderAudit' | 'brandOrderExecution' | 'homeRecommendation' | 'marketplace';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -342,11 +344,16 @@ export default function Admin() {
   };
 
   // 获取控制台数据
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (forceRefresh = false) => {
     if (isLoading) return;
     
     setDataLoading(true);
     try {
+      // 如果需要强制刷新，清除缓存
+      if (forceRefresh) {
+        clearDashboardCache();
+      }
+
       // 并行获取所有数据
       const [statsData, activity, audit, pending, brandPartnerships] = await Promise.all([
         adminService.getDashboardStats(),
@@ -365,8 +372,8 @@ export default function Admin() {
       // 获取扩展统计数据
       await fetchExtendedStats();
 
-      // 获取新增图表数据
-      await fetchEnhancedChartData();
+      // 获取新增图表数据（传递 forceRefresh 参数）
+      await fetchEnhancedChartData(forceRefresh);
 
       setLastRefreshTime(new Date());
     } catch (error) {
@@ -377,48 +384,37 @@ export default function Admin() {
     }
   }, [isLoading, activityPeriod]);
 
-  // 获取增强图表数据
-  const fetchEnhancedChartData = async () => {
+  // 获取增强图表数据 - 优化版
+  const fetchEnhancedChartData = async (forceRefresh = false) => {
     try {
-      // 获取时间序列数据（最近7天）
-      const days = 7;
-      const timeData: any[] = [];
-      for (let i = days - 1; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        date.setHours(0, 0, 0, 0);
-        const dateStr = date.toISOString().split('T')[0];
+      // 并行获取所有数据（传递 forceRefresh 参数）
+      const [
+        timeData,
+        baseStats,
+        weeklyComparison,
+        realtimeStats
+      ] = await Promise.all([
+        getTimeSeriesData(forceRefresh),
+        getBaseStats(forceRefresh),
+        getWeeklyComparisonData(forceRefresh),
+        getRealtimeStats(forceRefresh)
+      ]);
 
-        const nextDate = new Date(date);
-        nextDate.setDate(nextDate.getDate() + 1);
-
-        const { count: newUsers } = await supabaseAdmin
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', date.toISOString())
-          .lt('created_at', nextDate.toISOString());
-
-        const { count: newWorks } = await supabaseAdmin
-          .from('works')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', date.toISOString())
-          .lt('created_at', nextDate.toISOString());
-
-        timeData.push({
-          date: dateStr.slice(5),
-          users: newUsers || 0,
-          works: newWorks || 0,
-          views: Math.floor(Math.random() * 5000) + 1000,
-          revenue: Math.floor(Math.random() * 10000) + 1000,
-        });
-      }
       setTimeSeriesData(timeData);
+      setWeeklyComparisonData(weeklyComparison);
+      setRealtimeStats(realtimeStats);
 
-      // 获取作品分类数据
-      const { data: works } = await supabaseAdmin
-        .from('works')
-        .select('category, view_count');
+      // 使用 baseStats 数据继续处理其他图表
+      const {
+        works, deviceData, usersByMonth, topWorks, users,
+        viewCount, likeCount, commentCount, shareCount, bookmarkCount, followCount,
+        ordersByStatus, worksByType, postsByDay, commentsByDay,
+        aiTasks, worksWithCategory, userSessionsForHeatmap,
+        ordersByDate, usersWithOrders, worksByHour, userActivity,
+        commentsForSentiment, userHistoryData
+      } = baseStats;
 
+      // 作品分类数据
       const categoryMap = new Map<string, { value: number; views: number }>();
       works?.forEach(work => {
         const cat = work.category || '未分类';
@@ -441,11 +437,7 @@ export default function Admin() {
         .slice(0, 6);
       setCategoryData(catData);
 
-      // 设备数据 - 从 user_devices 表查询真实数据
-      const { data: deviceData } = await supabaseAdmin
-        .from('user_devices')
-        .select('device_type');
-
+      // 设备数据
       const deviceMap = new Map<string, number>();
       deviceData?.forEach(d => {
         const type = d.device_type || '其他';
@@ -469,11 +461,7 @@ export default function Admin() {
         .sort((a, b) => b.users - a.users);
       setDeviceData(deviceDataFormatted);
 
-      // 地理数据 - 基于用户注册时间分布（替代地理位置）
-      const { data: usersByMonth } = await supabaseAdmin
-        .from('users')
-        .select('created_at');
-
+      // 地理数据（按月份）
       const monthMap = new Map<string, number>();
       usersByMonth?.forEach(u => {
         if (u.created_at) {
@@ -489,7 +477,7 @@ export default function Admin() {
           const [yearB, monthB] = b[0].match(/(\d+)年(\d+)月/)?.slice(1).map(Number) || [0, 0];
           return yearA !== yearB ? yearA - yearB : monthA - monthB;
         })
-        .slice(-6); // 最近6个月
+        .slice(-6);
 
       const totalUsersByMonth = sortedMonths.reduce((sum, [, count]) => sum + count, 0) || 1;
       const geographicDataFormatted = sortedMonths.map(([month, count], index) => ({
@@ -501,16 +489,6 @@ export default function Admin() {
       setGeographicData(geographicDataFormatted);
 
       // 热门内容
-      const { data: topWorks } = await supabaseAdmin
-        .from('works')
-        .select('id, title, view_count, likes, comments_count, creator_id, type')
-        .order('view_count', { ascending: false })
-        .limit(5);
-
-      const { data: users } = await supabaseAdmin
-        .from('users')
-        .select('id, username');
-
       const userMap = new Map(users?.map(u => [u.id, u]));
       const content = topWorks?.map(work => ({
         id: work.id,
@@ -531,33 +509,7 @@ export default function Admin() {
         { metric: '缓存命中', value: 92, target: 85, unit: '%' },
       ]);
 
-      // 用户行为数据 - 从数据库查询真实数据
-      const { count: viewCount } = await supabaseAdmin
-        .from('user_history')
-        .select('*', { count: 'exact', head: true })
-        .eq('action_type', 'view_work');
-
-      const { count: likeCount } = await supabaseAdmin
-        .from('likes')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: commentCount } = await supabaseAdmin
-        .from('comments')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: shareCount } = await supabaseAdmin
-        .from('user_history')
-        .select('*', { count: 'exact', head: true })
-        .eq('action_type', 'share_work');
-
-      const { count: bookmarkCount } = await supabaseAdmin
-        .from('works_bookmarks')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: followCount } = await supabaseAdmin
-        .from('follows')
-        .select('*', { count: 'exact', head: true });
-
+      // 用户行为数据
       setUserBehaviorData([
         { action: '浏览作品', count: viewCount || 0, avgTime: 45 },
         { action: '点赞', count: likeCount || 0, avgTime: 2 },
@@ -567,15 +519,8 @@ export default function Admin() {
         { action: '关注用户', count: followCount || 0, avgTime: 4 },
       ]);
 
-      // 收入分析数据 - 基于真实订单数据
-      const { data: ordersForRevenue } = await supabaseAdmin
-        .from('membership_orders')
-        .select('created_at, amount, status')
-        .eq('status', 'completed');
-
+      // 收入分析数据
       const revenueByDate = new Map<string, { membership: number; promotion: number; blindbox: number; other: number }>();
-
-      // 初始化最近7天的数据
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
@@ -583,8 +528,7 @@ export default function Admin() {
         revenueByDate.set(dateKey, { membership: 0, promotion: 0, blindbox: 0, other: 0 });
       }
 
-      // 统计每日收入（简化处理，全部归入会员订阅）
-      ordersForRevenue?.forEach(order => {
+      ordersByDate?.forEach(order => {
         if (order.created_at && order.amount) {
           const date = new Date(order.created_at);
           const dateKey = `${date.getMonth() + 1}/${date.getDate()}`;
@@ -604,11 +548,7 @@ export default function Admin() {
       }));
       setRevenueData(revenueChartData);
 
-      // 内容统计 - 从数据库查询真实数据
-      const { data: worksByType } = await supabaseAdmin
-        .from('works')
-        .select('type, view_count, likes');
-
+      // 内容统计
       const typeMap = new Map<string, { count: number; views: number; likes: number }>();
       worksByType?.forEach(work => {
         const type = work.type || '其他';
@@ -630,84 +570,25 @@ export default function Admin() {
         .sort((a, b) => b.count - a.count);
       setContentStats(contentStatsData);
 
-      // 转化漏斗 - 从数据库查询真实数据
-      const { count: totalUsers } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: totalWorks } = await supabaseAdmin
-        .from('works')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: paidUsers } = await supabaseAdmin
-        .from('membership_orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'paid');
-
-      // 计算转化漏斗数据
+      // 转化漏斗
+      const totalUsers = users?.length || 0;
+      const totalWorksCount = works?.length || 0;
+      const paidUsers = ordersByStatus?.filter(o => o.status === 'paid').length || 0;
       const uniqueAuthors = new Set(works?.map(w => w.user_id)).size;
 
       setConversionFunnel([
-        { name: '访问首页', value: (totalUsers || 0) * 10, fill: '#3b82f6' },  // 估算访问量
-        { name: '浏览作品', value: totalWorks || 0, fill: '#6366f1' },
-        { name: '注册账号', value: totalUsers || 0, fill: '#8b5cf6' },
-        { name: '发布作品', value: uniqueAuthors || 0, fill: '#a855f7' },
-        { name: '付费转化', value: paidUsers || 0, fill: '#d946ef' },
+        { name: '访问首页', value: totalUsers * 10, fill: '#3b82f6' },
+        { name: '浏览作品', value: totalWorksCount, fill: '#6366f1' },
+        { name: '注册账号', value: totalUsers, fill: '#8b5cf6' },
+        { name: '发布作品', value: uniqueAuthors, fill: '#a855f7' },
+        { name: '付费转化', value: paidUsers, fill: '#d946ef' },
       ]);
 
-      // 留存数据 - 基于用户注册和活跃情况计算
-      const now = new Date();
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-      // 获取不同时间段注册的用户数
-      const { count: users1Day } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', oneDayAgo.toISOString());
-
-      const { count: users3Day } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', threeDaysAgo.toISOString());
-
-      const { count: users7Day } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', sevenDaysAgo.toISOString());
-
-      const { count: users14Day } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', fourteenDaysAgo.toISOString());
-
-      const { count: users30Day } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', thirtyDaysAgo.toISOString());
-
-      // 计算留存率（简化计算：基于总活跃用户比例）
-      const activeUsers = totalUsers || 1;
-      setRetentionData([
-        { day: '次日留存', rate: Math.round(((users1Day || 0) / activeUsers) * 100 * 10) / 10, users: users1Day || 0 },
-        { day: '3日留存', rate: Math.round(((users3Day || 0) / activeUsers) * 100 * 10) / 10, users: users3Day || 0 },
-        { day: '7日留存', rate: Math.round(((users7Day || 0) / activeUsers) * 100 * 10) / 10, users: users7Day || 0 },
-        { day: '14日留存', rate: Math.round(((users14Day || 0) / activeUsers) * 100 * 10) / 10, users: users14Day || 0 },
-        { day: '30日留存', rate: Math.round(((users30Day || 0) / activeUsers) * 100 * 10) / 10, users: users30Day || 0 },
-      ]);
-
-      // 24小时活跃度 - 基于作品发布时间分布
-      const { data: worksByHour } = await supabaseAdmin
-        .from('works')
-        .select('created_at');
-
+      // 24小时活跃度
       const hourMap = new Map<number, number>();
       worksByHour?.forEach(w => {
         if (w.created_at) {
-          const hour = new Date(w.created_at * 1000).getHours();
+          const hour = new Date(w.created_at).getHours();
           hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
         }
       });
@@ -723,64 +604,36 @@ export default function Admin() {
       }
       setHourlyActivity(hourlyData);
 
-      // 流量来源 - 基于用户行为数据估算
-      // 直接访问：有互动行为的用户
-      const { count: directAccessUsers } = await supabaseAdmin
-        .from('user_history')
-        .select('*', { count: 'exact', head: true });
-
-      // 搜索引擎：通过搜索关键词进入（估算为总用户的30%）
-      const searchEngineUsers = Math.floor((totalUsers || 0) * 0.3);
-
-      // 社交媒体：有分享行为的用户
-      const { count: socialUsers } = await supabaseAdmin
-        .from('user_history')
-        .select('*', { count: 'exact', head: true })
-        .eq('action_type', 'share_work');
-
-      // 外部链接：其他来源（估算）
-      const externalLinkUsers = Math.floor((totalUsers || 0) * 0.15);
-
-      // 邮件营销：有邮件通知记录的用户（估算为5%）
-      const emailUsers = Math.floor((totalUsers || 0) * 0.05);
-
-      const totalTraffic = (directAccessUsers || 0) + searchEngineUsers + (socialUsers || 0) + externalLinkUsers + emailUsers || 1;
+      // 流量来源
+      const directAccessUsers = userHistoryData?.length || 0;
+      const searchEngineUsers = Math.floor(totalUsers * 0.3);
+      const socialUsers = userHistoryData?.filter(u => u.action_type === 'share_work').length || 0;
+      const externalLinkUsers = Math.floor(totalUsers * 0.15);
+      const emailUsers = Math.floor(totalUsers * 0.05);
+      const totalTraffic = directAccessUsers + searchEngineUsers + socialUsers + externalLinkUsers + emailUsers || 1;
 
       setSourceData([
-        { name: '直接访问', value: Math.round(((directAccessUsers || 0) / totalTraffic) * 100), users: directAccessUsers || 0 },
+        { name: '直接访问', value: Math.round((directAccessUsers / totalTraffic) * 100), users: directAccessUsers },
         { name: '搜索引擎', value: Math.round((searchEngineUsers / totalTraffic) * 100), users: searchEngineUsers },
-        { name: '社交媒体', value: Math.round(((socialUsers || 0) / totalTraffic) * 100), users: socialUsers || 0 },
+        { name: '社交媒体', value: Math.round((socialUsers / totalTraffic) * 100), users: socialUsers },
         { name: '外部链接', value: Math.round((externalLinkUsers / totalTraffic) * 100), users: externalLinkUsers },
         { name: '邮件营销', value: Math.round((emailUsers / totalTraffic) * 100), users: emailUsers },
       ]);
 
-      // 用户参与度 - 基于用户行为数据分层
-      // 获取每个用户的互动次数
-      const { data: userActivity } = await supabaseAdmin
-        .from('user_history')
-        .select('user_id, action_type');
-
+      // 用户参与度
       const userActivityMap = new Map<string, number>();
       userActivity?.forEach(record => {
         userActivityMap.set(record.user_id, (userActivityMap.get(record.user_id) || 0) + 1);
       });
 
-      // 分层标准：
-      // 高活跃：互动次数 >= 10
-      // 中活跃：互动次数 5-9
-      // 低活跃：互动次数 1-4
-      // 沉默用户：互动次数 0
       let highActive = 0, mediumActive = 0, lowActive = 0, silent = 0;
-
-      // 统计有互动的用户
-      userActivityMap.forEach((count, userId) => {
+      userActivityMap.forEach((count) => {
         if (count >= 10) highActive++;
         else if (count >= 5) mediumActive++;
         else if (count >= 1) lowActive++;
       });
 
-      // 沉默用户 = 总用户数 - 有互动的用户数
-      silent = (totalUsers || 0) - userActivityMap.size;
+      silent = totalUsers - userActivityMap.size;
       if (silent < 0) silent = 0;
 
       setEngagementData([
@@ -790,22 +643,10 @@ export default function Admin() {
         { segment: '沉默用户', users: silent, avgSessions: 0.3, avgTime: 2 },
       ]);
 
-      // 用户画像 - 年龄段分布（数据库暂无年龄性别字段，显示为暂无数据）
-      // 如需真实数据，需在 users 表添加 age 和 gender 字段
-      setUserDemographics([
-        { age: '18岁以下', male: 0, female: 0 },
-        { age: '18-24岁', male: 0, female: 0 },
-        { age: '25-34岁', male: 0, female: 0 },
-        { age: '35-44岁', male: 0, female: 0 },
-        { age: '45-54岁', male: 0, female: 0 },
-        { age: '55岁以上', male: 0, female: 0 },
-      ]);
+      // 用户画像
+      setUserDemographics([{ age: '暂无数据', male: '-', female: '-' }]);
 
-      // 用户增长趋势（30天）- 从数据库查询真实数据
-      const { data: usersByDate } = await supabaseAdmin
-        .from('users')
-        .select('created_at');
-
+      // 用户增长趋势（30天）
       const dateMap = new Map<string, number>();
       const currentDate = new Date();
       for (let i = 29; i >= 0; i--) {
@@ -815,7 +656,7 @@ export default function Admin() {
         dateMap.set(dateKey, 0);
       }
 
-      usersByDate?.forEach(u => {
+      usersByMonth?.forEach(u => {
         if (u.created_at) {
           const date = new Date(u.created_at);
           const dateKey = `${date.getMonth() + 1}/${date.getDate()}`;
@@ -825,15 +666,15 @@ export default function Admin() {
         }
       });
 
-      const growthData = Array.from(dateMap.entries()).map(([date, count], index, arr) => ({
+      const growthData = Array.from(dateMap.entries()).map(([date, count]) => ({
         date,
         新增用户: count,
-        流失用户: 0, // 暂无法计算流失用户
+        流失用户: 0,
         净增长: count,
       }));
       setUserGrowthTrend(growthData);
 
-      // 作品互动数据 - 使用已查询的真实数据
+      // 作品互动数据
       setWorkInteractionData([
         { type: '点赞', count: likeCount || 0, growth: 0 },
         { type: '评论', count: commentCount || 0, growth: 0 },
@@ -843,11 +684,7 @@ export default function Admin() {
         { type: '举报', count: 0, growth: 0 },
       ]);
 
-      // 评论情感分析 - 基于评论长度和关键词简单估算
-      const { data: commentsForSentiment } = await supabaseAdmin
-        .from('comments')
-        .select('content');
-
+      // 评论情感分析
       let positive = 0, neutral = 0, negative = 0;
       const positiveWords = ['好', '棒', '赞', '优秀', '喜欢', '感谢', '支持', '不错', '完美', '厉害'];
       const negativeWords = ['差', '坏', '垃圾', '失望', '问题', '错误', '不好', '糟糕', '讨厌', '反对'];
@@ -869,11 +706,7 @@ export default function Admin() {
         { name: '负面', value: Math.round((negative / totalComments) * 100), count: negative },
       ]);
 
-      // 订单状态分布 - 从数据库查询真实数据
-      const { data: ordersByStatus } = await supabaseAdmin
-        .from('membership_orders')
-        .select('status, amount');
-
+      // 订单状态分布
       const statusMap = new Map<string, { count: number; amount: number }>();
       ordersByStatus?.forEach(order => {
         const status = order.status || '未知';
@@ -900,33 +733,13 @@ export default function Admin() {
         }));
       setOrderStatusData(orderStatusData);
 
-      // 支付方式分布 - 基于真实订单数据（数据库暂无支付方式字段，显示为未知）
-      // 如需真实数据，需在 membership_orders 表添加 payment_method 字段
-      const totalCompletedOrders = ordersByStatus?.filter(o => o.status === 'completed').length || 0;
-      const totalCompletedAmount = ordersByStatus
-        ?.filter(o => o.status === 'completed')
-        .reduce((sum, o) => sum + (o.amount || 0), 0) || 0;
+      // 支付方式分布
+      setPaymentMethodData([{ name: '暂无数据', value: 0, amount: 0 }]);
 
-      setPaymentMethodData([
-        { name: '微信支付', value: 0, amount: 0 },
-        { name: '支付宝', value: 0, amount: 0 },
-        { name: '银行卡', value: 0, amount: 0 },
-        { name: '余额支付', value: 0, amount: 0 },
-      ]);
-
-      // 社区活跃度 - 从数据库查询真实数据
-      const { data: postsByDay } = await supabaseAdmin
-        .from('posts')
-        .select('created_at');
-
-      const { data: commentsByDay } = await supabaseAdmin
-        .from('comments')
-        .select('created_at');
-
+      // 社区活跃度
       const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
       const dayMap = new Map<number, { posts: number; replies: number; likes: number }>();
 
-      // 初始化最近7天的数据
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
@@ -934,7 +747,6 @@ export default function Admin() {
         dayMap.set(dayIndex, { posts: 0, replies: 0, likes: 0 });
       }
 
-      // 统计帖子数
       postsByDay?.forEach(p => {
         if (p.created_at) {
           const postDate = new Date(p.created_at);
@@ -946,7 +758,6 @@ export default function Admin() {
         }
       });
 
-      // 统计评论数
       commentsByDay?.forEach(c => {
         if (c.created_at) {
           const commentDate = new Date(c.created_at);
@@ -960,7 +771,6 @@ export default function Admin() {
 
       const communityActivityDataFormatted = Array.from(dayMap.entries())
         .sort((a, b) => {
-          // 按周一到周日排序
           const order = [1, 2, 3, 4, 5, 6, 0];
           return order.indexOf(a[0]) - order.indexOf(b[0]);
         })
@@ -968,15 +778,11 @@ export default function Admin() {
           day: dayNames[dayIndex],
           posts: data.posts,
           replies: data.replies,
-          likes: data.posts + data.replies, // 简化计算
+          likes: data.posts + data.replies,
         }));
       setCommunityActivityData(communityActivityDataFormatted);
 
-      // AI使用统计 - 从 generation_tasks 表查询真实数据
-      const { data: aiTasks } = await supabaseAdmin
-        .from('generation_tasks')
-        .select('type, status');
-
+      // AI使用统计
       const aiTypeMap = new Map<string, { usage: number; success: number }>();
       aiTasks?.forEach(task => {
         const type = task.type || 'other';
@@ -1004,76 +810,33 @@ export default function Admin() {
         }))
         .sort((a, b) => b.usage - a.usage);
 
-      // 如果没有AI任务数据，显示空状态
-      if (aiUsageDataFormatted.length === 0) {
-        setAiUsageData([
-          { feature: 'AI绘画', usage: 0, satisfaction: 0 },
-          { feature: 'AI视频', usage: 0, satisfaction: 0 },
-          { feature: 'AI写作', usage: 0, satisfaction: 0 },
-        ]);
-      } else {
-        setAiUsageData(aiUsageDataFormatted);
-      }
+      setAiUsageData(aiUsageDataFormatted.length > 0 ? aiUsageDataFormatted : [
+        { feature: 'AI绘画', usage: 0, satisfaction: 0 },
+        { feature: 'AI视频', usage: 0, satisfaction: 0 },
+        { feature: 'AI写作', usage: 0, satisfaction: 0 },
+      ]);
 
       // 热门标签
-      setTopTagsData([
-        { name: '创意设计', count: 1250, trend: 15 },
-        { name: '插画', count: 980, trend: 8 },
-        { name: '摄影', count: 850, trend: -3 },
-        { name: 'UI设计', count: 720, trend: 12 },
-        { name: '短视频', count: 680, trend: 25 },
-        { name: '3D建模', count: 520, trend: 18 },
-        { name: '动画', count: 480, trend: 5 },
-        { name: '音乐', count: 420, trend: -5 },
-      ]);
-
-      // 周同比数据
-      setWeeklyComparisonData([
-        { metric: '新增用户', current: 1250, last: 1080, growth: 15.7 },
-        { metric: '活跃用户', current: 5680, last: 5200, growth: 9.2 },
-        { metric: '作品发布', current: 420, last: 380, growth: 10.5 },
-        { metric: '订单量', current: 158, last: 142, growth: 11.3 },
-        { metric: '收入', current: 45800, last: 41200, growth: 11.2 },
-        { metric: '评论数', current: 890, last: 750, growth: 18.7 },
-      ]);
-
-      // 实时统计数据 - 基于真实数据计算
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString();
-
-      const { count: todayViewCount } = await supabaseAdmin
-        .from('user_history')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', todayStr);
-
-      const { count: todayWorkCount } = await supabaseAdmin
-        .from('works')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', todayStr);
-
-      const { count: todayOrderCount } = await supabaseAdmin
-        .from('membership_orders')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', todayStr);
-
-      setRealtimeStats({
-        onlineUsers: dailyActiveUsers || 0,
-        todayViews: todayViewCount || 0,
-        todayWorks: todayWorkCount || 0,
-        todayOrders: todayOrderCount || 0,
-        avgResponseTime: 0,
-        errorRate: 0,
+      const categoryCountMap = new Map<string, number>();
+      worksWithCategory?.forEach(work => {
+        const category = work.category || '未分类';
+        categoryCountMap.set(category, (categoryCountMap.get(category) || 0) + 1);
       });
 
-      // VIP会员数据 - 基于真实订单数据估算
-      // 简化处理：根据订单金额估算会员等级
+      const topTags = Array.from(categoryCountMap.entries())
+        .map(([name, count]) => ({ name, count, trend: 0 }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8);
+
+      setTopTagsData(topTags.length > 0 ? topTags : [{ name: '暂无数据', count: 0, trend: 0 }]);
+
+      // VIP会员数据
       const vipOrders = ordersByStatus?.filter(o => o.status === 'completed') || [];
       const monthlyMembers = vipOrders.filter(o => (o.amount || 0) < 100).length;
       const quarterlyMembers = vipOrders.filter(o => (o.amount || 0) >= 100 && (o.amount || 0) < 300).length;
       const yearlyMembers = vipOrders.filter(o => (o.amount || 0) >= 300 && (o.amount || 0) < 1000).length;
       const lifetimeMembers = vipOrders.filter(o => (o.amount || 0) >= 1000).length;
-      const normalUsers = (totalUsers || 0) - monthlyMembers - quarterlyMembers - yearlyMembers - lifetimeMembers;
+      const normalUsers = totalUsers - monthlyMembers - quarterlyMembers - yearlyMembers - lifetimeMembers;
 
       setVipMemberData([
         { level: '普通用户', count: Math.max(0, normalUsers), revenue: 0, avgStay: 12 },
@@ -1083,8 +846,7 @@ export default function Admin() {
         { level: '终身会员', count: lifetimeMembers, revenue: vipOrders.filter(o => (o.amount || 0) >= 1000).reduce((sum, o) => sum + (o.amount || 0), 0), avgStay: 365 },
       ]);
 
-      // 内容审核数据 - 数据库暂无审核状态字段，显示为空
-      // 如需真实数据，需在 works/posts 表添加 audit_status 字段
+      // 内容审核数据
       setContentAuditData([
         { date: '周一', pending: 0, approved: 0, rejected: 0, autoPass: 0 },
         { date: '周二', pending: 0, approved: 0, rejected: 0, autoPass: 0 },
@@ -1095,20 +857,15 @@ export default function Admin() {
         { date: '周日', pending: 0, approved: 0, rejected: 0, autoPass: 0 },
       ]);
 
-      // 用户活跃度热力图数据（24小时 x 7天）- 基于用户会话数据
-      const { data: userSessionsForHeatmap } = await supabaseAdmin
-        .from('user_sessions')
-        .select('session_start, last_active');
-
+      // 用户活跃度热力图
       const heatmapData = [];
       const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
       const activityMap = new Map<string, number>();
 
-      // 统计每小时的用户活跃数量
       userSessionsForHeatmap?.forEach(record => {
         if (record.last_active) {
           const date = new Date(record.last_active);
-          const dayIndex = (date.getDay() + 6) % 7; // 转换为周一开始
+          const dayIndex = (date.getDay() + 6) % 7;
           const hour = date.getHours();
           const key = `${dayIndex}-${hour}`;
           activityMap.set(key, (activityMap.get(key) || 0) + 1);
@@ -1127,12 +884,7 @@ export default function Admin() {
       }
       setUserActivityHeatmap(heatmapData);
 
-      // 营收预测与目标 - 基于真实订单数据
-      const { data: ordersByDate } = await supabaseAdmin
-        .from('membership_orders')
-        .select('created_at, amount, status')
-        .eq('status', 'completed');
-
+      // 营收预测
       const revenueMap = new Map<string, number>();
       ordersByDate?.forEach(order => {
         if (order.created_at && order.amount) {
@@ -1144,31 +896,47 @@ export default function Admin() {
 
       const forecastData = [];
       const forecastToday = new Date();
+      const revenueValues = Array.from(revenueMap.values());
+      const avgRevenue = revenueValues.length > 0
+        ? revenueValues.reduce((a, b) => a + b, 0) / revenueValues.length
+        : 0;
+
+      const sortedDates = Array.from(revenueMap.keys()).sort();
+      const recent3Days = sortedDates.slice(-3);
+      const previous3Days = sortedDates.slice(-6, -3);
+      const recentAvg = recent3Days.length > 0
+        ? recent3Days.reduce((sum, date) => sum + (revenueMap.get(date) || 0), 0) / recent3Days.length
+        : avgRevenue;
+      const previousAvg = previous3Days.length > 0
+        ? previous3Days.reduce((sum, date) => sum + (revenueMap.get(date) || 0), 0) / previous3Days.length
+        : avgRevenue;
+
+      const trendFactor = previousAvg > 0 ? recentAvg / previousAvg : 1;
+
       for (let i = 0; i < 30; i++) {
         const date = new Date(forecastToday);
         date.setDate(date.getDate() + i);
         const dateKey = `${date.getMonth() + 1}/${date.getDate()}`;
         const isPast = i < 7;
         const actualRevenue = revenueMap.get(dateKey) || 0;
-        const avgRevenue = Array.from(revenueMap.values()).reduce((a, b) => a + b, 0) / (revenueMap.size || 1);
-        const targetRevenue = Math.max(avgRevenue * 1.2, 1000); // 目标为平均营收的120%
+        const targetRevenue = Math.max(avgRevenue * 1.2, 1000);
+        const daysAhead = i - 6;
+        const uncertaintyFactor = Math.min(daysAhead * 0.02, 0.1);
+        const predictedRevenue = isPast
+          ? null
+          : Math.floor(avgRevenue * trendFactor * (1 + (daysAhead > 0 ? uncertaintyFactor : 0)));
 
         forecastData.push({
           date: dateKey,
           实际营收: isPast ? actualRevenue : null,
-          预测营收: isPast ? null : Math.floor(avgRevenue * (0.9 + Math.random() * 0.2)),
+          预测营收: predictedRevenue,
           目标营收: Math.floor(targetRevenue),
         });
       }
       setRevenueForecast(forecastData);
 
-      // 用户生命周期价值 - 基于真实用户注册和付费数据计算
-      const { data: usersWithOrders } = await supabaseAdmin
-        .from('users')
-        .select('id, created_at, membership_orders(amount, created_at)');
-
+      // 用户生命周期价值
       const cohortMap = new Map<string, { users: number; revenue: number[] }>();
-
       usersWithOrders?.forEach(user => {
         if (user.created_at) {
           const regDate = new Date(user.created_at);
@@ -1181,7 +949,6 @@ export default function Admin() {
           const cohort = cohortMap.get(cohortKey)!;
           cohort.users++;
 
-          // 计算用户在不同月份的付费金额
           user.membership_orders?.forEach((order: any) => {
             if (order.created_at && order.amount) {
               const orderDate = new Date(order.created_at);
@@ -1197,7 +964,7 @@ export default function Admin() {
       });
 
       const ltvData = Array.from(cohortMap.entries())
-        .slice(-6) // 最近6个月
+        .slice(-6)
         .map(([cohort, data]) => ({
           cohort,
           month1: data.users > 0 ? Math.round(data.revenue[0] / data.users) : 0,
@@ -1211,63 +978,46 @@ export default function Admin() {
         { cohort: '暂无数据', month1: 0, month3: 0, month6: 0, month12: null, retention: 0 },
       ]);
 
-      // 竞品对比数据 - 基于真实数据计算，竞品数据为估算值
-      // 日活跃用户：基于有互动行为的用户数
-      const { count: dailyActiveUsers } = await supabaseAdmin
-        .from('user_history')
-        .select('*', { count: 'exact', head: true });
-
-      // 付费转化率：付费用户数/总用户数
-      const paidUsersCount = paidUsers || 0;
-      const conversionRate = totalUsers && totalUsers > 0
+      // 竞品对比数据
+      const dailyActiveUsers = userHistoryData?.length || 0;
+      const paidUsersCount = paidUsers;
+      const conversionRate = totalUsers > 0
         ? Math.round((paidUsersCount / totalUsers) * 100 * 10) / 10
         : 0;
-
-      // ARPU值：总收入/总用户数
       const totalRevenue = Array.from(revenueMap.values()).reduce((a, b) => a + b, 0);
-      const arpu = totalUsers && totalUsers > 0
-        ? Math.round(totalRevenue / totalUsers)
-        : 0;
-
-      // 内容产出量
-      const contentOutput = totalWorks || 0;
-
-      // 用户满意度：基于评论情感分析计算
+      const arpu = totalUsers > 0 ? Math.round(totalRevenue / totalUsers) : 0;
+      const contentOutput = totalWorksCount;
       const satisfactionScore = commentSentimentData.length > 0
         ? Math.round((commentSentimentData[0]?.value || 0) / 20 * 10) / 10
         : 0;
 
       setCompetitorData([
-        { metric: '日活跃用户', ours: dailyActiveUsers || 0, competitorA: 8200, competitorB: 4500, industryAvg: 5800 },
-        { metric: '用户留存率', ours: Math.round((users7Day || 0) / (totalUsers || 1) * 100 * 10) / 10, competitorA: 28.0, competitorB: 35.2, industryAvg: 30.0 },
-        { metric: '付费转化率', ours: conversionRate, competitorA: 2.5, competitorB: 4.2, industryAvg: 3.2 },
-        { metric: 'ARPU值', ours: arpu, competitorA: 68, competitorB: 92, industryAvg: 75 },
-        { metric: '内容产出量', ours: contentOutput, competitorA: 380, competitorB: 520, industryAvg: 400 },
-        { metric: '用户满意度', ours: satisfactionScore, competitorA: 4.2, competitorB: 4.3, industryAvg: 4.2 },
+        { metric: '日活跃用户', ours: dailyActiveUsers, competitorA: 8200, competitorB: 4500, industryAvg: 5800, note: '竞品数据为行业估算' },
+        { metric: '用户留存率', ours: Math.round((users7Day || 0) / (totalUsers || 1) * 100 * 10) / 10, competitorA: 28.0, competitorB: 35.2, industryAvg: 30.0, note: '竞品数据为行业估算' },
+        { metric: '付费转化率', ours: conversionRate, competitorA: 2.5, competitorB: 4.2, industryAvg: 3.2, note: '竞品数据为行业估算' },
+        { metric: 'ARPU值', ours: arpu, competitorA: 68, competitorB: 92, industryAvg: 75, note: '竞品数据为行业估算' },
+        { metric: '内容产出量', ours: contentOutput, competitorA: 380, competitorB: 520, industryAvg: 400, note: '竞品数据为行业估算' },
+        { metric: '用户满意度', ours: satisfactionScore, competitorA: 4.2, competitorB: 4.3, industryAvg: 4.2, note: '竞品数据为行业估算' },
       ]);
 
-      // 功能使用深度 - 基于真实用户行为数据估算
+      // 功能使用深度
       const totalUserActions = userActivity?.length || 0;
       setFeatureUsageData([
         { feature: '基础浏览', shallow: Math.floor(totalUserActions * 0.5), medium: Math.floor(totalUserActions * 0.3), deep: Math.floor(totalUserActions * 0.2) },
-        { feature: '内容创作', shallow: Math.floor((totalWorks || 0) * 0.6), medium: Math.floor((totalWorks || 0) * 0.3), deep: Math.floor((totalWorks || 0) * 0.1) },
+        { feature: '内容创作', shallow: Math.floor(totalWorksCount * 0.6), medium: Math.floor(totalWorksCount * 0.3), deep: Math.floor(totalWorksCount * 0.1) },
         { feature: '社交互动', shallow: Math.floor((likeCount || 0) * 0.5), medium: Math.floor((commentCount || 0) * 0.3), deep: Math.floor((followCount || 0) * 0.2) },
         { feature: '付费功能', shallow: Math.floor((ordersByStatus?.length || 0) * 0.6), medium: Math.floor((ordersByStatus?.length || 0) * 0.3), deep: Math.floor((ordersByStatus?.length || 0) * 0.1) },
         { feature: 'AI工具', shallow: Math.floor((aiTasks?.length || 0) * 0.5), medium: Math.floor((aiTasks?.length || 0) * 0.3), deep: Math.floor((aiTasks?.length || 0) * 0.2) },
         { feature: '数据分析', shallow: 0, medium: 0, deep: 0 },
       ]);
 
-      // 错误日志统计 - 暂无错误日志数据
-      // 如需真实数据，需建立 error_logs 表
+      // 其他数据设置
       setErrorLogData([]);
 
-      // 服务器负载 - 暂无服务器监控数据
-      // 如需真实数据，需接入服务器监控API
       const serverLoad = [];
       for (let i = 0; i < 24; i++) {
-        const hour = `${i.toString().padStart(2, '0')}:00`;
         serverLoad.push({
-          hour,
+          hour: `${i.toString().padStart(2, '0')}:00`,
           CPU: 0,
           内存: 0,
           磁盘: 0,
@@ -1275,49 +1025,38 @@ export default function Admin() {
       }
       setServerLoadData(serverLoad);
 
-      // 通知统计 - 暂无通知数据
-      // 如需真实数据，需建立 notifications 表
       setNotificationStats([]);
 
-      // 关键KPI指标 - 基于真实数据计算
       setKpiMetrics({
-        dau: { value: dailyActiveUsers || 0, target: Math.floor((dailyActiveUsers || 0) * 1.1), growth: 0 },
-        mau: { value: totalUsers || 0, target: Math.floor((totalUsers || 0) * 1.1), growth: 0 },
+        dau: { value: dailyActiveUsers, target: Math.floor(dailyActiveUsers * 1.1), growth: 0 },
+        mau: { value: totalUsers, target: Math.floor(totalUsers * 1.1), growth: 0 },
         arpu: { value: arpu, target: Math.floor(arpu * 1.1), growth: 0 },
         gmv: { value: totalRevenue, target: Math.floor(totalRevenue * 1.1), growth: 0 },
         conversion: { value: conversionRate, target: 4.0, growth: 0 },
         nps: { value: satisfactionScore, target: 5.0, growth: 0 },
       });
 
-      // 数据质量监控 - 暂无数据质量监控数据
-      // 如需真实数据，需建立数据质量监控体系
       setDataQualityMetrics([]);
 
-      // 用户来源渠道详细分析 - 基于流量来源数据
       setChannelSourceData(sourceData.map(s => ({
         channel: s.name,
         users: s.users,
-        conversion: s.percentage * 0.1, // 估算转化率
-        cost: 0, // 暂无成本数据
+        conversion: s.percentage * 0.1,
+        cost: 0,
         roi: 'N/A',
       })));
 
-      // 内容创作趋势 - 基于真实作品数据
-      const { data: worksByDayType } = await supabaseAdmin
-        .from('works')
-        .select('created_at, type');
-
+      // 内容创作趋势
       const dayTypeMap = new Map<string, { image: number; video: number; audio: number; article: number; ai: number }>();
       const dayNames2 = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
-      // 初始化
       dayNames2.forEach(day => {
         dayTypeMap.set(day, { image: 0, video: 0, audio: 0, article: 0, ai: 0 });
       });
 
-      worksByDayType?.forEach(work => {
+      worksByHour?.forEach(work => {
         if (work.created_at) {
-          const dayIndex = new Date(work.created_at * 1000).getDay();
+          const dayIndex = new Date(work.created_at).getDay();
           const dayName = dayNames2[dayIndex];
           const current = dayTypeMap.get(dayName)!;
 
@@ -1325,7 +1064,7 @@ export default function Admin() {
           else if (work.type === 'video') current.video++;
           else if (work.type === 'audio') current.audio++;
           else if (work.type === 'article') current.article++;
-          else current.ai++; // AI生成或其他类型
+          else current.ai++;
         }
       });
 
@@ -1334,26 +1073,19 @@ export default function Admin() {
         ...data,
       })));
 
-      // 用户满意度分析 - 基于评论情感分析数据
-      // 使用正面评论占比作为满意度分数
+      // 用户满意度分析
       const totalSentimentComments = positive + neutral + negative;
       const avgScore = totalSentimentComments > 0
         ? Math.round(((positive * 5 + neutral * 3 + negative * 1) / totalSentimentComments) * 10) / 10
         : 0;
 
-      setUserSatisfactionData([
-        { aspect: '界面设计', score: avgScore, responses: totalSentimentComments, trend: 0 },
-        { aspect: '功能体验', score: avgScore, responses: totalSentimentComments, trend: 0 },
-        { aspect: '响应速度', score: avgScore, responses: totalSentimentComments, trend: 0 },
-        { aspect: '内容质量', score: avgScore, responses: totalSentimentComments, trend: 0 },
-        { aspect: '客服服务', score: avgScore, responses: totalSentimentComments, trend: 0 },
-        { aspect: '价格体验', score: avgScore, responses: totalSentimentComments, trend: 0 },
-        { aspect: '社区氛围', score: avgScore, responses: totalSentimentComments, trend: 0 },
-        { aspect: 'AI功能', score: avgScore, responses: totalSentimentComments, trend: 0 },
-      ]);
+      if (totalSentimentComments === 0) {
+        setUserSatisfactionData([{ aspect: '暂无数据', score: 0, responses: 0, trend: 0 }]);
+      } else {
+        setUserSatisfactionData([{ aspect: '总体满意度', score: avgScore, responses: totalSentimentComments, trend: 0 }]);
+      }
 
-      // 系统安全监控 - 暂无安全监控数据
-      // 如需真实数据，需接入安全监控系统
+      // 系统安全监控
       setSecurityMetrics({
         securityScore: 0,
         lastScan: '暂无数据',
@@ -1363,15 +1095,10 @@ export default function Admin() {
         suspiciousIps: 0,
       });
 
-      // 安全事件 - 暂无安全事件数据
-      // 如需真实数据，需建立安全事件日志表
       setSecurityEvents([]);
-
-      // A/B测试结果 - 暂无A/B测试数据
-      // 如需真实数据，需建立A/B测试系统
       setAbTestResults([]);
 
-      // 队列留存详细数据 - 基于真实用户注册和活跃数据
+      // 队列留存详细数据
       const cohortRetention = Array.from(cohortMap.entries())
         .slice(-6)
         .map(([cohort, data]) => ({
@@ -1385,16 +1112,15 @@ export default function Admin() {
         }));
       setCohortRetentionData(cohortRetention.length > 0 ? cohortRetention : []);
 
-      // 页面性能数据 - 暂无页面性能监控数据
-      // 如需真实数据，需接入前端性能监控SDK
+      // 页面性能数据
       setPagePerformanceData([
-        { page: '首页', loadTime: 0, bounceRate: 0, exitRate: 0, views: viewCount || 0 },
-        { page: '作品详情', loadTime: 0, bounceRate: 0, exitRate: 0, views: totalWorks || 0 },
-        { page: '创作页面', loadTime: 0, bounceRate: 0, exitRate: 0, views: 0 },
-        { page: '个人中心', loadTime: 0, bounceRate: 0, exitRate: 0, views: 0 },
-        { page: '搜索页面', loadTime: 0, bounceRate: 0, exitRate: 0, views: 0 },
-        { page: '支付页面', loadTime: 0, bounceRate: 0, exitRate: 0, views: ordersByStatus?.length || 0 },
-        { page: '社区页面', loadTime: 0, bounceRate: 0, exitRate: 0, views: commentCount || 0 },
+        { page: '首页', loadTime: '-', bounceRate: '-', exitRate: '-', views: viewCount || 0 },
+        { page: '作品详情', loadTime: '-', bounceRate: '-', exitRate: '-', views: totalWorksCount },
+        { page: '创作页面', loadTime: '-', bounceRate: '-', exitRate: '-', views: 0 },
+        { page: '个人中心', loadTime: '-', bounceRate: '-', exitRate: '-', views: 0 },
+        { page: '搜索页面', loadTime: '-', bounceRate: '-', exitRate: '-', views: 0 },
+        { page: '支付页面', loadTime: '-', bounceRate: '-', exitRate: '-', views: ordersByStatus?.length || 0 },
+        { page: '社区页面', loadTime: '-', bounceRate: '-', exitRate: '-', views: commentCount || 0 },
       ]);
 
     } catch (error) {
@@ -1809,11 +1535,11 @@ export default function Admin() {
                 
                 {/* 刷新按钮 */}
                 <button
-                  onClick={fetchDashboardData}
+                  onClick={() => fetchDashboardData(true)}
                   disabled={dataLoading}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors ${
-                    isDark 
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    isDark
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
                       : 'bg-blue-500 hover:bg-blue-600 text-white'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
@@ -5073,7 +4799,7 @@ export default function Admin() {
 
 
 
-        {/* 商品管理页面 */}
+        {/* 积分商城管理页面 */}
         {activeTab === 'productManagement' && (
           <Suspense fallback={
             <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
@@ -5085,6 +4811,21 @@ export default function Admin() {
             </div>
           }>
             <ProductManagement />
+          </Suspense>
+        )}
+
+        {/* 文创商城管理页面 */}
+        {activeTab === 'marketplace' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
+              />
+            </div>
+          }>
+            <MarketplaceAdmin />
           </Suspense>
         )}
 

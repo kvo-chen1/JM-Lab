@@ -202,8 +202,30 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
           </motion.div>
           </div>
 
-          {/* 时间戳、语音输出、操作按钮和删除按钮 - 优化样式 */}
-          <div className={`mt-1.5 flex items-center w-full px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
+          {/* 操作按钮 - 显示在时间戳上方 */}
+          {!isError && !isUser && (
+            <div className={`mt-2 flex items-center w-full px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
+              <div className="flex items-center gap-1">
+                <AIMessageActions
+                  content={message.content}
+                  userQuery={previousMessage?.content || '未提供用户问题'}
+                  conversationId={conversationId}
+                  aiModel={aiModel}
+                  onQuote={() => {
+                    // 触发引用事件，可以通过自定义事件或回调传递给父组件
+                    const quoteEvent = new CustomEvent('quoteMessage', {
+                      detail: { content: message.content, index }
+                    });
+                    window.dispatchEvent(quoteEvent);
+                  }}
+                  onDelete={onDelete ? () => onDelete(index) : undefined}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* 时间戳、语音输出和删除按钮 */}
+          <div className={`mt-1 flex items-center w-full px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400 font-medium">
                 {formatTime(message.timestamp)}
@@ -211,25 +233,6 @@ const AICollaborationMessage: React.FC<AICollaborationMessageProps> = ({
               {/* 语音输出按钮 - 仅AI消息显示 */}
               {!isUser && !isError && (
                 <VoiceOutputButton text={message.content} />
-              )}
-              {/* 消息操作栏 - AI消息显示反馈功能 */}
-              {!isError && !isUser && (
-                <div className="flex items-center">
-                  <AIMessageActions
-                    content={message.content}
-                    userQuery={previousMessage?.content || '未提供用户问题'}
-                    conversationId={conversationId}
-                    aiModel={aiModel}
-                    onQuote={() => {
-                      // 触发引用事件，可以通过自定义事件或回调传递给父组件
-                      const quoteEvent = new CustomEvent('quoteMessage', {
-                        detail: { content: message.content, index }
-                      });
-                      window.dispatchEvent(quoteEvent);
-                    }}
-                    onDelete={onDelete ? () => onDelete(index) : undefined}
-                  />
-                </div>
               )}
               {onDelete && (
                 <motion.button

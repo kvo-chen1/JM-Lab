@@ -1,12 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Crown, Palette, User, Bot } from 'lucide-react';
-import { AGENT_CONFIG } from '../types/agent';
+import { Crown, Palette, User, Bot, Paintbrush, PenTool, Video, Search } from 'lucide-react';
+import { AgentType, AGENT_CONFIG } from '../types/agent';
 
 interface AgentAvatarProps {
-  role: 'user' | 'director' | 'designer' | 'system';
+  role: AgentType;
   size?: 'sm' | 'md' | 'lg';
   showName?: boolean;
+  animate?: boolean;
 }
 
 const sizeClasses = {
@@ -21,7 +22,7 @@ const iconSizes = {
   lg: 'w-6 h-6'
 };
 
-export default function AgentAvatar({ role, size = 'md', showName = false }: AgentAvatarProps) {
+export default function AgentAvatar({ role, size = 'md', showName = false, animate = true }: AgentAvatarProps) {
   const renderAvatar = () => {
     switch (role) {
       case 'user':
@@ -49,6 +50,34 @@ export default function AgentAvatar({ role, size = 'md', showName = false }: Age
           </div>
         );
 
+      case 'illustrator':
+        return (
+          <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg`}>
+            <Paintbrush className={`${iconSizes[size]} text-white`} />
+          </div>
+        );
+
+      case 'copywriter':
+        return (
+          <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg`}>
+            <PenTool className={`${iconSizes[size]} text-white`} />
+          </div>
+        );
+
+      case 'animator':
+        return (
+          <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg`}>
+            <Video className={`${iconSizes[size]} text-white`} />
+          </div>
+        );
+
+      case 'researcher':
+        return (
+          <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-br from-slate-500 to-gray-600 flex items-center justify-center shadow-lg`}>
+            <Search className={`${iconSizes[size]} text-white`} />
+          </div>
+        );
+
       case 'system':
       default:
         return (
@@ -67,6 +96,14 @@ export default function AgentAvatar({ role, size = 'md', showName = false }: Age
         return AGENT_CONFIG.director.name;
       case 'designer':
         return AGENT_CONFIG.designer.name;
+      case 'illustrator':
+        return AGENT_CONFIG.illustrator.name;
+      case 'copywriter':
+        return AGENT_CONFIG.copywriter.name;
+      case 'animator':
+        return AGENT_CONFIG.animator.name;
+      case 'researcher':
+        return AGENT_CONFIG.researcher.name;
       default:
         return '系统';
     }
@@ -78,6 +115,14 @@ export default function AgentAvatar({ role, size = 'md', showName = false }: Age
         return 'text-amber-500';
       case 'designer':
         return 'text-cyan-500';
+      case 'illustrator':
+        return 'text-pink-500';
+      case 'copywriter':
+        return 'text-emerald-500';
+      case 'animator':
+        return 'text-violet-500';
+      case 'researcher':
+        return 'text-slate-500';
       case 'user':
         return 'text-blue-500';
       default:
@@ -85,15 +130,9 @@ export default function AgentAvatar({ role, size = 'md', showName = false }: Age
     }
   };
 
-  return (
+  const avatarContent = (
     <div className="flex items-center gap-2">
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-      >
-        {renderAvatar()}
-      </motion.div>
+      {renderAvatar()}
       {showName && (
         <span className={`text-xs font-medium ${getColor()}`}>
           {getName()}
@@ -101,4 +140,18 @@ export default function AgentAvatar({ role, size = 'md', showName = false }: Age
       )}
     </div>
   );
+
+  if (animate) {
+    return (
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+      >
+        {avatarContent}
+      </motion.div>
+    );
+  }
+
+  return avatarContent;
 }

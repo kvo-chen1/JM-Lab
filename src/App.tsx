@@ -400,6 +400,10 @@ const BrandShowcaseManager = createLazyComponent(() => import(/* webpackChunkNam
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'brand-showcase-manager'
 });
+const CopyrightLicenseManager = createLazyComponent(() => import(/* webpackChunkName: "pages-organizer" */ "@/pages/organizer/CopyrightLicenseManager"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'copyright-license-manager'
+});
 const BrandServiceAgreement = createLazyComponent(() => import(/* webpackChunkName: "pages-business" */ "@/pages/BrandServiceAgreement"), {
   priority: ROUTE_PRIORITIES.LOW,
   name: 'brand-agreement'
@@ -480,6 +484,14 @@ const Marketplace = createLazyComponent(() => import(/* webpackChunkName: "pages
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'marketplace'
 });
+
+// ============================================
+// 商家工作台 - 懒加载
+// ============================================
+const MerchantWorkbench = createLazyComponent(() => import(/* webpackChunkName: "pages-merchant" */ "@/pages/merchant"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'merchant-workbench'
+});
 const ProductDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/ProductDetail"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'product-detail'
@@ -491,6 +503,10 @@ const Cart = createLazyComponent(() => import(/* webpackChunkName: "pages-market
 const OrderConfirm = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/OrderConfirm"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'order-confirm'
+});
+const LicensedProducts = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/LicensedProducts"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'licensed-products'
 });
 
 // ============================================
@@ -997,6 +1013,7 @@ export default function App() {
           <Route path="/organizer-center" element={<LazyComponent><PrivateRoute><OrganizerCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer/events/:id" element={<LazyComponent><PrivateRoute><OrganizerEventDetail /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer/brand-showcase" element={<LazyComponent><PrivateRoute><BrandShowcaseManager /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/copyright-license" element={<LazyComponent><PrivateRoute><CopyrightLicenseManager /></PrivateRoute></LazyComponent>} />
           <Route path="/ranking/:eventId" element={<LazyComponent><PrivateRoute><EventRanking /></PrivateRoute></LazyComponent>} />
           
           {/* 创新功能路由 - 懒加载 */}
@@ -1051,6 +1068,13 @@ export default function App() {
           <Route path="/marketplace/product/:id" element={<LazyComponent><ProductDetail /></LazyComponent>} />
           <Route path="/marketplace/cart" element={<LazyComponent><PrivateRoute><Cart /></PrivateRoute></LazyComponent>} />
           <Route path="/marketplace/order/confirm" element={<LazyComponent><PrivateRoute><OrderConfirm /></PrivateRoute></LazyComponent>} />
+          <Route path="/marketplace/licensed-products" element={<LazyComponent><LicensedProducts /></LazyComponent>} />
+          
+          {/* ============================================ */}
+          {/* 商家工作台路由 */}
+          {/* ============================================ */}
+          <Route path="/merchant" element={<LazyComponent><PrivateRoute><MerchantWorkbench /></PrivateRoute></LazyComponent>} />
+          <Route path="/merchant/:module" element={<LazyComponent><PrivateRoute><MerchantWorkbench /></PrivateRoute></LazyComponent>} />
           
           {/* 管理员路由 - 懒加载 */}
         </Route>

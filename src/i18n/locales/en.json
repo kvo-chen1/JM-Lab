@@ -100,7 +100,25 @@
     "businessCooperation": "Business Cooperation",
     "aboutUs": "About Us",
     "activityManagement": "Activity Management",
-    "createActivity": "Create Activity"
+    "createActivity": "Create Activity",
+    "agent": "Jinmai Agent",
+    "aiWriter": "AI Writer",
+    "brandWizard": "Brand Wizard",
+    "square": "Square",
+    "mindMap": "Mind Map",
+    "lottery": "Lottery",
+    "marketplace": "Marketplace",
+    "creatorCenter": "Creator Center",
+    "merchant": "Merchant",
+    "organizer": "Organizer",
+    "group": {
+      "home": "Home",
+      "creation": "Creation",
+      "discover": "Discover",
+      "culture": "Tianjin Culture",
+      "rewards": "Rewards",
+      "business": "Business"
+    }
   },
   "header": {
     "searchPlaceholder": "Search works, materials or users",

@@ -13,7 +13,7 @@ import {
   ImageGenerationParams,
   VideoGenerationParams
 } from '@/services/aiGenerationService';
-import { llmService, Message, ConversationSession } from '@/services/llmService';
+import { llmService, Message, ConversationSession, QuickActionCard, MediaContent } from '@/services/llmService';
 import { downloadAndUploadImage, downloadAndUploadVideo } from '@/services/imageService';
 import { aiConversationService } from '@/services/aiConversationService';
 
@@ -46,7 +46,7 @@ const FEATURES = [
 
 export default function AIAssistantPanel() {
   const { isDark } = useTheme();
-  const { prompt, setPrompt, addGeneratedResult } = useCreateStore();
+  const { prompt, setPrompt, addGeneratedResult, setSelectedResult, generatedResults } = useCreateStore();
 
   // 标签页状态
   const [activeTab, setActiveTab] = useState<TabType>('chat');
@@ -68,6 +68,9 @@ export default function AIAssistantPanel() {
   const [chatMessages, setChatMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState(''); // 流式响应内容
+  const [isStreaming, setIsStreaming] = useState(false); // 是否正在流式输出
+  const [generatingMessageIndex, setGeneratingMessageIndex] = useState<number | null>(null); // 正在生成的消息索引
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -223,20 +226,95 @@ export default function AIAssistantPanel() {
               id: numericId,
               thumbnail: url,
               score: 85 + Math.floor(Math.random() * 10),
-              type: task.type,
+              type: task.type as 'image' | 'video',
               prompt: (task.params as any).prompt
             });
           });
-          // 添加系统消息通知用户
-          const successMessage: Message = {
-            role: 'assistant',
-            content: `✅ ${task.type === 'image' ? '图片' : '视频'}生成完成！已添加到画布中。\n\n💡 **提示**：你可以在画布中查看、编辑或发布生成的作品。`,
-            timestamp: Date.now()
-          };
-          setChatMessages(prev => [...prev, successMessage]);
+          
+          // 确保task.result存在
+          if (!task.result?.urls) {
+            console.error('[AIAssistantPanel] 任务完成但无结果URL');
+            return;
+          }
+          
+          // 更新原来的"生成中"消息为完成状态
+          setChatMessages(prev => {
+            const updatedMessages = [...prev];
+            // 查找正在生成的消息并更新
+            const generatingIndex = updatedMessages.findIndex(
+              m => m.isGenerating && m.generateType === task.type
+            );
+            
+            if (generatingIndex !== -1) {
+              // 更新原来的消息
+              updatedMessages[generatingIndex] = {
+                ...updatedMessages[generatingIndex],
+                content: '', // 清空生成中文字
+                isGenerating: false,
+                media: task.result!.urls.map((url: string) => ({
+                  type: task.type as 'image' | 'video',
+                  url: url,
+                  thumbnail: url,
+                  prompt: (task.params as any).prompt
+                }))
+              };
+            } else {
+              // 如果没找到生成中的消息，添加新消息
+              updatedMessages.push({
+                role: 'assistant',
+                content: `✅ ${task.type === 'image' ? '图片' : '视频'}生成完成！`,
+                timestamp: Date.now(),
+                media: task.result!.urls.map((url: string) => ({
+                  type: task.type as 'image' | 'video',
+                  url: url,
+                  thumbnail: url,
+                  prompt: (task.params as any).prompt
+                }))
+              });
+            }
+            
+            return updatedMessages;
+          });
+          
+          // 清除生成中消息索引
+          setGeneratingMessageIndex(null);
+          
+          // 保存到本地会话
+          if (currentSession) {
+            const updatedMessages = chatMessages.map(m => 
+              m.isGenerating && m.generateType === task.type
+                ? { ...m, isGenerating: false, content: '', media: task.result!.urls.map((url: string) => ({
+                    type: task.type as 'image' | 'video',
+                    url: url,
+                    thumbnail: url,
+                    prompt: (task.params as any).prompt
+                  }))}
+                : m
+            );
+            llmService.importHistory(updatedMessages);
+          }
+          
+          // 异步保存到数据库
+          (async () => {
+            try {
+              const cloudConversation = await aiConversationService.getActiveConversation();
+              if (cloudConversation) {
+                // 找到更新后的消息并保存
+                const updatedMsg = chatMessages.find(m => 
+                  m.media && m.media[0]?.url === task.result!.urls[0]
+                );
+                if (updatedMsg) {
+                  await aiConversationService.saveMessage(cloudConversation.id, updatedMsg);
+                  console.log('[AIAssistantPanel] 生成完成消息已保存到云端');
+                }
+              }
+            } catch (error) {
+              console.error('[AIAssistantPanel] Failed to save success message to cloud:', error);
+            }
+          })();
           
           // 自动保存到永久存储（云端）
-          const originalUrl = task.result.urls[0];
+          const originalUrl = task.result!.urls[0];
           // 检查是否已经是永久URL
           const isPermanentUrl = !originalUrl.includes('openai') && 
                                  !originalUrl.includes('replicate') && 
@@ -265,7 +343,7 @@ export default function AIAssistantPanel() {
                 const updatedTask = {
                   ...task,
                   result: {
-                    ...task.result,
+                    ...task.result!,
                     urls: [permanentUrl],
                     originalUrl: originalUrl
                   }
@@ -281,6 +359,24 @@ export default function AIAssistantPanel() {
                   timestamp: Date.now()
                 };
                 setChatMessages(prev => [...prev, saveSuccessMessage]);
+                
+                // 保存到本地会话和数据库
+                if (currentSession) {
+                  const updatedMessages = [...chatMessages, saveSuccessMessage];
+                  llmService.importHistory(updatedMessages);
+                  
+                  // 异步保存到数据库
+                  (async () => {
+                    try {
+                      const cloudConversation = await aiConversationService.getActiveConversation();
+                      if (cloudConversation) {
+                        await aiConversationService.saveMessage(cloudConversation.id, saveSuccessMessage);
+                      }
+                    } catch (error) {
+                      console.error('[AIAssistantPanel] Failed to save saveSuccessMessage to cloud:', error);
+                    }
+                  })();
+                }
                 
                 toast.success(`${task.type === 'image' ? '图片' : '视频'}已自动保存到云端`);
               } catch (saveError) {
@@ -512,18 +608,23 @@ export default function AIAssistantPanel() {
       // 是生成指令，直接执行生成
       setIsChatLoading(true);
 
-      // 添加AI确认消息
-      const confirmMessage: Message = {
+      // 添加"生成中"消息（带生成状态标记）
+      const generatingMessage: Message = {
         role: 'assistant',
-        content: `🎨 收到！正在为你${mode === 'image' ? '生成图片' : '生成视频'}...\n\n**提示词**：${generatePrompt}\n\n⏳ 请稍候，生成需要一些时间...`,
-        timestamp: Date.now()
+        content: `${mode === 'image' ? '图片' : '视频'}生成中...`,
+        timestamp: Date.now(),
+        isGenerating: true,
+        generateType: mode
       };
-      const messagesWithConfirm = [...newMessages, confirmMessage];
-      setChatMessages(messagesWithConfirm);
+      const messagesWithGenerating = [...newMessages, generatingMessage];
+      setChatMessages(messagesWithGenerating);
       
-      // 保存确认消息
+      // 记录正在生成的消息索引
+      setGeneratingMessageIndex(messagesWithGenerating.length - 1);
+      
+      // 保存消息
       if (currentSession) {
-        llmService.importHistory(messagesWithConfirm);
+        llmService.importHistory(messagesWithGenerating);
       }
       
       setIsChatLoading(false);
@@ -535,13 +636,22 @@ export default function AIAssistantPanel() {
 
     // 普通对话，调用LLM
     setIsChatLoading(true);
+    setIsStreaming(true);
+    setStreamingContent('');
 
     try {
+      let fullResponse = '';
+      
       const response = await llmService.generateResponse(inputText, {
         context: {
           page: 'AI助手',
           path: '/create',
           history: chatMessages.slice(-5) // 提供最近5条消息作为上下文
+        },
+        onDelta: (chunk: string) => {
+          // 流式接收AI响应内容
+          fullResponse += chunk;
+          setStreamingContent(fullResponse);
         }
       });
 
@@ -576,27 +686,54 @@ export default function AIAssistantPanel() {
       toast.error('发送消息失败');
     } finally {
       setIsChatLoading(false);
+      setIsStreaming(false);
+      setStreamingContent('');
     }
   };
 
-  // 处理快捷指令
+  // 处理快捷指令 - 在聊天中显示卡片
   const handleQuickCommand = (command: typeof QUICK_COMMANDS[0]) => {
+    // 添加带快捷操作卡片的消息
+    const cardMessage: Message = {
+      role: 'assistant',
+      content: `我来帮您${command.label}！请在下方输入您的具体需求：`,
+      timestamp: Date.now(),
+      quickAction: {
+        type: command.id as QuickActionCard['type'],
+        title: command.label,
+        description: getCommandDescription(command.id),
+        icon: command.icon,
+        color: command.color,
+        gradient: command.gradient
+      }
+    };
+    
+    setChatMessages(prev => [...prev, cardMessage]);
+    
+    // 根据命令类型设置生成模式
     if (command.id === 'generate-image') {
       setGenerateMode('image');
-      setShowSettings(true);
-      setChatInput(command.prompt);
     } else if (command.id === 'generate-video') {
       setGenerateMode('video');
-      setShowSettings(true);
-      setChatInput(command.prompt);
-    } else if (command.id === 'optimize-prompt') {
-      if (prompt) {
-        setChatInput(`${command.prompt}${prompt}`);
-      } else {
-        setChatInput(command.prompt);
-      }
-    } else {
-      setChatInput(command.prompt);
+    }
+    
+    // 设置输入框提示
+    setChatInput(command.prompt);
+  };
+  
+  // 获取命令描述
+  const getCommandDescription = (commandId: string): string => {
+    switch (commandId) {
+      case 'generate-image':
+        return '基于描述直接生成AI图片';
+      case 'generate-video':
+        return '基于描述直接生成AI视频';
+      case 'optimize-prompt':
+        return '优化您的提示词，让生成效果更好';
+      case 'creative-idea':
+        return '获取创意灵感，激发创作思路';
+      default:
+        return '';
     }
   };
 
@@ -856,6 +993,44 @@ export default function AIAssistantPanel() {
     }
 
     return result;
+  };
+
+  // 从消息内容中提取媒体URL（兼容历史消息）
+  const extractMediaFromMessage = (message: Message): MediaContent[] | null => {
+    // 如果已经有media字段，直接返回
+    if (message.media && message.media.length > 0) {
+      return message.media;
+    }
+    
+    // 尝试从内容中提取图片URL
+    const media: MediaContent[] = [];
+    const content = message.content;
+    
+    // 匹配常见的图片URL模式
+    const imageUrlPatterns = [
+      /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp))/gi,
+      /(https?:\/\/[^\s]+openai[^\s]*)/gi,
+      /(https?:\/\/[^\s]+replicate[^\s]*)/gi,
+      /(https?:\/\/[^\s]+supabase[^\s]*)/gi,
+    ];
+    
+    for (const pattern of imageUrlPatterns) {
+      const matches = content.match(pattern);
+      if (matches) {
+        matches.forEach(url => {
+          // 去重
+          if (!media.some(m => m.url === url)) {
+            media.push({
+              type: 'image',
+              url: url,
+              thumbnail: url
+            });
+          }
+        });
+      }
+    }
+    
+    return media.length > 0 ? media : null;
   };
 
   return (
@@ -1288,8 +1463,29 @@ export default function AIAssistantPanel() {
                                 'shadow-lg shadow-black/5'
                               )
                         )}>
-                          {/* 欢迎消息特殊渲染 */}
-                          {index === 0 && message.role === 'assistant' ? (
+                          {/* 生成中状态显示 */}
+                          {message.isGenerating ? (
+                            <div className="flex items-center gap-3 py-2">
+                              <motion.div
+                                animate={{ 
+                                  scale: [1, 1.2, 1],
+                                  opacity: [0.5, 1, 0.5]
+                                }}
+                                transition={{ 
+                                  duration: 1.5, 
+                                  repeat: Infinity,
+                                  ease: "easeInOut"
+                                }}
+                                className="w-5 h-5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
+                              />
+                              <span className={clsx(
+                                "text-sm font-medium",
+                                isDark ? "text-gray-300" : "text-gray-600"
+                              )}>
+                                {message.content}
+                              </span>
+                            </div>
+                          ) : index === 0 && message.role === 'assistant' ? (
                             <div className="space-y-4">
                               <p className="font-medium text-base">{message.content}</p>
                               {/* 功能列表 - 响应式布局：电脑端2列，移动端1列 */}
@@ -1346,13 +1542,337 @@ export default function AIAssistantPanel() {
                               {renderMessageContent(message.content)}
                             </div>
                           )}
+                          
+                          {/* 媒体内容显示 - 图片/视频预览（兼容历史消息） */}
+                          {(() => {
+                            const mediaItems = extractMediaFromMessage(message);
+                            return mediaItems && mediaItems.length > 0 ? (
+                              <div className="mt-4 space-y-3">
+                                {mediaItems.map((mediaItem, mediaIdx) => (
+                                  <motion.div
+                                    key={mediaIdx}
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ delay: mediaIdx * 0.1 }}
+                                    className="relative group cursor-pointer overflow-hidden rounded-xl border-2 border-transparent hover:border-purple-500 transition-all"
+                                    onClick={() => {
+                                      // 点击跳转到画布查看
+                                      const result = generatedResults.find(r => r.thumbnail === mediaItem.url);
+                                      if (result) {
+                                        setSelectedResult(result.id);
+                                      }
+                                    }}
+                                  >
+                                    {mediaItem.type === 'video' ? (
+                                      <video
+                                        src={mediaItem.url}
+                                        poster={mediaItem.thumbnail}
+                                        className="w-full max-h-48 object-cover rounded-xl"
+                                        controls
+                                        preload="metadata"
+                                      />
+                                    ) : (
+                                      <img
+                                        src={mediaItem.url}
+                                        alt="生成的图片"
+                                        className="w-full max-h-48 object-cover rounded-xl"
+                                        loading="lazy"
+                                        onError={(e) => {
+                                          // 图片加载失败时显示占位符
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                        }}
+                                      />
+                                    )}
+                                    {/* 悬停遮罩 */}
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                                      <span className="opacity-0 group-hover:opacity-100 text-white text-sm font-medium flex items-center gap-2 transition-all">
+                                        <i className="fas fa-expand" />
+                                        在画布中查看
+                                      </span>
+                                    </div>
+                                    {/* 类型标签 */}
+                                    <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-xs rounded-md flex items-center gap-1">
+                                      <i className={`fas fa-${mediaItem.type === 'video' ? 'video' : 'image'}`} />
+                                      {mediaItem.type === 'video' ? '视频' : '图片'}
+                                    </div>
+                                  </motion.div>
+                                ))}
+                              </div>
+                            ) : null;
+                          })()}
+                          
+                          {/* 快捷操作卡片显示 */}
+                          {message.quickAction && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-4 rounded-xl overflow-hidden border-2 border-purple-500/30 hover:border-purple-500/60 transition-all"
+                            >
+                              {/* 卡片头部 */}
+                              <div className={clsx(
+                                "px-4 py-3 flex items-center gap-3",
+                                `bg-gradient-to-r ${message.quickAction.gradient}`
+                              )}>
+                                <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                                  <i className={`fas fa-${message.quickAction.icon} text-white text-lg`} />
+                                </div>
+                                <div className="flex-1">
+                                  <h4 className="text-white font-semibold">{message.quickAction.title}</h4>
+                                  <p className="text-white/80 text-xs">{message.quickAction.description}</p>
+                                </div>
+                              </div>
+                              
+                              {/* 卡片内容 - 生成参数设置 */}
+                              {(message.quickAction.type === 'generate-image' || message.quickAction.type === 'generate-video') && (
+                                <div className={clsx(
+                                  "p-4 space-y-3",
+                                  isDark ? "bg-gray-800/50" : "bg-gray-50"
+                                )}>
+                                  {/* 快捷参数设置 */}
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setShowSettings(true);
+                                        setGenerateMode(message.quickAction!.type === 'generate-image' ? 'image' : 'video');
+                                      }}
+                                      className={clsx(
+                                        "px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2",
+                                        isDark 
+                                          ? "bg-gray-700 hover:bg-gray-600 text-gray-300" 
+                                          : "bg-white hover:bg-gray-100 text-gray-600 border border-gray-200"
+                                      )}
+                                    >
+                                      <i className="fas fa-sliders-h" />
+                                      高级设置
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        // 快速生成示例
+                                        const demoPrompt = message.quickAction!.type === 'generate-image' 
+                                          ? '一只可爱的猫咪在花园里玩耍，阳光明媚，色彩鲜艳'
+                                          : '海浪拍打沙滩，夕阳西下的美丽景象';
+                                        setChatInput(demoPrompt);
+                                      }}
+                                      className={clsx(
+                                        "px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2",
+                                        `bg-gradient-to-r ${message.quickAction.gradient} text-white hover:opacity-90`
+                                      )}
+                                    >
+                                      <i className="fas fa-magic" />
+                                      试试示例
+                                    </button>
+                                  </div>
+                                  
+                                  {/* 提示 */}
+                                  <p className={clsx(
+                                    "text-xs text-center",
+                                    isDark ? "text-gray-500" : "text-gray-400"
+                                  )}>
+                                    💡 在下方输入框中描述您想要生成的内容，然后发送
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {/* 优化提示词和创意灵感卡片 */}
+                              {(message.quickAction.type === 'optimize-prompt' || message.quickAction.type === 'creative-idea') && (
+                                <div className={clsx(
+                                  "p-4 space-y-3",
+                                  isDark ? "bg-gray-800/50" : "bg-gray-50"
+                                )}>
+                                  <div className="flex gap-2">
+                                    {message.quickAction.type === 'optimize-prompt' && prompt && (
+                                      <button
+                                        onClick={() => handleChatSubmit(undefined, `请帮我优化以下提示词：${prompt}`)}
+                                        className={clsx(
+                                          "flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2",
+                                          `bg-gradient-to-r ${message.quickAction.gradient} text-white hover:opacity-90`
+                                        )}
+                                      >
+                                        <i className="fas fa-wand-magic-sparkles" />
+                                        优化当前提示词
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        const ideas = message.quickAction!.type === 'creative-idea'
+                                          ? '给我一些创意灵感，关于天津传统文化的设计'
+                                          : '请帮我优化以下提示词：';
+                                        setChatInput(ideas);
+                                      }}
+                                      className={clsx(
+                                        "flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2",
+                                        isDark 
+                                          ? "bg-gray-700 hover:bg-gray-600 text-gray-300" 
+                                          : "bg-white hover:bg-gray-100 text-gray-600 border border-gray-200"
+                                      )}
+                                    >
+                                      <i className="fas fa-pen" />
+                                      自定义输入
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </motion.div>
+                          )}
+                          
+                          {/* 消息操作按钮 - 显示在图片/内容下方 */}
+                          {message.role === 'assistant' && !message.isError && (
+                            <div className={clsx(
+                              "mt-3 flex items-center gap-1",
+                              isDark ? "text-gray-400" : "text-gray-500"
+                            )}>
+                              {/* 复制按钮 */}
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(message.content);
+                                  toast.success('已复制到剪贴板');
+                                }}
+                                className={clsx(
+                                  "p-1.5 rounded-lg transition-all hover:scale-110",
+                                  isDark ? "hover:bg-gray-700 hover:text-gray-200" : "hover:bg-gray-100 hover:text-gray-700"
+                                )}
+                                title="复制"
+                              >
+                                <i className="fas fa-copy text-xs" />
+                              </button>
+                              
+                              {/* 语音朗读按钮 */}
+                              <button
+                                onClick={() => {
+                                  const utterance = new SpeechSynthesisUtterance(message.content);
+                                  utterance.lang = 'zh-CN';
+                                  speechSynthesis.speak(utterance);
+                                }}
+                                className={clsx(
+                                  "p-1.5 rounded-lg transition-all hover:scale-110",
+                                  isDark ? "hover:bg-gray-700 hover:text-gray-200" : "hover:bg-gray-100 hover:text-gray-700"
+                                )}
+                                title="语音朗读"
+                              >
+                                <i className="fas fa-volume-up text-xs" />
+                              </button>
+                              
+                              {/* 点赞按钮 */}
+                              <button
+                                onClick={() => toast.success('已点赞')}
+                                className={clsx(
+                                  "p-1.5 rounded-lg transition-all hover:scale-110",
+                                  isDark ? "hover:bg-gray-700 hover:text-green-400" : "hover:bg-gray-100 hover:text-green-600"
+                                )}
+                                title="点赞"
+                              >
+                                <i className="fas fa-thumbs-up text-xs" />
+                              </button>
+                              
+                              {/* 点踩按钮 */}
+                              <button
+                                onClick={() => toast.success('已反馈')}
+                                className={clsx(
+                                  "p-1.5 rounded-lg transition-all hover:scale-110",
+                                  isDark ? "hover:bg-gray-700 hover:text-red-400" : "hover:bg-gray-100 hover:text-red-600"
+                                )}
+                                title="不喜欢"
+                              >
+                                <i className="fas fa-thumbs-down text-xs" />
+                              </button>
+                              
+                              {/* 收藏按钮 */}
+                              <button
+                                onClick={() => toast.success('已收藏')}
+                                className={clsx(
+                                  "p-1.5 rounded-lg transition-all hover:scale-110",
+                                  isDark ? "hover:bg-gray-700 hover:text-yellow-400" : "hover:bg-gray-100 hover:text-yellow-600"
+                                )}
+                                title="收藏"
+                              >
+                                <i className="fas fa-bookmark text-xs" />
+                              </button>
+                              
+                              {/* 分享按钮 */}
+                              <button
+                                onClick={() => toast.success('分享功能开发中')}
+                                className={clsx(
+                                  "p-1.5 rounded-lg transition-all hover:scale-110",
+                                  isDark ? "hover:bg-gray-700 hover:text-blue-400" : "hover:bg-gray-100 hover:text-blue-600"
+                                )}
+                                title="分享"
+                              >
+                                <i className="fas fa-share-alt text-xs" />
+                              </button>
+                              
+                              {/* 更多按钮 */}
+                              <button
+                                onClick={() => toast.success('更多功能开发中')}
+                                className={clsx(
+                                  "p-1.5 rounded-lg transition-all hover:scale-110",
+                                  isDark ? "hover:bg-gray-700 hover:text-gray-200" : "hover:bg-gray-100 hover:text-gray-700"
+                                )}
+                                title="更多"
+                              >
+                                <i className="fas fa-ellipsis-h text-xs" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </motion.div>
                   ))}
 
-                  {/* 加载动画 - 更精致的打字机效果 */}
-                  {isChatLoading && (
+                  {/* 流式响应消息显示 */}
+                  {isStreaming && streamingContent && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-start"
+                    >
+                      <div className="flex-shrink-0 mr-3">
+                        <div className={clsx(
+                          "w-8 h-8 rounded-xl flex items-center justify-center shadow-lg",
+                          isDark
+                            ? "bg-gradient-to-br from-purple-600 to-pink-600 shadow-purple-500/20"
+                            : "bg-gradient-to-br from-purple-500 to-pink-500 shadow-purple-500/25"
+                        )}>
+                          <i className="fas fa-robot text-white text-xs" />
+                        </div>
+                      </div>
+                      <div className="max-w-[82%]">
+                        {/* 用户名/时间 */}
+                        <div className={clsx(
+                          'flex items-center mb-1.5 justify-start'
+                        )}>
+                          <span className={clsx(
+                            'text-[11px] font-medium',
+                            isDark ? 'text-gray-400' : 'text-gray-500'
+                          )}>
+                            AI助手
+                          </span>
+                          <span className={clsx(
+                            'text-[10px] ml-2',
+                            isDark ? 'text-gray-600' : 'text-gray-400'
+                          )}>
+                            {new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        {/* 消息气泡 */}
+                        <div className={clsx(
+                          'rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm rounded-bl-md',
+                          isDark
+                            ? 'bg-gray-800/80 text-gray-100 border border-gray-700/50'
+                            : 'bg-white text-gray-700 border border-gray-200/80',
+                          'shadow-lg shadow-black/5'
+                        )}>
+                          <div className="whitespace-pre-wrap max-w-none">
+                            {renderMessageContent(streamingContent)}
+                            {/* 闪烁光标效果 */}
+                            <span className="inline-block w-2 h-4 ml-0.5 align-middle bg-purple-500 animate-pulse rounded-sm" />
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* 加载动画 - 更精致的打字机效果（仅在非流式状态下显示） */}
+                  {isChatLoading && !isStreaming && (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}

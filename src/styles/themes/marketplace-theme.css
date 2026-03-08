@@ -1,6 +1,6 @@
 /* ========================================
-   文创商城主题 - Marketplace Theme
-   设计灵感：海河文化、津门文创、现代简约
+   文创商城主题 - Marketplace Theme (深色版)
+   设计灵感：海河文化、津门文创、深色现代
    ======================================== */
 
 /* ========================================
@@ -8,90 +8,90 @@
    ======================================== */
 
 .marketplace-theme {
-  /* 海河蓝 - 主色调 */
-  --haihe-50: #E8F4FC;
-  --haihe-100: #D1E9F9;
-  --haihe-200: #A3D3F3;
-  --haihe-300: #75BDED;
-  --haihe-400: #47A7E7;
-  --haihe-500: #1E5F8E;
-  --haihe-600: #1A4F78;
-  --haihe-700: #163F62;
-  --haihe-800: #122F4C;
-  --haihe-900: #0E1F36;
+  /* 海河蓝 - 主色调 (深色模式调整) */
+  --haihe-50: #1a2332;
+  --haihe-100: #243447;
+  --haihe-200: #2d4a5e;
+  --haihe-300: #3d6a8a;
+  --haihe-400: #4a8ab8;
+  --haihe-500: #5ba3d4;
+  --haihe-600: #7ab8e0;
+  --haihe-700: #9dccec;
+  --haihe-800: #c0e0f7;
+  --haihe-900: #e3f4ff;
 
   /* 津门金 - 辅助色 */
-  --jinmen-50: #FDF8E8;
-  --jinmen-100: #FBF1D1;
-  --jinmen-200: #F7E3A3;
-  --jinmen-300: #F3D575;
-  --jinmen-400: #EFC747;
-  --jinmen-500: #C68E17;
-  --jinmen-600: #A87813;
-  --jinmen-700: #8A620F;
-  --jinmen-800: #6C4C0B;
-  --jinmen-900: #4E3607;
+  --jinmen-50: #2a2518;
+  --jinmen-100: #3d341f;
+  --jinmen-200: #5c4a26;
+  --jinmen-300: #8a6f2f;
+  --jinmen-400: #b8943d;
+  --jinmen-500: #d4a84a;
+  --jinmen-600: #e0bc6a;
+  --jinmen-700: #ecd08a;
+  --jinmen-800: #f7e4aa;
+  --jinmen-900: #fff8ca;
 
   /* 功能色 */
-  --success: #228B22;
-  --warning: #C68E17;
-  --error: #C21807;
-  --info: #87CEEB;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
 
-  /* 中性色 */
-  --gray-0: #FFFFFF;
-  --gray-50: #FAFAF8;
-  --gray-100: #F5F3F0;
-  --gray-200: #E8E5E0;
-  --gray-300: #D8D5D0;
-  --gray-400: #B8B5B0;
-  --gray-500: #989590;
-  --gray-600: #787570;
-  --gray-700: #585550;
-  --gray-800: #383530;
-  --gray-900: #181510;
+  /* 中性色 - 深色主题 */
+  --gray-0: #0a0a0a;
+  --gray-50: #141414;
+  --gray-100: #1a1a1a;
+  --gray-200: #2a2a2a;
+  --gray-300: #3a3a3a;
+  --gray-400: #4a4a4a;
+  --gray-500: #6a6a6a;
+  --gray-600: #8a8a8a;
+  --gray-700: #aaaaaa;
+  --gray-800: #cccccc;
+  --gray-900: #ffffff;
 
   /* ========================================
-     2. 应用变量
+     2. 应用变量 - 深色主题默认
      ======================================== */
 
   /* 主色 */
   --color-primary: var(--haihe-500);
   --color-primary-light: var(--haihe-400);
   --color-primary-dark: var(--haihe-600);
-  --color-primary-hover: var(--haihe-600);
+  --color-primary-hover: var(--haihe-400);
 
   /* 辅助色 */
   --color-accent: var(--jinmen-500);
   --color-accent-light: var(--jinmen-400);
   --color-accent-dark: var(--jinmen-600);
 
-  /* 背景色 */
-  --bg-primary: #FAFAF8;
-  --bg-secondary: #FFFFFF;
-  --bg-tertiary: #F5F3F0;
-  --bg-elevated: #FFFFFF;
-  --bg-sidebar: #FFFFFF;
+  /* 背景色 - 深色 */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #141414;
+  --bg-tertiary: #1a1a1a;
+  --bg-elevated: #1f1f1f;
+  --bg-sidebar: #141414;
 
-  /* 文字色 */
-  --text-primary: #1A1A1A;
-  --text-secondary: #4A4A4A;
-  --text-tertiary: #7A7A7A;
-  --text-muted: #9A9A9A;
-  --text-inverse: #FFFFFF;
+  /* 文字色 - 深色 */
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-tertiary: #aaaaaa;
+  --text-muted: #6a6a6a;
+  --text-inverse: #0a0a0a;
 
-  /* 边框色 */
-  --border-primary: #E8E5E0;
-  --border-secondary: #D8D5D0;
-  --border-tertiary: #C8C5C0;
+  /* 边框色 - 深色 */
+  --border-primary: #2a2a2a;
+  --border-secondary: #3a3a3a;
+  --border-tertiary: #4a4a4a;
 
-  /* 阴影系统 */
-  --shadow-sm: 0 1px 2px rgba(30, 95, 142, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(30, 95, 142, 0.08), 0 2px 4px -2px rgba(30, 95, 142, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(30, 95, 142, 0.1), 0 4px 6px -2px rgba(30, 95, 142, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(30, 95, 142, 0.12), 0 8px 10px -6px rgba(30, 95, 142, 0.06);
-  --shadow-glow: 0 0 20px rgba(30, 95, 142, 0.2);
-  --shadow-glow-accent: 0 0 20px rgba(198, 142, 23, 0.3);
+  /* 阴影系统 - 深色 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 6px -2px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 8px 10px -6px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 20px rgba(91, 163, 212, 0.3);
+  --shadow-glow-accent: 0 0 20px rgba(212, 168, 74, 0.3);
 
   /* 间距系统 - 8px基准 */
   --space-1: 4px;
@@ -127,38 +127,34 @@
 }
 
 /* ========================================
-   3. 暗色模式
+   3. 亮色模式 (可选)
    ======================================== */
 
-.marketplace-theme.dark {
-  /* 暗色背景 */
-  --bg-primary: #1A1918;
-  --bg-secondary: #2C2A28;
-  --bg-tertiary: #3A3834;
-  --bg-elevated: #3A3834;
-  --bg-sidebar: #2C2A28;
+.marketplace-theme.light {
+  /* 背景色 */
+  --bg-primary: #FAFAF8;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F5F3F0;
+  --bg-elevated: #FFFFFF;
+  --bg-sidebar: #FFFFFF;
 
-  /* 暗色文字 */
-  --text-primary: #F5F3F0;
-  --text-secondary: #D8D5D0;
-  --text-tertiary: #B8B5B0;
-  --text-muted: #989590;
+  /* 文字色 */
+  --text-primary: #1A1A1A;
+  --text-secondary: #4A4A4A;
+  --text-tertiary: #7A7A7A;
+  --text-muted: #9A9A9A;
+  --text-inverse: #FFFFFF;
 
-  /* 暗色边框 */
-  --border-primary: #4A4844;
-  --border-secondary: #5A5854;
-  --border-tertiary: #6A6864;
+  /* 边框色 */
+  --border-primary: #E8E5E0;
+  --border-secondary: #D8D5D0;
+  --border-tertiary: #C8C5C0;
 
-  /* 暗色阴影 */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
-
-  /* 暗色主色 */
-  --color-primary: var(--haihe-400);
-  --color-primary-light: var(--haihe-300);
-  --color-primary-dark: var(--haihe-500);
+  /* 亮色阴影 */
+  --shadow-sm: 0 1px 2px rgba(30, 95, 142, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(30, 95, 142, 0.08), 0 2px 4px -2px rgba(30, 95, 142, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(30, 95, 142, 0.1), 0 4px 6px -2px rgba(30, 95, 142, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(30, 95, 142, 0.12), 0 8px 10px -6px rgba(30, 95, 142, 0.06);
 }
 
 /* ========================================
@@ -230,23 +226,23 @@
 .marketplace-theme .mp-btn-primary {
   background: linear-gradient(135deg, var(--haihe-500) 0%, var(--haihe-600) 100%);
   color: var(--text-inverse);
-  box-shadow: 0 4px 14px rgba(30, 95, 142, 0.35);
+  box-shadow: 0 4px 14px rgba(91, 163, 212, 0.35);
 }
 
 .marketplace-theme .mp-btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(30, 95, 142, 0.45), var(--shadow-glow);
+  box-shadow: 0 6px 20px rgba(91, 163, 212, 0.45), var(--shadow-glow);
 }
 
 .marketplace-theme .mp-btn-accent {
   background: linear-gradient(135deg, var(--jinmen-500) 0%, var(--jinmen-600) 100%);
   color: var(--text-inverse);
-  box-shadow: 0 4px 14px rgba(198, 142, 23, 0.35);
+  box-shadow: 0 4px 14px rgba(212, 168, 74, 0.35);
 }
 
 .marketplace-theme .mp-btn-accent:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(198, 142, 23, 0.45), var(--shadow-glow-accent);
+  box-shadow: 0 6px 20px rgba(212, 168, 74, 0.45), var(--shadow-glow-accent);
 }
 
 .marketplace-theme .mp-btn-secondary {
@@ -309,7 +305,7 @@
   outline: none;
   background: var(--bg-secondary);
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(30, 95, 142, 0.1);
+  box-shadow: 0 0 0 3px rgba(91, 163, 212, 0.15);
 }
 
 /* ========================================
@@ -337,7 +333,7 @@
 }
 
 .marketplace-theme .mp-badge-success {
-  background: rgba(34, 139, 34, 0.1);
+  background: rgba(34, 197, 94, 0.15);
   color: var(--success);
 }
 
@@ -361,11 +357,13 @@
   overflow: hidden;
   transition: all var(--transition-slow);
   cursor: pointer;
+  border: 1px solid var(--border-primary);
 }
 
 .marketplace-theme .mp-product-card:hover {
   transform: translateY(-8px);
   box-shadow: var(--shadow-xl);
+  border-color: var(--border-secondary);
 }
 
 .marketplace-theme .mp-product-card:hover .mp-product-image {
@@ -407,11 +405,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(20, 20, 20, 0.9);
   border-radius: var(--radius-full);
   opacity: 0;
   transform: scale(0.8);
   transition: all var(--transition-base);
+  color: var(--text-secondary);
 }
 
 .marketplace-theme .mp-product-card:hover .mp-product-favorite {
@@ -504,7 +503,7 @@
 }
 
 .marketplace-theme .mp-sidebar-nav-item.active {
-  background: var(--haihe-50);
+  background: var(--haihe-100);
   color: var(--color-primary);
 }
 
@@ -570,7 +569,7 @@
   position: relative;
   border-radius: var(--radius-2xl);
   overflow: hidden;
-  background: linear-gradient(135deg, var(--haihe-500) 0%, var(--haihe-700) 100%);
+  background: linear-gradient(135deg, var(--haihe-600) 0%, var(--haihe-800) 100%);
 }
 
 .marketplace-theme .mp-hero-content {
@@ -603,15 +602,21 @@
   flex: 1;
   padding: var(--space-4) var(--space-5);
   font-size: 16px;
-  background: white;
-  border: none;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+}
+
+.marketplace-theme .mp-hero-search-input::placeholder {
+  color: var(--text-muted);
 }
 
 .marketplace-theme .mp-hero-search-input:focus {
   outline: none;
   box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary);
 }
 
 .marketplace-theme .mp-hero-search-btn {
@@ -675,7 +680,7 @@
   background: linear-gradient(
     45deg,
     transparent 30%,
-    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.1) 50%,
     transparent 70%
   );
   transform: translateX(-100%) rotate(45deg);
@@ -748,6 +753,6 @@
    ======================================== */
 
 .marketplace-theme ::selection {
-  background: var(--haihe-200);
+  background: var(--haihe-300);
   color: var(--haihe-900);
 }

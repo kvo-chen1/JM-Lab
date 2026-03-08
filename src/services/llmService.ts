@@ -20,12 +20,34 @@ export interface LLMModel {
   apiKey?: string;
 }
 
+// 媒体内容类型定义
+export interface MediaContent {
+  type: 'image' | 'video';
+  url: string;
+  thumbnail?: string;
+  prompt?: string;
+}
+
+// 快捷操作卡片类型定义
+export interface QuickActionCard {
+  type: 'generate-image' | 'generate-video' | 'optimize-prompt' | 'creative-idea';
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  gradient: string;
+}
+
 // 对话历史类型定义
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
   isError?: boolean;
+  media?: MediaContent[]; // 可选的媒体内容
+  quickAction?: QuickActionCard; // 可选的快捷操作卡片
+  isGenerating?: boolean; // 是否正在生成中
+  generateType?: 'image' | 'video'; // 生成类型
 }
 
 // 对话会话类型定义
@@ -338,7 +360,7 @@ export const DEFAULT_CONFIG: ModelConfig = {
   frequency_penalty: 0,
   stop: [],
   // 新增通义千问模型配置默认值
-  qwen_model: 'qwen3.5-plus',
+  qwen_model: 'qwen-turbo',
   qwen_base_url: 'https://dashscope.aliyuncs.com/api/v1',
   // 新增对话相关配置默认值
   enable_memory: true,
@@ -1930,7 +1952,7 @@ export interface WorkReviewResult {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: params.model || 'qwen-image-2.0',
+            model: params.model || 'wanx-v1',
             prompt: params.prompt,
             size: params.size,
             n: params.n || 1
@@ -2902,26 +2924,13 @@ export interface WorkReviewResult {
    * @returns 生成的标题和标签
    */
   async generateTitleAndTags(description: string, contentType: 'image' | 'video' = 'image'): Promise<{ title: string; tags: string[] }> {
-    const prompt = `请根据以下${contentType === 'video' ? '视频' : '图片'}作品描述，生成一个吸引人的标题和5个相关标签。
-
-作品描述：
-${description}
+    const prompt = `根据描述生成标题和标签。描述：${description}
 
 要求：
-1. 标题要简洁有力，不超过20个字，能够概括作品主题
-2. 标签要与作品内容相关，便于分类和搜索
-3. 标签可以从以下类别中选择：
-   - 传统文化：国潮、纹样设计、青花瓷、山水画、民俗、剪纸、刺绣、书法、敦煌、壁画、汉服、旗袍等
-   - 建筑历史：历史建筑、欧式建筑、天津、五大道、洋楼、古建筑、城市风光等
-   - 艺术风格：AI创作、数字艺术、概念设计、插画、海报、油画、水彩、素描等
-   - 色彩氛围：暖色调、冷色调、复古色调、温馨、梦幻、明亮等
-   - 主题内容：风景、人物、动物、植物、花卉、静物、抽象、写实等
+1. 标题≤20字，自然生动，不用【】前缀
+2. 标签5个，从以下选：国潮、青花瓷、山水画、历史建筑、AI创作、数字艺术、插画、海报、暖色调、复古、风景、花卉、民俗、传统文化
 
-请按以下JSON格式返回结果：
-{
-  "title": "生成的标题",
-  "tags": ["标签1", "标签2", "标签3", "标签4", "标签5"]
-}`;
+返回JSON：{"title":"标题","tags":["标签1","标签2","标签3","标签4","标签5"]}`;
 
     try {
       console.log('[LLM] Generating title and tags for:', description.substring(0, 50));

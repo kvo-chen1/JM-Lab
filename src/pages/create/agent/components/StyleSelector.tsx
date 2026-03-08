@@ -4,10 +4,11 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, PRESET_STYLES } from '../hooks/useAgentStore';
 import { Shuffle, ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { llmService } from '@/services/llmService';
 
 export default function StyleSelector() {
   const { isDark } = useTheme();
-  const { selectedStyle, selectStyle, addMessage, setCurrentAgent } = useAgentStore();
+  const { selectedStyle, selectStyle, addMessage, addOutput, currentTask } = useAgentStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleStyleSelect = (styleId: string) => {
@@ -40,34 +41,77 @@ export default function StyleSelector() {
       type: 'text'
     });
 
-    // 模拟生成延迟
-    setTimeout(() => {
-      setIsGenerating(false);
-      
-      // 添加生成结果消息
-      addMessage({
-        role: 'designer',
-        content: '概念图已生成！这是根据你选择的风格设计的IP形象初稿。你觉得怎么样？',
-        type: 'image',
-        metadata: {
-          images: [
-            `https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop&random=${Date.now()}`,
-            `https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=400&fit=crop&random=${Date.now() + 1}`,
-            `https://images.unsplash.com/photo-1560964645-6c9e2c3c5b8e?w=400&h=400&fit=crop&random=${Date.now() + 2}`,
-            `https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop&random=${Date.now() + 3}`
-          ]
-        }
+    try {
+      // 构建生成提示词
+      const taskDescription = currentTask?.requirements.description || 'IP形象设计';
+      const stylePrompt = style?.prompt || '';
+      const prompt = `${taskDescription}，${stylePrompt}，高质量，精美细节`;
+
+      console.log('[StyleSelector] 开始生成图像，prompt:', prompt);
+
+      // 调用真实图像生成API
+      const result = await llmService.generateImage({
+        model: 'wanx-v1',
+        prompt: prompt,
+        size: '1024x1024',
+        n: 1 // 只生成1张
       });
 
-      // 添加满意度检查消息
-      setTimeout(() => {
+      console.log('[StyleSelector] 图像生成结果:', result);
+
+      if (result.ok && result.data?.data && result.data.data.length > 0) {
+        const imageUrl = result.data.data[0].url;
+
+        console.log('[StyleSelector] 准备添加到画布，imageUrl:', imageUrl);
+
+        // 添加到画布（这样右边才能显示）
+        const outputId = addOutput({
+          type: 'image',
+          url: imageUrl,
+          thumbnail: imageUrl,
+          prompt: prompt,
+          style: selectedStyle,
+          agentType: 'designer'
+        });
+
+        console.log('[StyleSelector] 已添加到画布，outputId:', outputId);
+
+        // 添加生成结果消息（只显示1张）
         addMessage({
           role: 'designer',
-          content: '请问你对当前设计满意吗？如果满意，我可以继续为你制作：\n• 短视频\n• 剧情故事短片\n• 文创周边\n• 宣传海报',
-          type: 'satisfaction-check'
+          content: '概念图已生成！这是根据你选择的风格设计的IP形象初稿。你觉得怎么样？',
+          type: 'image',
+          metadata: {
+            images: [imageUrl]
+          }
         });
-      }, 1000);
-    }, 3000);
+
+        // 添加满意度检查消息
+        setTimeout(() => {
+          addMessage({
+            role: 'designer',
+            content: '请问你对当前设计满意吗？如果满意，我可以继续为你制作：\n• 短视频\n• 剧情故事短片\n• 文创周边\n• 宣传海报',
+            type: 'satisfaction-check'
+          });
+        }, 1000);
+
+        toast.success('图像生成成功！');
+      } else {
+        throw new Error(result.error || '图像生成失败');
+      }
+    } catch (error: any) {
+      console.error('[StyleSelector] 图像生成失败:', error);
+      toast.error(`图像生成失败: ${error.message || '请重试'}`);
+
+      // 添加错误提示消息
+      addMessage({
+        role: 'designer',
+        content: '抱歉，图像生成遇到了问题。请稍后重试，或者尝试换一种描述方式。',
+        type: 'text'
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -84,25 +128,25 @@ export default function StyleSelector() {
             className={`relative group rounded-xl overflow-hidden border-2 transition-all ${
               selectedStyle === style.id
                 ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20'
-                : isDark 
-                  ? 'border-gray-700 hover:border-gray-600' 
+                : isDark
+                  ? 'border-gray-700 hover:border-gray-600'
                   : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             {/* Style Image */}
             <div className="aspect-square relative">
-              <img 
-                src={style.thumbnail} 
+              <img
+                src={style.thumbnail}
                 alt={style.name}
                 className="w-full h-full object-cover transition-transform group-hover:scale-105"
               />
               {/* Overlay */}
               <div className={`absolute inset-0 transition-opacity ${
-                selectedStyle === style.id 
-                  ? 'bg-[#C02C38]/20' 
+                selectedStyle === style.id
+                  ? 'bg-[#C02C38]/20'
                   : 'bg-black/0 group-hover:bg-black/10'
               }`} />
-              
+
               {/* Selected Indicator */}
               {selectedStyle === style.id && (
                 <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#C02C38] flex items-center justify-center">
@@ -112,7 +156,7 @@ export default function StyleSelector() {
                 </div>
               )}
             </div>
-            
+
             {/* Style Name */}
             <div className={`p-2 text-center ${
               isDark ? 'bg-gray-800' : 'bg-white'
@@ -135,8 +179,8 @@ export default function StyleSelector() {
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed transition-colors ${
-          isDark 
-            ? 'border-gray-600 hover:border-gray-500 text-gray-400 hover:text-gray-300' 
+          isDark
+            ? 'border-gray-600 hover:border-gray-500 text-gray-400 hover:text-gray-300'
             : 'border-gray-300 hover:border-gray-400 text-gray-500 hover:text-gray-600'
         }`}
       >

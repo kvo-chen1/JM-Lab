@@ -16,7 +16,7 @@ interface ChatCallParams {
  * 带有重试机制和超时控制的Fetch
  */
 async function fetchWithRetry(url: string, options: RequestInit & { timeout?: number, retries?: number } = {}): Promise<Response> {
-  const { timeout = 30000, retries = 2, ...fetchOptions } = options;
+  const { timeout = 60000, retries = 2, ...fetchOptions } = options;
   
   let lastError: any;
   

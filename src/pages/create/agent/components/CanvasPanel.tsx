@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, DERIVATIVE_OPTIONS } from '../hooks/useAgentStore';
@@ -18,9 +18,67 @@ import {
   Image,
   Smile,
   Check,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+// 图片加载状态管理组件
+function ImageWithLoading({ 
+  src, 
+  alt, 
+  className, 
+  onError 
+}: { 
+  src: string; 
+  alt: string; 
+  className?: string;
+  onError?: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const { isDark } = useTheme();
+
+  const handleLoad = useCallback(() => {
+    setLoading(false);
+    setError(false);
+  }, []);
+
+  const handleError = useCallback(() => {
+    setLoading(false);
+    setError(true);
+    onError?.();
+  }, [onError]);
+
+  if (error) {
+    return (
+      <div className={`flex items-center justify-center bg-gray-800 text-gray-400 ${className}`}>
+        <div className="text-center">
+          <Wand2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">图片加载失败</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      {loading && (
+        <div className={`absolute inset-0 flex items-center justify-center bg-gray-800/50 ${className}`}>
+          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        onLoad={handleLoad}
+        onError={handleError}
+        crossOrigin="anonymous"
+      />
+    </div>
+  );
+}
 
 export default function CanvasPanel() {
   const { isDark } = useTheme();
@@ -41,6 +99,11 @@ export default function CanvasPanel() {
   const [selectedDerivative, setSelectedDerivative] = useState<string | null>(null);
 
   const selectedImage = generatedOutputs.find(out => out.id === selectedOutput);
+
+  // 调试日志
+  console.log('[CanvasPanel] generatedOutputs:', generatedOutputs);
+  console.log('[CanvasPanel] selectedOutput:', selectedOutput);
+  console.log('[CanvasPanel] selectedImage:', selectedImage);
 
   const handleDownload = () => {
     if (selectedImage) {
@@ -139,8 +202,8 @@ export default function CanvasPanel() {
 
   return (
     <div className={`flex flex-col h-full ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
-      {/* Toolbar */}
-      <div className={`h-14 px-4 flex items-center justify-between border-b backdrop-blur-md ${
+      {/* Toolbar - 固定在顶部 */}
+      <div className={`sticky top-0 z-10 h-14 px-4 flex items-center justify-between border-b backdrop-blur-md ${
         isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 border-gray-200'
       }`}>
         <div className="flex items-center gap-2">
@@ -227,11 +290,11 @@ export default function CanvasPanel() {
         </div>
       </div>
 
-      {/* Main Canvas Area */}
-      <div className="flex-1 overflow-hidden relative">
+      {/* Main Canvas Area - 占据整个右半边区域 */}
+      <div className="relative flex-1 h-full overflow-hidden">
         {generatedOutputs.length === 0 ? (
           // Empty State
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -252,7 +315,7 @@ export default function CanvasPanel() {
           </div>
         ) : (
           // Canvas with Generated Content
-          <div className="absolute inset-0">
+          <div className="h-full">
             <AnimatePresence mode="wait">
               {viewMode === 'gallery' ? (
                 <motion.div
@@ -263,20 +326,24 @@ export default function CanvasPanel() {
                   className="w-full h-full"
                 >
                   <DraggableCanvas>
-                    <div className="flex flex-col items-center gap-6">
+                    <div className="flex flex-col items-center gap-6 select-none">
                       {/* Main Image */}
                       {selectedImage && (
                         <motion.div
                           layoutId={selectedImage.id}
                           className="relative max-w-3xl w-full"
+                          style={{ pointerEvents: 'none' }}
                         >
                           <div className={`rounded-2xl overflow-hidden shadow-2xl ${
                             isDark ? 'shadow-black/50' : 'shadow-gray-200'
                           }`}>
-                            <img
+                            <ImageWithLoading
                               src={selectedImage.url}
                               alt="Generated"
-                              className="w-full h-auto"
+                              className="w-full h-auto block min-h-[200px]"
+                              onError={() => {
+                                console.error('[CanvasPanel] 图片加载失败:', selectedImage.url);
+                              }}
                             />
                           </div>
 
@@ -320,26 +387,35 @@ export default function CanvasPanel() {
                       )}
 
                       {/* Thumbnail Strip */}
-                      <div className={`flex gap-3 p-3 rounded-xl ${
-                        isDark ? 'bg-gray-900/50' : 'bg-white/50'
-                      }`}>
+                      <div 
+                        className={`flex gap-3 p-3 rounded-xl ${
+                          isDark ? 'bg-gray-900/50' : 'white/50'
+                        }`}
+                        style={{ pointerEvents: 'auto' }}
+                      >
                         {generatedOutputs.map((output, index) => (
                           <motion.button
                             key={output.id}
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ delay: index * 0.05 }}
-                            onClick={() => selectOutput(output.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              selectOutput(output.id);
+                            }}
                             className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
                               selectedOutput === output.id
                                 ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20'
                                 : isDark ? 'border-gray-700' : 'border-gray-200'
                             }`}
                           >
-                            <img
+                            <ImageWithLoading
                               src={output.thumbnail || output.url}
                               alt={`Output ${index + 1}`}
                               className="w-full h-full object-cover"
+                              onError={() => {
+                                console.error('[CanvasPanel] 缩略图加载失败:', output.thumbnail || output.url);
+                              }}
                             />
                           </motion.button>
                         ))}
@@ -354,7 +430,7 @@ export default function CanvasPanel() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-8 overflow-auto"
+                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-8 overflow-auto h-full"
                 >
                   {generatedOutputs.map((output, index) => (
                     <motion.button
@@ -369,10 +445,13 @@ export default function CanvasPanel() {
                           : isDark ? 'border-gray-700' : 'border-gray-200'
                       }`}
                     >
-                      <img
+                      <ImageWithLoading
                         src={output.thumbnail || output.url}
                         alt={`Output ${index + 1}`}
                         className="w-full h-full object-cover"
+                        onError={() => {
+                          console.error('[CanvasPanel] 网格图片加载失败:', output.thumbnail || output.url);
+                        }}
                       />
                     </motion.button>
                   ))}

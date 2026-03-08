@@ -2604,7 +2604,7 @@ export const leaderboardDB = {
            }
         }
         return memoryStore.posts
-          .filter(p => startTime === 0 || p.created_at >= startTime)
+          .filter(p => (startTime === 0 || p.created_at >= startTime) && !p.hidden_in_square)
           .sort((a, b) => b[sortBy] - a[sortBy])
           .slice(0, limit)
       case DB_TYPE.MONGODB:
@@ -2618,7 +2618,9 @@ export const leaderboardDB = {
             { $project: { id: 1, title: 1, content: 1, user_id: 1, category_id: 1, status: 1, views: 1, likes_count: 1, comments_count: 1, created_at: 1, updated_at: 1, username: '$user_info.username', avatar_url: '$user_info.avatar_url' } }
           ]).toArray()
       case DB_TYPE.POSTGRESQL:
-        const pgWhereClause = startTime > 0 ? `WHERE w.created_at >= to_timestamp($1/1000.0)` : ''
+        const pgWhereClause = startTime > 0 
+          ? `WHERE w.created_at >= to_timestamp($1/1000.0) AND (w.hidden_in_square = FALSE OR w.hidden_in_square IS NULL)` 
+          : `WHERE (w.hidden_in_square = FALSE OR w.hidden_in_square IS NULL)`
         const pgParams = startTime > 0 ? [startTime, limit] : [limit]
         const pgParamOffset = startTime > 0 ? 1 : 0
         
@@ -3368,7 +3370,10 @@ export const workDB = {
       case DB_TYPE.MEMORY:
         // Mock data or in-memory store
         // We can use memoryStore.posts as a fallback if works are not separate
-        return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at).slice(offset, offset + limit)
+        return (memoryStore.works || [])
+          .filter(w => !w.hidden_in_square)
+          .sort((a, b) => b.created_at - a.created_at)
+          .slice(offset, offset + limit)
       case DB_TYPE.POSTGRESQL:
         return (await db.query(`
           SELECT 
@@ -3546,7 +3551,7 @@ export const workDB = {
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     switch (typeKey) {
       case DB_TYPE.MEMORY:
-        return (memoryStore.works || []).sort((a, b) => b.created_at - a.created_at)
+        return (memoryStore.works || []).filter(w => !w.hidden_in_square).sort((a, b) => b.created_at - a.created_at)
       case DB_TYPE.POSTGRESQL: {
         // 从 works 表获取作品
         console.log('[workDB.getAllWorks] Fetching from works table')
@@ -3572,6 +3577,7 @@ export const workDB = {
             u.avatar_url
           FROM works w 
           LEFT JOIN users u ON w.creator_id = u.id 
+          WHERE (w.hidden_in_square = FALSE OR w.hidden_in_square IS NULL)
           ORDER BY w.created_at DESC
           LIMIT 100
         `)

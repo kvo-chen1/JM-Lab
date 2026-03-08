@@ -14,7 +14,8 @@ export type NavItemType =
   | 'users'
   | 'creators'
   | 'workSubmissionAudit'
-  | 'promotionUserManagement';
+  | 'promotionUserManagement'
+  | 'marketplace';
 
 export interface NavNotificationState {
   count: number;

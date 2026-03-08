@@ -2,14 +2,13 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, DERIVATIVE_OPTIONS } from '../hooks/useAgentStore';
+import DraggableCanvas from './DraggableCanvas';
 import { 
   Maximize2, 
   Download, 
   Share2, 
   Heart, 
   Trash2, 
-  ZoomIn, 
-  ZoomOut,
   Grid3X3,
   LayoutGrid,
   Wand2,
@@ -37,15 +36,11 @@ export default function CanvasPanel() {
     setCurrentAgent
   } = useAgentStore();
 
-  const [zoom, setZoom] = useState(100);
   const [viewMode, setViewMode] = useState<'gallery' | 'grid'>('gallery');
   const [showDerivativeOptions, setShowDerivativeOptions] = useState(false);
   const [selectedDerivative, setSelectedDerivative] = useState<string | null>(null);
 
   const selectedImage = generatedOutputs.find(out => out.id === selectedOutput);
-
-  const handleZoomIn = () => setZoom(Math.min(zoom + 25, 200));
-  const handleZoomOut = () => setZoom(Math.max(zoom - 25, 50));
 
   const handleDownload = () => {
     if (selectedImage) {
@@ -188,31 +183,6 @@ export default function CanvasPanel() {
 
           <div className={`w-px h-4 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
 
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleZoomOut}
-              className={`p-1.5 rounded-lg transition-colors ${
-                isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
-              }`}
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <span className={`text-xs w-12 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {zoom}%
-            </span>
-            <button
-              onClick={handleZoomIn}
-              className={`p-1.5 rounded-lg transition-colors ${
-                isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
-              }`}
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className={`w-px h-4 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
-
           {/* Action Buttons */}
           {selectedImage && (
             <>
@@ -282,7 +252,7 @@ export default function CanvasPanel() {
           </div>
         ) : (
           // Canvas with Generated Content
-          <div className="absolute inset-0 overflow-auto p-8">
+          <div className="absolute inset-0">
             <AnimatePresence mode="wait">
               {viewMode === 'gallery' ? (
                 <motion.div
@@ -290,89 +260,92 @@ export default function CanvasPanel() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex flex-col items-center gap-6"
+                  className="w-full h-full"
                 >
-                  {/* Main Image */}
-                  {selectedImage && (
-                    <motion.div
-                      layoutId={selectedImage.id}
-                      className="relative max-w-3xl w-full"
-                      style={{ transform: `scale(${zoom / 100})` }}
-                    >
-                      <div className={`rounded-2xl overflow-hidden shadow-2xl ${
-                        isDark ? 'shadow-black/50' : 'shadow-gray-200'
-                      }`}>
-                        <img
-                          src={selectedImage.url}
-                          alt="Generated"
-                          className="w-full h-auto"
-                        />
-                      </div>
-
-                      {/* Satisfaction Check Modal */}
-                      {showSatisfactionModal && (
+                  <DraggableCanvas>
+                    <div className="flex flex-col items-center gap-6">
+                      {/* Main Image */}
+                      {selectedImage && (
                         <motion.div
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className={`absolute bottom-4 left-4 right-4 p-4 rounded-xl backdrop-blur-md ${
-                            isDark 
-                              ? 'bg-gray-900/90 border border-gray-700' 
-                              : 'bg-white/90 border border-gray-200'
-                          }`}
+                          layoutId={selectedImage.id}
+                          className="relative max-w-3xl w-full"
                         >
-                          <p className={`text-sm mb-3 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                            请问你对当前设计满意吗？
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleSatisfactionResponse(true)}
-                              className="flex-1 py-2 px-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium flex items-center justify-center gap-2"
-                            >
-                              <Check className="w-4 h-4" />
-                              满意
-                            </button>
-                            <button
-                              onClick={() => handleSatisfactionResponse(false)}
-                              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${
+                          <div className={`rounded-2xl overflow-hidden shadow-2xl ${
+                            isDark ? 'shadow-black/50' : 'shadow-gray-200'
+                          }`}>
+                            <img
+                              src={selectedImage.url}
+                              alt="Generated"
+                              className="w-full h-auto"
+                            />
+                          </div>
+
+                          {/* Satisfaction Check Modal */}
+                          {showSatisfactionModal && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className={`absolute bottom-4 left-4 right-4 p-4 rounded-xl backdrop-blur-md ${
                                 isDark 
-                                  ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  ? 'bg-gray-900/90 border border-gray-700' 
+                                  : 'bg-white/90 border border-gray-200'
                               }`}
                             >
-                              <X className="w-4 h-4" />
-                              修改
-                            </button>
-                          </div>
+                              <p className={`text-sm mb-3 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                                请问你对当前设计满意吗？
+                              </p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleSatisfactionResponse(true)}
+                                  className="flex-1 py-2 px-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium flex items-center justify-center gap-2"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  满意
+                                </button>
+                                <button
+                                  onClick={() => handleSatisfactionResponse(false)}
+                                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${
+                                    isDark 
+                                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  <X className="w-4 h-4" />
+                                  修改
+                                </button>
+                              </div>
+                            </motion.div>
+                          )}
                         </motion.div>
                       )}
-                    </motion.div>
-                  )}
 
-                  {/* Thumbnail Strip */}
-                  <div className={`flex gap-3 p-3 rounded-xl ${
-                    isDark ? 'bg-gray-900/50' : 'bg-white/50'
-                  }`}>
-                    {generatedOutputs.map((output, index) => (
-                      <motion.button
-                        key={output.id}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.05 }}
-                        onClick={() => selectOutput(output.id)}
-                        className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                          selectedOutput === output.id
-                            ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20'
-                            : isDark ? 'border-gray-700' : 'border-gray-200'
-                        }`}
-                      >
-                        <img
-                          src={output.thumbnail || output.url}
-                          alt={`Output ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </motion.button>
-                    ))}
-                  </div>
+                      {/* Thumbnail Strip */}
+                      <div className={`flex gap-3 p-3 rounded-xl ${
+                        isDark ? 'bg-gray-900/50' : 'bg-white/50'
+                      }`}>
+                        {generatedOutputs.map((output, index) => (
+                          <motion.button
+                            key={output.id}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: index * 0.05 }}
+                            onClick={() => selectOutput(output.id)}
+                            className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                              selectedOutput === output.id
+                                ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20'
+                                : isDark ? 'border-gray-700' : 'border-gray-200'
+                            }`}
+                          >
+                            <img
+                              src={output.thumbnail || output.url}
+                              alt={`Output ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+                  </DraggableCanvas>
                 </motion.div>
               ) : (
                 // Grid View
@@ -381,7 +354,7 @@ export default function CanvasPanel() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-8 overflow-auto"
                 >
                   {generatedOutputs.map((output, index) => (
                     <motion.button

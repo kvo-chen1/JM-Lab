@@ -1,11 +1,11 @@
-import http from 'http';
-import fs from 'fs';
+import { createServer } from 'http';
+import { readFile } from 'fs/promises';
 import path from 'path';
+import { join, extname } from 'path';
+import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
-
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 3000;
-const ROOT_DIR = __dirname;
 
 const mimeTypes = {
   '.html': 'text/html',
@@ -17,48 +17,39 @@ const mimeTypes = {
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf',
-  '.otf': 'font/otf'
+  '.webmanifest': 'application/manifest+json'
 };
 
-const server = http.createServer((req, res) => {
-  console.log(`Request for ${req.url}`);
-  
-  // 处理根路径
+const server = createServer(async (req, res) => {
   let filePath = req.url === '/' ? '/index.html' : req.url;
-  filePath = path.join(ROOT_DIR, filePath);
+  filePath = join(__dirname, 'dist', filePath);
   
-  // 检查文件是否存在
-  fs.exists(filePath, (exists) => {
-    if (exists) {
-      // 读取文件
-      fs.readFile(filePath, (err, content) => {
-        if (err) {
-          res.writeHead(500);
-          res.end(`Error loading ${filePath}`);
-        } else {
-          // 设置内容类型
-          const extname = path.extname(filePath);
-          const contentType = mimeTypes[extname] || 'application/octet-stream';
-          
-          res.writeHead(200, { 'Content-Type': contentType });
-          res.end(content, 'utf-8');
-        }
-      });
+  try {
+    const content = await readFile(filePath);
+    const ext = extname(filePath);
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(content);
+  } catch (error) {
+    // 对于SPA应用，所有路由都返回index.html
+    if (error.code === 'ENOENT') {
+      try {
+        const indexContent = await readFile(join(__dirname, 'dist', 'index.html'));
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(indexContent);
+      } catch {
+        res.writeHead(404);
+        res.end('File not found');
+      }
     } else {
-      // 文件不存在，返回404
-      res.writeHead(404);
-      res.end('File not found');
+      res.writeHead(500);
+      res.end('Server error');
     }
-  });
+  }
 });
 
 server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}/`);
-  console.log(`You can access the platform at http://localhost:${PORT}/landing.html`);
+  console.log(`预览服务器运行在 http://localhost:${PORT}`);
+  console.log('按 Ctrl+C 停止服务器');
 });
-
-console.log('Starting server...');

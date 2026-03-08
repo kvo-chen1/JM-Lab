@@ -1,53 +1,13 @@
-import { supabase, supabaseAdmin } from '../lib/supabase';
-import type { PostWithAuthor, UserProfile, CommentWithAuthor } from '../lib/supabase';
-import { RealtimeChannel } from '@supabase/supabase-js';
 import { mentionService } from './mentionService';
 
-// 辅助函数：获取社区真实成员数
-async function getCommunityMemberCount(communityId: string): Promise<number> {
-  try {
-    const { count, error } = await supabase
-      .from('community_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('community_id', communityId);
-    
-    if (error) {
-      console.error('Error getting member count:', error);
-      return 0;
-    }
-    
-    return count || 0;
-  } catch (error) {
-    console.error('Error in getCommunityMemberCount:', error);
-    return 0;
-  }
+// 社区类型定义
+export interface UserProfile {
+  id: string;
+  username: string;
+  avatar_url?: string;
 }
 
-// 辅助函数：批量获取社区成员数
-async function getCommunityMemberCounts(communityIds: string[]): Promise<Record<string, number>> {
-  try {
-    const { data, error } = await supabase
-      .from('community_members')
-      .select('community_id')
-      .in('community_id', communityIds);
-    
-    if (error) {
-      console.error('Error getting member counts:', error);
-      return {};
-    }
-    
-    // 统计每个社区的成员数
-    const counts: Record<string, number> = {};
-    data?.forEach((member: any) => {
-      counts[member.community_id] = (counts[member.community_id] || 0) + 1;
-    });
-    
-    return counts;
-  } catch (error) {
-    console.error('Error in getCommunityMemberCounts:', error);
-    return {};
-  }
-}
+
 
 // 社区类型定义
 export interface Community {
@@ -141,7 +101,6 @@ export interface Notification {
 export const communityService = {
   // 社区管理功能
   async getCommunities(includeInactive = false): Promise<Community[]> {
-    // 优先尝试从后端API获取社群列表
     try {
       const response = await fetch('/api/communities');
       if (response.ok) {
@@ -185,182 +144,38 @@ export const communityService = {
           return communities;
         }
       }
+      throw new Error('Failed to fetch communities from API');
     } catch (error) {
-      console.warn('[getCommunities] Backend API failed, falling back to Supabase:', error);
+      console.error('[getCommunities] Error:', error);
+      return [];
     }
-
-    // 如果后端API失败，尝试从Supabase获取
-    let query = supabase
-      .from('communities')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    // 如果不需要包含禁用的社群，只获取活跃的
-    if (!includeInactive) {
-      query = query.eq('is_active', true);
-    }
-    
-    const { data, error } = await query;
-
-    if (error) throw error;
-
-    // 获取所有社区的真实成员数
-    const communityIds = data.map(c => c.id);
-    const memberCounts = await getCommunityMemberCounts(communityIds);
-
-    let communities = data.map(community => ({
-      id: community.id,
-      name: community.name,
-      description: community.description,
-      memberCount: memberCounts[community.id] || 0,
-      topic: community.tags?.join(',') || '',
-      avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
-      cover: community.cover,
-      isActive: community.is_active !== false,
-      tags: community.tags || [],
-      bookmarks: community.bookmarks || [],
-      theme: {
-        primaryColor: community.theme?.primaryColor || '#3b82f6',
-        secondaryColor: community.theme?.secondaryColor || '#60a5fa',
-        backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
-        textColor: community.theme?.textColor || '#1f2937'
-      },
-      layoutType: (community.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
-      enabledModules: {
-        posts: true,
-        chat: true,
-        members: true,
-        announcements: true
-      },
-      isSpecial: false,
-      creatorId: '',
-      createdAt: community.created_at,
-      updatedAt: community.updated_at
-    }));
-    
-    // 过滤掉禁用的社群（除非明确要求包含）
-    if (!includeInactive) {
-      communities = communities.filter(c => c.isActive !== false);
-    }
-    return communities;
   },
 
   async getUserCommunities(userId: string): Promise<Community[]> {
-    // 首先尝试使用后端API获取用户加入的社群
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (token) {
-      try {
-        console.log('[getUserCommunities] Trying backend API...');
-        const response = await fetch('/api/user/communities', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          if (result.code === 0 && Array.isArray(result.data)) {
-            const communities = result.data;
-            
-            const joinedCommunities: Community[] = communities.map(community => ({
-              id: community.id,
-              name: community.name,
-              description: community.description,
-              memberCount: community.member_count || 0,
-              topic: community.tags?.join(',') || '',
-              avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
-              cover: community.cover,
-              isActive: true,
-              tags: community.tags || [],
-              bookmarks: community.bookmarks || [],
-              theme: {
-                primaryColor: community.theme?.primaryColor || '#3b82f6',
-                secondaryColor: community.theme?.secondaryColor || '#60a5fa',
-                backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
-                textColor: community.theme?.textColor || '#1f2937'
-              },
-              layoutType: (community.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
-              enabledModules: {
-                posts: true,
-                chat: true,
-                members: true,
-                announcements: true
-              },
-              isSpecial: false,
-              creatorId: community.creator_id || '',
-              createdAt: community.created_at,
-              updatedAt: community.updated_at
-            }));
-            
-            console.log('[getUserCommunities] Backend API success, joined communities:', joinedCommunities.length);
-            return joinedCommunities;
-          }
-        }
-        console.log('[getUserCommunities] Backend API failed, falling back to Supabase');
-      } catch (backendError) {
-        console.log('[getUserCommunities] Backend API error, falling back to Supabase:', backendError);
-      }
+    if (!token) {
+      console.error('[getUserCommunities] No token found');
+      return [];
     }
 
-    // 回退到 Supabase
     try {
-      // 分步查询以避免联表查询可能出现的问题
-      // 1. 获取用户加入的社区ID列表（不使用status列，因为可能不存在）
-      let members: any[] = [];
-      let membersError: any = null;
+      console.log('[getUserCommunities] Trying backend API...');
+      const response = await fetch('/api/user/communities', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       
-      try {
-        // 尝试不使用status列
-        const { data, error } = await supabase
-          .from('community_members')
-          .select('community_id, joined_at')
-          .eq('user_id', userId)
-          .order('joined_at', { ascending: false });
-        members = data || [];
-        membersError = error;
-      } catch (err) {
-        console.error('Error fetching community members without status:', err);
-        membersError = err;
-      }
-      
-      if (membersError && members.length === 0) {
-        console.error('Error fetching community members:', membersError);
-        return [];
-      }
-      
-      // 如果 Supabase 返回空数组，说明用户没有加入任何社区，直接返回空数组
-      if (!members || members.length === 0) {
-        console.log('User has no communities');
-        return [];
-      }
-
-      const communityIds = members.map(m => m.community_id);
-
-      // 2. 获取社区详情
-      const { data: communitiesData, error: communitiesError } = await supabase
-        .from('communities')
-        .select('*')
-        .in('id', communityIds);
-      
-      if (communitiesError) {
-        console.error('Error fetching communities details:', communitiesError);
-        return [];
-      }
-
-      // 建立ID到社区数据的映射，以便保持排序
-      const communityMap = new Map(communitiesData.map(c => [c.id, c]));
-
-      // 3. 组合数据并返回
-      return members
-        .map((item): Community | null => {
-          const community = communityMap.get(item.community_id);
-          if (!community) return null;
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          const communities = result.data;
           
-          return {
+          const joinedCommunities: Community[] = communities.map(community => ({
             id: community.id,
             name: community.name,
             description: community.description,
-            memberCount: community.members_count || community.member_count || 0,
+            memberCount: community.member_count || 0,
             topic: community.tags?.join(',') || '',
             avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
             cover: community.cover,
@@ -384,11 +199,15 @@ export const communityService = {
             creatorId: community.creator_id || '',
             createdAt: community.created_at,
             updatedAt: community.updated_at
-          };
-        })
-        .filter((item): item is Community => item !== null);
-    } catch (supabaseError) {
-      console.error('Supabase API failed:', supabaseError);
+          }));
+          
+          console.log('[getUserCommunities] Backend API success, joined communities:', joinedCommunities.length);
+          return joinedCommunities;
+        }
+      }
+      throw new Error('Failed to fetch user communities from API');
+    } catch (error) {
+      console.error('[getUserCommunities] Error:', error);
       return [];
     }
   },
@@ -422,391 +241,110 @@ export const communityService = {
       throw error;
     }
 
-    console.log('[createCommunity] Starting with userId:', userId);
-
-    // 优先尝试使用后端API创建社群
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (token) {
-      try {
-        console.log('[createCommunity] Trying backend API...');
-        const response = await fetch('/api/communities', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            name: data.name,
-            description: data.description,
-            tags: data.tags,
-            avatar: data.avatar,
-            coverImage: data.coverImage,
-            theme: data.theme,
-            layoutType: data.layoutType,
-            enabledModules: data.enabledModules,
-            visibility: data.visibility,
-            bookmarks: data.bookmarks
-          })
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.code === 0 && result.data) {
-            console.log('[createCommunity] Success via backend API:', result.data);
-            const community = result.data;
-            return {
-              id: community.id,
-              name: community.name,
-              description: community.description,
-              memberCount: community.member_count || 1,
-              topic: community.topic || '',
-              avatar: community.avatar || data.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
-              cover: community.cover,
-              isActive: community.is_active !== false,
-              tags: community.tags || [],
-              bookmarks: community.bookmarks || [],
-              theme: {
-                primaryColor: data.theme?.primaryColor || '#3b82f6',
-                secondaryColor: data.theme?.secondaryColor || '#60a5fa',
-                backgroundColor: '#f3f4f6',
-                textColor: '#1f2937'
-              },
-              layoutType: (data.layoutType as 'standard' | 'compact' | 'expanded') || 'standard',
-              enabledModules: {
-                posts: data.enabledModules?.posts ?? true,
-                chat: data.enabledModules?.chat ?? true,
-                members: data.enabledModules?.members ?? true,
-                announcements: data.enabledModules?.announcements ?? true
-              },
-              isSpecial: false,
-              creatorId: userId,
-              createdAt: community.created_at || new Date().toISOString(),
-              updatedAt: community.updated_at || new Date().toISOString()
-            };
-          }
-        }
-        console.warn('[createCommunity] Backend API failed, falling back to Supabase...');
-      } catch (error) {
-        console.error('[createCommunity] Backend API error:', error);
-      }
+    if (!token) {
+      throw new Error('请先登录后再创建社群');
     }
 
-    // 如果没有token或后端API失败，尝试使用Supabase
-    console.log('[createCommunity] Trying Supabase...');
-    
-    // 检查是否有有效的Supabase会话
     try {
-      // 首先尝试获取当前Supabase用户
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      let currentUser = authUser;
-      
-      if (!currentUser) {
-        console.error('[createCommunity] No Supabase session, trying to restore...');
-        // 尝试使用Supabase token恢复会话
-        const supabaseToken = typeof window !== 'undefined' ? localStorage.getItem('supabaseToken') : null;
-        const supabaseRefreshToken = typeof window !== 'undefined' ? localStorage.getItem('supabaseRefreshToken') : null;
-        
-        if (supabaseToken && supabaseRefreshToken) {
-          console.log('[createCommunity] Trying to restore Supabase session from localStorage');
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: supabaseToken,
-            refresh_token: supabaseRefreshToken
-          });
-          
-          if (sessionError) {
-            console.error('[createCommunity] Failed to restore Supabase session:', sessionError);
-            throw new Error('请先登录后再创建社群');
-          }
-          
-          // 重新检查会话
-          const { data: { user: restoredUser } } = await supabase.auth.getUser();
-          if (!restoredUser) {
-            console.error('[createCommunity] Still no Supabase session after restoration');
-            throw new Error('请先登录后再创建社群');
-          }
-          currentUser = restoredUser;
-        } else {
-          throw new Error('请先登录后再创建社群');
-        }
-      }
+      console.log('[createCommunity] Trying backend API...');
+      const response = await fetch('/api/communities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: data.name,
+          description: data.description,
+          tags: data.tags,
+          avatar: data.avatar,
+          coverImage: data.coverImage,
+          theme: data.theme,
+          layoutType: data.layoutType,
+          enabledModules: data.enabledModules,
+          visibility: data.visibility,
+          bookmarks: data.bookmarks
+        })
+      });
 
-      // 准备插入的数据
-      const insertData: any = {
-        name: data.name,
-        description: data.description,
-        cover: data.coverImage,
-        avatar: data.avatar,
-        tags: data.tags,
-        member_count: 1,
-        privacy: data.visibility || 'public',
-        is_active: true,
-        is_special: false,
-        creator_id: currentUser.id,
-        theme: data.theme || {
-          primaryColor: '#3b82f6',
-          secondaryColor: '#60a5fa',
-          backgroundColor: '#f3f4f6',
-          textColor: '#1f2937'
-        },
-        layout_type: data.layoutType || 'standard',
-        enabled_modules: data.enabledModules || {
-          posts: true,
-          chat: true,
-          members: true,
-          announcements: true
-        },
-        bookmarks: data.bookmarks || []
-      };
-      
-      const { data: newCommunity, error } = await supabase
-        .from('communities')
-        .insert(insertData)
-        .select()
-        .single();
-      
-      if (error) {
-        console.error('Supabase create community error:', error);
-        if (error.code === '23505') {
-          throw new Error('社群名称已存在，请换个名字试试');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && result.data) {
+          console.log('[createCommunity] Success via backend API:', result.data);
+          const community = result.data;
+          return {
+            id: community.id,
+            name: community.name,
+            description: community.description,
+            memberCount: community.member_count || 1,
+            topic: community.topic || '',
+            avatar: community.avatar || data.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
+            cover: community.cover,
+            isActive: community.is_active !== false,
+            tags: community.tags || [],
+            bookmarks: community.bookmarks || [],
+            theme: {
+              primaryColor: data.theme?.primaryColor || '#3b82f6',
+              secondaryColor: data.theme?.secondaryColor || '#60a5fa',
+              backgroundColor: '#f3f4f6',
+              textColor: '#1f2937'
+            },
+            layoutType: (data.layoutType as 'standard' | 'compact' | 'expanded') || 'standard',
+            enabledModules: {
+              posts: data.enabledModules?.posts ?? true,
+              chat: data.enabledModules?.chat ?? true,
+              members: data.enabledModules?.members ?? true,
+              announcements: data.enabledModules?.announcements ?? true
+            },
+            isSpecial: false,
+            creatorId: userId,
+            createdAt: community.created_at || new Date().toISOString(),
+            updatedAt: community.updated_at || new Date().toISOString()
+          };
         }
-        throw error;
       }
-      
-      // 添加创建者为成员
-      try {
-        await supabase.from('community_members').insert({
-          community_id: newCommunity.id,
-          user_id: currentUser.id,
-          role: 'owner'
-        });
-      } catch (memberError) {
-        console.error('Error adding community member:', memberError);
-      }
-      
-      return {
-        id: newCommunity.id,
-        name: newCommunity.name,
-        description: newCommunity.description,
-        memberCount: newCommunity.member_count || 1,
-        topic: newCommunity.topic || '',
-        avatar: newCommunity.avatar || data.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
-        cover: newCommunity.cover,
-        isActive: newCommunity.is_active !== false,
-        tags: newCommunity.tags || [],
-        bookmarks: newCommunity.bookmarks || [],
-        theme: {
-          primaryColor: data.theme?.primaryColor || '#3b82f6',
-          secondaryColor: data.theme?.secondaryColor || '#60a5fa',
-          backgroundColor: '#f3f4f6',
-          textColor: '#1f2937'
-        },
-        layoutType: (data.layoutType as 'standard' | 'compact' | 'expanded') || 'standard',
-        enabledModules: {
-          posts: data.enabledModules?.posts ?? true,
-          chat: data.enabledModules?.chat ?? true,
-          members: data.enabledModules?.members ?? true,
-          announcements: data.enabledModules?.announcements ?? true
-        },
-        isSpecial: newCommunity.is_special || false,
-        creatorId: currentUser.id,
-        createdAt: newCommunity.created_at,
-        updatedAt: newCommunity.updated_at
-      };
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '创建社群失败，请稍后重试');
     } catch (error) {
-      console.error('[createCommunity] Supabase error:', error);
+      console.error('[createCommunity] Error:', error);
       throw error;
     }
   },
 
   async joinCommunity(communityId: string, userId: string): Promise<{ requiresApproval: boolean; status: string }> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再加入社群');
+    }
+
     try {
-      // 首先尝试使用后端API
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      console.log('[joinCommunity] Token:', token ? 'exists' : 'null');
-      if (token) {
-        try {
-          console.log('[joinCommunity] Calling backend API:', `/api/communities/${communityId}/join`);
-          const response = await fetch(`/api/communities/${communityId}/join`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          
-          console.log('[joinCommunity] Backend API response status:', response.status);
-          
-          if (response.ok) {
-            const result = await response.json();
-            console.log('[joinCommunity] Backend API result:', result);
-            if (result.code === 0) {
-              console.log('[joinCommunity] Successfully joined via backend API');
-              return { 
-                requiresApproval: result.data?.requiresApproval || false, 
-                status: result.data?.status || 'approved' 
-              };
-            }
-          }
-          // 后端 API 失败，抛出错误
-          const errorData = await response.json().catch(() => ({}));
-          console.error('[joinCommunity] Backend API failed:', response.status, errorData);
-          throw new Error(errorData.message || '加入社群失败，请稍后重试');
-        } catch (backendError) {
-          console.error('[joinCommunity] Backend API error:', backendError);
-          throw backendError;
+      console.log('[joinCommunity] Calling backend API:', `/api/communities/${communityId}/join`);
+      const response = await fetch(`/api/communities/${communityId}/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      console.log('[joinCommunity] Backend API response status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[joinCommunity] Backend API result:', result);
+        if (result.code === 0) {
+          console.log('[joinCommunity] Successfully joined via backend API');
+          return { 
+            requiresApproval: result.data?.requiresApproval || false, 
+            status: result.data?.status || 'approved' 
+          };
         }
       }
-      
-      // 如果没有 token，尝试使用 Supabase API
-      // 验证用户会话
-      let { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-      
-      // 如果 Supabase 会话不存在，尝试从 localStorage 恢复
-      if (authError || !authUser) {
-        console.log('[joinCommunity] Supabase session missing, trying to restore from localStorage...');
-        const supabaseToken = typeof window !== 'undefined' ? localStorage.getItem('supabaseToken') : null;
-        const supabaseRefreshToken = typeof window !== 'undefined' ? localStorage.getItem('supabaseRefreshToken') : null;
-        
-        if (supabaseToken && supabaseRefreshToken) {
-          try {
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: supabaseToken,
-              refresh_token: supabaseRefreshToken
-            });
-            
-            if (!setSessionError) {
-              // 重新获取用户
-              const { data: { user: restoredUser } } = await supabase.auth.getUser();
-              if (restoredUser) {
-                console.log('[joinCommunity] Successfully restored Supabase session');
-                authUser = restoredUser;
-              }
-            }
-          } catch (restoreError) {
-            console.error('[joinCommunity] Failed to restore Supabase session:', restoreError);
-          }
-        }
-        
-        // 如果仍然无法获取用户，尝试使用 localStorage 中的 user
-        if (!authUser) {
-          const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-          if (userStr) {
-            try {
-              const user = JSON.parse(userStr);
-              if (user && user.id) {
-                console.log('[joinCommunity] Using user from localStorage:', user.id);
-                // 创建一个临时用户对象
-                authUser = { id: user.id } as any;
-              }
-            } catch (e) {
-              console.error('[joinCommunity] Failed to parse user from localStorage:', e);
-            }
-          }
-        }
-        
-        if (!authUser) {
-          console.error('用户未登录或会话已过期:', authError);
-          throw new Error('请先登录后再加入社群');
-        }
-      }
-      
-      // 使用认证用户的ID，确保与 Supabase 会话一致
-      const effectiveUserId = authUser.id;
-      
-      // 检查是否已经加入
-      const { data: existing, error: checkError } = await supabase
-        .from('community_members')
-        .select('community_id')
-        .eq('community_id', communityId)
-        .eq('user_id', effectiveUserId)
-        .single();
-      
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('检查是否已加入失败:', checkError);
-        // 即使检查失败，也继续执行，避免因数据库结构问题阻塞功能
-      }
-      
-      if (existing) throw new Error('已经加入该社区');
-      
-      // 获取社区信息，检查是否需要审核
-      let requiresApproval = false;
-      try {
-        const { data: community, error: communityError } = await supabase
-          .from('communities')
-          .select('join_approval_required')
-          .eq('id', communityId)
-          .single();
-        
-        if (!communityError && community) {
-          requiresApproval = community.join_approval_required || false;
-        }
-      } catch (err) {
-        console.error('获取社区审核设置失败:', err);
-        // 即使获取失败，也默认为不需要审核
-        requiresApproval = false;
-      }
-      
-      const status = requiresApproval ? 'pending' : 'approved';
-      
-      // 添加成员
-      let joinError: any = null;
-      try {
-        // 尝试不使用status列
-        const { error } = await supabase
-          .from('community_members')
-          .insert({
-            community_id: communityId,
-            user_id: effectiveUserId,
-            role: 'member'
-          });
-        joinError = error;
-      } catch (err) {
-        console.error('加入社区失败（不使用status列）:', err);
-        joinError = err;
-      }
-      
-      if (joinError) {
-        console.error('加入社区失败:', joinError);
-        throw joinError;
-      }
-      
-      // 如果不需要审核，尝试更新成员计数
-      if (!requiresApproval) {
-        try {
-          // 获取当前计数
-          const { data: current, error: fetchError } = await supabase
-            .from('communities')
-            .select('member_count, members_count')
-            .eq('id', communityId)
-            .single();
-            
-          if (!fetchError && current) {
-              // 尝试更新 member_count
-              const { error: countError } = await supabase
-              .from('communities')
-              .update({ member_count: (current.member_count || 0) + 1 })
-              .eq('id', communityId);
-              
-              if (countError) {
-                  console.error('更新 member_count 失败:', countError);
-                  // 尝试更新 members_count（向后兼容）
-                  try {
-                      await supabase
-                      .from('communities')
-                      .update({ members_count: (current.members_count || 0) + 1 })
-                      .eq('id', communityId);
-                  } catch (err) {
-                      console.error('更新 members_count 失败:', err);
-                  }
-              }
-          }
-        } catch (err) {
-          console.error('更新成员计数失败:', err);
-          // 不抛出错误，因为加入已经成功
-        }
-      }
-      
-      return { requiresApproval, status };
+      // 后端 API 失败，抛出错误
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[joinCommunity] Backend API failed:', response.status, errorData);
+      throw new Error(errorData.message || '加入社群失败，请稍后重试');
     } catch (error) {
       console.error('joinCommunity 整体错误:', error);
       throw error;
@@ -814,157 +352,29 @@ export const communityService = {
   },
 
   async leaveCommunity(communityId: string, userId: string): Promise<void> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
     try {
-      // 首先尝试使用后端API
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      if (token) {
-        try {
-          const response = await fetch(`/api/communities/${communityId}/leave`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          
-          if (response.ok) {
-            const result = await response.json();
-            if (result.code === 0) {
-              console.log('[leaveCommunity] Successfully left via backend API');
-              return;
-            }
-          }
-          console.log('[leaveCommunity] Backend API failed, falling back to Supabase');
-        } catch (backendError) {
-          console.log('[leaveCommunity] Backend API error, falling back to Supabase:', backendError);
+      const response = await fetch(`/api/communities/${communityId}/leave`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          console.log('[leaveCommunity] Successfully left via backend API');
+          return;
         }
       }
-      
-      // 尝试使用 Supabase API
-      // 验证用户会话
-      let { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-      
-      // 如果 Supabase 会话不存在，尝试从 localStorage 恢复
-      if (authError || !authUser) {
-        console.log('[leaveCommunity] Supabase session missing, trying to restore from localStorage...');
-        const supabaseToken = typeof window !== 'undefined' ? localStorage.getItem('supabaseToken') : null;
-        const supabaseRefreshToken = typeof window !== 'undefined' ? localStorage.getItem('supabaseRefreshToken') : null;
-        
-        if (supabaseToken && supabaseRefreshToken) {
-          try {
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: supabaseToken,
-              refresh_token: supabaseRefreshToken
-            });
-            
-            if (!setSessionError) {
-              // 重新获取用户
-              const { data: { user: restoredUser } } = await supabase.auth.getUser();
-              if (restoredUser) {
-                console.log('[leaveCommunity] Successfully restored Supabase session');
-                authUser = restoredUser;
-              }
-            }
-          } catch (restoreError) {
-            console.error('[leaveCommunity] Failed to restore Supabase session:', restoreError);
-          }
-        }
-        
-        // 如果仍然无法获取用户，尝试使用 localStorage 中的 user
-        if (!authUser) {
-          const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-          if (userStr) {
-            try {
-              const user = JSON.parse(userStr);
-              if (user && user.id) {
-                console.log('[leaveCommunity] Using user from localStorage:', user.id);
-                // 创建一个临时用户对象
-                authUser = { id: user.id } as any;
-              }
-            } catch (e) {
-              console.error('[leaveCommunity] Failed to parse user from localStorage:', e);
-            }
-          }
-        }
-        
-        if (!authUser) {
-          console.error('用户未登录或会话已过期:', authError);
-          throw new Error('请先登录后再操作');
-        }
-      }
-      
-      // 使用认证用户的ID，确保与 Supabase 会话一致
-      const effectiveUserId = authUser.id;
-      
-      // 检查是否是成员
-      let existing: any = null;
-      let checkError: any = null;
-      
-      try {
-        // 尝试不使用status列
-        const { data, error } = await supabase
-          .from('community_members')
-          .select('community_id')
-          .eq('community_id', communityId)
-          .eq('user_id', effectiveUserId)
-          .single();
-        existing = data;
-        checkError = error;
-      } catch (err) {
-        console.error('检查成员状态失败（不使用status列）:', err);
-        checkError = err;
-      }
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('检查成员状态失败:', checkError);
-        // 即使检查失败，也继续执行，避免因数据库结构问题阻塞功能
-      }
-
-      // 移除成员
-      const { error: leaveError } = await supabase
-        .from('community_members')
-        .delete()
-        .eq('community_id', communityId)
-        .eq('user_id', effectiveUserId);
-
-      if (leaveError) {
-        console.error('退出社区失败:', leaveError);
-        throw leaveError;
-      }
-
-      // 尝试更新成员计数
-      try {
-        // 获取当前计数
-        const { data: current, error: fetchError } = await supabase
-          .from('communities')
-          .select('member_count, members_count')
-          .eq('id', communityId)
-          .single();
-
-        if (!fetchError && current) {
-          // 尝试更新 member_count
-          const { error: countError } = await supabase
-              .from('communities')
-              .update({ member_count: Math.max(0, (current.member_count || 0) - 1) })
-              .eq('id', communityId);
-          
-          if (countError) {
-              console.error('更新 member_count 失败:', countError);
-              // 尝试更新 members_count（向后兼容）
-              try {
-              await supabase
-                  .from('communities')
-                  .update({ members_count: Math.max(0, (current.members_count || 0) - 1) })
-                  .eq('id', communityId);
-              } catch (err) {
-              console.error('更新 members_count 失败:', err);
-              }
-          }
-        }
-      } catch (err) {
-        console.error('更新成员计数失败:', err);
-        // 不抛出错误，因为退出已经成功
-      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '退出社群失败，请稍后重试');
     } catch (error) {
       console.error('leaveCommunity 整体错误:', error);
       throw error;
@@ -972,20 +382,17 @@ export const communityService = {
   },
 
   async getCommunity(communityId: string): Promise<Community> {
-    // 首先尝试使用后端API
     try {
       const response = await fetch(`/api/communities/${communityId}`);
       if (response.ok) {
         const result = await response.json();
         if (result.code === 0 && result.data) {
           const community = result.data;
-          // 获取真实成员数
-          const realMemberCount = await getCommunityMemberCount(communityId);
           return {
             id: community.id,
             name: community.name,
             description: community.description,
-            memberCount: realMemberCount,
+            memberCount: community.member_count || community.members_count || 0,
             topic: community.tags?.join(',') || '',
             avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
             cover: community.cover,
@@ -1009,136 +416,139 @@ export const communityService = {
             creatorId: community.creator_id || '',
             createdAt: community.created_at,
             updatedAt: community.updated_at,
+            joinApprovalRequired: community.join_approval_required || false
           };
         }
       }
-    } catch (apiError) {
-      console.log('[getCommunity] Backend API failed, falling back to Supabase:', apiError);
+      throw new Error('Failed to fetch community from API');
+    } catch (error) {
+      console.error('[getCommunity] Error:', error);
+      throw error;
     }
-
-    // 回退到 Supabase
-    const { data: community, error } = await supabase
-      .from('communities')
-      .select('*')
-      .eq('id', communityId)
-      .single();
-
-    if (error) throw error;
-
-    // 获取真实成员数
-    const realMemberCount = await getCommunityMemberCount(communityId);
-
-    return {
-      id: community.id,
-      name: community.name,
-      description: community.description,
-      memberCount: realMemberCount,
-      topic: community.tags?.join(',') || '',
-      avatar: community.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
-      cover: community.cover,
-      isActive: true,
-      tags: community.tags || [],
-      bookmarks: community.bookmarks || [],
-      theme: {
-        primaryColor: community.theme?.primaryColor || '#3b82f6',
-        secondaryColor: community.theme?.secondaryColor || '#60a5fa',
-        backgroundColor: community.theme?.backgroundColor || '#f3f4f6',
-        textColor: community.theme?.textColor || '#1f2937'
-      },
-      layoutType: (community.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
-      enabledModules: {
-        posts: true,
-        chat: true,
-        members: true,
-        announcements: true
-      },
-      isSpecial: false,
-      creatorId: community.creator_id || '',
-      createdAt: community.created_at,
-      updatedAt: community.updated_at,
-      joinApprovalRequired: community.join_approval_required || false
-    };
   },
 
   // 获取社群的待审核加入请求
   async getPendingJoinRequests(communityId: string): Promise<any[]> {
-    // 先获取加入请求
-    const { data: requests, error } = await supabase
-      .from('community_members')
-      .select('community_id, user_id, status, joined_at')
-      .eq('community_id', communityId)
-      .eq('status', 'pending')
-      .order('joined_at', { ascending: false });
-
-    if (error) throw error;
-    if (!requests || requests.length === 0) return [];
-
-    // 获取用户信息（转换为字符串以匹配 users.id 的 TEXT 类型）
-    const userIds = [...new Set(requests.map(r => r.user_id).filter(Boolean))].map(id => String(id));
-    let users: any[] = [];
-    if (userIds.length > 0) {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .in('id', userIds);
-      if (!usersError && usersData) {
-        users = usersData;
-      }
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
     }
 
-    // 合并数据
-    return requests.map(request => ({
-      ...request,
-      user: users.find(u => u.id === request.user_id) || null
-    }));
+    try {
+      const response = await fetch(`/api/communities/${communityId}/join-requests`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          return result.data;
+        }
+      }
+      throw new Error('Failed to fetch pending join requests');
+    } catch (error) {
+      console.error('[getPendingJoinRequests] Error:', error);
+      return [];
+    }
   },
 
   // 批准加入请求
   async approveJoinRequest(requestId: string, communityId: string): Promise<void> {
-    // 更新成员状态
-    const { error: updateError } = await supabase
-      .from('community_members')
-      .update({ status: 'approved' })
-      .eq('id', requestId);
-    
-    if (updateError) throw updateError;
-    
-    // 更新成员计数
-    const { data: current } = await supabase
-      .from('communities')
-      .select('member_count')
-      .eq('id', communityId)
-      .single();
-      
-    if (current) {
-        await supabase
-        .from('communities')
-        .update({ member_count: (current.member_count || 0) + 1 })
-        .eq('id', communityId);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/communities/${communityId}/join-requests/${requestId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '批准加入请求失败');
+    } catch (error) {
+      console.error('[approveJoinRequest] Error:', error);
+      throw error;
     }
   },
 
   // 拒绝加入请求
   async rejectJoinRequest(requestId: string): Promise<void> {
-    const { error } = await supabase
-      .from('community_members')
-      .update({ status: 'rejected' })
-      .eq('id', requestId);
-    
-    if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/join-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '拒绝加入请求失败');
+    } catch (error) {
+      console.error('[rejectJoinRequest] Error:', error);
+      throw error;
+    }
   },
 
   // 更新社群的审核设置
   async updateJoinApprovalSetting(communityId: string, requireApproval: boolean): Promise<void> {
-    const { error } = await supabase
-      .from('communities')
-      .update({ join_approval_required: requireApproval })
-      .eq('id', communityId);
-    
-    if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/communities/${communityId}/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ join_approval_required: requireApproval })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '更新审核设置失败');
+    } catch (error) {
+      console.error('[updateJoinApprovalSetting] Error:', error);
+      throw error;
+    }
   },
 
   async updateCommunity(communityId: string, data: Partial<Community> & { joinApprovalRequired?: boolean }): Promise<Community> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
     // 准备更新数据，转换字段名
     const updateData: any = {};
     
@@ -1148,45 +558,58 @@ export const communityService = {
     if (data.avatar !== undefined) updateData.avatar = data.avatar;
     if (data.tags !== undefined) updateData.tags = data.tags;
     if (data.joinApprovalRequired !== undefined) updateData.join_approval_required = data.joinApprovalRequired;
-    
-    const { data: updatedCommunity, error } = await supabase
-      .from('communities')
-      .update(updateData)
-      .eq('id', communityId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    
-    return {
-      id: updatedCommunity.id,
-      name: updatedCommunity.name,
-      description: updatedCommunity.description,
-      memberCount: updatedCommunity.member_count || 0,
-      topic: updatedCommunity.tags?.join(',') || '',
-      avatar: updatedCommunity.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
-      cover: updatedCommunity.cover,
-      isActive: true,
-      tags: updatedCommunity.tags || [],
-      bookmarks: updatedCommunity.bookmarks || [],
-      theme: {
-        primaryColor: updatedCommunity.theme?.primaryColor || '#3b82f6',
-        secondaryColor: updatedCommunity.theme?.secondaryColor || '#60a5fa',
-        backgroundColor: updatedCommunity.theme?.backgroundColor || '#f3f4f6',
-        textColor: updatedCommunity.theme?.textColor || '#1f2937'
-      },
-      layoutType: (updatedCommunity.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
-      enabledModules: updatedCommunity.enabled_modules || {
-        posts: true,
-        chat: true,
-        members: true,
-        announcements: true
-      },
-      isSpecial: false,
-      creatorId: updatedCommunity.creator_id || '',
-      createdAt: updatedCommunity.created_at,
-      updatedAt: updatedCommunity.updated_at
-    };
+
+    try {
+      const response = await fetch(`/api/communities/${communityId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && result.data) {
+          const updatedCommunity = result.data;
+          return {
+            id: updatedCommunity.id,
+            name: updatedCommunity.name,
+            description: updatedCommunity.description,
+            memberCount: updatedCommunity.member_count || 0,
+            topic: updatedCommunity.tags?.join(',') || '',
+            avatar: updatedCommunity.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=community%20avatar%20placeholder&image_size=square',
+            cover: updatedCommunity.cover,
+            isActive: true,
+            tags: updatedCommunity.tags || [],
+            bookmarks: updatedCommunity.bookmarks || [],
+            theme: {
+              primaryColor: updatedCommunity.theme?.primaryColor || '#3b82f6',
+              secondaryColor: updatedCommunity.theme?.secondaryColor || '#60a5fa',
+              backgroundColor: updatedCommunity.theme?.backgroundColor || '#f3f4f6',
+              textColor: updatedCommunity.theme?.textColor || '#1f2937'
+            },
+            layoutType: (updatedCommunity.layout_type as 'standard' | 'compact' | 'expanded') || 'standard',
+            enabledModules: updatedCommunity.enabled_modules || {
+              posts: true,
+              chat: true,
+              members: true,
+              announcements: true
+            },
+            isSpecial: false,
+            creatorId: updatedCommunity.creator_id || '',
+            createdAt: updatedCommunity.created_at,
+            updatedAt: updatedCommunity.updated_at
+          };
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '更新社区失败');
+    } catch (error) {
+      console.error('[updateCommunity] Error:', error);
+      throw error;
+    }
   },
 
   // 创建帖子（用于分享作品到社群）
@@ -1208,6 +631,10 @@ export const communityService = {
       throw new Error('请先登录后再分享作品');
     }
 
+    if (!token) {
+      throw new Error('请先登录后再分享作品');
+    }
+
     const createdThreads: Thread[] = [];
 
     // 为每个选中的社群创建帖子
@@ -1215,120 +642,63 @@ export const communityService = {
       try {
         let newPostId: string;
         
-        // 优先尝试使用后端API
-        if (token) {
-          try {
-            const response = await fetch(`/api/communities/${communityId}/posts`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                title: data.title,
-                content: data.content + (data.workId ? `\n\n[分享作品ID: ${data.workId}]` : ''),
-                images: data.images,
-                videos: data.videos
-              })
-            });
-
-            if (response.ok) {
-              const result = await response.json();
-              if (result.code === 0) {
-                newPostId = result.data.id;
-                createdThreads.push({
-                  id: result.data.id,
-                  title: result.data.title,
-                  content: result.data.content,
-                  createdAt: new Date(result.data.created_at).getTime(),
-                  replies: [],
-                  topic: data.topic,
-                  upvotes: 0,
-                  images: result.data.images || [],
-                  videos: result.data.videos || [],
-                  communityId: communityId,
-                  author: user.username || user.name || '用户',
-                  authorAvatar: user.avatar_url || user.avatar,
-                  authorId: user.id,
-                  comments: []
-                });
-                
-                // 处理@提及
-                if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
-                  try {
-                    await mentionService.processContentMentions(
-                      data.content,
-                      user.id,
-                      'post',
-                      newPostId,
-                      'post',
-                      communityId
-                    );
-                  } catch (mentionError) {
-                    console.error('[createPost] Error processing mentions:', mentionError);
-                  }
-                }
-                
-                continue;
-              }
-            }
-          } catch (apiError) {
-            console.warn('[createPost] Backend API failed:', apiError);
-          }
-        }
-
-        // 回退到 Supabase
-        const { data: newPost, error } = await supabase
-          .from('posts')
-          .insert({
+        const response = await fetch(`/api/communities/${communityId}/posts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
             title: data.title,
             content: data.content + (data.workId ? `\n\n[分享作品ID: ${data.workId}]` : ''),
-            community_id: communityId,
-            user_id: user.id,
-            images: data.images || [],
-            videos: data.videos || []
+            images: data.images,
+            videos: data.videos
           })
-          .select()
-          .single();
-
-        if (error) {
-          console.error('[createPost] Supabase error:', error);
-          throw error;
-        }
-
-        newPostId = newPost.id;
-        
-        createdThreads.push({
-          id: newPost.id,
-          title: newPost.title,
-          content: newPost.content,
-          createdAt: new Date(newPost.created_at).getTime(),
-          replies: [],
-          topic: data.topic,
-          upvotes: 0,
-          images: newPost.images || [],
-          videos: newPost.videos || [],
-          communityId: communityId,
-          author: user.username || user.name || '用户',
-          authorAvatar: user.avatar_url || user.avatar,
-          authorId: user.id,
-          comments: []
         });
-        
-        // 处理@提及
-        if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
-          try {
-            await mentionService.processContentMentions(
-              data.content,
-              user.id,
-              'post',
-              newPostId,
-              'post',
-              communityId
-            );
-          } catch (mentionError) {
-            console.error('[createPost] Error processing mentions:', mentionError);
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.code === 0) {
+            newPostId = result.data.id;
+            createdThreads.push({
+              id: result.data.id,
+              title: result.data.title,
+              content: result.data.content,
+              createdAt: new Date(result.data.created_at).getTime(),
+              replies: [],
+              topic: data.topic,
+              upvotes: 0,
+              images: result.data.images || [],
+              videos: result.data.videos || [],
+              communityId: communityId,
+              author: user.username || user.name || '用户',
+              authorAvatar: user.avatar_url || user.avatar,
+              authorId: user.id,
+              comments: []
+            });
+            
+            // 处理@提及
+            if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
+              try {
+                await mentionService.processContentMentions(
+                  data.content,
+                  user.id,
+                  'post',
+                  newPostId,
+                  'post',
+                  communityId
+                );
+              } catch (mentionError) {
+                console.error('[createPost] Error processing mentions:', mentionError);
+              }
+            }
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || '创建帖子失败');
           }
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || '创建帖子失败');
         }
       } catch (error) {
         console.error(`[createPost] Failed to create post for community ${communityId}:`, error);
@@ -1357,800 +727,685 @@ export const communityService = {
       throw error;
     }
 
-    // 首先尝试使用后端API创建帖子
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (token) {
-      try {
-        console.log('[createThread] Trying to create post via backend API...');
-        const response = await fetch(`/api/communities/${data.communityId}/posts`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            title: data.title,
-            content: data.content,
-            images: data.images,
-            videos: data.videos,
-            audios: data.audios
-          })
-        });
+    if (!token) {
+      throw new Error('请先登录后再创建帖子');
+    }
 
-        const result = await response.json();
+    try {
+      console.log('[createThread] Trying to create post via backend API...');
+      const response = await fetch(`/api/communities/${data.communityId}/posts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: data.title,
+          content: data.content,
+          images: data.images,
+          videos: data.videos,
+          audios: data.audios
+        })
+      });
 
-        if (response.ok && result.code === 0) {
-          console.log('[createThread] Successfully created post via backend API');
-          const newThread = result.data;
-          
-          // 处理@提及
-          if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
-            try {
-              await mentionService.processContentMentions(
-                data.content,
-                userId,
-                'post',
-                newThread.id,
-                'post',
-                data.communityId
-              );
-            } catch (mentionError) {
-              console.error('[createThread] Error processing mentions:', mentionError);
-            }
+      const result = await response.json();
+
+      if (response.ok && result.code === 0) {
+        console.log('[createThread] Successfully created post via backend API');
+        const newThread = result.data;
+        
+        // 处理@提及
+        if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
+          try {
+            await mentionService.processContentMentions(
+              data.content,
+              userId,
+              'post',
+              newThread.id,
+              'post',
+              data.communityId
+            );
+          } catch (mentionError) {
+            console.error('[createThread] Error processing mentions:', mentionError);
           }
-          
-          return {
-            id: newThread.id,
-            title: newThread.title,
-            content: newThread.content,
-            createdAt: new Date(newThread.created_at).getTime(),
-            replies: [],
-            topic: data.topic || '',
-            upvotes: 0,
-            images: newThread.images || [],
-            videos: newThread.videos || [],
-            audios: newThread.audios || [],
-            communityId: newThread.community_id,
-            author: username,
-            authorAvatar: avatar,
-            authorId: userId,
-            comments: []
-          };
         }
         
-        console.log('[createThread] Backend API failed:', result.message);
-      } catch (backendError) {
-        console.error('[createThread] Backend API error:', backendError);
+        return {
+          id: newThread.id,
+          title: newThread.title,
+          content: newThread.content,
+          createdAt: new Date(newThread.created_at).getTime(),
+          replies: [],
+          topic: data.topic || '',
+          upvotes: 0,
+          images: newThread.images || [],
+          videos: newThread.videos || [],
+          audios: newThread.audios || [],
+          communityId: newThread.community_id,
+          author: username,
+          authorAvatar: avatar,
+          authorId: userId,
+          comments: []
+        };
       }
+      
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '创建帖子失败');
+    } catch (error) {
+      console.error('[createThread] Error:', error);
+      throw error;
     }
-
-    // 如果后端API失败，回退到Supabase
-    console.log('[createThread] Falling back to Supabase...');
-    
-    // 获取当前真实的 Supabase 用户 ID
-    let realUserId = userId;
-    
-    // 尝试从 localStorage 恢复 Supabase 会话
-    const supabaseToken = typeof window !== 'undefined' ? localStorage.getItem('supabaseToken') : null;
-    const supabaseRefreshToken = typeof window !== 'undefined' ? localStorage.getItem('supabaseRefreshToken') : null;
-    
-    if (supabaseToken && supabaseRefreshToken) {
-      try {
-        await supabase.auth.setSession({
-          access_token: supabaseToken,
-          refresh_token: supabaseRefreshToken
-        });
-        
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          realUserId = user.id;
-          console.log('[createThread] Restored Supabase session, userId:', realUserId);
-        }
-      } catch (e) {
-        console.warn('[createThread] Failed to restore Supabase session:', e);
-      }
-    }
-
-    // 构建插入数据
-    const insertData: any = {
-      title: data.title,
-      content: data.content,
-      community_id: data.communityId,
-      user_id: realUserId
-    };
-    
-    // 可选字段：只在有值时添加
-    if (data.images && data.images.length > 0) {
-      insertData.images = data.images;
-    }
-    
-    if (data.videos && data.videos.length > 0) {
-      insertData.videos = data.videos;
-    }
-    
-    if (data.audios && data.audios.length > 0) {
-      insertData.audios = data.audios;
-    }
-    
-    const { data: newThread, error } = await supabase
-      .from('posts')
-      .insert(insertData)
-      .select()
-      .single();
-    
-    if (error) {
-        console.error('Supabase create thread error:', error);
-        // 处理外键约束错误 (用户ID不存在)
-        if (error.code === '23503') {
-             throw new Error('用户认证状态异常，请尝试退出后重新登录');
-        }
-        throw error;
-    }
-    
-    // 处理@提及
-    if (data.mentionedUserIds && data.mentionedUserIds.length > 0) {
-      try {
-        await mentionService.processContentMentions(
-          data.content,
-          realUserId,
-          'post',
-          newThread.id,
-          'post',
-          data.communityId
-        );
-      } catch (mentionError) {
-        console.error('[createThread] Error processing mentions:', mentionError);
-      }
-    }
-    
-    return {
-      id: newThread.id,
-      title: newThread.title,
-      content: newThread.content,
-      createdAt: new Date(newThread.created_at).getTime(),
-      replies: [],
-      topic: data.topic || '', // 使用传入的topic，数据库可能没有存储
-      upvotes: 0,
-      images: newThread.images || [],
-      videos: newThread.videos || [],
-      audios: newThread.audios || [],
-      communityId: newThread.community_id,
-      author: username,
-      authorAvatar: avatar,
-      authorId: realUserId,
-      comments: []
-    };
   },
 
   async getThreadsByCommunity(communityId: string): Promise<Thread[]> {
-    // 优先使用后端 API 获取帖子列表
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (token) {
-      try {
-        const response = await fetch(`/api/communities/${communityId}/posts`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        if (response.ok) {
-          const result = await response.json();
-          console.log('[getThreadsByCommunity] API response:', result);
-          if (result.code === 0 && result.data) {
-            return result.data.map((post: any) => {
-              console.log('[getThreadsByCommunity] Post data:', {
-                id: post.id,
-                title: post.title,
-                hasImages: post.images && post.images.length > 0,
-                images: post.images,
-                thumbnail: post.thumbnail,
-                media: post.media
-              });
-              // 处理图片 URL，保留完整 URL（包括签名参数）
-              let images: string[] = [];
-              if (post.images && post.images.length > 0) {
-                images = post.images;
-              } else if (post.media) {
-                try {
-                  images = JSON.parse(post.media);
-                } catch (e) {
-                  images = [];
-                }
-              } else if (post.thumbnail) {
-                images = [post.thumbnail];
-              }
-              return {
+    if (!token) {
+      return [];
+    }
+
+    try {
+      const response = await fetch(`/api/communities/${communityId}/posts`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[getThreadsByCommunity] API response:', result);
+        if (result.code === 0 && result.data) {
+          return result.data.map((post: any) => {
+            console.log('[getThreadsByCommunity] Post data:', {
               id: post.id,
               title: post.title,
-              content: post.content,
-              createdAt: post.created_at ? new Date(post.created_at * 1000).getTime() : Date.now(),
-              replies: [],
-              topic: post.topic,
-              upvotes: post.likes || 0,
-              images: images,
-              videos: post.videos || [],
-              communityId: post.community_id,
-              author: post.author_name || '未知用户',
-              authorAvatar: post.author_avatar || '',
-              type: post.type || 'post',
-              authorId: post.author_id,
-              comments: (post.comments || []).map((c: any) => ({
-                id: c.id,
-                content: c.content,
-                user: c.user || c.author || '用户',
-                author: c.author || c.user || '用户',
-                authorAvatar: c.authorAvatar || c.userAvatar || '',
-                userAvatar: c.userAvatar || c.authorAvatar || '',
-                userId: c.userId,
-                date: c.date,
-                likes: c.likes || 0
-              })),
-              commentCount: post.comments_count || 0
-            }});
-          }
+              hasImages: post.images && post.images.length > 0,
+              images: post.images,
+              thumbnail: post.thumbnail,
+              media: post.media
+            });
+            // 处理图片 URL，保留完整 URL（包括签名参数）
+            let images: string[] = [];
+            if (post.images && post.images.length > 0) {
+              images = post.images;
+            } else if (post.media) {
+              try {
+                images = JSON.parse(post.media);
+              } catch (e) {
+                images = [];
+              }
+            } else if (post.thumbnail) {
+              images = [post.thumbnail];
+            }
+            return {
+            id: post.id,
+            title: post.title,
+            content: post.content,
+            createdAt: post.created_at ? new Date(post.created_at * 1000).getTime() : Date.now(),
+            replies: [],
+            topic: post.topic,
+            upvotes: post.likes || 0,
+            images: images,
+            videos: post.videos || [],
+            communityId: post.community_id,
+            author: post.author_name || '未知用户',
+            authorAvatar: post.author_avatar || '',
+            type: post.type || 'post',
+            authorId: post.author_id,
+            comments: (post.comments || []).map((c: any) => ({
+              id: c.id,
+              content: c.content,
+              user: c.user || c.author || '用户',
+              author: c.author || c.user || '用户',
+              authorAvatar: c.authorAvatar || c.userAvatar || '',
+              userAvatar: c.userAvatar || c.authorAvatar || '',
+              userId: c.userId,
+              date: c.date,
+              likes: c.likes || 0
+            })),
+            commentCount: post.comments_count || 0
+          }});
         }
-      } catch (error) {
-        console.warn('[getThreadsByCommunity] Backend API failed, falling back to Supabase:', error);
       }
+      throw new Error('Failed to fetch threads from API');
+    } catch (error) {
+      console.error('[getThreadsByCommunity] Error:', error);
+      return [];
     }
-
-    // 如果后端 API 失败，回退到 Supabase
-    // 同时获取帖子列表和作品列表
-    const [{ data: posts, error: postsError }, { data: works, error: worksError }] = await Promise.all([
-      supabase
-        .from('posts')
-        .select('*')
-        .eq('community_id', communityId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('works')
-        .select('*')
-        .eq('category', communityId)
-        .order('created_at', { ascending: false })
-    ]);
-
-    if (postsError) throw postsError;
-
-    // 合并 posts 和 works
-    const allItems = [
-      ...(posts || []).map(p => ({ ...p, type: 'post' })),
-      ...(works || []).map(w => ({ 
-        ...w, 
-        type: 'work',
-        author_id: w.creator_id,
-        content: w.description,
-        upvotes: w.likes || 0
-      }))
-    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    if (allItems.length === 0) return [];
-
-    // 获取所有作者ID（转换为字符串以匹配 users.id 的 TEXT 类型）
-    const authorIds = [...new Set(allItems.map(p => p.author_id).filter(Boolean))].map(id => String(id));
-
-    // 获取作者信息
-    let users: any[] = [];
-    if (authorIds.length > 0) {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .in('id', authorIds);
-      if (!usersError && usersData) {
-        users = usersData;
-      }
-    }
-
-    // 获取所有帖子ID（用于查询评论）
-    const postIds = (posts || []).map(p => p.id);
-
-    // 获取评论（只对 posts 查询评论）
-    let comments: any[] = [];
-    if (postIds.length > 0) {
-      const { data: commentsData, error: commentsError } = await supabase
-        .from('comments')
-        .select('*')
-        .in('post_id', postIds);
-      if (!commentsError && commentsData) {
-        comments = commentsData;
-      }
-    }
-
-    return allItems.map(item => {
-      // 使用 String() 确保 UUID 比较时类型一致
-      const user = users.find(u => String(u.id) === String(item.author_id));
-      const postComments = item.type === 'post' 
-        ? comments.filter(c => c.post_id === item.id)
-        : [];
-
-      // 优先使用 item.author_id，确保 authorId 始终有值
-      const authorId = item.author_id ? String(item.author_id) : (user?.id ? String(user.id) : null);
-
-      return {
-        id: item.id,
-        title: item.title,
-        content: item.content || item.description,
-        createdAt: new Date(item.created_at).getTime(),
-        replies: postComments.map(comment => ({
-          id: comment.id,
-          content: comment.content,
-          createdAt: new Date(comment.created_at).getTime()
-        })) || [],
-        topic: item.topic || item.category,
-        upvotes: item.upvotes || item.likes || 0,
-        images: item.images || (item.media ? JSON.parse(item.media).map((url: string) => url.split('?')[0]) : (item.thumbnail ? [item.thumbnail.split('?')[0]] : undefined)),
-        videos: item.videos,
-        audios: item.audios,
-        communityId: item.community_id || item.category,
-        author: user?.username || '未知用户',
-        authorAvatar: user?.avatar_url || '',
-        type: item.type,
-        authorId: authorId,
-        comments: postComments
-      };
-    });
   },
 
   async getThread(threadId: string): Promise<Thread> {
-    // 先获取帖子
-    const { data: post, error } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', threadId)
-      .single();
-    
-    if (error) throw error;
-
-    console.log('[getThread] Post data:', post);
-    // 尝试使用 author_id 或 user_id 获取作者信息
-    const authorId = post.author_id || post.user_id;
-    console.log('[getThread] Author ID:', authorId);
-
-    // 获取作者信息
-    let user: any = null;
-    if (authorId) {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .eq('id', authorId)
-        .single();
-      console.log('[getThread] User data:', userData, 'Error:', userError);
-      if (!userError && userData) {
-        user = userData;
-      }
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再查看帖子');
     }
 
-    // 获取评论
-    const { data: comments, error: commentsError } = await supabase
-      .from('comments')
-      .select('*')
-      .eq('post_id', post.id);
+    try {
+      const response = await fetch(`/api/posts/${threadId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    const postComments = commentsError ? [] : (comments || []);
-
-    // 获取所有评论的作者信息
-    const commentsWithAuthor = await Promise.all(
-      postComments.map(async (comment: any) => {
-        const commentAuthorId = comment.author_id || comment.user_id;
-        if (commentAuthorId) {
-          const { data: commentUser } = await supabase
-            .from('users')
-            .select('id, username, avatar_url')
-            .eq('id', commentAuthorId)
-            .single();
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && result.data) {
+          const post = result.data;
           return {
-            ...comment,
-            author: commentUser?.username || '未知用户',
-            authorAvatar: commentUser?.avatar_url || '',
-            authorId: commentUser?.id || commentAuthorId,
+            id: post.id,
+            title: post.title,
+            content: post.content,
+            createdAt: new Date(post.created_at).getTime(),
+            replies: (post.comments || []).map((comment: any) => ({
+              id: comment.id,
+              content: comment.content,
+              createdAt: new Date(comment.created_at).getTime()
+            })) || [],
+            topic: post.topic || post.category,
+            upvotes: post.likes || 0,
+            images: post.images,
+            communityId: post.community_id,
+            author: post.author_name || '未知用户',
+            authorAvatar: post.author_avatar || '',
+            authorId: post.author_id,
+            comments: post.comments || []
           };
         }
-        return {
-          ...comment,
-          author: '未知用户',
-          authorAvatar: '',
-          authorId: null,
-        };
-      })
-    );
-
-    return {
-      id: post.id,
-      title: post.title,
-      content: post.content,
-      createdAt: new Date(post.created_at).getTime(),
-      replies: commentsWithAuthor.map(comment => ({
-        id: comment.id,
-        content: comment.content,
-        createdAt: new Date(comment.created_at).getTime()
-      })) || [],
-      topic: post.topic || post.category,
-      upvotes: post.upvotes || 0,
-      images: post.images,
-      communityId: post.community_id,
-      author: user?.username || '未知用户',
-      authorAvatar: user?.avatar_url || '',
-      authorId: user?.id || authorId,
-      comments: commentsWithAuthor
-    };
+      }
+      throw new Error('Failed to fetch thread from API');
+    } catch (error) {
+      console.error('[getThread] Error:', error);
+      throw error;
+    }
   },
 
   // 点赞功能
   async toggleLike(postId: string, userId: string, action: 'like' | 'unlike'): Promise<void> {
-    if (action === 'unlike') {
-      const { error } = await supabase
-        .from('likes')
-        .delete()
-        .eq('post_id', postId)
-        .eq('user_id', userId);
-      
-      if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from('likes')
-        .insert({ post_id: postId, user_id: userId });
-        
-      if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/posts/${postId}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '操作失败');
+    } catch (error) {
+      console.error('[toggleLike] Error:', error);
+      throw error;
     }
   },
 
   // 评论功能
   async addComment(postId: string, content: string, userId: string, replyTo?: string): Promise<any> {
-    const { data: newComment, error } = await supabase
-      .from('comments')
-      .insert({
-        post_id: postId,
-        user_id: userId,
-        content: content,
-        reply_to: replyTo
-      })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    
-    return newComment;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再评论');
+    }
+
+    try {
+      const response = await fetch(`/api/posts/${postId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content, reply_to: replyTo })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && result.data) {
+          return result.data;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '添加评论失败');
+    } catch (error) {
+      console.error('[addComment] Error:', error);
+      throw error;
+    }
   },
 
   // 好友相关功能
   async sendFriendRequest(senderId: string, receiverId: string): Promise<void> {
-    const { error } = await supabase
-      .from('friend_requests')
-      .insert({ sender_id: senderId, receiver_id: receiverId, status: 'pending' });
-    
-    if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再发送好友请求');
+    }
+
+    try {
+      const response = await fetch('/api/friends/requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ receiver_id: receiverId })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '发送好友请求失败');
+    } catch (error) {
+      console.error('[sendFriendRequest] Error:', error);
+      throw error;
+    }
   },
 
   async acceptFriendRequest(requestId: string): Promise<void> {
-    // 1. 更新好友请求状态
-    const { data: request, error: updateError } = await supabase
-      .from('friend_requests')
-      .update({ status: 'accepted' })
-      .eq('id', requestId)
-      .select()
-      .single();
-    
-    if (updateError) throw updateError;
-    
-    if (!request) throw new Error('好友请求不存在');
-    
-    // 2. 可以在这里添加好友关系表的记录
-    // 例如：在friends表中插入两条记录，方便双向查询
-    // await supabase.from('friends').insert([
-    //   { user_id: request.sender_id, friend_id: request.receiver_id },
-    //   { user_id: request.receiver_id, friend_id: request.sender_id }
-    // ]);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/friends/requests/${requestId}/accept`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '接受好友请求失败');
+    } catch (error) {
+      console.error('[acceptFriendRequest] Error:', error);
+      throw error;
+    }
   },
 
   async rejectFriendRequest(requestId: string): Promise<void> {
-    const { error } = await supabase
-      .from('friend_requests')
-      .update({ status: 'rejected' })
-      .eq('id', requestId);
-    
-    if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/friends/requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '拒绝好友请求失败');
+    } catch (error) {
+      console.error('[rejectFriendRequest] Error:', error);
+      throw error;
+    }
   },
 
   async removeFriend(userId: string, friendId: string): Promise<void> {
-    // 这里需要根据实际的数据模型来实现
-    // 例如：从friends表中删除关系记录
-    // 或者从friend_requests表中删除已接受的请求
-    
-    // 示例实现（假设使用friend_requests表）
-    // 删除方向1
-    const { error: error1 } = await supabase
-      .from('friend_requests')
-      .delete()
-      .match({ sender_id: userId, receiver_id: friendId });
-      
-    if (error1) throw error1;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
 
-    // 删除方向2
-    const { error: error2 } = await supabase
-      .from('friend_requests')
-      .delete()
-      .match({ sender_id: friendId, receiver_id: userId });
-    
-    if (error2) throw error2;
+    try {
+      const response = await fetch(`/api/friends/${friendId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '移除好友失败');
+    } catch (error) {
+      console.error('[removeFriend] Error:', error);
+      throw error;
+    }
   },
 
   async getFriends(userId: string): Promise<{ data: UserProfile[] | null; error: any }> {
-    console.log('[communityService.getFriends] Getting friends for userId:', userId);
-    
-    // 先获取好友请求
-    const { data: requests, error } = await supabase
-      .from('friend_requests')
-      .select('*')
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .eq('status', 'accepted');
-
-    console.log('[communityService.getFriends] Requests:', requests?.length, 'error:', error);
-    
-    if (error) return { data: null, error };
-    if (!requests || requests.length === 0) {
-      console.log('[communityService.getFriends] No friend requests found');
-      return { data: [], error: null };
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      return { data: null, error: new Error('请先登录后再操作') };
     }
 
-    // 获取所有相关用户ID（转换为字符串以匹配 users.id 的 TEXT 类型）
-    const userIds = [...new Set(requests.flatMap(r => [r.sender_id, r.receiver_id]))].map(id => String(id));
+    try {
+      const response = await fetch('/api/friends', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    // 获取用户信息
-    let users: any[] = [];
-    console.log('[communityService.getFriends] User IDs to query:', userIds);
-    if (userIds.length > 0) {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .in('id', userIds);
-      console.log('[communityService.getFriends] Users found:', usersData?.length, 'error:', usersError);
-      if (!usersError && usersData) {
-        users = usersData;
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          return { data: result.data, error: null };
+        }
       }
+      throw new Error('Failed to fetch friends');
+    } catch (error) {
+      console.error('[getFriends] Error:', error);
+      return { data: null, error };
     }
-
-    // 处理数据，提取好友列表
-    const friends: UserProfile[] = [];
-    requests.forEach((request: any) => {
-      const sender = users.find(u => u.id === request.sender_id);
-      const receiver = users.find(u => u.id === request.receiver_id);
-      console.log('[communityService.getFriends] Processing request:', request.id, 'sender:', sender?.username, 'receiver:', receiver?.username);
-
-      if (sender && sender.id !== userId) {
-        friends.push(sender as UserProfile);
-      }
-      if (receiver && receiver.id !== userId) {
-        friends.push(receiver as UserProfile);
-      }
-    });
-
-    console.log('[communityService.getFriends] Final friends count:', friends.length);
-    return { data: friends, error: null };
   },
 
   async getSentFriendRequests(userId: string): Promise<{ data: any[] | null; error: any }> {
-    // 先获取发送的请求
-    const { data: requests, error } = await supabase
-      .from('friend_requests')
-      .select('*')
-      .eq('sender_id', userId)
-      .eq('status', 'pending');
-
-    if (error) return { data: null, error };
-    if (!requests || requests.length === 0) return { data: [], error: null };
-
-    // 获取接收者信息（转换为字符串以匹配 users.id 的 TEXT 类型）
-    const receiverIds = [...new Set(requests.map(r => r.receiver_id).filter(Boolean))].map(id => String(id));
-    let users: any[] = [];
-    if (receiverIds.length > 0) {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .in('id', receiverIds);
-      if (!usersError && usersData) {
-        users = usersData;
-      }
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      return { data: null, error: new Error('请先登录后再操作') };
     }
 
-    // 合并数据
-    const enrichedRequests = requests.map(request => ({
-      ...request,
-      receiver: users.find(u => u.id === request.receiver_id) || null
-    }));
+    try {
+      const response = await fetch('/api/friends/requests/sent', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    return { data: enrichedRequests, error: null };
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          return { data: result.data, error: null };
+        }
+      }
+      throw new Error('Failed to fetch sent friend requests');
+    } catch (error) {
+      console.error('[getSentFriendRequests] Error:', error);
+      return { data: null, error };
+    }
   },
 
   async getReceivedFriendRequests(userId: string): Promise<{ data: any[] | null; error: any }> {
-    // 先获取接收的请求
-    const { data: requests, error } = await supabase
-      .from('friend_requests')
-      .select('*')
-      .eq('receiver_id', userId)
-      .eq('status', 'pending');
-
-    if (error) return { data: null, error };
-    if (!requests || requests.length === 0) return { data: [], error: null };
-
-    // 获取发送者信息
-    const senderIds = [...new Set(requests.map(r => r.sender_id).filter(Boolean))];
-    let users: any[] = [];
-    if (senderIds.length > 0) {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .in('id', senderIds);
-      if (!usersError && usersData) {
-        users = usersData;
-      }
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      return { data: null, error: new Error('请先登录后再操作') };
     }
 
-    // 合并数据
-    const enrichedRequests = requests.map(request => ({
-      ...request,
-      sender: users.find(u => u.id === request.sender_id) || null
-    }));
+    try {
+      const response = await fetch('/api/friends/requests/received', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    return { data: enrichedRequests, error: null };
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          return { data: result.data, error: null };
+        }
+      }
+      throw new Error('Failed to fetch received friend requests');
+    } catch (error) {
+      console.error('[getReceivedFriendRequests] Error:', error);
+      return { data: null, error };
+    }
   },
 
   // 私信相关功能
   async sendMessage(senderId: string, receiverId: string, content: string): Promise<void> {
-    const { error } = await supabase
-      .from('messages')
-      .insert({
-        sender_id: senderId,
-        receiver_id: receiverId,
-        content,
-        is_read: false,
-        role: 'user' // Required by database constraint
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再发送消息');
+    }
+
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ receiver_id: receiverId, content })
       });
-    
-    if (error) throw error;
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '发送消息失败');
+    } catch (error) {
+      console.error('[sendMessage] Error:', error);
+      throw error;
+    }
   },
 
   async getChatMessages(userId: string, friendId: string): Promise<{ data: any[] | null; error: any }> {
-    // 先获取消息
-    const { data: messages, error } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`and(sender_id.eq.${userId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${userId})`)
-      .order('created_at', { ascending: true });
-
-    if (error) return { data: null, error };
-    if (!messages || messages.length === 0) return { data: [], error: null };
-
-    // 获取所有相关用户ID
-    const userIds = [...new Set(messages.flatMap(m => [m.sender_id, m.receiver_id]))];
-
-    // 获取用户信息
-    let users: any[] = [];
-    if (userIds.length > 0) {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .in('id', userIds);
-      if (!usersError && usersData) {
-        users = usersData;
-      }
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      return { data: null, error: new Error('请先登录后再查看消息') };
     }
 
-    // 合并数据
-    const enrichedMessages = messages.map(message => ({
-      ...message,
-      sender: users.find(u => u.id === message.sender_id) || null,
-      receiver: users.find(u => u.id === message.receiver_id) || null
-    }));
+    try {
+      const response = await fetch(`/api/messages/${friendId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    return { data: enrichedMessages, error: null };
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          return { data: result.data, error: null };
+        }
+      }
+      throw new Error('Failed to fetch chat messages');
+    } catch (error) {
+      console.error('[getChatMessages] Error:', error);
+      return { data: null, error };
+    }
   },
 
   async getChatSessions(userId: string): Promise<{ data: any[] | null; error: any }> {
-    // 这里需要根据实际的数据模型来实现
-    // 示例实现：获取与所有好友的最新消息
-    const { data: messages, error } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
-
-    if (error) return { data: null, error };
-    if (!messages || messages.length === 0) return { data: [], error: null };
-
-    // 获取所有相关用户ID
-    const userIds = [...new Set(messages.flatMap(m => [m.sender_id, m.receiver_id]))];
-
-    // 获取用户信息
-    let users: any[] = [];
-    if (userIds.length > 0) {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .in('id', userIds);
-      if (!usersError && usersData) {
-        users = usersData;
-      }
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      return { data: null, error: new Error('请先登录后再查看会话') };
     }
 
-    // 处理数据，按对话分组并获取最新消息
-    const sessionsMap = new Map<string, any>();
+    try {
+      const response = await fetch('/api/messages/sessions', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    messages.forEach(message => {
-      const otherUserId = message.sender_id === userId ? message.receiver_id : message.sender_id;
-      if (!sessionsMap.has(otherUserId)) {
-        const sender = users.find(u => u.id === message.sender_id);
-        const receiver = users.find(u => u.id === message.receiver_id);
-        sessionsMap.set(otherUserId, {
-          ...message,
-          sender,
-          receiver
-        });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          return { data: result.data, error: null };
+        }
       }
-    });
-
-    const sessions = Array.from(sessionsMap.values());
-    return { data: sessions, error: null };
+      throw new Error('Failed to fetch chat sessions');
+    } catch (error) {
+      console.error('[getChatSessions] Error:', error);
+      return { data: null, error };
+    }
   },
 
   async markMessagesAsRead(userId: string, friendId: string): Promise<void> {
-    const { error } = await supabase
-      .from('messages')
-      .update({ is_read: true })
-      .eq('receiver_id', userId)
-      .eq('sender_id', friendId);
-    
-    if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/messages/${friendId}/read`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '标记消息为已读失败');
+    } catch (error) {
+      console.error('[markMessagesAsRead] Error:', error);
+      throw error;
+    }
   },
 
   // 通知系统功能
   async getNotifications(userId: string): Promise<Notification[]> {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    
-    return data.map(notification => ({
-      id: notification.id,
-      type: notification.type as Notification['type'],
-      title: notification.title,
-      content: notification.content,
-      userId: notification.user_id,
-      relatedId: notification.related_id,
-      relatedType: notification.related_type,
-      isRead: notification.is_read,
-      createdAt: notification.created_at,
-      icon: this.getNotificationIcon(notification.type),
-      color: this.getNotificationColor(notification.type),
-      link: notification.link
-    }));
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再查看通知');
+    }
+
+    try {
+      const response = await fetch('/api/notifications', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          return result.data.map(notification => ({
+            id: notification.id,
+            type: notification.type as Notification['type'],
+            title: notification.title,
+            content: notification.content,
+            userId: notification.user_id,
+            relatedId: notification.related_id,
+            relatedType: notification.related_type,
+            isRead: notification.is_read,
+            createdAt: notification.created_at,
+            icon: this.getNotificationIcon(notification.type),
+            color: this.getNotificationColor(notification.type),
+            link: notification.link
+          }));
+        }
+      }
+      throw new Error('Failed to fetch notifications');
+    } catch (error) {
+      console.error('[getNotifications] Error:', error);
+      return [];
+    }
   },
 
   async markNotificationAsRead(notificationId: string): Promise<void> {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', notificationId);
-    
-    if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/notifications/${notificationId}/read`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '标记通知为已读失败');
+    } catch (error) {
+      console.error('[markNotificationAsRead] Error:', error);
+      throw error;
+    }
   },
 
   async markAllNotificationsAsRead(userId: string): Promise<void> {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('user_id', userId);
-    
-    if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch('/api/notifications/read-all', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '标记所有通知为已读失败');
+    } catch (error) {
+      console.error('[markAllNotificationsAsRead] Error:', error);
+      throw error;
+    }
   },
 
   async deleteNotification(notificationId: string): Promise<void> {
-    const { error } = await supabase
-      .from('notifications')
-      .delete()
-      .eq('id', notificationId);
-    
-    if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/notifications/${notificationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '删除通知失败');
+    } catch (error) {
+      console.error('[deleteNotification] Error:', error);
+      throw error;
+    }
   },
 
   async createNotification(data: {
@@ -2162,6 +1417,11 @@ export const communityService = {
     relatedType?: string;
     link?: string;
   }): Promise<Notification> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
     // 如果没有提供link，根据类型生成默认链接
     let link = data.link;
     if (!link && data.relatedId) {
@@ -2184,37 +1444,50 @@ export const communityService = {
       }
     }
 
-    const { data: newNotification, error } = await supabase
-      .from('notifications')
-      .insert({
-        type: data.type,
-        title: data.title,
-        content: data.content,
-        user_id: data.userId,
-        related_id: data.relatedId,
-        related_type: data.relatedType,
-        link: link,
-        is_read: false
-      })
-      .select()
-      .single();
+    try {
+      const response = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          type: data.type,
+          title: data.title,
+          content: data.content,
+          user_id: data.userId,
+          related_id: data.relatedId,
+          related_type: data.relatedType,
+          link: link
+        })
+      });
 
-    if (error) throw error;
-
-    return {
-      id: newNotification.id,
-      type: newNotification.type as Notification['type'],
-      title: newNotification.title,
-      content: newNotification.content,
-      userId: newNotification.user_id,
-      relatedId: newNotification.related_id,
-      relatedType: newNotification.related_type,
-      isRead: newNotification.is_read,
-      createdAt: newNotification.created_at,
-      icon: this.getNotificationIcon(newNotification.type),
-      color: this.getNotificationColor(newNotification.type),
-      link: newNotification.link
-    };
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && result.data) {
+          const newNotification = result.data;
+          return {
+            id: newNotification.id,
+            type: newNotification.type as Notification['type'],
+            title: newNotification.title,
+            content: newNotification.content,
+            userId: newNotification.user_id,
+            relatedId: newNotification.related_id,
+            relatedType: newNotification.related_type,
+            isRead: newNotification.is_read,
+            createdAt: newNotification.created_at,
+            icon: this.getNotificationIcon(newNotification.type),
+            color: this.getNotificationColor(newNotification.type),
+            link: newNotification.link
+          };
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '创建通知失败');
+    } catch (error) {
+      console.error('[createNotification] Error:', error);
+      throw error;
+    }
   },
 
   // 辅助方法：获取通知图标
@@ -2247,383 +1520,206 @@ export const communityService = {
 
   // 删除社区功能
   async deleteCommunity(communityId: string): Promise<void> {
-    // 首先删除社区成员关联
-    try {
-      const { error: membersError } = await supabase
-        .from('community_members')
-        .delete()
-        .eq('community_id', communityId);
-      
-      if (membersError) {
-        console.error('删除社区成员失败:', membersError);
-        // 继续执行，不因为成员删除失败而中断
-      }
-    } catch (error) {
-      console.error('删除社区成员时发生错误:', error);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
     }
 
-    // 删除社区相关的帖子
     try {
-      const { error: postsError } = await supabase
-        .from('posts')
-        .delete()
-        .eq('community_id', communityId);
-      
-      if (postsError) {
-        console.error('删除社区帖子失败:', postsError);
-        // 继续执行，不因为帖子删除失败而中断
-      }
-    } catch (error) {
-      console.error('删除社区帖子时发生错误:', error);
-    }
+      const response = await fetch(`/api/communities/${communityId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    // 删除社区本身
-    const { error: communityError } = await supabase
-      .from('communities')
-      .delete()
-      .eq('id', communityId);
-    
-    if (communityError) {
-      console.error('删除社区失败:', communityError);
-      throw communityError;
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '删除社区失败');
+    } catch (error) {
+      console.error('[deleteCommunity] Error:', error);
+      throw error;
     }
   },
 
   // 获取社区成员列表
   async getCommunityMembers(communityId: string): Promise<any[]> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      return [];
+    }
+
     try {
-      // 首先尝试使用后端API获取成员列表（后端使用service_role可以绕过RLS）
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      if (token) {
-        try {
-          const response = await fetch(`/api/communities/${communityId}/members`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          
-          if (response.ok) {
-            const result = await response.json();
-            if (result.code === 0 && Array.isArray(result.data)) {
-              console.log('[getCommunityMembers] Fetched from backend API:', result.data.length);
-              return result.data;
-            }
-          }
-        } catch (apiError) {
-          console.warn('[getCommunityMembers] Backend API failed, falling back to Supabase:', apiError);
+      const response = await fetch(`/api/communities/${communityId}/members`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-      }
-
-      // 回退到Supabase直接查询
-      console.log('[getCommunityMembers] Falling back to Supabase...');
-      
-      // 先获取成员列表
-      const { data: membersData, error: membersError } = await supabase
-        .from('community_members')
-        .select('community_id, user_id, role, joined_at')
-        .eq('community_id', communityId)
-        .order('joined_at', { ascending: false });
-
-      if (membersError) {
-        console.error('Error getting community members:', membersError);
-        return [];
-      }
-
-      if (!membersData || membersData.length === 0) {
-        return [];
-      }
-
-      // 获取所有用户ID
-      const userIds = membersData.map(m => m.user_id).filter(Boolean);
-      console.log('[getCommunityMembers] User IDs:', userIds);
-
-      // 单独获取用户信息 - 使用 in 查询
-      let usersMap = new Map();
-      if (userIds.length > 0) {
-        // 首先尝试从 public.users 获取
-        const { data: usersData, error: usersError } = await supabase
-          .from('users')
-          .select('id, username, avatar_url')
-          .in('id', userIds);
-
-        console.log('[getCommunityMembers] Users query result:', { usersData, usersError });
-
-        if (usersError) {
-          console.error('Error getting users:', usersError);
-        } else {
-          usersData?.forEach((user: any) => {
-            usersMap.set(user.id, user);
-          });
-        }
-
-        // 对于没有从 public.users 找到的用户，尝试从后端API获取
-        const missingUserIds = userIds.filter(id => !usersMap.has(id));
-        if (missingUserIds.length > 0) {
-          console.log('[getCommunityMembers] Missing user IDs, trying backend API:', missingUserIds);
-          try {
-            // 使用后端API获取用户信息
-            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-            if (token) {
-              // 逐个获取用户信息
-              for (const userId of missingUserIds) {
-                try {
-                  const response = await fetch(`/api/users/${userId}`, {
-                    headers: {
-                      'Authorization': `Bearer ${token}`
-                    }
-                  });
-                  
-                  if (response.ok) {
-                    const result = await response.json();
-                    if (result.code === 0 && result.data) {
-                      const user = result.data;
-                      usersMap.set(userId, {
-                        id: userId,
-                        username: user.username || user.name || user.email?.split('@')[0] || '用户',
-                        avatar_url: user.avatar_url || user.avatar
-                      });
-                    }
-                  }
-                } catch (userError) {
-                  console.warn(`[getCommunityMembers] Failed to get user ${userId}:`, userError);
-                }
-              }
-            }
-          } catch (e) {
-            console.warn('[getCommunityMembers] Failed to get users from backend:', e);
-          }
-        }
-      }
-
-      const result = membersData.map((member: any) => {
-        const user = usersMap.get(member.user_id);
-        return {
-          id: `${member.community_id}-${member.user_id}`, // 使用复合键作为 id
-          user_id: member.user_id,
-          username: user?.username || '未知用户',
-          avatar_url: user?.avatar_url,
-          role: member.role,
-          joined_at: member.joined_at,
-          is_online: false,
-        };
       });
       
-      console.log('[getCommunityMembers] Final result:', result);
-      return result;
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          console.log('[getCommunityMembers] Fetched from backend API:', result.data.length);
+          return result.data;
+        }
+      }
+      throw new Error('Failed to fetch community members');
     } catch (error) {
-      console.error('Error in getCommunityMembers:', error);
+      console.error('[getCommunityMembers] Error:', error);
       return [];
     }
   },
 
   // 获取社区公告列表
   async getCommunityAnnouncements(communityId: string): Promise<any[]> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      return [];
+    }
+
     try {
-      // 先获取公告列表（根据实际表结构：id, community_id, content, created_by, created_at, updated_at）
-      const { data: announcementsData, error: announcementsError } = await supabase
-        .from('community_announcements')
-        .select('id, community_id, content, created_by, created_at, updated_at')
-        .eq('community_id', communityId)
-        .order('created_at', { ascending: false });
+      const response = await fetch(`/api/communities/${communityId}/announcements`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-      if (announcementsError) {
-        console.error('Error getting community announcements:', announcementsError);
-        return [];
-      }
-
-      if (!announcementsData || announcementsData.length === 0) {
-        return [];
-      }
-
-      // 获取所有作者ID
-      const authorIds = announcementsData.map(a => a.created_by).filter(Boolean);
-
-      // 单独获取作者信息
-      let authorsMap = new Map();
-      if (authorIds.length > 0) {
-        const { data: usersData, error: usersError } = await supabase
-          .from('users')
-          .select('id, username, avatar_url')
-          .in('id', authorIds);
-
-        if (usersError) {
-          console.error('Error getting authors:', usersError);
-        } else {
-          usersData?.forEach((user: any) => {
-            authorsMap.set(user.id, user);
-          });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          return result.data;
         }
       }
-
-      return announcementsData.map((announcement: any) => {
-        const author = authorsMap.get(announcement.created_by);
-        return {
-          id: announcement.id,
-          title: '社区公告', // 表中没有 title 列，使用默认标题
-          content: announcement.content,
-          author_id: announcement.created_by,
-          author_name: author?.username || '未知用户',
-          author_avatar: author?.avatar_url,
-          is_pinned: false, // 表中没有 is_pinned 列，默认 false
-          created_at: announcement.created_at,
-          updated_at: announcement.updated_at,
-        };
-      });
+      throw new Error('Failed to fetch community announcements');
     } catch (error) {
-      console.error('Error in getCommunityAnnouncements:', error);
+      console.error('[getCommunityAnnouncements] Error:', error);
       return [];
     }
   },
 
   // 关注/取消关注用户
   async toggleFollow(currentUserId: string, targetUserId: string, action: 'follow' | 'unfollow'): Promise<void> {
-    if (action === 'follow') {
-      const { error } = await supabase
-        .from('follows')
-        .insert({ follower_id: currentUserId, following_id: targetUserId });
-      if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from('follows')
-        .delete()
-        .eq('follower_id', currentUserId)
-        .eq('following_id', targetUserId);
-      if (error) throw error;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
+    }
+
+    try {
+      const response = await fetch(`/api/users/${targetUserId}/follow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '操作失败');
+    } catch (error) {
+      console.error('[toggleFollow] Error:', error);
+      throw error;
     }
   },
 
   // 删除帖子
   async deleteThread(threadId: string, userId: string): Promise<void> {
-    console.log('[deleteThread] Attempting to delete thread:', threadId, 'by user:', userId);
-    
-    // 检查用户是否是帖子作者
-    const { data: thread, error: threadError } = await supabase
-      .from('posts')
-      .select('author_id, user_id')
-      .eq('id', threadId)
-      .single();
-
-    console.log('[deleteThread] Thread data:', thread, 'Error:', threadError);
-
-    if (threadError) {
-      console.error('Error fetching thread:', threadError);
-      throw new Error('帖子不存在');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
     }
 
-    // 检查 author_id 或 user_id 字段
-    const threadAuthorId = thread.author_id || thread.user_id;
-    console.log('[deleteThread] Thread author_id:', threadAuthorId, 'Current userId:', userId);
-    
-    if (threadAuthorId !== userId) {
-      console.error('[deleteThread] Permission denied. Thread author:', threadAuthorId, 'Current user:', userId);
-      throw new Error('您没有权限删除此帖子');
-    }
+    try {
+      const response = await fetch(`/api/posts/${threadId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    const { error } = await supabase
-      .from('posts')
-      .delete()
-      .eq('id', threadId);
-
-    if (error) {
-      console.error('Error deleting thread:', error);
-      throw new Error('删除帖子失败');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          console.log('[deleteThread] Thread deleted successfully:', threadId);
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '删除帖子失败');
+    } catch (error) {
+      console.error('[deleteThread] Error:', error);
+      throw error;
     }
-    
-    console.log('[deleteThread] Thread deleted successfully:', threadId);
   },
 
   // 删除评论
   async deleteComment(commentId: string, userId: string): Promise<void> {
-    console.log('[deleteComment] Attempting to delete comment:', commentId, 'by user:', userId);
-    
-    // 检查用户是否是评论作者
-    const { data: comment, error: commentError } = await supabase
-      .from('comments')
-      .select('user_id, author_id')
-      .eq('id', commentId)
-      .single();
-
-    console.log('[deleteComment] Comment data:', comment, 'Error:', commentError);
-
-    if (commentError) {
-      console.error('Error fetching comment:', commentError);
-      throw new Error('评论不存在');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
     }
 
-    // 检查 user_id 或 author_id 字段
-    const commentAuthorId = comment.user_id || comment.author_id;
-    console.log('[deleteComment] Comment author_id:', commentAuthorId, 'Current userId:', userId);
-    
-    if (commentAuthorId !== userId) {
-      console.error('[deleteComment] Permission denied. Comment author:', commentAuthorId, 'Current user:', userId);
-      throw new Error('您没有权限删除此评论');
-    }
+    try {
+      const response = await fetch(`/api/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    const { error } = await supabase
-      .from('comments')
-      .delete()
-      .eq('id', commentId);
-
-    if (error) {
-      console.error('Error deleting comment:', error);
-      throw new Error('删除评论失败');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          console.log('[deleteComment] Comment deleted successfully:', commentId);
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '删除评论失败');
+    } catch (error) {
+      console.error('[deleteComment] Error:', error);
+      throw error;
     }
-    
-    console.log('[deleteComment] Comment deleted successfully:', commentId);
   },
 
   // 删除消息
   async deleteMessage(messageId: string, userId: string): Promise<void> {
-    console.log('[deleteMessage] Attempting to delete message:', messageId, 'by user:', userId);
-    
-    // 检查用户是否是消息作者
-    // 注意：messages 表中使用的是 user_id 字段，不是 sender_id
-    const { data: message, error: messageError } = await supabase
-      .from('messages')
-      .select('user_id, sender_id')
-      .eq('id', messageId)
-      .single();
-
-    console.log('[deleteMessage] Message data:', message, 'Error:', messageError);
-
-    if (messageError) {
-      console.error('Error fetching message:', messageError);
-      throw new Error('消息不存在');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      throw new Error('请先登录后再操作');
     }
 
-    // 兼容 user_id 和 sender_id 字段
-    const messageSenderId = message.user_id || message.sender_id;
-    console.log('[deleteMessage] Message sender_id:', messageSenderId, 'Current userId:', userId);
-    
-    if (messageSenderId !== userId) {
-      console.error('[deleteMessage] Permission denied. Message sender:', messageSenderId, 'Current user:', userId);
-      throw new Error('您没有权限删除此消息');
+    try {
+      const response = await fetch(`/api/messages/${messageId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0) {
+          console.log('[deleteMessage] Message deleted successfully:', messageId);
+          return;
+        }
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '删除消息失败');
+    } catch (error) {
+      console.error('[deleteMessage] Error:', error);
+      throw error;
     }
-
-    const { error } = await supabase
-      .from('messages')
-      .delete()
-      .eq('id', messageId);
-
-    if (error) {
-      console.error('Error deleting message:', error);
-      throw new Error('删除消息失败');
-    }
-    
-    console.log('[deleteMessage] Message deleted successfully:', messageId);
-  },
-
-  // 订阅帖子实时更新
-  subscribeToPosts(callback: (payload: any) => void): RealtimeChannel {
-    // Realtime 功能已禁用 - 本地开发环境不支持 WebSocket
-    // Realtime disabled - WebSocket not supported in local dev environment
-    console.log('[CommunityService] Realtime subscription skipped (not supported in local environment)');
-    
-    // 返回一个模拟的 channel 对象，包含 unsubscribe 方法
-    return {
-      unsubscribe: () => {},
-      on: () => ({} as any),
-      subscribe: () => ({} as any),
-    } as RealtimeChannel;
   }
 };

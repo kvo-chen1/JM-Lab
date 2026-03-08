@@ -3,7 +3,6 @@ import errorService from '../services/errorService';
 import securityService from '../services/securityService';
 import { recordNetworkRequest } from '../utils/performanceMonitor';
 import eventBus from './eventBus'; // 导入事件总线
-import { supabase } from '@/lib/supabase';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -550,14 +549,6 @@ export async function apiRequest<TResp, TBody = unknown>(
         let token = null
         try {
           token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-          
-          // 如果本地 token 缺失，尝试从 Supabase session 获取
-          if (!token && typeof window !== 'undefined' && supabase) {
-             const { data } = await supabase.auth.getSession();
-             if (data?.session?.access_token) {
-               token = data.session.access_token;
-             }
-          }
         } catch (error) {
           console.warn('Failed to get token:', error)
         }

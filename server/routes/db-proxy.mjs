@@ -15,14 +15,16 @@ const pool = new Pool({
                     process.env.POSTGRES_URL_NON_POOLING ||
                     process.env.NEON_POSTGRES_URL_NON_POOLING,
   ssl: {
-    rejectUnauthorized: false
+    rejectUnauthorized: false,
+    keepAlive: true
   },
-  max: 5,
-  min: 1,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 60000,
-  statement_timeout: 30000,
-  query_timeout: 30000
+  max: 10,
+  min: 2,
+  idleTimeoutMillis: 120000,
+  connectionTimeoutMillis: 30000,
+  statement_timeout: 60000,
+  query_timeout: 60000,
+  application_name: 'jinmai-agent-app'
 })
 
 // 解析 select 参数

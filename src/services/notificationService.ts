@@ -3,7 +3,7 @@
  * 津脉社区平台
  */
 
-import { supabase } from '../lib/supabase';
+import apiClient from '../lib/apiClient';
 import type {
   InvitationNotification,
   InvitationNotificationType,
@@ -40,21 +40,21 @@ async function sendNotification(params: SendNotificationParams): Promise<void> {
     notificationContent = template.content;
   }
 
-  // 保存到数据库
-  const { error } = await supabase.from('notifications').insert({
-    type,
-    title: notificationTitle,
-    content: notificationContent,
-    user_id: recipientId,
-    sender_id: senderId,
-    community_id: communityId,
-    related_id: invitationId || requestId,
-    related_type: invitationId ? 'invitation' : requestId ? 'join_request' : null,
-    is_read: false,
-    link: buildNotificationLink(type, communityId, invitationId, requestId),
-  });
-
-  if (error) {
+  // 使用本地API保存通知
+  try {
+    await apiClient.post('/api/notifications', {
+      type,
+      title: notificationTitle,
+      content: notificationContent,
+      user_id: recipientId,
+      sender_id: senderId,
+      community_id: communityId,
+      related_id: invitationId || requestId,
+      related_type: invitationId ? 'invitation' : requestId ? 'join_request' : null,
+      is_read: false,
+      link: buildNotificationLink(type, communityId, invitationId, requestId),
+    });
+  } catch (error) {
     console.error('Error sending notification:', error);
     throw new Error('发送通知失败');
   }
@@ -86,23 +86,23 @@ async function sendInvitationNotification(params: {
   // 获取发送者信息
   let senderName = '系统';
   if (senderId) {
-    const { data: sender } = await supabase
-      .from('users')
-      .select('username')
-      .eq('id', senderId)
-      .single();
-    senderName = sender?.username || '未知用户';
+    try {
+      const sender = await apiClient.get(`/api/users/${senderId}`);
+      senderName = sender?.username || '未知用户';
+    } catch (error) {
+      console.error('Error getting sender info:', error);
+    }
   }
 
   // 获取社群信息
   let communityName = '';
   if (communityId) {
-    const { data: community } = await supabase
-      .from('communities')
-      .select('name')
-      .eq('id', communityId)
-      .single();
-    communityName = community?.name || '';
+    try {
+      const community = await apiClient.get(`/api/communities/${communityId}`);
+      communityName = community?.name || '';
+    } catch (error) {
+      console.error('Error getting community info:', error);
+    }
   }
 
   // 构建通知内容
@@ -215,45 +215,29 @@ async function getUserNotifications(
     offset?: number;
   }
 ): Promise<InvitationNotification[]> {
-  let query = supabase
-    .from('notifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (options?.unreadOnly) {
-    query = query.eq('is_read', false);
-  }
-
-  if (options?.limit) {
-    query = query.limit(options.limit);
-  }
-
-  if (options?.offset) {
-    query = query.range(options.offset, options.offset + (options.limit || 20) - 1);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
+  try {
+    const notifications = await apiClient.get('/api/notifications', {
+      user_id: userId,
+      unread_only: options?.unreadOnly,
+      limit: options?.limit,
+      offset: options?.offset
+    });
+    return (notifications || []).map(mapNotificationFromDB);
+  } catch (error) {
     console.error('Error fetching notifications:', error);
     return [];
   }
-
-  return (data || []).map(mapNotificationFromDB);
 }
 
 /**
  * 标记通知为已读
  */
 async function markNotificationAsRead(notificationId: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ is_read: true, read_at: new Date().toISOString() })
-    .eq('id', notificationId)
-    .eq('user_id', userId);
-
-  if (error) {
+  try {
+    await apiClient.put(`/api/notifications/${notificationId}/read`, {
+      user_id: userId
+    });
+  } catch (error) {
     console.error('Error marking notification as read:', error);
     throw new Error('标记通知失败');
   }
@@ -263,13 +247,11 @@ async function markNotificationAsRead(notificationId: string, userId: string): P
  * 标记所有通知为已读
  */
 async function markAllNotificationsAsRead(userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ is_read: true, read_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .eq('is_read', false);
-
-  if (error) {
+  try {
+    await apiClient.put('/api/notifications/read-all', {
+      user_id: userId
+    });
+  } catch (error) {
     console.error('Error marking all notifications as read:', error);
     throw new Error('标记通知失败');
   }
@@ -279,31 +261,28 @@ async function markAllNotificationsAsRead(userId: string): Promise<void> {
  * 获取未读通知数量
  */
 async function getUnreadCount(userId: string): Promise<number> {
-  const { count, error } = await supabase
-    .from('notifications')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('is_read', false);
-
-  if (error) {
+  try {
+    const result = await apiClient.get('/api/notifications/unread-count', {
+      user_id: userId
+    });
+    return result?.count || 0;
+  } catch (error) {
     console.error('Error getting unread count:', error);
     return 0;
   }
-
-  return count || 0;
 }
 
 /**
  * 删除通知
  */
 async function deleteNotification(notificationId: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('notifications')
-    .delete()
-    .eq('id', notificationId)
-    .eq('user_id', userId);
-
-  if (error) {
+  try {
+    await apiClient.delete(`/api/notifications/${notificationId}`, {
+      params: {
+        user_id: userId
+      }
+    });
+  } catch (error) {
     console.error('Error deleting notification:', error);
     throw new Error('删除通知失败');
   }

@@ -87,6 +87,11 @@ export interface AgentState {
   selectedOutput: string | null;
   selectedStyle: string | null;
   
+  // 画布状态
+  canvasZoom: number;
+  canvasPosition: { x: number; y: number };
+  selectedTool: 'select' | 'move' | 'hand';
+  
   // UI状态
   showStyleSelector: boolean;
   showSatisfactionModal: boolean;

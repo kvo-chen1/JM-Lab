@@ -10,13 +10,17 @@ const pool = new Pool({
                     process.env.POSTGRES_URL_NON_POOLING ||
                     process.env.NEON_POSTGRES_URL_NON_POOLING ||
                     'postgresql://neondb_owner:npg_fV0Tzot3RCxh@ep-shy-bar-ajp9o0kn-pooler.c-3.us-east-2.aws.neon.tech/neondb',
-  ssl: { rejectUnauthorized: false },
-  max: 5,
-  min: 1,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 60000,
-  statement_timeout: 30000,
-  query_timeout: 30000
+  ssl: { 
+    rejectUnauthorized: false,
+    keepAlive: true,
+  },
+  max: 10,
+  min: 2,
+  idleTimeoutMillis: 120000,
+  connectionTimeoutMillis: 30000,
+  statement_timeout: 60000,
+  query_timeout: 60000,
+  application_name: 'jinmai-agent-app'
 })
 
 // 发送 JSON 响应的辅助函数
@@ -123,10 +127,25 @@ async function handleAuthRequest(req, res, path) {
     
     try {
       // 从数据库获取用户详细信息
-      const result = await pool.query(
-        'SELECT id, email, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1',
-        [user.sub || user.id]
-      )
+      let result
+      try {
+        result = await pool.query(
+          'SELECT id, email, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1',
+          [user.sub || user.id]
+        )
+      } catch (queryError) {
+        if (queryError.message.includes('disconnected') || 
+            queryError.message.includes('terminated') ||
+            queryError.message.includes('ECONNRESET')) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          result = await pool.query(
+            'SELECT id, email, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1',
+            [user.sub || user.id]
+          )
+        } else {
+          throw queryError
+        }
+      }
       
       if (result.rows.length === 0) {
         sendJson(res, 404, { error: 'User not found', message: '用户不存在' })
@@ -181,10 +200,25 @@ async function handleRpcRequest(req, res, path) {
     
     console.log('[DB Proxy] RPC SQL:', sql, paramValues)
     
-    const result = await pool.query(sql, paramValues)
-    
-    // 返回数组格式的结果，与 Supabase 客户端兼容
-    sendJson(res, 200, result.rows)
+    try {
+      const result = await pool.query(sql, paramValues)
+      sendJson(res, 200, result.rows)
+    } catch (queryError) {
+      console.error('[DB Proxy] RPC error, retrying:', queryError.message)
+      if (queryError.message.includes('disconnected') || 
+          queryError.message.includes('terminated') ||
+          queryError.message.includes('ECONNRESET')) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          const retryResult = await pool.query(sql, paramValues)
+          sendJson(res, 200, retryResult.rows)
+          return true
+        } catch (retryError) {
+          console.error('[DB Proxy] RPC Retry failed:', retryError.message)
+        }
+      }
+      sendJson(res, 500, { error: queryError.message })
+    }
     return true
   } catch (error) {
     console.error('[DB Proxy] RPC error:', error.message)
@@ -320,8 +354,26 @@ export default async function handleDbProxy(req, res, path) {
         
         console.log('[DB Proxy] SQL:', sql.replace(/\$\d+/g, '?'), 'Values:', values)
         
-        const result = await pool.query(sql, values)
-        sendJson(res, 200, result.rows)
+        try {
+          const result = await pool.query(sql, values)
+          sendJson(res, 200, result.rows)
+        } catch (queryError) {
+          console.error('[DB Proxy] Query error, retrying:', queryError.message)
+          // 如果是连接断开错误，尝试重新查询
+          if (queryError.message.includes('disconnected') || 
+              queryError.message.includes('terminated') ||
+              queryError.message.includes('ECONNRESET')) {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              const retryResult = await pool.query(sql, values)
+              sendJson(res, 200, retryResult.rows)
+              return
+            } catch (retryError) {
+              console.error('[DB Proxy] Retry failed:', retryError.message)
+            }
+          }
+          sendJson(res, 500, { error: queryError.message })
+        }
         break
       }
       
@@ -352,8 +404,25 @@ export default async function handleDbProxy(req, res, path) {
         
         sql += ' RETURNING *'
         
-        const result = await pool.query(sql, values)
-        sendJson(res, 201, result.rows)
+        try {
+          const result = await pool.query(sql, values)
+          sendJson(res, 201, result.rows)
+        } catch (queryError) {
+          console.error('[DB Proxy] Insert error:', queryError.message)
+          if (queryError.message.includes('disconnected') || 
+              queryError.message.includes('terminated') ||
+              queryError.message.includes('ECONNRESET')) {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              const retryResult = await pool.query(sql, values)
+              sendJson(res, 201, retryResult.rows)
+              return
+            } catch (retryError) {
+              console.error('[DB Proxy] Retry failed:', retryError.message)
+            }
+          }
+          sendJson(res, 500, { error: queryError.message })
+        }
         break
       }
       
@@ -395,8 +464,25 @@ export default async function handleDbProxy(req, res, path) {
         
         sql += ` RETURNING *`
         
-        const result = await pool.query(sql, values)
-        sendJson(res, 200, result.rows)
+        try {
+          const result = await pool.query(sql, values)
+          sendJson(res, 200, result.rows)
+        } catch (queryError) {
+          console.error('[DB Proxy] Update error:', queryError.message)
+          if (queryError.message.includes('disconnected') || 
+              queryError.message.includes('terminated') ||
+              queryError.message.includes('ECONNRESET')) {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              const retryResult = await pool.query(sql, values)
+              sendJson(res, 200, retryResult.rows)
+              return
+            } catch (retryError) {
+              console.error('[DB Proxy] Retry failed:', retryError.message)
+            }
+          }
+          sendJson(res, 500, { error: queryError.message })
+        }
         break
       }
       
@@ -432,8 +518,25 @@ export default async function handleDbProxy(req, res, path) {
         
         sql += ` RETURNING *`
         
-        const result = await pool.query(sql, values)
-        sendJson(res, 200, result.rows)
+        try {
+          const result = await pool.query(sql, values)
+          sendJson(res, 200, result.rows)
+        } catch (queryError) {
+          console.error('[DB Proxy] Delete error:', queryError.message)
+          if (queryError.message.includes('disconnected') || 
+              queryError.message.includes('terminated') ||
+              queryError.message.includes('ECONNRESET')) {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              const retryResult = await pool.query(sql, values)
+              sendJson(res, 200, retryResult.rows)
+              return
+            } catch (retryError) {
+              console.error('[DB Proxy] Retry failed:', retryError.message)
+            }
+          }
+          sendJson(res, 500, { error: queryError.message })
+        }
         break
       }
       

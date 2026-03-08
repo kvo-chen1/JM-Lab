@@ -18,7 +18,7 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
   return (
     <div className={`flex flex-col h-screen overflow-hidden ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
       {/* 顶部边距 - 避开搜索框 */}
-      <div className="h-2"></div>
+      <div className="h-3"></div>
       
       {/* Header */}
       <header className={`h-14 px-4 flex items-center justify-between border-b backdrop-blur-md z-20 ${

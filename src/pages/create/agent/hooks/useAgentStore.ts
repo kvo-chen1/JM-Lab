@@ -38,6 +38,12 @@ interface AgentActions {
   // 风格选择
   selectStyle: (styleId: string | null) => void;
   
+  // 画布操作
+  setCanvasZoom: (zoom: number) => void;
+  setCanvasPosition: (position: { x: number; y: number }) => void;
+  setSelectedTool: (tool: 'select' | 'move' | 'hand') => void;
+  resetCanvas: () => void;
+  
   // UI状态
   setShowStyleSelector: (show: boolean) => void;
   setShowSatisfactionModal: (show: boolean) => void;
@@ -66,6 +72,9 @@ const initialState: AgentState = {
   generatedOutputs: [],
   selectedOutput: null,
   selectedStyle: null,
+  canvasZoom: 100,
+  canvasPosition: { x: 0, y: 0 },
+  selectedTool: 'select',
   showStyleSelector: false,
   showSatisfactionModal: false,
   showThinkingProcess: false,
@@ -191,6 +200,16 @@ export const useAgentStore = create<AgentState & AgentActions>()(
       
       // 风格选择
       selectStyle: (styleId) => set({ selectedStyle: styleId }),
+      
+      // 画布操作
+      setCanvasZoom: (zoom) => set({ canvasZoom: zoom }),
+      setCanvasPosition: (position) => set({ canvasPosition: position }),
+      setSelectedTool: (tool) => set({ selectedTool: tool }),
+      resetCanvas: () => set({ 
+        canvasZoom: 100, 
+        canvasPosition: { x: 0, y: 0 },
+        selectedTool: 'select'
+      }),
       
       // UI状态
       setShowStyleSelector: (show) => set({ showStyleSelector: show }),

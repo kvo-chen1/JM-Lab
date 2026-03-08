@@ -1,6 +1,5 @@
 
-import { supabase } from '../lib/supabase';
-import { RealtimeChannel } from '@supabase/supabase-js';
+// 实时功能已禁用 - 本地开发环境不支持 WebSocket
 
 export interface UserPresence {
   user_id: string;
@@ -12,7 +11,7 @@ export interface UserPresence {
 }
 
 class PresenceService {
-  private channel: RealtimeChannel | null = null;
+  private channel: any = null;
   private onlineUsers: Map<string, UserPresence> = new Map();
   private listeners: Set<(users: UserPresence[]) => void> = new Set();
   private userId: string | null = null;

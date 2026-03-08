@@ -278,9 +278,7 @@ export default function Studio() {
       <ToolSidebar isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} />
       
       {/* Main Canvas Area - 主画布区域 */}
-      <div id="guide-step-create-canvas" className="flex-1 relative flex flex-col min-w-0 overflow-hidden
-        /* 手机端和平板端：为底部工具栏留出空间 */
-        md:mb-0 mb-24">
+      <div id="guide-step-create-canvas" className="flex-1 relative flex flex-col min-w-0 overflow-hidden">
         <CanvasArea isSidebarCollapsed={isSidebarCollapsed} setIsSidebarCollapsed={setIsSidebarCollapsed} />
       </div>
 

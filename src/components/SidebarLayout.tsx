@@ -108,7 +108,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const sidebarRef = useRef<HTMLDivElement>(null)
   // 初始化默认值，确保服务器端和客户端渲染一致
   const [collapsed, setCollapsed] = useState<boolean>(false)
-  const [width, setWidth] = useState<number>(180)
+  const [width, setWidth] = useState<number>(200)
   // 添加固定状态
   const [isPinned, setIsPinned] = useState<boolean>(false)
   // 主题下拉菜单状态
@@ -127,7 +127,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       if (savedState) {
         const state = JSON.parse(savedState)
         if (state.collapsed !== undefined) setCollapsed(state.collapsed)
-        if (state.width) setWidth(Math.min(Math.max(state.width, 180), 320))
+        if (state.width) setWidth(Math.min(Math.max(state.width, 200), 320))
       }
     } catch (error) {
       console.error('Failed to load sidebar state:', error)
@@ -913,14 +913,14 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     <i className={`fas ${item.icon} ${collapsed ? 'mr-0 text-xl' : 'mr-3 text-base'} transition-all duration-300 group-hover:scale-110 group-hover:rotate-5 ${isDark ? 'text-white' : 'text-current'} ${collapsed ? 'w-8' : 'w-5'} text-center flex-shrink-0`}></i>
                     {!collapsed && (
                       <span
-                        className="flex-1 transition-all duration-300 ease-in-out opacity-100 truncate font-medium"
+                        className="flex-1 transition-all duration-300 ease-in-out opacity-100 font-medium text-[13px] leading-tight"
                       >
                         {navItemIdToTranslationKey[item.id] ? t(navItemIdToTranslationKey[item.id]) : item.label}
                       </span>
                     )}
                     {item.badge && !collapsed && (
                       <span
-                        className={`flex-shrink-0 px-2 py-0.5 text-xs rounded-full ${isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-red-100 text-red-700'} font-medium`}
+                        className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] rounded ${isDark ? 'bg-blue-500/30 text-blue-300 border border-blue-500/30' : 'bg-red-50 text-red-600 border border-red-200'} font-medium ml-auto`}
                       >
                         {item.badge}
                       </span>

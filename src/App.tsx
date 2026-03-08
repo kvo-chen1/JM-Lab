@@ -120,6 +120,12 @@ const AIWriterV2 = createLazyComponent(() => import(/* webpackChunkName: "pages-
   name: 'ai-writer-v2'
 });
 
+// 津小脉Agent - 独立页面
+const AgentPage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent" */ "@/pages/create/agent"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'agent'
+});
+
 // 其他次要页面保持懒加载
 const About = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/About"), {
   priority: ROUTE_PRIORITIES.LOW,

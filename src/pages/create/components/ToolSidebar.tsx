@@ -43,12 +43,7 @@ export default function ToolSidebar({ isCollapsed, setIsCollapsed }: ToolSidebar
           transition={{ duration: 0.3, ease: 'easeInOut' }}
           className={`hidden lg:flex h-full flex-col items-center pt-4 pb-6 border-r backdrop-blur-xl overflow-hidden ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-20`}
         >
-          {/* Logo/标题区域 */}
-          <div className="mb-4 px-2 text-center">
-            <div className={`text-xs font-bold tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              创作中心
-            </div>
-          </div>
+
 
           {/* 工具列表 - 允许垂直滚动 */}
           <AnimatePresence>
@@ -197,37 +192,6 @@ export default function ToolSidebar({ isCollapsed, setIsCollapsed }: ToolSidebar
               </motion.button>
             );
           })}
-
-          {/* 分隔线 */}
-          <div className={`transition-all duration-300 ${isDark ? 'bg-gray-800' : 'bg-gray-100'} h-12 w-px mx-1`}></div>
-
-          {/* 额外工具 */}
-          {extraTools.map((tool) => (
-              <motion.button
-                key={tool.id}
-                onClick={() => handleExtraToolClick(tool)}
-                className={`transition-all relative group flex-shrink-0 rounded-xl p-2 flex flex-col items-center justify-center min-w-[64px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.96 }}
-              >
-                {/* Badge */}
-                {tool.badge && (
-                  <div className="absolute -top-1 -right-1 px-1 py-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full z-10 animate-pulse">
-                    {tool.badge}
-                  </div>
-                )}
-                <div 
-                  className="w-8 h-8 rounded-lg flex items-center justify-center mb-1"
-                  style={{ backgroundColor: isDark ? '#374151' : '#F3F4F6' }}
-                >
-                  <i 
-                    className={`fas fa-${tool.icon} text-sm`}
-                    style={{ color: tool.color }}
-                  />
-                </div>
-                <span className="text-[9px] font-medium">{tool.name}</span>
-              </motion.button>
-          ))}
         </div>
       </div>
 
@@ -260,33 +224,6 @@ export default function ToolSidebar({ isCollapsed, setIsCollapsed }: ToolSidebar
                 </motion.button>
               );
             })}
-            
-            {/* 额外工具 */}
-            {extraTools.map((tool, index) => (
-              <motion.button
-                key={tool.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: (TOOL_OPTIONS.length + index) * 0.05 }}
-                onClick={() => {
-                   handleExtraToolClick(tool);
-                   updateState({ showPropertiesPanel: false });
-                }}
-                className={`w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all relative`}
-                style={{
-                  backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
-                  color: tool.color
-                }}
-              >
-                {/* Badge */}
-                {tool.badge && (
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[6px] font-bold rounded-full flex items-center justify-center z-10 animate-pulse">
-                    {tool.badge}
-                  </div>
-                )}
-                <i className={`fas fa-${tool.icon} text-sm`}></i>
-              </motion.button>
-            ))}
           </motion.div>
         )}
       </AnimatePresence>

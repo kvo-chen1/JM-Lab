@@ -27,6 +27,7 @@ export interface NavGroup {
 // 核心功能导航项
 export const coreNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home', priority: 'high' },
+  { id: 'agent', path: '/create/agent', label: '津小脉Agent', icon: 'fas fa-robot', priority: 'high', badge: 'NEW', description: '智能设计助手，AI驱动创意' },
   { id: 'create', path: '/create', label: '创作中心', icon: 'fas fa-tools', priority: 'high' },
   { id: 'wizard', path: '/wizard', label: '品牌向导', icon: 'fas fa-hat-wizard', priority: 'high' },
   { id: 'ai-writer', path: '/ai-writer', label: 'AI智作文案', icon: 'fas fa-pen-nib', priority: 'high' },
@@ -119,7 +120,7 @@ export const bottomNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home' },
   { id: 'marketplace', path: '/marketplace', label: '商城', icon: 'fas fa-store' },
   { id: 'square', path: '/square', label: '广场', icon: 'fas fa-th-large' },
-  { id: 'ai-assistant', path: '/ai-assistant', label: 'AI助手', icon: 'fas fa-robot' },
+  { id: 'agent', path: '/create/agent', label: 'Agent', icon: 'fas fa-robot', badge: 'NEW' },
   { id: 'dashboard', path: '/dashboard', label: '我的', icon: 'fas fa-user' }
 ];
 

@@ -29,30 +29,14 @@ export default function CanvasBackground({
     >
       {showGrid && (
         <>
-          {/* 点状网格 */}
-          <svg
-            className="absolute inset-0 w-full h-full"
+          {/* 点状网格 - 使用CSS背景图案替代SVG以提高性能 */}
+          <div
+            className="absolute inset-0"
             style={{
-              opacity: isDark ? 0.15 : 0.3,
+              backgroundImage: `radial-gradient(circle, ${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.3)'} ${adjustedDotSize / 2}px, transparent ${adjustedDotSize / 2}px)`,
+              backgroundSize: `${adjustedGridSize}px ${adjustedGridSize}px`,
             }}
-          >
-            <defs>
-              <pattern
-                id="dotGrid"
-                width={adjustedGridSize}
-                height={adjustedGridSize}
-                patternUnits="userSpaceOnUse"
-              >
-                <circle
-                  cx={adjustedGridSize / 2}
-                  cy={adjustedGridSize / 2}
-                  r={adjustedDotSize / 2}
-                  fill={isDark ? '#ffffff' : '#000000'}
-                />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#dotGrid)" />
-          </svg>
+          />
 
           {/* 中心十字线 */}
           <svg

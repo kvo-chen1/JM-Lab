@@ -1,8 +1,9 @@
 {
-  "buildCommand": "pnpm run build",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm run build:fast",
   "outputDirectory": "dist",
   "framework": "vite",
-  "installCommand": "pnpm install --frozen-lockfile --prefer-offline",
+  "installCommand": "pnpm install --frozen-lockfile --prefer-offline --ignore-scripts",
   "regions": ["sin1"],
   "rewrites": [
     {
@@ -136,7 +137,12 @@
   ],
   "build": {
     "env": {
-      "NODE_ENV": "production"
+      "NODE_ENV": "production",
+      "VERCEL": "1"
     }
+  },
+  "github": {
+    "silent": true,
+    "autoJobCancelation": true
   }
 }

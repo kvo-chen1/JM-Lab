@@ -7,6 +7,10 @@
   "regions": ["sin1"],
   "rewrites": [
     {
+      "source": "/api/communities/:path*",
+      "destination": "/api/index.js"
+    },
+    {
       "source": "/api/auth/:path*",
       "destination": "/api/index.js"
     },
@@ -32,6 +36,22 @@
     },
     {
       "source": "/api/notifications/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/posts/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/comments/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/messages/:path*",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api/friends/:path*",
       "destination": "/api/index.js"
     },
     {
@@ -122,7 +142,8 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 30,
-      "memory": 1024
+      "memory": 1024,
+      "includeFiles": "dist/**"
     },
     "api/health/ping.js": {
       "maxDuration": 5,

@@ -14,7 +14,7 @@ import {
   Calendar,
   Download
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 
 // 模拟图表数据
 const salesData = [

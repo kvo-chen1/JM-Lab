@@ -4,9 +4,9 @@
 import React, { useState, useMemo } from 'react';
 import { useProducts } from '@/hooks/useProducts';
 import { adminReviewProduct } from '@/services/productService';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Input } from '@/components/ui/Input';
 import { 
   Search, 
   Loader2, 

@@ -24,9 +24,9 @@ import {
   TrendingUp,
   Loader2
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Badge } from '@/components/ui/Badge';
 import { toast } from 'sonner';
 import { copyrightLicenseService } from '@/services/copyrightLicenseService';
 import type { LicensedProduct } from '@/types/copyright-license';

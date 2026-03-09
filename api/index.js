@@ -748,20 +748,24 @@ async function handleUserStats(req, res) {
     // 创建必要的表
     await client.query(`
       CREATE TABLE IF NOT EXISTS works (
-        id SERIAL PRIMARY KEY,
+        id UUID PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         title VARCHAR(255),
+        description TEXT,
+        thumbnail TEXT,
+        video_url TEXT,
         likes INTEGER DEFAULT 0,
         views INTEGER DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'published',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS favorites (
-        id SERIAL PRIMARY KEY,
+        id UUID PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
-        work_id INTEGER,
+        work_id UUID,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -900,7 +904,7 @@ async function handleGetWorks(req, res) {
     // 创建works表
     await client.query(`
       CREATE TABLE IF NOT EXISTS works (
-        id SERIAL PRIMARY KEY,
+        id UUID PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
         title VARCHAR(255),
         description TEXT,
@@ -960,11 +964,15 @@ async function handleCreateWork(req, res) {
 
     const userId = decoded.userId || decoded.id || decoded.sub;
 
+    // 生成 UUID
+    const { randomUUID } = await import('crypto');
+    const workId = randomUUID();
+
     const result = await client.query(`
-      INSERT INTO works (user_id, title, description, thumbnail, video_url, status)
-      VALUES ($1, $2, $3, $4, $5, 'published')
+      INSERT INTO works (id, user_id, title, description, thumbnail, video_url, status)
+      VALUES ($1, $2, $3, $4, $5, $6, 'published')
       RETURNING *
-    `, [userId, title, description, thumbnail, videoUrl]);
+    `, [workId, userId, title, description, thumbnail, videoUrl]);
 
     return res.status(200).json({
       code: 0,

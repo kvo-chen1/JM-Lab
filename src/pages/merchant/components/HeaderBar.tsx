@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { Store, Settings, Bell, User, TrendingUp, DollarSign, Package } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 
 const HeaderBar: React.FC = () => {
   // 模拟商家数据（后续从API获取）

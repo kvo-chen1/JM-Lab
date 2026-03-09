@@ -194,6 +194,12 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
         return processedSrc;
       }
 
+      // 如果处理后的URL为空字符串（例如 Supabase URL 被过滤），使用 fallback
+      if (processedSrc === '') {
+        console.log('[LazyImage] Processed URL is empty, using fallback:', fallbackSrc || 'generated svg');
+        return fallbackSrc || getFallbackImageUrl(alt) || defaultFallbackSrc;
+      }
+
       // 如果处理后的URL无效，返回原始URL
       return src;
     } catch (error) {

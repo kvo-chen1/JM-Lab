@@ -12,20 +12,15 @@ let dbAvailable = false;
 async function getDbClient() {
   if (pgClient) return pgClient;
 
-  // 尝试多种环境变量名，支持 Netlify、Vercel 和 Neon 的格式
+  // 尝试 Supabase PostgreSQL 环境变量
   let databaseUrl = process.env.DATABASE_URL ||
-                    process.env.NEON_DATABASE_URL ||
-                    process.env.NEON_DATABASE_URL_UNPOOLED ||
                     process.env.POSTGRES_URL ||
-                    process.env.POSTGRES_URL_NON_POOLING ||
-                    process.env.NEON_POSTGRES_URL ||
-                    process.env.NETLIFY_DATABASE_URL ||
-                    process.env.NEON_POSTGRES_DATABASE_URL;
+                    process.env.POSTGRES_URL_NON_POOLING;
 
   console.log('[DB] Environment check:', {
     hasDatabaseUrl: !!process.env.DATABASE_URL,
-    hasNeonUrl: !!process.env.NEON_DATABASE_URL,
     hasPostgresUrl: !!process.env.POSTGRES_URL,
+    hasPostgresUrlNonPooling: !!process.env.POSTGRES_URL_NON_POOLING,
     finalUrl: databaseUrl ? 'configured' : 'not configured'
   });
 
@@ -44,12 +39,13 @@ async function getDbClient() {
   try {
     const { Client } = await import('pg');
     
-    // Neon 推荐的连接配置
+    // Supabase PostgreSQL 连接配置
     const connectionConfig = {
       connectionString: databaseUrl,
       ssl: {
         rejectUnauthorized: false,
-        sslmode: 'require'
+        requestCert: true,
+        agent: false
       },
       // Vercel Serverless 优化
       connectionTimeoutMillis: 10000,
@@ -66,7 +62,7 @@ async function getDbClient() {
     });
     
     await pgClient.connect();
-    console.log('[DB] Connected to Neon database successfully');
+    console.log('[DB] Connected to Supabase PostgreSQL database successfully');
     dbAvailable = true;
     return pgClient;
   } catch (error) {
@@ -535,10 +531,7 @@ async function handleAuthRequest(req, res, path) {
 // 处理数据库请求
 async function handleDbRequest(req, res, path) {
   try {
-    let databaseUrl = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL || process.env.NEON_POSTGRES_DATABASE_URL;
-    if (databaseUrl && databaseUrl.startsWith("psql '")) {
-      databaseUrl = databaseUrl.replace(/^psql '/, '').replace(/'$/, '');
-    }
+    let databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING;
 
     if (!databaseUrl) {
       return res.status(503).json({ code: 1, message: 'Database not configured' });

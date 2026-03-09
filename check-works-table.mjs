@@ -1,46 +1,133 @@
-import { getDB } from './server/database.mjs';
+import { Pool } from 'pg';
+import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 加载环境变量
+dotenv.config({ path: path.join(__dirname, '.env') });
+const envLocalPath = path.join(__dirname, '.env.local');
+if (fs.existsSync(envLocalPath)) {
+  const envConfig = dotenv.parse(fs.readFileSync(envLocalPath));
+  for (const k in envConfig) {
+    process.env[k] = envConfig[k];
+  }
+}
+
+// 获取连接字符串
+function getConnectionString() {
+  return process.env.POSTGRES_URL_NON_POOLING || 
+         process.env.DATABASE_URL || 
+         process.env.POSTGRES_URL ||
+         process.env.NEON_DATABASE_URL;
+}
 
 async function checkWorksTable() {
-  console.log('检查 works 表结构...');
+  const connectionString = getConnectionString();
+  
+  if (!connectionString) {
+    console.error('❌ 未找到数据库连接字符串');
+    process.exit(1);
+  }
+  
+  console.log('=================================');
+  console.log('  检查 works 表');
+  console.log('=================================\n');
+  
+  const pool = new Pool({
+    connectionString,
+    ssl: {
+      rejectUnauthorized: false,
+      requestCert: true,
+      agent: false
+    }
+  });
   
   try {
-    const db = await getDB();
+    // 检查 works 表是否存在
+    const tableResult = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'works'
+      );
+    `);
     
-    // 获取 works 表结构
-    const { rows: columns } = await db.query(`
-      SELECT column_name, data_type
+    if (!tableResult.rows[0].exists) {
+      console.error('❌ works 表不存在！');
+      await pool.end();
+      process.exit(1);
+    }
+    
+    console.log('✅ works 表存在\n');
+    
+    // 获取表结构
+    console.log('📋 works 表结构:');
+    const columnsResult = await pool.query(`
+      SELECT column_name, data_type, is_nullable
       FROM information_schema.columns
-      WHERE table_name = 'works'
-      ORDER BY ordinal_position
+      WHERE table_schema = 'public' AND table_name = 'works'
+      ORDER BY ordinal_position;
     `);
     
-    console.log('\nworks 表结构:');
-    columns.forEach(c => {
-      console.log(`  - ${c.column_name}: ${c.data_type}`);
+    columnsResult.rows.forEach(col => {
+      console.log(`   ${col.column_name}: ${col.data_type} ${col.is_nullable === 'NO' ? '(NOT NULL)' : ''}`);
     });
     
-    // 获取最近发布的5个作品
-    const { rows: works } = await db.query(`
-      SELECT *
-      FROM works
-      ORDER BY created_at DESC
-      LIMIT 5
-    `);
+    console.log('');
     
-    console.log('\n最近发布的作品:');
-    works.forEach(w => {
-      console.log(`\n  - ID: ${w.id}`);
-      console.log(`    标题: ${w.title}`);
-      console.log(`    类型: ${w.type}`);
-      console.log(`    缩略图: ${w.thumbnail}`);
-      console.log(`    媒体: ${JSON.stringify(w.media)}`);
-      console.log(`    创建时间: ${w.created_at}`);
-    });
+    // 检查数据量
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM works');
+    console.log(`📊 works 表数据量: ${countResult.rows[0].count} 条记录\n`);
     
-  } catch (err) {
-    console.error('检查失败:', err);
-  } finally {
-    process.exit(0);
+    // 尝试执行 getWorks 类似的查询
+    console.log('🔄 测试查询 (类似 getWorks):');
+    const testQuery = `
+      SELECT 
+        w.*, 
+        u.username, 
+        u.avatar_url,
+        COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+      FROM works w 
+      LEFT JOIN users u ON w.creator_id = u.id 
+      WHERE (w.source = '津脉广场' OR w.source IS NULL)
+        AND LENGTH(COALESCE(w.title, '')) >= 3
+        AND COALESCE(w.thumbnail, w.cover_url, '') <> ''
+        AND COALESCE(w.thumbnail, w.cover_url, '') <> 'EMPTY'
+        AND LOWER(COALESCE(w.thumbnail, w.cover_url, '')) NOT LIKE '%empty%'
+        AND (w.hidden_in_square = FALSE OR w.hidden_in_square IS NULL)
+      ORDER BY w.created_at DESC 
+      LIMIT 5 OFFSET 0
+    `;
+    
+    const testResult = await pool.query(testQuery);
+    console.log(`✅ 查询成功，返回 ${testResult.rows.length} 条记录\n`);
+    
+    if (testResult.rows.length > 0) {
+      console.log('📄 第一条记录示例:');
+      const firstRow = testResult.rows[0];
+      console.log(`   id: ${firstRow.id}`);
+      console.log(`   title: ${firstRow.title}`);
+      console.log(`   creator_id: ${firstRow.creator_id}`);
+      console.log(`   username: ${firstRow.username}`);
+      console.log(`   created_at: ${firstRow.created_at}`);
+    }
+    
+    await pool.end();
+    
+    console.log('\n=================================');
+    console.log('  ✅ 检查完成');
+    console.log('=================================');
+    
+  } catch (error) {
+    console.error('\n❌ 检查失败!');
+    console.error(`   错误信息: ${error.message}`);
+    console.error(`   错误堆栈:`, error.stack);
+    await pool.end();
+    process.exit(1);
   }
 }
 

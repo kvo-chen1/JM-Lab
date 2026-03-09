@@ -1,451 +1,270 @@
-import { supabase } from '../lib/supabase'
-import { supabaseAdmin } from '../lib/supabaseClient'
-import type { MessageWithSender, UserProfile } from '../lib/supabase'
-import { RealtimeChannel } from '@supabase/supabase-js'
+// 聊天服务 - 基于 WebSocket 的实时聊天
+import { websocketService } from './websocketService';
 
-export interface MessageOptions {
-  type?: 'text' | 'image' | 'file' | 'rich_text' | 'emoji' | 'share_card'
-  metadata?: Record<string, any>
-  channelId?: string
-  communityId?: string
+export interface ChatMessage {
+  id?: string;
+  tempId?: string;
+  senderId: string;
+  senderName?: string;
+  senderAvatar?: string;
+  receiverId: string;
+  content: string;
+  messageType?: 'text' | 'image' | 'file';
+  isRead?: boolean;
+  createdAt?: string;
+  timestamp?: number;
 }
 
-export interface BatchMessageOptions {
-  type?: 'text' | 'image' | 'file' | 'rich_text' | 'emoji' | 'share_card'
-  metadata?: Record<string, any>
-  channelId?: string
-  communityId?: string
+export interface ChatUser {
+  userId: string;
+  username: string;
+  avatarUrl?: string;
+  isOnline?: boolean;
 }
 
-export interface MessageBatchItem {
-  content: string
-  options?: BatchMessageOptions
-}
+class ChatService {
+  private isAuthenticated = false;
+  private currentUser: ChatUser | null = null;
+  private messageListeners: ((message: ChatMessage) => void)[] = [];
+  private typingListeners: ((data: { userId: string; username: string; isTyping: boolean }) => void)[] = [];
+  private readReceiptListeners: ((data: { readerId: string; readerName: string }) => void)[] = [];
+  private userJoinListeners: ((user: ChatUser) => void)[] = [];
+  private userLeaveListeners: ((user: ChatUser) => void)[] = [];
+  private errorListeners: ((error: string) => void)[] = [];
+  private sentConfirmListeners: ((data: { messageId: string; tempId?: string }) => void)[] = [];
+  private historyListeners: ((data: { messages: ChatMessage[]; friendId: string; hasMore: boolean }) => void)[] = [];
 
-export const chatService = {
-  // 用户缓存，减少重复查询
-  userCache: {} as Record<string, UserProfile>,
-  
-  // 缓存过期时间（毫秒）
-  CACHE_EXPIRY: 5 * 60 * 1000, // 5分钟
-  
-  // 获取指定频道的消息历史
-  async getMessages(channelId: string, limit = 50): Promise<MessageWithSender[]> {
-    // 1. 先获取消息
-    const { data: messages, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('channel_id', channelId)
-      .order('created_at', { ascending: true })
-      .limit(limit)
+  constructor() {
+    this.setupEventListeners();
+  }
 
-    if (error) {
-      console.error('Error fetching messages:', error)
-      throw error
+  // 设置事件监听
+  private setupEventListeners() {
+    // 监听连接成功
+    websocketService.onOpen(() => {
+      console.log('[ChatService] WebSocket 连接成功');
+      // 自动认证（如果有 token）
+      this.authenticate();
+    });
+
+    // 监听消息
+    websocketService.on('chat:message', (payload: ChatMessage) => {
+      console.log('[ChatService] 收到消息:', payload);
+      this.messageListeners.forEach(listener => listener(payload));
+    });
+
+    // 监听消息发送确认
+    websocketService.on('chat:sent', (payload: { messageId: string; tempId?: string }) => {
+      console.log('[ChatService] 消息发送成功:', payload);
+      this.sentConfirmListeners.forEach(listener => listener(payload));
+    });
+
+    // 监听正在输入状态
+    websocketService.on('chat:typing', (payload: { userId: string; username: string; isTyping: boolean }) => {
+      this.typingListeners.forEach(listener => listener(payload));
+    });
+
+    // 监听已读回执
+    websocketService.on('chat:read', (payload: { readerId: string; readerName: string }) => {
+      this.readReceiptListeners.forEach(listener => listener(payload));
+    });
+
+    // 监听用户上线
+    websocketService.on('user:joined', (payload: ChatUser) => {
+      console.log('[ChatService] 用户上线:', payload);
+      this.userJoinListeners.forEach(listener => listener(payload));
+    });
+
+    // 监听用户离线
+    websocketService.on('user:left', (payload: ChatUser) => {
+      console.log('[ChatService] 用户离线:', payload);
+      this.userLeaveListeners.forEach(listener => listener(payload));
+    });
+
+    // 监听历史消息
+    websocketService.on('chat:history', (payload: { messages: ChatMessage[]; friendId: string; hasMore: boolean }) => {
+      console.log('[ChatService] 收到历史消息:', payload.messages.length, '条');
+      this.historyListeners.forEach(listener => listener(payload));
+    });
+
+    // 监听错误
+    websocketService.on('chat:error', (payload: { message: string }) => {
+      console.error('[ChatService] 错误:', payload.message);
+      this.errorListeners.forEach(listener => listener(payload.message));
+    });
+
+    // 监听认证成功
+    websocketService.on('auth:success', (payload: ChatUser) => {
+      console.log('[ChatService] 认证成功:', payload);
+      this.isAuthenticated = true;
+      this.currentUser = payload;
+    });
+
+    // 监听认证失败
+    websocketService.on('auth:error', (payload: { message: string }) => {
+      console.error('[ChatService] 认证失败:', payload.message);
+      this.isAuthenticated = false;
+      this.errorListeners.forEach(listener => listener(payload.message));
+    });
+  }
+
+  // 连接到聊天服务器
+  connect(): void {
+    websocketService.connect();
+  }
+
+  // 断开连接
+  disconnect(): void {
+    websocketService.disconnect();
+    this.isAuthenticated = false;
+    this.currentUser = null;
+  }
+
+  // 认证
+  authenticate(token?: string): void {
+    const authToken = token || localStorage.getItem('token');
+    if (!authToken) {
+      console.warn('[ChatService] 没有可用的 token');
+      return;
     }
 
-    if (!messages || messages.length === 0) {
-      return []
-    }
-
-    // 调试：打印第一条消息的结构
-    console.log('[chatService] First message structure:', messages[0])
-    console.log('[chatService] All messages user_id fields:', messages.map((m: any) => ({ id: m.id, user_id: m.user_id, sender_id: m.sender_id })))
-
-    // 2. 获取所有发送者ID - 兼容 user_id 和 sender_id 字段
-    const userIds = [...new Set(messages.map((m: any) => m.user_id || m.sender_id).filter(Boolean))]
-    
-    // 3. 批量获取用户信息 - 使用 supabaseAdmin 绕过 RLS 限制
-    let users: any[] = []
-    console.log('[chatService] Fetching users for IDs:', userIds)
-    if (userIds.length > 0) {
-      const { data: usersData, error: usersError } = await supabaseAdmin
-        .from('users')
-        .select('id, username, avatar_url, email, created_at, updated_at')
-        .in('id', userIds)
-      
-      console.log('[chatService] Users query result:', { usersData, usersError })
-      
-      if (usersError) {
-        console.error('[chatService] Error fetching users:', usersError)
-      } else if (usersData) {
-        users = usersData
-        console.log('[chatService] Found users:', users.length)
-        // 缓存用户信息
-        users.forEach((user: any) => {
-          this.userCache[user.id] = user
-        })
-      }
-    }
-
-    // 4. 合并消息和用户信息 - 兼容 user_id 和 sender_id 字段
-    const enrichedMessages = messages.map((msg: any) => {
-      // 获取发送者ID（兼容 user_id 和 sender_id）
-      const senderId = msg.user_id || msg.sender_id
-      const sender = users.find((u: any) => u.id === senderId)
-      if (sender) {
-        return {
-          ...msg,
-          sender
-        }
-      }
-      // 如果找不到用户，使用更友好的默认信息
-      const shortId = senderId ? senderId.substring(0, 8) : 'unknown'
-      return {
-        ...msg,
-        sender: {
-          id: senderId,
-          username: `用户 ${shortId}`,
-          email: '',
-          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${senderId}`,
-          bio: null,
-          is_verified: false,
-          metadata: {},
-          created_at: msg.created_at,
-          updated_at: msg.updated_at
-        }
-      }
-    })
-
-    return enrichedMessages as MessageWithSender[]
-  },
-  
-  // 批量发送消息
-  async batchSendMessages(senderId: string, messages: MessageBatchItem[]): Promise<MessageWithSender[]> {
-    const results: MessageWithSender[] = []
-    
-    // 批量处理消息，减少网络请求
-    for (const item of messages) {
-      try {
-        const message = await this.sendMessage(senderId, item.content, item.options)
-        results.push(message)
-      } catch (error) {
-        console.error('Error sending message in batch:', error)
-        // 继续处理其他消息，不影响整体批量操作
-      }
-    }
-    
-    return results
-  },
-  
-  // 获取用户信息（带缓存）
-  async getUserInfo(userId: string): Promise<UserProfile> {
-    // 检查缓存
-    if (this.userCache[userId]) {
-      return this.userCache[userId]
-    }
-    
-    console.log('[chatService] Fetching user info for:', userId)
-    
-    // 从数据库获取 - 使用 supabaseAdmin 绕过 RLS 限制
-    // 只选择 users 表中确实存在的列
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('id, username, avatar_url, email, created_at, updated_at')
-      .eq('id', userId)
-
-    if (userError) {
-      console.error('[chatService] Error fetching user details:', userError)
-      // 返回占位符用户信息，使用更友好的默认名称
-      const shortId = userId.substring(0, 8)
-      const placeholderUser: UserProfile = {
-        id: userId,
-        username: `用户 ${shortId}`,
-        email: '',
-        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
-        bio: null,
-        is_verified: false,
-        metadata: {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-      // 缓存这个占位符
-      this.userCache[userId] = placeholderUser
-      return placeholderUser
-    }
-    
-    // 检查是否找到用户
-    if (!userData || userData.length === 0) {
-      console.warn('[chatService] User not found in users table:', userId)
-      // 返回占位符用户信息，使用更友好的默认名称
-      const shortId = userId.substring(0, 8)
-      const placeholderUser: UserProfile = {
-        id: userId,
-        username: `用户 ${shortId}`,
-        email: '',
-        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
-        bio: null,
-        is_verified: false,
-        metadata: {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-      // 缓存这个占位符，避免重复查询
-      this.userCache[userId] = placeholderUser
-      return placeholderUser
-    }
-    
-    const user = userData[0] as UserProfile
-    
-    // 缓存用户信息
-    this.userCache[userId] = user
-    
-    // 设置缓存过期
-    setTimeout(() => {
-      delete this.userCache[userId]
-    }, this.CACHE_EXPIRY)
-    
-    return user
-  },
+    websocketService.send('auth', { token: authToken });
+  }
 
   // 发送消息
-  async sendMessage(senderId: string, content: string, options: MessageOptions = {}): Promise<MessageWithSender> {
-    const { type = 'text', metadata = {}, channelId = 'global', communityId } = options
-
-    console.log('[chatService] Sending message:', { senderId, content, channelId, communityId })
-
-    // 1. 插入消息（使用 supabaseAdmin 绕过 RLS）
-    const insertData = {
-      channel_id: channelId,
-      user_id: senderId,
-      content: content,
-      type: type,
-      metadata: metadata,
-      status: 'sent',
-      community_id: communityId,
-      role: 'user'
-    }
-    console.log('[chatService] Insert data:', insertData)
-
-    const { data: messageData, error: messageError } = await supabaseAdmin
-      .from('messages')
-      .insert(insertData)
-      .select()
-      .single()
-
-    if (messageError) {
-      console.error('[chatService] Error sending message:', messageError)
-      throw messageError
+  sendMessage(receiverId: string, content: string, messageType: 'text' | 'image' | 'file' = 'text'): string {
+    if (!this.isAuthenticated) {
+      console.error('[ChatService] 未认证，无法发送消息');
+      return '';
     }
 
-    console.log('[chatService] Message sent successfully:', messageData)
-
-    // 2. 获取发送者信息（为了完整的 MessageWithSender）
-    const userData = await this.getUserInfo(senderId)
-
-    return {
-      ...messageData,
-      sender: userData
-    }
-  },
-
-  // 订阅实时消息
-  subscribeToMessages(channelId: string, onMessage: (message: MessageWithSender) => void): RealtimeChannel {
-    return supabase
-      .channel(`chat:${channelId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `channel_id=eq.${channelId}`
-        },
-        async (payload) => {
-          // 当收到新消息时，我们需要获取发送者的详细信息
-          const newMessage = payload.new as any
-          
-          // 使用 user_id 作为发送者ID（数据库中使用的是 user_id 字段）
-          const senderId = newMessage.user_id || newMessage.sender_id
-          
-          // 使用缓存的 getUserInfo 方法
-          const userData = await this.getUserInfo(senderId)
-
-          const messageWithSender: MessageWithSender = {
-            ...newMessage,
-            sender: userData
-          }
-
-          onMessage(messageWithSender)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
-          filter: `channel_id=eq.${channelId}`
-        },
-        async (payload) => {
-          // 当消息状态更新时，也需要获取发送者的详细信息
-          const updatedMessage = payload.new as any
-          
-          // 使用 user_id 作为发送者ID（数据库中使用的是 user_id 字段）
-          const senderId = updatedMessage.user_id || updatedMessage.sender_id
-          
-          // 使用缓存的 getUserInfo 方法
-          const userData = await this.getUserInfo(senderId)
-
-          const messageWithSender: MessageWithSender = {
-            ...updatedMessage,
-            sender: userData
-          }
-
-          onMessage(messageWithSender)
-        }
-      )
-      .subscribe()
-  },
-
-  // 更新消息状态
-  async updateMessageStatus(messageId: string, status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed'): Promise<void> {
-    const updateData: any = { status }
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // 根据状态更新相应的时间字段
-    if (status === 'delivered') {
-      updateData.delivered_at = new Date().toISOString()
-    } else if (status === 'read') {
-      updateData.read_at = new Date().toISOString()
+    websocketService.send('chat:message', {
+      receiverId,
+      content,
+      messageType,
+      tempId
+    });
+
+    return tempId;
+  }
+
+  // 发送正在输入状态
+  sendTypingStatus(receiverId: string, isTyping: boolean): void {
+    if (!this.isAuthenticated) return;
+
+    websocketService.send('chat:typing', {
+      receiverId,
+      isTyping
+    });
+  }
+
+  // 发送已读回执
+  sendReadReceipt(senderId: string): void {
+    if (!this.isAuthenticated) return;
+
+    websocketService.send('chat:read', {
+      senderId
+    });
+  }
+
+  // 获取历史消息
+  getHistory(friendId: string, limit: number = 50, offset: number = 0): void {
+    if (!this.isAuthenticated) {
+      console.error('[ChatService] 未认证，无法获取历史消息');
+      return;
     }
-    
-    const { error } = await supabase
-      .from('messages')
-      .update(updateData)
-      .eq('id', messageId)
-      
-    if (error) {
-      console.error('Error updating message status:', error)
-      throw error
-    }
-  },
 
-  // 发送跨页面消息
-  async sendCrossPageMessage(senderId: string, content: string, targetPage: 'square' | 'community', options: MessageOptions = {}): Promise<MessageWithSender> {
-    const channelId = `cross:${targetPage}:${Date.now()}`
-    
-    return this.sendMessage(senderId, content, {
-      ...options,
-      channelId,
-      metadata: {
-        ...options.metadata,
-        targetPage,
-        crossPage: true
-      }
-    })
-  },
+    websocketService.send('chat:history', {
+      friendId,
+      limit,
+      offset
+    });
+  }
 
-  // 订阅跨页面消息
-  subscribeToCrossPageMessages(onMessage: (message: MessageWithSender) => void): RealtimeChannel {
-    return supabase
-      .channel('cross:page')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `channel_id.like.cross:%`
-        },
-        async (payload) => {
-          const newMessage = payload.new as any
-          
-          // 使用 user_id 作为发送者ID（数据库中使用的是 user_id 字段）
-          const senderId = newMessage.user_id || newMessage.sender_id
-          
-          // 使用缓存的 getUserInfo 方法
-          const userData = await this.getUserInfo(senderId)
+  // 监听新消息
+  onMessage(callback: (message: ChatMessage) => void): () => void {
+    this.messageListeners.push(callback);
+    return () => {
+      this.messageListeners = this.messageListeners.filter(l => l !== callback);
+    };
+  }
 
-          const messageWithSender: MessageWithSender = {
-            ...newMessage,
-            sender: userData
-          }
+  // 监听消息发送确认
+  onSentConfirm(callback: (data: { messageId: string; tempId?: string }) => void): () => void {
+    this.sentConfirmListeners.push(callback);
+    return () => {
+      this.sentConfirmListeners = this.sentConfirmListeners.filter(l => l !== callback);
+    };
+  }
 
-          onMessage(messageWithSender)
-        }
-      )
-      .subscribe()
-  },
+  // 监听正在输入状态
+  onTyping(callback: (data: { userId: string; username: string; isTyping: boolean }) => void): () => void {
+    this.typingListeners.push(callback);
+    return () => {
+      this.typingListeners = this.typingListeners.filter(l => l !== callback);
+    };
+  }
 
-  // 缓存消息到本地存储（处理循环引用）
-  cacheMessage(message: Partial<MessageWithSender>): void {
-    try {
-      // 创建一个安全的消息对象，只包含必要字段，避免循环引用
-      // 使用 user_id 或 sender_id（数据库中使用 user_id）
-      const safeMessage = {
-        id: message.id,
-        user_id: message.user_id || message.sender_id,
-        channel_id: message.channel_id,
-        content: message.content,
-        type: message.type,
-        status: message.status,
-        created_at: message.created_at,
-        metadata: message.metadata,
-        cachedAt: new Date().toISOString()
-      }
-      
-      const cachedMessages = JSON.parse(localStorage.getItem('cached_messages') || '[]')
-      cachedMessages.push(safeMessage)
-      
-      // 限制缓存消息数量
-      if (cachedMessages.length > 50) {
-        cachedMessages.splice(0, cachedMessages.length - 50)
-      }
-      
-      localStorage.setItem('cached_messages', JSON.stringify(cachedMessages))
-    } catch (error) {
-      console.error('Error caching message:', error)
-    }
-  },
+  // 监听已读回执
+  onReadReceipt(callback: (data: { readerId: string; readerName: string }) => void): () => void {
+    this.readReceiptListeners.push(callback);
+    return () => {
+      this.readReceiptListeners = this.readReceiptListeners.filter(l => l !== callback);
+    };
+  }
 
-  // 获取本地缓存的消息
-  getCachedMessages(): Partial<MessageWithSender>[] {
-    try {
-      return JSON.parse(localStorage.getItem('cached_messages') || '[]')
-    } catch (error) {
-      console.error('Error getting cached messages:', error)
-      return []
-    }
-  },
+  // 监听用户上线
+  onUserJoin(callback: (user: ChatUser) => void): () => void {
+    this.userJoinListeners.push(callback);
+    return () => {
+      this.userJoinListeners = this.userJoinListeners.filter(l => l !== callback);
+    };
+  }
 
-  // 清除本地缓存的消息
-  clearCachedMessages(): void {
-    try {
-      localStorage.removeItem('cached_messages')
-    } catch (error) {
-      console.error('Error clearing cached messages:', error)
-    }
-  },
+  // 监听用户离线
+  onUserLeave(callback: (user: ChatUser) => void): () => void {
+    this.userLeaveListeners.push(callback);
+    return () => {
+      this.userLeaveListeners = this.userLeaveListeners.filter(l => l !== callback);
+    };
+  }
 
-  // 重发失败的消息
-  async resendFailedMessages(): Promise<void> {
-    const cachedMessages = this.getCachedMessages()
-    const failedMessages = cachedMessages.filter(msg => msg.status === 'failed')
-    
-    for (const message of failedMessages) {
-      try {
-        // 使用 user_id 或 sender_id（数据库中使用 user_id）
-        const senderId = message.user_id || message.sender_id
-        if (senderId && message.content) {
-          await this.sendMessage(senderId, message.content, {
-            channelId: message.channel_id,
-            type: message.type as any,
-            metadata: message.metadata
-          })
-          
-          // 重发成功后从缓存中移除
-          const updatedCachedMessages = cachedMessages.filter(msg => msg.id !== message.id)
-          localStorage.setItem('cached_messages', JSON.stringify(updatedCachedMessages))
-        }
-      } catch (error) {
-        console.error('Error resending message:', error)
-        // 更新重试次数
-        if (message.retry_count) {
-          message.retry_count += 1
-        } else {
-          message.retry_count = 1
-        }
-      }
-    }
+  // 监听历史消息
+  onHistory(callback: (data: { messages: ChatMessage[]; friendId: string; hasMore: boolean }) => void): () => void {
+    this.historyListeners.push(callback);
+    return () => {
+      this.historyListeners = this.historyListeners.filter(l => l !== callback);
+    };
+  }
+
+  // 监听错误
+  onError(callback: (error: string) => void): () => void {
+    this.errorListeners.push(callback);
+    return () => {
+      this.errorListeners = this.errorListeners.filter(l => l !== callback);
+    };
+  }
+
+  // 获取当前用户
+  getCurrentUser(): ChatUser | null {
+    return this.currentUser;
+  }
+
+  // 检查是否已认证
+  isAuth(): boolean {
+    return this.isAuthenticated;
+  }
+
+  // 检查连接状态
+  isConnected(): boolean {
+    return websocketService.getConnectionStatus();
   }
 }
+
+// 导出单例
+export const chatService = new ChatService();
+
+// 导出类供需要自定义实例的场景使用
+export default ChatService;

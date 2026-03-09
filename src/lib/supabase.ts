@@ -1,9 +1,8 @@
-// 数据库客户端配置 - 使用 Neon PostgreSQL（通过本地代理）
+// 数据库客户端配置 - 使用 Supabase PostgreSQL（通过本地代理）
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 // 根据环境选择 API 地址
 const isProduction = import.meta.env.PROD
-const isBrowser = typeof window !== 'undefined'
 
 // 生产环境使用当前域名，开发环境使用 localhost
 let apiBaseUrl: string
@@ -20,15 +19,17 @@ if (isProduction) {
   apiBaseUrl = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3023'
 }
 
-const supabaseUrl = `${apiBaseUrl}/api/db`
-const supabaseAnonKey = 'neon-proxy-key'
-const supabaseServiceKey = 'neon-proxy-key'
+const proxyUrl = `${apiBaseUrl}/api/db`
 
-console.log('[DB] Environment:', isProduction ? 'production' : 'development')
-console.log('[DB] API URL:', supabaseUrl)
+console.log('[DB] Environment:', import.meta.env.PROD ? 'production' : 'development')
+console.log('[DB] API URL:', proxyUrl)
+
+// Supabase 配置（使用代理）
+const supabaseUrl = proxyUrl
+const supabaseAnonKey = 'local-proxy-key'
 
 // 导出配置供其他模块使用
-export { supabaseUrl, supabaseAnonKey as supabaseAnonKey }
+export { supabaseUrl, supabaseAnonKey }
 
 // 增强的 fetch，带有重试逻辑
 const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit, retries = 3, backoff = 300): Promise<Response> => {
@@ -47,24 +48,28 @@ const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit, ret
   }
 };
 
-// 创建 Supabase 客户端 - 指向本地代理
+// 导入降级方案
+import { createRealtimeChannel } from '@/services/realtimeFallback'
+
+// 创建 Supabase 客户端
 export let supabase: SupabaseClient
 export let supabaseAdmin: SupabaseClient
 
 try {
   // 验证 URL 格式
-  try {
-    new URL(supabaseUrl)
-  } catch {
-    console.error('[Supabase] URL 格式无效:', supabaseUrl)
-    throw new Error('Invalid Supabase URL')
+  if (supabaseUrl) {
+    try {
+      new URL(supabaseUrl)
+    } catch {
+      console.error('[Supabase] URL 格式无效:', supabaseUrl)
+    }
   }
 
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
     },
     global: {
       headers: {
@@ -76,39 +81,27 @@ try {
       schema: 'public'
     },
     realtime: {
-      enabled: false
+      enabled: false  // 禁用 realtime，因为代理不支持
     }
   })
 
-  // 创建管理员客户端（绕过 RLS）
-  supabaseAdmin = createClient(
-    supabaseUrl,
-    supabaseServiceKey,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      },
-      realtime: {
-        enabled: false
-      }
-    }
-  )
-
-  // 将 supabase 暴露到 window 对象以便调试（仅开发环境）
-  if (isBrowser && import.meta.env.DEV) {
-    (window as any).supabase = supabase
+  // 覆盖 channel 方法，使用降级方案
+  const originalChannel = supabase.channel.bind(supabase)
+  supabase.channel = (name: string) => {
+    // 使用降级方案替代原生 realtime
+    return createRealtimeChannel(name) as any
   }
 
-  console.log('[Supabase] 客户端初始化成功 (Neon database)')
+  console.log('[Supabase] 客户端初始化成功（通过代理，使用轮询替代 realtime）')
 } catch (error) {
   console.error('[Supabase] 客户端初始化失败:', error)
-  throw error
+  // 创建一个空的客户端避免崩溃
+  supabase = {} as SupabaseClient
 }
 
 // 导出配置检查函数
 export const isDatabaseConfigured = (): boolean => {
-  return true // 总是已配置，因为我们使用本地代理
+  return !!supabaseUrl && !!supabaseAnonKey
 }
 
 // 导出连接测试函数
@@ -202,241 +195,6 @@ export interface Database {
           updated_at?: string
         }
       }
-      comments: {
-        Row: {
-          id: string
-          post_id: string
-          author_id: string
-          content: string
-          parent_id: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          post_id: string
-          author_id: string
-          content: string
-          parent_id?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          post_id?: string
-          author_id?: string
-          content?: string
-          parent_id?: string | null
-          created_at?: string
-        }
-      }
-      follows: {
-        Row: {
-          follower_id: string
-          following_id: string
-          created_at: string
-        }
-        Insert: {
-          follower_id: string
-          following_id: string
-          created_at?: string
-        }
-        Update: {
-          follower_id?: string
-          following_id?: string
-          created_at?: string
-        }
-      }
-      likes: {
-        Row: {
-          user_id: string
-          post_id: string
-          created_at: string
-        }
-        Insert: {
-          user_id: string
-          post_id: string
-          created_at?: string
-        }
-        Update: {
-          user_id?: string
-          post_id?: string
-          created_at?: string
-        }
-      }
-      messages: {
-        Row: {
-          id: string
-          channel_id: string
-          community_id: string | null
-          sender_id: string
-          receiver_id: string | null
-          content: string
-          status: string
-          type: string
-          metadata: Record<string, any>
-          retry_count: number
-          is_read: boolean
-          delivered_at: string | null
-          read_at: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          channel_id?: string
-          community_id?: string | null
-          sender_id: string
-          receiver_id?: string | null
-          content: string
-          status?: string
-          type?: string
-          metadata?: Record<string, any>
-          retry_count?: number
-          is_read?: boolean
-          delivered_at?: string | null
-          read_at?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          channel_id?: string
-          community_id?: string | null
-          sender_id?: string
-          receiver_id?: string | null
-          content?: string
-          status?: string
-          type?: string
-          metadata?: Record<string, any>
-          retry_count?: number
-          is_read?: boolean
-          delivered_at?: string | null
-          read_at?: string | null
-          created_at?: string
-        }
-      }
-      friend_requests: {
-        Row: {
-          id: string
-          sender_id: string
-          receiver_id: string
-          status: 'pending' | 'accepted' | 'rejected'
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          sender_id: string
-          receiver_id: string
-          status?: 'pending' | 'accepted' | 'rejected'
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          sender_id?: string
-          receiver_id?: string
-          status?: 'pending' | 'accepted' | 'rejected'
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      user_status: {
-        Row: {
-          user_id: string
-          status: 'online' | 'offline' | 'away'
-          last_seen: string
-          updated_at: string
-        }
-        Insert: {
-          user_id: string
-          status?: 'online' | 'offline' | 'away'
-          last_seen?: string
-          updated_at?: string
-        }
-        Update: {
-          user_id?: string
-          status?: 'online' | 'offline' | 'away'
-          last_seen?: string
-          updated_at?: string
-        }
-      }
-      user_history: {
-        Row: {
-          id: string
-          user_id: string
-          action_type: string
-          content: Record<string, any>
-          session_id: string | null
-          created_at: string
-          timestamp: number
-          checksum: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          action_type: string
-          content?: Record<string, any>
-          session_id?: string | null
-          created_at?: string
-          timestamp: number
-          checksum?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          action_type?: string
-          content?: Record<string, any>
-          session_id?: string | null
-          created_at?: string
-          timestamp?: number
-          checksum?: string | null
-        }
-      }
-      generation_tasks: {
-        Row: {
-          id: string
-          user_id: string
-          type: 'image' | 'video'
-          status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
-          params: Record<string, any>
-          progress: number
-          result: Record<string, any> | null
-          error: string | null
-          error_type: 'content_policy' | 'timeout' | 'auth' | 'general' | 'network' | null
-          created_at: string
-          updated_at: string
-          started_at: string | null
-          completed_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          type: 'image' | 'video'
-          status?: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
-          params?: Record<string, any>
-          progress?: number
-          result?: Record<string, any> | null
-          error?: string | null
-          error_type?: 'content_policy' | 'timeout' | 'auth' | 'general' | 'network' | null
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
-          completed_at?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          type?: 'image' | 'video'
-          status?: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
-          params?: Record<string, any>
-          progress?: number
-          result?: Record<string, any> | null
-          error?: string | null
-          error_type?: 'content_policy' | 'timeout' | 'auth' | 'general' | 'network' | null
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
-          completed_at?: string | null
-        }
-      }
     }
   }
 }
@@ -445,11 +203,6 @@ export interface Database {
 export type Tables = Database['public']['Tables']
 export type User = Tables['users']['Row']
 export type Post = Tables['posts']['Row']
-export type Comment = Tables['comments']['Row']
-export type Follow = Tables['follows']['Row']
-export type Like = Tables['likes']['Row']
-export type Message = Tables['messages']['Row']
-export type GenerationTask = Tables['generation_tasks']['Row']
 
 // 用户资料类型（包含统计信息）
 export interface UserProfile extends User {
@@ -479,19 +232,6 @@ export interface PostWithAuthor extends Post {
   cover_url?: string
 }
 
-// 评论类型（包含作者信息）
-export interface CommentWithAuthor extends Comment {
-  author: UserProfile
-  replies?: CommentWithAuthor[]
-  likes_count?: number
-  is_edited?: boolean
-}
-
-// 消息类型（包含发送者信息）
-export interface MessageWithSender extends Message {
-  sender: UserProfile
-}
-
 /**
  * 统一 API 调用封装
  * 提供错误处理、自动重试和类型安全
@@ -508,10 +248,6 @@ export async function callSupabase<T>(
   const { retries = 3, fallbackValue, errorMessage, idempotencyKey } = options;
 
   try {
-    // 如果提供了幂等性 Key，虽然 Supabase JS SDK 不直接支持注入 Header，
-    // 但在实际业务 RPC 调用中，调用方应确保将其作为参数传递。
-    // 这里保留该参数用于统一接口签名。
-    
     const { data, error } = await operationFactory();
 
     if (error) {

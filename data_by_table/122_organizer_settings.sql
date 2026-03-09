@@ -1,0 +1,9 @@
+COPY public.organizer_settings (id, organizer_id, brand_info, security_settings, notification_settings, permission_settings, data_management_settings, created_at, updated_at) FROM stdin;
+26772964-dee2-482e-b98a-8ecf04028e99	268834b4-7c03-4ff5-b520-96e07c1b1c71	{"logo": "", "name": "", "contactName": "", "description": "", "contactEmail": "", "contactPhone": ""}	{"sessionTimeout": 30, "twoFactorEnabled": false, "loginNotification": true, "allowedLoginMethods": ["password", "email"], "passwordLastChanged": "2026-02-26T00:45:00.727Z"}	{"sms": {"enabled": false, "securityAlerts": true, "importantUpdates": false}, "email": {"dailyDigest": false, "statusChange": true, "weeklyReport": true, "newSubmission": true, "securityAlerts": true, "marketingUpdates": false}, "inApp": {"like": false, "follow": false, "system": true, "comment": true, "message": true, "newSubmission": true}}	{"members": [], "defaultRole": "editor", "allowMemberInvite": true, "requireApprovalForEvents": true}	{"autoBackup": true, "exportFormat": "excel", "backupFrequency": "weekly", "backupRetentionDays": 30}	2026-02-26 00:45:00.727+00	2026-02-26 00:45:00.727+00
+\.
+
+
+--
+-- Data for Name: page_views; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+

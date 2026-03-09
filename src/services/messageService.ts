@@ -344,7 +344,9 @@ export function subscribeToMessages(
 
   // 返回取消订阅函数
   return () => {
-    channel.unsubscribe();
+    if (channel && typeof channel.unsubscribe === 'function') {
+      channel.unsubscribe();
+    }
   };
 }
 

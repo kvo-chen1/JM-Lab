@@ -1,0 +1,4 @@
+id,community_id,allow_member_invite,require_admin_approval,require_application_approval,max_invites_per_day,max_invites_per_batch,invite_expire_hours,application_questions,welcome_message,created_at,updated_at
+6cba67b4-70bb-44d0-93d0-d2e5cff7ff31,4000e812-564d-4e7e-8247-dab93b75fac4,true,false,true,10,20,168,,,"""2026-02-18T09:23:18.461Z""","""2026-02-18T09:23:18.461Z"""
+1579ed37-d2f1-4632-b107-0d99103906b0,042276db-d25a-4b95-b245-4d5e8a028889,true,false,true,10,20,168,,,"""2026-02-18T09:23:18.461Z""","""2026-02-18T09:23:18.461Z"""
+3f68afb5-f23c-4710-b623-14da5ad8a486,01108040-8d7a-4f1e-910a-40acc85fda0f,true,false,true,10,20,168,,,"""2026-02-18T09:23:18.461Z""","""2026-02-18T09:23:18.461Z"""

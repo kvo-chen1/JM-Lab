@@ -7,28 +7,17 @@ dotenv.config({ path: '.env.local' })
 dotenv.config()
 
 // 获取PostgreSQL连接字符串
-// 支持Vercel自动创建的环境变量和手动配置的环境变量
+// 支持Supabase PostgreSQL
 console.log('正在获取PostgreSQL连接字符串...')
 console.log('环境变量检查:', {
   DATABASE_URL: !!process.env.DATABASE_URL,
-  NEON_URL: !!process.env.NEON_URL,
-  NEON_DATABASE_URL: !!process.env.NEON_DATABASE_URL,
-  NEON_POSTGRES_URL: !!process.env.NEON_POSTGRES_URL,
-  NEON_DATABASE_URL_UNPOOLED: !!process.env.NEON_DATABASE_URL_UNPOOLED,
-  NEON_POSTGRES_URL_NON_POOLING: !!process.env.NEON_POSTGRES_URL_NON_POOLING,
-  NEON_PROJECT_ID: !!process.env.NEON_PROJECT_ID,
-  NEON_POSTGRES_USER: !!process.env.NEON_POSTGRES_USER,
-  NEON_POSTGRES_PASSWORD: !!process.env.NEON_POSTGRES_PASSWORD,
-  NEON_POSTGRES_DATABASE: !!process.env.NEON_POSTGRES_DATABASE,
-  NEON_PGHOST: !!process.env.NEON_PGHOST
+  POSTGRES_URL: !!process.env.POSTGRES_URL,
+  POSTGRES_URL_NON_POOLING: !!process.env.POSTGRES_URL_NON_POOLING
 })
 
 const DATABASE_URL = process.env.DATABASE_URL || 
-                    process.env.NEON_URL || 
-                    process.env.NEON_DATABASE_URL || 
-                    process.env.NEON_POSTGRES_URL || 
-                    process.env.NEON_DATABASE_URL_UNPOOLED ||
-                    process.env.NEON_POSTGRES_URL_NON_POOLING
+                    process.env.POSTGRES_URL || 
+                    process.env.POSTGRES_URL_NON_POOLING
 
 console.log('最终使用的DATABASE_URL:', DATABASE_URL ? '已配置' : '未配置')
 
@@ -36,11 +25,8 @@ if (!DATABASE_URL) {
   console.error('ERROR: 未配置PostgreSQL连接环境变量')
   console.error('请在Vercel控制台中配置以下环境变量之一:')
   console.error('- DATABASE_URL')
-  console.error('- NEON_URL')
-  console.error('- NEON_DATABASE_URL')
-  console.error('- NEON_POSTGRES_URL')
-  console.error('- NEON_DATABASE_URL_UNPOOLED')
-  console.error('- NEON_POSTGRES_URL_NON_POOLING')
+  console.error('- POSTGRES_URL')
+  console.error('- POSTGRES_URL_NON_POOLING')
   throw new Error('PostgreSQL连接环境变量未配置')
 }
 
@@ -50,7 +36,9 @@ const isLocalhost = DATABASE_URL.includes('localhost') || DATABASE_URL.includes(
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: isLocalhost ? false : {
-    rejectUnauthorized: false
+    rejectUnauthorized: false,
+    requestCert: true,
+    agent: false
   },
   max: 5,
   min: 1,

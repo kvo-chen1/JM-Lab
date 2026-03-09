@@ -5,10 +5,12 @@ import CanvasControls from './CanvasControls';
 
 interface DraggableCanvasProps {
   children: React.ReactNode;
+  onFeedbackClick?: () => void;
 }
 
 const DraggableCanvas = React.memo(function DraggableCanvas({ 
-  children 
+  children,
+  onFeedbackClick
 }: DraggableCanvasProps) {
   const { isDark } = useTheme();
   const { 
@@ -23,16 +25,18 @@ const DraggableCanvas = React.memo(function DraggableCanvas({
   
   const [isDragging, setIsDragging] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
 
   // 使用 requestAnimationFrame 优化拖拽性能
   const rafRef = useRef<number | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
+  const previousToolRef = useRef<string>('select');
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // 只有在使用抓手工具或按住中键/Shift键时才允许拖拽
-    if (selectedTool === 'hand' || e.button === 1 || (e.button === 0 && e.shiftKey)) {
+    // 只有在使用抓手工具、按住空格键、按住中键或Shift键时才允许拖拽
+    if (selectedTool === 'hand' || isSpacePressed || e.button === 1 || (e.button === 0 && e.shiftKey)) {
       e.preventDefault();
       e.stopPropagation();
       
@@ -45,7 +49,7 @@ const DraggableCanvas = React.memo(function DraggableCanvas({
       };
       lastMousePos.current = { x: e.clientX, y: e.clientY };
     }
-  }, [canvasPosition, selectedTool]);
+  }, [canvasPosition, selectedTool, isSpacePressed]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging) return;
@@ -125,6 +129,52 @@ const DraggableCanvas = React.memo(function DraggableCanvas({
     }
   }, [canvasZoom, setCanvasZoom]);
 
+  // 空格键按下/释放处理
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        // 避免在输入框中触发
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+          return;
+        }
+        e.preventDefault();
+        setIsSpacePressed(true);
+        // 保存当前工具，切换到抓手工具
+        previousToolRef.current = selectedTool;
+        setSelectedTool('hand');
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsSpacePressed(false);
+        // 恢复之前的工具
+        if (selectedTool === 'hand' && previousToolRef.current !== 'hand') {
+          setSelectedTool(previousToolRef.current as 'select' | 'move' | 'hand');
+        }
+      }
+    };
+
+    // 阻止浏览器默认的Ctrl+滚轮缩放行为
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [selectedTool, setSelectedTool]);
+
   const handleReset = useCallback(() => {
     resetCanvas();
     setCanvasPosition({ x: 0, y: 0 });
@@ -155,10 +205,10 @@ const DraggableCanvas = React.memo(function DraggableCanvas({
   // 根据工具设置光标样式
   const cursorStyle = useMemo(() => {
     if (isDragging) return 'grabbing';
-    if (selectedTool === 'hand') return 'grab';
+    if (isSpacePressed || selectedTool === 'hand') return 'grab';
     if (selectedTool === 'move') return 'move';
     return 'default';
-  }, [isDragging, selectedTool]);
+  }, [isDragging, isSpacePressed, selectedTool]);
 
   // 画布变换样式 - 使用 will-change 优化性能
   const canvasStyle = useMemo(() => ({
@@ -205,6 +255,7 @@ const DraggableCanvas = React.memo(function DraggableCanvas({
         selectedTool={selectedTool}
         showGrid={showGrid}
         onToggleGrid={handleToggleGrid}
+        onFeedbackClick={onFeedbackClick}
       />
     </div>
   );

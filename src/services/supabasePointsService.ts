@@ -197,7 +197,9 @@ class SupabasePointsService {
 
     // 返回取消订阅函数
     return () => {
-      channel.unsubscribe();
+      if (channel && typeof channel.unsubscribe === 'function') {
+        channel.unsubscribe();
+      }
       this.realtimeChannels.delete(channelName);
     };
   }
@@ -349,7 +351,9 @@ class SupabasePointsService {
     this.realtimeChannels.set(channelName, channel);
 
     return () => {
-      channel.unsubscribe();
+      if (channel && typeof channel.unsubscribe === 'function') {
+        channel.unsubscribe();
+      }
       this.realtimeChannels.delete(channelName);
     };
   }
@@ -775,7 +779,9 @@ class SupabasePointsService {
     this.realtimeChannels.set(channelName, channel);
 
     return () => {
-      channel.unsubscribe();
+      if (channel && typeof channel.unsubscribe === 'function') {
+        channel.unsubscribe();
+      }
       this.realtimeChannels.delete(channelName);
     };
   }
@@ -843,7 +849,9 @@ class SupabasePointsService {
    */
   unsubscribeAll(): void {
     this.realtimeChannels.forEach((channel) => {
-      channel.unsubscribe();
+      if (channel && typeof channel.unsubscribe === 'function') {
+        channel.unsubscribe();
+      }
     });
     this.realtimeChannels.clear();
   }

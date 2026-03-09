@@ -1,4 +1,4 @@
-// 数据库客户端配置 - 使用 Neon PostgreSQL（通过本地代理）
+// 数据库客户端配置 - 使用 Supabase PostgreSQL（通过本地代理）
 import { createClient } from '@supabase/supabase-js'
 
 // 根据环境选择 API 地址
@@ -27,7 +27,7 @@ console.log('[DB Client] API URL:', proxyUrl)
 // 创建数据库客户端，指向本地代理
 const dbClient = createClient(
   proxyUrl,
-  'neon-proxy-key',
+  'supabase-proxy-key',
   {
     auth: {
       autoRefreshToken: false,
@@ -35,7 +35,7 @@ const dbClient = createClient(
     },
     global: {
       headers: {
-        'X-Client-Info': 'neon-proxy-js/1.x',
+        'X-Client-Info': 'supabase-proxy-js/1.x',
       },
     },
     realtime: {
@@ -49,7 +49,7 @@ export const supabase = dbClient
 // 管理员客户端也使用代理
 export const supabaseAdmin = createClient(
   proxyUrl,
-  'neon-proxy-key',
+  'supabase-proxy-key',
   {
     auth: {
       autoRefreshToken: false,
@@ -64,7 +64,7 @@ export const supabaseAdmin = createClient(
 // 将客户端暴露到 window 对象以便调试
 if (typeof window !== 'undefined') {
   (window as any).supabase = supabase
-  console.log('[DB Client] Initialized with Neon database proxy:', proxyUrl)
+  console.log('[DB Client] Initialized with Supabase PostgreSQL proxy:', proxyUrl)
 }
 
 // Type definitions for Supabase tables

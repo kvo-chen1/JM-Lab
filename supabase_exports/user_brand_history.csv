@@ -1,0 +1,2 @@
+id,user_id,brand_id,brand_name,brand_image,usage_count,last_used_at,created_at
+0f7f909e-f501-4c41-a359-39428ef51f71,00e1a36a-a77b-4bcc-b604-c5655a4ce802,guifaxiang,桂发祥十八街麻花,https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=SDXL%2C%20Tianjin%20Guifaxiang%20Shibajie%20mahua%2C%20traditional%20Chinese%20snack%20photography%2C%20red%20and%20gold%20accents%2C%20studio%20lighting%2C%20high%20detail%2C%20cultural%20motif&image_size=landscape_16_9,3,"""2026-03-04T07:37:45.418Z""","""2026-03-04T05:26:11.535Z"""

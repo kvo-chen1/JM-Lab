@@ -573,6 +573,13 @@ class AIGenerationService {
   }
 
   /**
+   * 获取任务状态
+   */
+  getTask(taskId: string): GenerationTask | undefined {
+    return this.tasks.get(taskId);
+  }
+
+  /**
    * 添加历史记录监听器
    */
   addHistoryListener(listener: (items: GenerationHistoryItem[]) => void): () => void {

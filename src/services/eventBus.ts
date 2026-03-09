@@ -284,7 +284,9 @@ export const useEventBus = <T = any>(
     });
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
     };
   }, [event, ...deps]);
 };
@@ -312,7 +314,9 @@ export const useEventBusOnce = <T = any>(
     });
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
     };
   }, [event, ...deps]);
 };

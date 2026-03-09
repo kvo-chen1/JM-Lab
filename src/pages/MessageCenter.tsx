@@ -361,7 +361,9 @@ export default function MessageCenter() {
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      if (channel && typeof channel.unsubscribe === 'function') {
+        channel.unsubscribe();
+      }
     };
   }, [user?.id, loadConversations]);
 

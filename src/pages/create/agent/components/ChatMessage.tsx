@@ -6,17 +6,133 @@ import { AgentMessage, AGENT_CONFIG, AgentType } from '../types/agent';
 import AgentAvatar from './AgentAvatar';
 import StyleSelector from './StyleSelector';
 import ThinkingProcess from './ThinkingProcess';
-import { ChevronDown, ChevronUp, Lightbulb, Wand2, ArrowRight, Users } from 'lucide-react';
+import { generateVideo } from '../services/agentService';
+import { ChevronDown, ChevronUp, Lightbulb, Wand2, ArrowRight, Users, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ChatMessageProps {
   message: AgentMessage;
   isLast?: boolean;
 }
 
+// 视频消息内容组件
+function VideoMessageContent({
+  message,
+  isDark,
+  renderDelegationIndicator
+}: {
+  message: AgentMessage;
+  isDark: boolean;
+  renderDelegationIndicator: () => React.ReactNode;
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  const handlePlay = () => {
+    setIsPlaying(true);
+  };
+
+  const handleVideoError = () => {
+    setError('视频加载失败');
+    setIsLoading(false);
+  };
+
+  const handleVideoLoaded = () => {
+    setIsLoading(false);
+  };
+
+  return (
+    <div className="space-y-3">
+      {renderDelegationIndicator()}
+      <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
+        {message.content.split('\n').map((line, index) => (
+          <p key={index} className="mb-1 last:mb-0">
+            {line}
+          </p>
+        ))}
+      </div>
+      {message.metadata?.videoUrl && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="rounded-lg overflow-hidden border-2 border-transparent hover:border-[#C02C38] transition-colors"
+        >
+          {isPlaying ? (
+            <div className="relative bg-black">
+              <video
+                ref={videoRef}
+                src={message.metadata.videoUrl}
+                controls
+                autoPlay
+                className="w-full h-64 object-contain"
+                onError={handleVideoError}
+                onLoadedData={handleVideoLoaded}
+              />
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <Loader2 className="w-8 h-8 animate-spin text-white" />
+                </div>
+              )}
+              {error && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+                  <div className="text-center text-white">
+                    <p className="text-sm mb-2">{error}</p>
+                    <button
+                      onClick={() => setIsPlaying(false)}
+                      className="px-3 py-1 bg-white/20 rounded text-xs hover:bg-white/30"
+                    >
+                      返回缩略图
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="relative">
+              <img
+                src={message.metadata.thumbnail || message.metadata.videoUrl}
+                alt="Video thumbnail"
+                className="w-full h-48 object-cover"
+              />
+              <div
+                className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer hover:bg-black/40 transition-colors"
+                onClick={handlePlay}
+              >
+                <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
+                  <svg className="w-8 h-8 text-[#C02C38] ml-1" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className={`p-2 text-xs text-center flex items-center justify-center gap-2 ${
+            isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'
+          }`}>
+            <span>AI生成的视频</span>
+            <a
+              href={message.metadata.videoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              下载
+            </a>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
 export default function ChatMessage({ message, isLast = false }: ChatMessageProps) {
   const { isDark } = useTheme();
-  const { setShowThinkingProcess, showThinkingProcess, addMessage, setShowSatisfactionModal } = useAgentStore();
+  const { setShowThinkingProcess, showThinkingProcess, addMessage, setShowSatisfactionModal, generatedOutputs } = useAgentStore();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
 
   // 处理满意度检查 - 满意
   const handleSatisfied = () => {
@@ -30,8 +146,32 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
     // 添加设计师回复
     addMessage({
       role: 'designer',
-      content: '太好了！你对设计满意我很高兴。接下来我可以为你制作：\n\n• **短视频** - 15秒以内的社交媒体视频\n• **剧情故事短片** - 有情节的动画短片\n• **文创周边** - 产品包装、文创商品设计\n• **宣传海报** - 多尺寸宣传物料\n\n你想先制作哪一个？',
-      type: 'derivative-options'
+      content: '太好了！你对设计满意我很高兴。接下来我可以为你制作：\n\n• **短视频** - 5秒以内的社交媒体视频\n• **剧情故事短片** - 有情节的动画短片\n• **文创周边** - 产品包装、文创商品设计\n• **宣传海报** - 多尺寸宣传物料\n\n你想先制作哪一个？',
+      type: 'derivative-options',
+      metadata: {
+        derivativeOptions: [
+          {
+            id: 'short-video',
+            title: '短视频',
+            description: '5秒以内的社交媒体视频'
+          },
+          {
+            id: 'story-short-film',
+            title: '剧情故事短片',
+            description: '有情节的动画短片'
+          },
+          {
+            id: 'cultural-products',
+            title: '文创周边',
+            description: '产品包装、文创商品设计'
+          },
+          {
+            id: 'poster',
+            title: '宣传海报',
+            description: '多尺寸宣传物料'
+          }
+        ]
+      }
     });
 
     // 关闭满意度弹窗
@@ -56,6 +196,118 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
 
     // 关闭满意度弹窗
     setShowSatisfactionModal(false);
+  };
+
+  // 处理衍生内容选项
+  const handleDerivativeOption = (option: any) => {
+    // 添加用户选择消息
+    addMessage({
+      role: 'user',
+      content: `我选择制作：${option.title}`,
+      type: 'text'
+    });
+
+    // 根据选择的选项生成对应内容
+    generateDerivativeContent(option);
+  };
+
+  // 生成衍生内容
+  const generateDerivativeContent = async (option: any) => {
+    // 添加生成中消息
+    addMessage({
+      role: 'designer',
+      content: `好的！我现在开始为你制作 ${option.title}。请稍候，这可能需要几分钟时间...`,
+      type: 'text'
+    });
+
+    try {
+      // 根据不同类型生成不同内容
+      switch (option.id) {
+        case 'short-video':
+        case 'story-short-film':
+          setIsGeneratingVideo(true);
+          toast.info('开始生成视频，请耐心等待...');
+
+          // 获取最近生成的图片作为视频生成的参考
+          const recentImage = generatedOutputs.find(out => out.type === 'image');
+          const imageUrl = recentImage?.url;
+
+          // 调用真实的视频生成API
+          const videoResult = await generateVideo(
+            `基于IP形象制作${option.title}，展示角色动态效果，适合社交媒体传播`,
+            {
+              duration: option.id === 'short-video' ? 5 : 10,
+              resolution: '720p',
+              aspectRatio: '9:16', // 竖屏适合短视频
+              imageUrl
+            }
+          );
+
+          setIsGeneratingVideo(false);
+          toast.success('视频生成完成！');
+
+          addMessage({
+            role: 'designer',
+            content: `${option.title}已生成！这是一个 ${option.id === 'short-video' ? '5' : '10'} 秒的视频，适合在社交媒体上使用。`,
+            type: 'video',
+            metadata: {
+              videoUrl: videoResult.url,
+              thumbnail: videoResult.thumbnail,
+              videoId: videoResult.id
+            }
+          });
+          break;
+
+        case 'cultural-products':
+          // 模拟文创周边生成（后续可以接入真实API）
+          setTimeout(() => {
+            addMessage({
+              role: 'designer',
+              content: `文创周边设计已完成！这是基于你的 IP 形象设计的文创产品。`,
+              type: 'image',
+              metadata: {
+                images: [
+                  'https://neeko-copilot.bytedance.net/api/text2image?prompt=cultural%20products%20design&size=1024x1024'
+                ]
+              }
+            });
+          }, 2000);
+          break;
+
+        case 'poster':
+          // 模拟海报生成（后续可以接入真实API）
+          setTimeout(() => {
+            addMessage({
+              role: 'designer',
+              content: `宣传海报已生成！这是多尺寸的宣传物料设计。`,
+              type: 'image',
+              metadata: {
+                images: [
+                  'https://neeko-copilot.bytedance.net/api/text2image?prompt=promotional%20poster%20design&size=1024x1024'
+                ]
+              }
+            });
+          }, 2000);
+          break;
+
+        default:
+          addMessage({
+            role: 'designer',
+            content: `已为你制作完成 ${option.title}！`,
+            type: 'text'
+          });
+      }
+    } catch (error) {
+      setIsGeneratingVideo(false);
+      console.error('视频生成失败:', error);
+      toast.error(error instanceof Error ? error.message : '视频生成失败，请重试');
+
+      addMessage({
+        role: 'designer',
+        content: `抱歉，${option.title}生成过程中出现了问题。请稍后重试，或者告诉我你想要调整的地方。`,
+        type: 'text'
+      });
+    }
   };
 
   const isUser = message.role === 'user';
@@ -140,9 +392,13 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
 
   // 渲染协作指示器
   const renderCollaborationIndicator = () => {
-    if (!message.metadata?.collaborationInfo) return null;
+    if (!message.metadata?.collaborationInfo && !message.metadata?.collaborationResults) return null;
 
-    const { participatingAgents, taskDescription, progress } = message.metadata.collaborationInfo;
+    const collaborationInfo = message.metadata?.collaborationInfo;
+    const collaborationResults = message.metadata?.collaborationResults;
+    const participatingAgents = collaborationInfo?.participatingAgents || collaborationResults?.map((result: any) => result.agent) || [];
+    const taskDescription = collaborationInfo?.taskDescription || '协作任务';
+    const progress = collaborationInfo?.progress || 100;
 
     return (
       <motion.div
@@ -160,7 +416,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         <div className="flex items-center gap-2">
           <span className="text-gray-500">参与成员：</span>
           <div className="flex -space-x-1">
-            {participatingAgents.map((agent, index) => (
+            {participatingAgents.map((agent: any, index: number) => (
               <div key={index} className="w-5 h-5 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-[8px] text-white border-2 border-white dark:border-gray-800">
                 {AGENT_CONFIG[agent]?.avatar || '?'}
               </div>
@@ -175,6 +431,23 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.5 }}
             />
+          </div>
+        )}
+        {collaborationResults && collaborationResults.length > 0 && (
+          <div className="mt-1">
+            <div className="text-gray-500 mb-1">协作结果：</div>
+            <div className="space-y-1">
+              {collaborationResults.map((result: any, index: number) => (
+                <div key={index} className="flex gap-2">
+                  <span className="font-medium text-xs" style={{ color: getAgentInfo(result.agent as AgentType).color }}>
+                    {AGENT_CONFIG[result.agent as AgentType]?.name}
+                  </span>
+                  <span className="text-xs text-gray-400 truncate">
+                    {result.content.substring(0, 50)}...
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </motion.div>
@@ -280,6 +553,15 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           </div>
         );
 
+      case 'video':
+        return (
+          <VideoMessageContent
+            message={message}
+            isDark={isDark}
+            renderDelegationIndicator={renderDelegationIndicator}
+          />
+        );
+
       case 'satisfaction-check':
         return (
           <div className="space-y-4">
@@ -332,6 +614,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
                 {message.metadata.derivativeOptions.map((option) => (
                   <motion.button
                     key={option.id}
+                    onClick={() => handleDerivativeOption(option)}
                     whileHover={{ scale: 1.01, x: 4 }}
                     whileTap={{ scale: 0.99 }}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors ${

@@ -6,10 +6,13 @@ import { Pool } from 'pg'
 // 创建连接池
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 
-                    process.env.NEON_DATABASE_URL || 
-                    process.env.POSTGRES_URL_NON_POOLING ||
-                    process.env.NEON_POSTGRES_DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+                    process.env.POSTGRES_URL || 
+                    process.env.POSTGRES_URL_NON_POOLING,
+  ssl: { 
+    rejectUnauthorized: false,
+    requestCert: true,
+    agent: false
+  },
   max: 10,
   min: 2,
   idleTimeoutMillis: 60000,

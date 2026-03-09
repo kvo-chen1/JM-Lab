@@ -856,7 +856,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       {/* 仅在桌面端显示侧边栏 */}
       <aside
         ref={sidebarRef}
-        className={`hidden md:flex flex-col ${isDark ? 'bg-gradient-to-b from-[#0F172A] via-[#1E3A5F] to-[#0F172A] backdrop-blur-xl border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]' : theme === 'pink' ? 'bg-white/90 backdrop-blur-sm border-pink-200' : 'bg-white border-gray-200'} border-r relative ring-1 ${isDark ? 'ring-blue-500/30' : theme === 'pink' ? 'ring-pink-200' : 'ring-gray-200'}`}
+        className={`hidden md:flex flex-col ${isDark ? 'bg-gradient-to-b from-[#0F172A] via-[#1E3A5F] to-[#0F172A] border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]' : theme === 'pink' ? 'bg-white/90 border-pink-200' : 'bg-white border-gray-200'} border-r relative ring-1 ${isDark ? 'ring-blue-500/30' : theme === 'pink' ? 'ring-pink-200' : 'ring-gray-200'}`}
         style={{ width: collapsed ? 80 : width, transition: 'width 0.2s ease-in-out', overflow: 'visible', zIndex: 9999 }}
         role="navigation"
         aria-label={t('sidebar.navigation')}

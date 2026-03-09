@@ -1,0 +1,17 @@
+COPY public.membership_orders (id, user_id, plan, plan_name, period, amount, currency, status, payment_method, payment_data, created_at, paid_at, expires_at, refunded_at, refund_amount, metadata, payment_type, payment_code, payment_proof, payer_info, verified_by, verified_at, notes) FROM stdin;
+ORD-1771300458163-ydeutelqb	f3dedf79-5c5e-40fd-9513-d0fb0995d429	premium	高级会员	monthly	99.00	CNY	pending	wechat	\N	2026-02-17 03:54:18.163+00	\N	\N	\N	\N	{}	enterprise	\N	\N	\N	\N	\N	\N
+ORD-1771305795869-wti3qlau7	f3dedf79-5c5e-40fd-9513-d0fb0995d429	vip	VIP会员	monthly	199.00	CNY	pending	wechat	\N	2026-02-17 05:23:15.869+00	\N	\N	\N	\N	{}	enterprise	\N	\N	\N	\N	\N	\N
+ORD-1771581144452-yvirec6xg	f3dedf79-5c5e-40fd-9513-d0fb0995d429	vip	VIP会员	monthly	199.00	CNY	completed	wechat	\N	2026-02-20 09:52:24.452+00	2026-02-20 09:52:34.832+00	2026-03-22 09:52:34.832+00	\N	\N	{}	enterprise	\N	\N	\N	\N	\N	\N
+ORD-1771584131678-o14qj6xw8	f3dedf79-5c5e-40fd-9513-d0fb0995d429	premium	高级会员	monthly	99.00	CNY	pending	wechat	\N	2026-02-20 10:42:11.678+00	\N	2026-02-21 10:42:11.678+00	\N	\N	{"notes": null, "payer_info": null, "verified_at": null, "verified_by": null, "payment_code": "VIPQJ6XW813", "payment_type": "personal_qr", "payment_proof": null}	enterprise	\N	\N	\N	\N	\N	\N
+ORD-1771680216303-bioyjr0jz	f3dedf79-5c5e-40fd-9513-d0fb0995d429	premium	高级会员	monthly	99.00	CNY	pending	wechat	\N	2026-02-21 13:23:36.303+00	\N	2026-02-22 13:23:36.303+00	\N	\N	{"notes": null, "payer_info": null, "verified_at": null, "verified_by": null, "payment_code": "VIPYJR0JZ63", "payment_type": "personal_qr", "payment_proof": null}	enterprise	\N	\N	\N	\N	\N	\N
+ORD-1771766390594-p5b83up7a	f3dedf79-5c5e-40fd-9513-d0fb0995d429	premium	高级会员	monthly	99.00	CNY	pending	wechat	\N	2026-02-22 13:19:50.594+00	\N	2026-02-23 13:19:50.594+00	\N	\N	{"notes": null, "payer_info": null, "verified_at": null, "verified_by": null, "payment_code": "VIP83UP7A12", "payment_type": "personal_qr", "payment_proof": null}	enterprise	\N	\N	\N	\N	\N	\N
+ORD-1772008213311-ikfa3sf7k	f3dedf79-5c5e-40fd-9513-d0fb0995d429	premium	高级会员	monthly	99.00	CNY	completed	wechat	\N	2026-02-25 08:30:13.311+00	2026-02-25 08:30:26.219+00	2026-02-26 08:30:13.311+00	\N	\N	{"notes": null, "payer_info": {"name": "1"}, "verified_at": null, "verified_by": null, "payment_code": "VIPA3SF7K84", "payment_type": "personal_qr", "payment_proof": {"notes": "1", "payerName": "1", "submittedAt": "2026-02-25T08:30:26.218Z", "screenshotUrl": null, "transactionId": "1"}}	enterprise	\N	\N	\N	\N	\N	\N
+ORD-1772250543342-pgoz6b85u	f3dedf79-5c5e-40fd-9513-d0fb0995d429	premium	高级会员	monthly	99.00	CNY	pending	wechat	\N	2026-02-28 03:49:03.342+00	\N	2026-03-01 03:49:03.342+00	\N	\N	{"notes": null, "payer_info": null, "verified_at": null, "verified_by": null, "payment_code": "VIPZ6B85U64", "payment_type": "personal_qr", "payment_proof": null}	enterprise	\N	\N	\N	\N	\N	\N
+ORD-1772250488257-99tkrwnjl	f3dedf79-5c5e-40fd-9513-d0fb0995d429	premium	高级会员	monthly	99.00	CNY	completed	wechat	\N	2026-02-28 03:48:08.257+00	2026-02-28 03:48:17.315+00	2026-03-01 03:48:08.257+00	\N	\N	{"notes": null, "payer_info": {"name": "1"}, "verified_at": null, "verified_by": null, "payment_code": "VIPKRWNJL89", "payment_type": "personal_qr", "payment_proof": {"notes": "1", "payerName": "1", "submittedAt": "2026-02-28T03:48:17.315Z", "screenshotUrl": null, "transactionId": "1"}}	enterprise	\N	\N	\N	\N	2026-02-28 14:08:24.941+00	审核通过
+\.
+
+
+--
+-- Data for Name: membership_usage_stats; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+

@@ -697,6 +697,8 @@ export async function getAllProducts(
       imageUrl: product.image_url,
       isFeatured: product.is_featured,
       tags: Array.isArray(product.tags) ? product.tags : [],
+      // 状态映射：数据库的 active/inactive/sold_out 映射为前端的 on_sale/off_shelf/sold_out
+      status: product.status === 'active' ? 'on_sale' : product.status === 'inactive' ? 'off_shelf' : product.status,
     }));
   } catch (error) {
     console.error('获取积分商城商品失败:', error);
@@ -953,7 +955,8 @@ export async function addProduct(productData: Partial<PointsProduct>): Promise<P
       category: productData.category || 'physical',
       image_url: productData.imageUrl || productData.image_url,
       tags: productData.tags || [],
-      status: productData.status || 'active',
+      // 状态映射：前端的 on_sale/off_shelf/sold_out 映射为数据库的 active/inactive/sold_out
+      status: productData.status === 'on_sale' ? 'active' : productData.status === 'off_shelf' ? 'inactive' : productData.status,
       is_featured: productData.isFeatured || productData.is_featured || false,
       is_limited: productData.is_limited || false,
       limit_per_user: productData.limit_per_user || 0,
@@ -997,7 +1000,10 @@ export async function updatePointsProduct(
       dbData.image_url = updates.imageUrl || updates.image_url;
     }
     if (updates.tags !== undefined) dbData.tags = updates.tags;
-    if (updates.status !== undefined) dbData.status = updates.status;
+    // 状态映射：前端的 on_sale/off_shelf/sold_out 映射为数据库的 active/inactive/sold_out
+    if (updates.status !== undefined) {
+      dbData.status = updates.status === 'on_sale' ? 'active' : updates.status === 'off_shelf' ? 'inactive' : updates.status;
+    }
     if (updates.isFeatured !== undefined || updates.is_featured !== undefined) {
       dbData.is_featured = updates.isFeatured || updates.is_featured;
     }

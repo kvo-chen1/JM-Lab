@@ -70,7 +70,7 @@ class PresenceService {
   }
 
   async cleanup() {
-    if (this.channel) {
+    if (this.channel && typeof this.channel.unsubscribe === 'function') {
       await this.channel.unsubscribe();
       this.channel = null;
     }

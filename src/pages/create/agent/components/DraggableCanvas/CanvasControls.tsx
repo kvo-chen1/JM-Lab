@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import {
-  MessageSquare,
   MousePointer2,
   Hand,
   Minus,
@@ -10,7 +9,8 @@ import {
   Minimize2,
   Grid3X3,
   RotateCcw,
-  GripVertical
+  GripVertical,
+  MessageSquare
 } from 'lucide-react';
 
 interface CanvasControlsProps {
@@ -21,6 +21,7 @@ interface CanvasControlsProps {
   selectedTool: 'select' | 'move' | 'hand';
   showGrid?: boolean;
   onToggleGrid?: () => void;
+  onFeedbackClick?: () => void;
 }
 
 export default function CanvasControls({
@@ -30,7 +31,8 @@ export default function CanvasControls({
   onToolChange,
   selectedTool,
   showGrid = false,
-  onToggleGrid
+  onToggleGrid,
+  onFeedbackClick
 }: CanvasControlsProps) {
   const { isDark } = useTheme();
   const [zoomInput, setZoomInput] = useState(zoom.toString());
@@ -180,24 +182,6 @@ export default function CanvasControls({
       {/* 分隔线 */}
       <div className={`w-px h-6 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
 
-      {/* 聊天/选择工具组 */}
-      <div className={`flex items-center gap-0.5 p-1 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-100/50'}`}>
-        <button
-          onClick={() => handleToolSelect('select')}
-          className={`p-2.5 rounded-lg transition-all duration-200 ${
-            selectedTool === 'select'
-              ? (isDark ? 'bg-gray-700 text-white shadow-lg' : 'bg-white text-gray-900 shadow-md')
-              : (isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200')
-          }`}
-          title="选择工具"
-        >
-          <MessageSquare className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* 分隔线 */}
-      <div className={`w-px h-6 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
-
       {/* 工具选择组 */}
       <div className={`flex items-center gap-0.5 p-1 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-100/50'}`}>
         <button
@@ -310,6 +294,25 @@ export default function CanvasControls({
           title="重置视图"
         >
           <RotateCcw className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* 分隔线 */}
+      <div className={`w-px h-6 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
+
+      {/* 反馈按钮 */}
+      <div className={`flex items-center gap-0.5 p-1 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-100/50'}`}>
+        <button
+          onClick={onFeedbackClick}
+          className={`p-2.5 rounded-lg transition-all duration-200 flex items-center gap-1.5 ${
+            isDark
+              ? 'hover:bg-[#C02C38]/20 text-[#C02C38]'
+              : 'hover:bg-[#C02C38]/10 text-[#C02C38]'
+          }`}
+          title="反馈"
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span className="text-xs font-medium">反馈</span>
         </button>
       </div>
     </div>

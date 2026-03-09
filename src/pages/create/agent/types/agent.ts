@@ -104,6 +104,32 @@ export interface AgentDecision {
   message?: string;  // 给用户的说明消息
 }
 
+// 需求收集状态
+export type RequirementStage = 'initial' | 'collecting' | 'confirming' | 'completed';
+
+// 收集到的需求信息
+export interface CollectedRequirementInfo {
+  projectType?: string;        // 项目类型
+  targetAudience?: string;     // 目标受众
+  stylePreference?: string;    // 风格偏好
+  usageScenario?: string;      // 使用场景
+  timeline?: string;           // 时间要求
+  budget?: string;             // 预算范围
+  references?: string[];       // 参考案例
+  brandTone?: string;          // 品牌调性
+  additionalInfo?: string;     // 其他信息
+}
+
+// 需求收集状态管理
+export interface RequirementCollection {
+  stage: RequirementStage;                    // 当前阶段
+  collectedInfo: CollectedRequirementInfo;    // 已收集的信息
+  pendingQuestions: string[];                 // 待澄清的问题
+  confirmed: boolean;                         // 用户是否已确认
+  summaryShown: boolean;                      // 是否已展示总结
+  assignmentShown: boolean;                   // 是否已展示分配
+}
+
 export interface DesignTask {
   id: string;
   type: TaskType;
@@ -132,6 +158,10 @@ export interface GeneratedOutput {
   createdAt: number;
   metadata?: Record<string, any>;
   agentType?: AgentType;  // 记录是哪个 Agent 生成的
+  // 新增字段
+  title?: string;         // 作品标题
+  description?: string;   // 作品描述（AI生成，可编辑）
+  isFavorite?: boolean;   // 是否收藏
 }
 
 export interface AgentState {
@@ -169,6 +199,9 @@ export interface AgentState {
   isCollaborating: boolean;             // 是否协作中
   collaborationAgents: AgentType[];     // 当前协作的 Agents
   currentDelegation: DelegationTask | null; // 当前正在进行的委派
+
+  // 需求收集状态
+  requirementCollection: RequirementCollection;
 }
 
 // Agent 配置项
@@ -255,7 +288,7 @@ export const DERIVATIVE_OPTIONS: DerivativeOption[] = [
   {
     id: 'short-video',
     title: '快速生成视频',
-    description: '15秒以下的短视频，适合社交媒体传播',
+    description: '5秒以下的短视频，适合社交媒体传播',
     icon: 'video',
     type: 'video'
   },

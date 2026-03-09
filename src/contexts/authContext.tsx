@@ -713,7 +713,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return () => {
       mounted = false;
       clearTimeout(loadingTimeout);
-      if (subscription) {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
         subscription.unsubscribe();
       }
     };

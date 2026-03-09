@@ -591,7 +591,9 @@ export const useEnhancedEventBus = <T = Event>(
     }, options);
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
     };
   }, [eventType, options, ...deps]);
 };

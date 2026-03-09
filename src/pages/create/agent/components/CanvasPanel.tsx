@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, DERIVATIVE_OPTIONS } from '../hooks/useAgentStore';
 import DraggableCanvas from './DraggableCanvas';
+import WorkCard, { WorkCardData } from './WorkCard';
 import { 
   Maximize2, 
   Download, 
@@ -80,13 +81,18 @@ function ImageWithLoading({
   );
 }
 
-export default function CanvasPanel() {
+interface CanvasPanelProps {
+  onFeedbackClick?: () => void;
+}
+
+export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
   const { isDark } = useTheme();
   const { 
     generatedOutputs, 
     selectedOutput, 
     selectOutput, 
     deleteOutput,
+    updateOutput,
     currentTask,
     showSatisfactionModal,
     setShowSatisfactionModal,
@@ -314,8 +320,8 @@ export default function CanvasPanel() {
             </div>
           </div>
         ) : (
-          // Canvas with Generated Content
-          <div className="h-full">
+          // Canvas with Generated Content - 使用 DraggableCanvas 包裹以支持缩放
+          <DraggableCanvas onFeedbackClick={onFeedbackClick}>
             <AnimatePresence mode="wait">
               {viewMode === 'gallery' ? (
                 <motion.div
@@ -323,142 +329,132 @@ export default function CanvasPanel() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="w-full h-full"
+                  className="w-full h-full p-8"
                 >
-                  <DraggableCanvas>
-                    <div className="flex flex-col items-center gap-6 select-none">
-                      {/* Main Image */}
-                      {selectedImage && (
+                  <div className="max-w-4xl mx-auto">
+                    {/* Work Cards Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {generatedOutputs.map((output, index) => (
                         <motion.div
-                          layoutId={selectedImage.id}
-                          className="relative max-w-3xl w-full"
-                          style={{ pointerEvents: 'none' }}
+                          key={output.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
                         >
-                          <div className={`rounded-2xl overflow-hidden shadow-2xl ${
-                            isDark ? 'shadow-black/50' : 'shadow-gray-200'
-                          }`}>
-                            <ImageWithLoading
-                              src={selectedImage.url}
-                              alt="Generated"
-                              className="w-full h-auto block min-h-[200px]"
-                              onError={() => {
-                                console.error('[CanvasPanel] 图片加载失败:', selectedImage.url);
-                              }}
-                            />
-                          </div>
-
-                          {/* Satisfaction Check Modal */}
-                          {showSatisfactionModal && (
-                            <motion.div
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              className={`absolute bottom-4 left-4 right-4 p-4 rounded-xl backdrop-blur-md ${
-                                isDark 
-                                  ? 'bg-gray-900/90 border border-gray-700' 
-                                  : 'bg-white/90 border border-gray-200'
-                              }`}
-                            >
-                              <p className={`text-sm mb-3 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                请问你对当前设计满意吗？
-                              </p>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleSatisfactionResponse(true)}
-                                  className="flex-1 py-2 px-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium flex items-center justify-center gap-2"
-                                >
-                                  <Check className="w-4 h-4" />
-                                  满意
-                                </button>
-                                <button
-                                  onClick={() => handleSatisfactionResponse(false)}
-                                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${
-                                    isDark 
-                                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
-                                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                  }`}
-                                >
-                                  <X className="w-4 h-4" />
-                                  修改
-                                </button>
-                              </div>
-                            </motion.div>
-                          )}
-                        </motion.div>
-                      )}
-
-                      {/* Thumbnail Strip */}
-                      <div 
-                        className={`flex gap-3 p-3 rounded-xl ${
-                          isDark ? 'bg-gray-900/50' : 'white/50'
-                        }`}
-                        style={{ pointerEvents: 'auto' }}
-                      >
-                        {generatedOutputs.map((output, index) => (
-                          <motion.button
-                            key={output.id}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: index * 0.05 }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              selectOutput(output.id);
+                          <WorkCard
+                            data={{
+                              id: output.id,
+                              title: output.title || '未命名作品',
+                              description: output.description || '暂无描述',
+                              imageUrl: output.url,
+                              thumbnailUrl: output.thumbnail || output.url,
+                              createdAt: output.createdAt,
+                              isFavorite: output.isFavorite
                             }}
-                            className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                              selectedOutput === output.id
-                                ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20'
-                                : isDark ? 'border-gray-700' : 'border-gray-200'
+                            isSelected={selectedOutput === output.id}
+                            onSelect={() => selectOutput(output.id)}
+                            onUpdate={(id, updates) => {
+                              updateOutput(id, updates);
+                            }}
+                            onDelete={(id) => {
+                              deleteOutput(id);
+                            }}
+                            onRefresh={(id) => {
+                              toast.info('重新生成功能开发中...');
+                            }}
+                            onDownload={(data) => {
+                              handleDownload();
+                            }}
+                          />
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {/* Satisfaction Check Modal */}
+                    {showSatisfactionModal && selectedImage && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`fixed bottom-8 left-1/2 -translate-x-1/2 p-4 rounded-xl backdrop-blur-md z-50 ${
+                          isDark 
+                            ? 'bg-gray-900/90 border border-gray-700' 
+                            : 'bg-white/90 border border-gray-200'
+                        }`}
+                      >
+                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                          请问你对当前设计满意吗？
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleSatisfactionResponse(true)}
+                            className="flex-1 py-2 px-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            <Check className="w-4 h-4" />
+                            满意
+                          </button>
+                          <button
+                            onClick={() => handleSatisfactionResponse(false)}
+                            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${
+                              isDark 
+                                ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           >
-                            <ImageWithLoading
-                              src={output.thumbnail || output.url}
-                              alt={`Output ${index + 1}`}
-                              className="w-full h-full object-cover"
-                              onError={() => {
-                                console.error('[CanvasPanel] 缩略图加载失败:', output.thumbnail || output.url);
-                              }}
-                            />
-                          </motion.button>
-                        ))}
-                      </div>
-                    </div>
-                  </DraggableCanvas>
+                            <X className="w-4 h-4" />
+                            修改
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
                 </motion.div>
               ) : (
-                // Grid View
+                // Grid View - 使用WorkCard的紧凑模式
                 <motion.div
                   key="grid"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-8 overflow-auto h-full"
+                  className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 p-8 overflow-auto h-full"
                 >
                   {generatedOutputs.map((output, index) => (
-                    <motion.button
+                    <motion.div
                       key={output.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      onClick={() => selectOutput(output.id)}
-                      className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
-                        selectedOutput === output.id
-                          ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20'
-                          : isDark ? 'border-gray-700' : 'border-gray-200'
-                      }`}
                     >
-                      <ImageWithLoading
-                        src={output.thumbnail || output.url}
-                        alt={`Output ${index + 1}`}
-                        className="w-full h-full object-cover"
-                        onError={() => {
-                          console.error('[CanvasPanel] 网格图片加载失败:', output.thumbnail || output.url);
+                      <WorkCard
+                        data={{
+                          id: output.id,
+                          title: output.title || '未命名作品',
+                          description: output.description || '暂无描述',
+                          imageUrl: output.url,
+                          thumbnailUrl: output.thumbnail || output.url,
+                          createdAt: output.createdAt,
+                          isFavorite: output.isFavorite
+                        }}
+                        isSelected={selectedOutput === output.id}
+                        onSelect={() => selectOutput(output.id)}
+                        onUpdate={(id, updates) => {
+                          updateOutput(id, updates);
+                        }}
+                        onDelete={(id) => {
+                          deleteOutput(id);
+                        }}
+                        onRefresh={(id) => {
+                          toast.info('重新生成功能开发中...');
+                        }}
+                        onDownload={(data) => {
+                          handleDownload();
                         }}
                       />
-                    </motion.button>
+                    </motion.div>
                   ))}
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </DraggableCanvas>
         )}
       </div>
 

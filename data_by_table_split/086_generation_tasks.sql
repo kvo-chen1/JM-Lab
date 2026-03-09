@@ -1,0 +1,11 @@
+COPY public.generation_tasks (id, user_id, type, status, params, progress, result, error, error_type, created_at, updated_at, started_at, completed_at) FROM stdin;
+9f84ec9b-46ec-4ebb-aa18-7d62932a983e	f3dedf79-5c5e-40fd-9513-d0fb0995d429	image	pending	{"n": 4, "size": "1024x1024", "style": "auto", "prompt": "活动主题：杨柳青\\"年画新韵·匠心传承\\"文创设计大赛。活动简介：邀请创作者以杨柳青年画经典元素（娃娃、仕女、门神、胖娃娃抱鱼等）为灵感，进行文创产品设计、短视频创作或数字艺术创作。让千年年画技艺焕发新生，用现代语言讲述运河古镇的文化故事。。线上活动，需要展现数字化和互动感。", "quality": "hd"}	0	\N	\N	\N	2026-02-21 01:20:15.939292+00	2026-02-21 01:20:15.939292+00	\N	\N
+332ce76a-fadd-4601-a0c0-69caaa305327	f3dedf79-5c5e-40fd-9513-d0fb0995d429	image	pending	{"n": 4, "size": "1024x1024", "style": "auto", "prompt": "活动主题：杨柳青\\"年画新韵·匠心传承\\"文创设计大赛。活动简介：邀请创作者以杨柳青年画经典元素（娃娃、仕女、门神、胖娃娃抱鱼等）为灵感，进行文创产品设计、短视频创作或数字艺术创作。让千年年画技艺焕发新生，用现代语言讲述运河古镇的文化故事。。线上活动，需要展现数字化和互动感。", "quality": "hd"}	0	\N	\N	\N	2026-02-21 01:25:03.605541+00	2026-02-21 01:25:03.605541+00	\N	\N
+7f1e00c6-5c85-4c10-b4ea-0477f1ad7f49	f3dedf79-5c5e-40fd-9513-d0fb0995d429	image	pending	{"n": 4, "size": "1024x1024", "style": "auto", "prompt": "活动主题：杨柳青\\"年画新韵·匠心传承\\"文创设计大赛。活动简介：邀请创作者以杨柳青年画经典元素（娃娃、仕女、门神、胖娃娃抱鱼等）为灵感，进行文创产品设计、短视频创作或数字艺术创作。让千年年画技艺焕发新生，用现代语言讲述运河古镇的文化故事。。线上活动，需要展现数字化和互动感。", "quality": "hd"}	0	\N	\N	\N	2026-02-21 01:29:01.205849+00	2026-02-21 01:29:01.205849+00	\N	\N
+\.
+
+
+--
+-- Data for Name: home_recommendations; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+

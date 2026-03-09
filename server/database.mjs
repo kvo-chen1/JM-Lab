@@ -64,26 +64,6 @@ const getPostgresConnectionString = () => {
     return process.env.POSTGRES_URL;
   }
   
-  // 4. 尝试 Neon 相关变量
-  const neonUrl = process.env.NEON_URL || 
-                  process.env.NEON_DATABASE_URL || 
-                  process.env.NEON_POSTGRES_URL || 
-                  process.env.NEON_DATABASE_URL_UNPOOLED ||
-                  process.env.NEON_POSTGRES_URL_NON_POOLING ||
-                  // 支持 Netlify Neon 扩展的环境变量
-                  process.env.NETLIFY_DATABASE_URL ||
-                  process.env.NETLIFY_DATABASE_URL_UNPOOLED
-  if (neonUrl) {
-    console.log('[DB] Using NEON URL');
-    return neonUrl;
-  }
-  
-  // 5. 尝试使用 Neon 数据库连接
-  if (process.env.DB_TYPE === 'postgresql') {
-    console.log('[DB] Using Neon PostgreSQL connection');
-    return process.env.NEON_URL || process.env.NEON_DATABASE_URL || process.env.NEON_POSTGRES_URL || process.env.NEON_POSTGRES_DATABASE_URL;
-  }
-  
   return null
 }
 
@@ -95,15 +75,15 @@ const detectDbType = () => {
   // Vercel 环境强制检测
   if (process.env.VERCEL) {
     // 如果配置了 PostgreSQL 相关的环境变量，优先使用 PostgreSQL
-    if (process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.SUPABASE_URL || process.env.NETLIFY_DATABASE_URL || process.env.NETLIFY_DATABASE_URL_UNPOOLED) {
+    if (process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.SUPABASE_URL) {
       return DB_TYPE.POSTGRESQL;
     }
     // Vercel Serverless 环境必须使用 PostgreSQL
     throw new Error('Vercel environment requires PostgreSQL database. Please set DATABASE_URL or POSTGRES_URL environment variable.');
   }
 
-  // 使用 PostgreSQL (Neon 数据库)
-  if (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.NEON_URL || process.env.NEON_DATABASE_URL || process.env.NEON_POSTGRES_URL || process.env.NETLIFY_DATABASE_URL || process.env.NETLIFY_DATABASE_URL_UNPOOLED) return DB_TYPE.POSTGRESQL
+  // 使用 PostgreSQL (Supabase)
+  if (process.env.DATABASE_URL || process.env.POSTGRES_URL) return DB_TYPE.POSTGRESQL
   
   // 本地环境也必须使用 PostgreSQL
   throw new Error('PostgreSQL database is required. Please set DATABASE_URL environment variable.');
@@ -131,9 +111,11 @@ const config = {
       connectionTimeoutMillis: isVercel ? 30000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '60000'),
       // 连接最大生命周期：增加生命周期以减少重新连接
       maxLifetime: parseInt(process.env.POSTGRES_MAX_LIFETIME || '600000'), // 10分钟
-      // SSL 配置：Supabase 通常需要 SSL。本地开发可能不需要。
+      // SSL 配置：Supabase 需要 SSL，但允许自签名证书
       ssl: (connectionString && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) ? {
-        rejectUnauthorized: false // 允许自签名证书 (Supabase 兼容性)
+        rejectUnauthorized: false,
+        requestCert: true,
+        agent: false
       } : false,
       // 查询超时设置：增加超时时间以适应 Neon
       statement_timeout: isVercel ? 30000 : 60000,

@@ -6,11 +6,10 @@ import { Pool } from 'pg'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 
-                    process.env.NEON_DATABASE_URL || 
                     process.env.POSTGRES_URL_NON_POOLING ||
-                    process.env.NEON_POSTGRES_URL_NON_POOLING ||
-                    'postgresql://neondb_owner:npg_fV0Tzot3RCxh@ep-shy-bar-ajp9o0kn-pooler.c-3.us-east-2.aws.neon.tech/neondb',
-  ssl: { 
+                    process.env.POSTGRES_URL ||
+                    process.env.NEON_DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { 
     rejectUnauthorized: false,
     keepAlive: true,
   },

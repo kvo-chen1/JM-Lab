@@ -54,7 +54,7 @@ const ChatPage: React.FC = () => {
     
     return () => {
       // 清理订阅
-      if (subscriptionRef.current) {
+      if (subscriptionRef.current && typeof subscriptionRef.current.unsubscribe === 'function') {
         subscriptionRef.current.unsubscribe();
       }
     };

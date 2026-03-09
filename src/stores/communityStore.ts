@@ -558,7 +558,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
   unsubscribe: () => {
     const { subscription } = get()
-    if (subscription) {
+    if (subscription && typeof subscription.unsubscribe === 'function') {
       subscription.unsubscribe()
       set({ subscription: null })
     }

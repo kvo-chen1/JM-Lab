@@ -74,7 +74,9 @@ async function testRealtime() {
 
           // 3秒后取消订阅
           setTimeout(() => {
-            channel.unsubscribe();
+            if (channel && typeof channel.unsubscribe === 'function') {
+              channel.unsubscribe();
+            }
             console.log('   🛑 已取消订阅');
             resolve(true);
           }, 3000);
@@ -88,7 +90,9 @@ async function testRealtime() {
     timeout = setTimeout(() => {
       if (!statusReceived) {
         console.log('   ⏱️ 连接超时 (10秒)');
-        channel.unsubscribe();
+        if (channel && typeof channel.unsubscribe === 'function') {
+          channel.unsubscribe();
+        }
         resolve(false);
       }
     }, 10000);

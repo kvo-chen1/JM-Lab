@@ -330,7 +330,7 @@ class MembershipService {
   }
 
   private unsubscribeRealtime() {
-    if (this.realtimeSubscription) {
+    if (this.realtimeSubscription && typeof this.realtimeSubscription.unsubscribe === 'function') {
       this.realtimeSubscription.unsubscribe();
       this.realtimeSubscription = null;
     }

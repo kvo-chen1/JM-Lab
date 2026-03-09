@@ -1332,8 +1332,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
       style={{
         left: `${positionStyle.x}px`,
         top: `${positionStyle.y}px`,
-        transform: 'translate(0, 0)',
-        zIndex: 1000 // 确保AI助手在最顶层显示
+        zIndex: 99999 // 确保AI助手在最顶层显示
       }}
     >
       {/* 聊天界面 */}
@@ -1363,7 +1362,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
               position: 'absolute',
               bottom: '100%',
               left: '50%',
-              transform: 'translateX(-50%) translateY(-10px) translateZ(10)',
+              transform: 'translateX(-50%) translateY(-10px)',
               // 增强悬浮感的多层次阴影
               boxShadow: isDark ? 
                 '0 20px 60px rgba(0, 0, 0, 0.6), 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)' : 
@@ -1371,7 +1370,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
               // 确保不会超出视口
               maxWidth: windowWidth < 768 ? '95vw' : '90vw',
               // 确保在最顶层显示
-              zIndex: 999,
+              zIndex: 99998,
               // 添加背景模糊效果，增强漂浮感
               backdropFilter: 'blur(15px)',
               backgroundBlendMode: 'overlay',
@@ -1847,7 +1846,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
         whileTap={{ scale: 1.1, y: 0 }}
         style={{
           position: 'relative',
-          zIndex: 100,
+          zIndex: 99997,
           // 添加多层次阴影，增强立体感
           boxShadow: isDark ? 
             '0 8px 25px rgba(0, 0, 0, 0.4), 0 2px 10px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.1)' : 

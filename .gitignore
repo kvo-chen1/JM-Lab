@@ -68,3 +68,9 @@ fix_syntax.py
 fixed_skeleton.tsx
 .vercel
 .env*.local
+
+# Large binary files
+*.exe
+*.zip
+postgresql-installer.exe
+postgresql.zip

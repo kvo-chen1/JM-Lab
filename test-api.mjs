@@ -1,31 +1,46 @@
-#!/usr/bin/env node
-/**
- * 测试社区统计API
- */
-
-const API_BASE = 'http://localhost:3022';
-const COMMUNITY_ID = '4000e812-564d-4e7e-8247-dab93b75fac4';
-
+// 测试 API 端点
 async function testAPI() {
-  console.log('🧪 测试社区统计API...\n');
-
+  console.log('=================================');
+  console.log('  测试 API 端点');
+  console.log('=================================\n');
+  
+  const baseURL = 'http://localhost:3030';
+  
   try {
-    // 测试获取社区统计
-    console.log('1️⃣ 测试 GET /api/communities/{id}/stats');
-    const response = await fetch(`${API_BASE}/api/communities/${COMMUNITY_ID}/stats`);
+    // 测试 /api/works
+    console.log('🔄 测试 GET /api/works?limit=5');
+    const response = await fetch(`${baseURL}/api/works?limit=5`);
     
-    console.log('   状态码:', response.status);
+    console.log(`   状态码: ${response.status}`);
     
     if (response.ok) {
-      const result = await response.json();
-      console.log('   响应:', JSON.stringify(result, null, 2));
+      const data = await response.json();
+      console.log(`✅ 请求成功`);
+      console.log(`   返回数据: ${data.data?.length || 0} 条记录`);
+      
+      if (data.data && data.data.length > 0) {
+        console.log('\n📄 第一条记录:');
+        const first = data.data[0];
+        console.log(`   标题: ${first.title}`);
+        console.log(`   作者: ${first.author?.username}`);
+        console.log(`   创建时间: ${first.date}`);
+      }
     } else {
-      console.log('   错误:', await response.text());
+      const errorText = await response.text();
+      console.error(`❌ 请求失败: ${errorText}`);
     }
-
+    
+    console.log('\n=================================');
+    console.log('  测试完成');
+    console.log('=================================');
+    
   } catch (error) {
-    console.error('❌ 测试失败:', error.message);
-    console.log('\n⚠️ 请确保后端服务器已启动 (pnpm dev)');
+    console.error('\n❌ 测试失败!');
+    console.error(`   错误: ${error.message}`);
+    
+    if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
+      console.log('\n💡 提示: 服务器可能没有运行，请先启动服务器 (pnpm dev)');
+    }
   }
 }
 

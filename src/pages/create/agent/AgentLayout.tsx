@@ -5,6 +5,7 @@ import { useAgentStore } from './hooks/useAgentStore';
 import { useConversationStore } from './hooks/useConversationStore';
 import { PanelLeft, Sparkles, History } from 'lucide-react';
 import ConversationSidebar from './components/ConversationSidebar';
+import FeedbackModal from '@/components/Feedback/FeedbackModal';
 
 interface AgentLayoutProps {
   children: {
@@ -17,7 +18,15 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
   const { isDark } = useTheme();
   const { isChatCollapsed, currentAgent, currentTask } = useAgentStore();
   const { currentSessionId, getCurrentSession, createSession } = useConversationStore();
-  const [isConversationSidebarOpen, setIsConversationSidebarOpen] = useState(true);
+  const [isConversationSidebarOpen, setIsConversationSidebarOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+
+  // 当反馈弹窗打开时，自动收起会话侧边栏
+  useEffect(() => {
+    if (isFeedbackOpen && isConversationSidebarOpen) {
+      setIsConversationSidebarOpen(false);
+    }
+  }, [isFeedbackOpen]);
 
   // 初始化时如果没有会话，自动创建一个
   useEffect(() => {
@@ -112,10 +121,15 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
         </motion.div>
 
         {/* Canvas Panel - 可滚动 */}
-        <div className="flex-1 min-w-0 h-full overflow-y-auto">
-          {children.canvasPanel}
+        <div className="flex-1 min-w-0 h-full overflow-y-auto relative">
+          {React.cloneElement(children.canvasPanel as React.ReactElement, {
+            onFeedbackClick: () => setIsFeedbackOpen(true)
+          })}
         </div>
       </div>
+
+      {/* 反馈弹窗 */}
+      <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
     </div>
   );
 }

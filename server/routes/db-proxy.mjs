@@ -11,10 +11,10 @@ const router = Router()
 // 创建 PostgreSQL 连接池
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 
-                    process.env.NEON_DATABASE_URL || 
                     process.env.POSTGRES_URL_NON_POOLING ||
-                    process.env.NEON_POSTGRES_URL_NON_POOLING,
-  ssl: {
+                    process.env.POSTGRES_URL ||
+                    process.env.NEON_DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : {
     rejectUnauthorized: false,
     keepAlive: true
   },

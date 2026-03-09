@@ -381,9 +381,6 @@ const Help = createLazyComponent(() => import(/* webpackChunkName: "pages-other"
 const Privacy = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Privacy"), {
   priority: ROUTE_PRIORITIES.LOW
 });
-const NeonApiTest = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/NeonApiTest"), {
-  priority: ROUTE_PRIORITIES.LOW
-});
 const BrandGuide = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/BrandGuide"), {
   priority: ROUTE_PRIORITIES.LOW,
   name: 'brand'
@@ -991,7 +988,6 @@ export default function App() {
           <Route path="/messages" element={<LazyComponent><PrivateRoute><MessageCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/component-showcase" element={<ComponentShowcase />} />
           <Route path="/trending-card-demo" element={<LazyComponent><TrendingCardDemo /></LazyComponent>} />
-          <Route path="/neon-api-test" element={<LazyComponent><NeonApiTest /></LazyComponent>} />
           <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/knowledge/:type/:id" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/cultural-knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />

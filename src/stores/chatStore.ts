@@ -224,7 +224,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { subscription, addMessage, updateMessageStatus } = get()
     
     // 如果已经订阅了同一个频道，不做操作
-    if (subscription) {
+    if (subscription && typeof subscription.unsubscribe === 'function') {
       subscription.unsubscribe()
     }
 
@@ -247,7 +247,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { crossPageSubscription, addMessage, updateMessageStatus } = get()
     
     // 如果已经订阅了跨页面消息，不做操作
-    if (crossPageSubscription) {
+    if (crossPageSubscription && typeof crossPageSubscription.unsubscribe === 'function') {
       crossPageSubscription.unsubscribe()
     }
 
@@ -268,7 +268,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   unsubscribe: () => {
     const { subscription } = get()
-    if (subscription) {
+    if (subscription && typeof subscription.unsubscribe === 'function') {
       subscription.unsubscribe()
       set({ subscription: null })
     }
@@ -276,7 +276,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   unsubscribeCrossPage: () => {
     const { crossPageSubscription } = get()
-    if (crossPageSubscription) {
+    if (crossPageSubscription && typeof crossPageSubscription.unsubscribe === 'function') {
       crossPageSubscription.unsubscribe()
       set({ crossPageSubscription: null })
     }

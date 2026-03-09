@@ -13,6 +13,7 @@ import {
   DelegationTask,
   AGENT_CONFIG
 } from '../types/agent';
+import { getMemoryService } from '../services/memoryService';
 
 interface AgentActions {
   // 消息操作
@@ -200,6 +201,16 @@ export const useAgentStore = create<AgentState & AgentActions>()(
           id: generateId(),
           createdAt: Date.now()
         };
+
+        // 记录到记忆服务
+        const memoryService = getMemoryService();
+        if (output.style) {
+          memoryService.recordStylePreference(output.style, true);
+        }
+        if (state.currentTask) {
+          memoryService.recordTaskType(state.currentTask.type);
+        }
+
         return {
           generatedOutputs: [...state.generatedOutputs, newOutput],
           selectedOutput: newOutput.id
@@ -347,7 +358,78 @@ export const useAgentStore = create<AgentState & AgentActions>()(
       resetState: () => set({
         ...initialState,
         messages: [getWelcomeMessage()]
-      })
+      }),
+
+      // 需求收集管理
+      setRequirementStage: (stage) => set((state) => ({
+        requirementCollection: {
+          ...state.requirementCollection,
+          stage
+        }
+      })),
+
+      updateRequirementInfo: (info) => set((state) => ({
+        requirementCollection: {
+          ...state.requirementCollection,
+          collectedInfo: {
+            ...state.requirementCollection.collectedInfo,
+            ...info
+          }
+        }
+      })),
+
+      setRequirementConfirmed: (confirmed) => set((state) => ({
+        requirementCollection: {
+          ...state.requirementCollection,
+          confirmed
+        }
+      })),
+
+      addPendingQuestion: (question) => set((state) => ({
+        requirementCollection: {
+          ...state.requirementCollection,
+          pendingQuestions: [...state.requirementCollection.pendingQuestions, question]
+        }
+      })),
+
+      removePendingQuestion: (question) => set((state) => ({
+        requirementCollection: {
+          ...state.requirementCollection,
+          pendingQuestions: state.requirementCollection.pendingQuestions.filter(q => q !== question)
+        }
+      })),
+
+      setSummaryShown: (shown) => set((state) => ({
+        requirementCollection: {
+          ...state.requirementCollection,
+          summaryShown: shown
+        }
+      })),
+
+      setAssignmentShown: (shown) => set((state) => ({
+        requirementCollection: {
+          ...state.requirementCollection,
+          assignmentShown: shown
+        }
+      })),
+
+      resetRequirementCollection: () => set((state) => ({
+        requirementCollection: {
+          stage: 'initial',
+          collectedInfo: {},
+          pendingQuestions: [
+            '项目类型是什么？（品牌设计/IP设计/包装设计/海报设计/动画视频等）',
+            '目标受众是谁？（年龄、性别、职业、喜好）',
+            '你喜欢什么风格？（温馨/科技/简约/复古/华丽等）',
+            '主要使用场景是什么？（线上推广/线下物料/印刷/视频等）',
+            '时间要求如何？（紧急/正常/宽松）',
+            '有参考案例或竞品吗？'
+          ],
+          confirmed: false,
+          summaryShown: false,
+          assignmentShown: false
+        }
+      }))
     }),
     {
       name: 'agent-store',

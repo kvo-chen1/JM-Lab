@@ -1,79 +1,64 @@
-/**
- * 检查 users 表结构
- */
-import pg from 'pg';
-import dotenv from 'dotenv';
+import { execSync } from 'child_process';
 
-const { Pool } = pg;
-dotenv.config();
+const PSQL_PATH = 'C:\\postgresql\\pgsql\\bin';
+process.env.PATH = `${process.env.PATH};${PSQL_PATH}`;
 
-const connectionString = process.env.DATABASE_URL || 
-  process.env.NEON_DATABASE_URL || 
-  'postgresql://neondb_owner:npg_fV0Tzot3RCxh@ep-shy-bar-ajp9o0kn-pooler.c-3.us-east-2.aws.neon.tech/neondb';
+const targetHost = 'db.kizgwtrrsmkjeiddotup.supabase.co';
+const targetPort = '5432';
+const targetDb = 'postgres';
+const targetUser = 'postgres';
+const targetPass = 'csh200506207837';
 
-const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false }
-});
+const targetConn = `postgresql://${targetUser}:${targetPass}@${targetHost}:${targetPort}/${targetDb}`;
+const env = { ...process.env, PGPASSWORD: targetPass };
 
-async function checkUsersTable() {
-  const client = await pool.connect();
-  
+console.log('🔍 检查 users 表...\n');
+
+try {
+  // 1. 检查表是否存在
+  console.log('1. 检查 users 表是否存在:');
+  const tableExists = execSync(
+    `psql "${targetConn}" -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users');"`,
+    { env, encoding: 'utf-8' }
+  );
+  console.log(tableExists);
+
+  // 2. 检查 users 表结构
+  console.log('\n2. users 表结构:');
+  const tableStructure = execSync(
+    `psql "${targetConn}" -c "\\d users"`,
+    { env, encoding: 'utf-8' }
+  );
+  console.log(tableStructure);
+
+  // 3. 检查 users 表数据量
+  console.log('\n3. users 表数据量:');
+  const rowCount = execSync(
+    `psql "${targetConn}" -c "SELECT COUNT(*) FROM users;"`,
+    { env, encoding: 'utf-8' }
+  );
+  console.log(rowCount);
+
+  // 4. 检查所有表
+  console.log('\n4. 所有表列表:');
+  const allTables = execSync(
+    `psql "${targetConn}" -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;"`,
+    { env, encoding: 'utf-8' }
+  );
+  console.log(allTables);
+
+  // 5. 检查导入时可能的错误
+  console.log('\n5. 检查最近的错误日志:');
   try {
-    console.log('[Check] 检查 users 表结构...\n');
-    
-    // 检查 users 表的列
-    const columnsResult = await client.query(`
-      SELECT column_name, data_type, is_nullable
-      FROM information_schema.columns
-      WHERE table_name = 'users'
-      ORDER BY ordinal_position
-    `);
-    
-    console.log('[Check] users 表列:');
-    columnsResult.rows.forEach(col => {
-      console.log(`  ${col.column_name}: ${col.data_type} ${col.is_nullable === 'NO' ? '(NOT NULL)' : ''}`);
-    });
-    
-    // 检查 users 表的主键
-    const pkResult = await client.query(`
-      SELECT kcu.column_name
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu
-        ON tc.constraint_name = kcu.constraint_name
-      WHERE tc.table_name = 'users'
-      AND tc.constraint_type = 'PRIMARY KEY'
-    `);
-    
-    console.log('\n[Check] users 表主键:', pkResult.rows.map(r => r.column_name).join(', '));
-    
-    // 检查 users 表的数据量
-    const countResult = await client.query('SELECT COUNT(*) FROM users');
-    console.log('[Check] users 表记录数:', countResult.rows[0].count);
-    
-    // 检查 ip_assets 表是否存在
-    const ipAssetsResult = await client.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'ip_assets'
-      )
-    `);
-    console.log('\n[Check] ip_assets 表存在:', ipAssetsResult.rows[0].exists);
-    
-    if (ipAssetsResult.rows[0].exists) {
-      const ipAssetsColumns = await client.query(`
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'ip_assets'
-      `);
-      console.log('[Check] ip_assets 表列:', ipAssetsColumns.rows.map(r => r.column_name).join(', '));
-    }
-    
-  } catch (error) {
-    console.error('[Check] ❌ 检查失败:', error.message);
-  } finally {
-    client.release();
-    await pool.end();
+    const errors = execSync(
+      `psql "${targetConn}" -c "SELECT * FROM pg_stat_user_tables WHERE tablename = 'users';"`,
+      { env, encoding: 'utf-8' }
+    );
+    console.log(errors);
+  } catch (e) {
+    console.log('无法获取统计信息');
   }
-}
 
-checkUsersTable();
+} catch (error) {
+  console.error('❌ 查询失败:', error.message);
+}

@@ -553,8 +553,9 @@ export class AuthRbacIntegration {
   public destroy(): void {
     // 移除所有事件监听器
     for (const eventType in this.eventListeners) {
-      if (this.eventListeners[eventType]?.unsubscribe) {
-        this.eventListeners[eventType].unsubscribe();
+      const listener = this.eventListeners[eventType];
+      if (listener && typeof listener.unsubscribe === 'function') {
+        listener.unsubscribe();
       }
     }
 

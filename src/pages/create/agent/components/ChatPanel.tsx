@@ -1,13 +1,16 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useAgentStore } from '../hooks/useAgentStore';
-import { Send, Image as ImageIcon, Mic, Sparkles, Trash2, Bot } from 'lucide-react';
+import { useAgentStore, PRESET_STYLES } from '../hooks/useAgentStore';
+import { Send, Image as ImageIcon, Mic, Sparkles, Trash2, Bot, X, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import ChatMessage from './ChatMessage';
 import AgentAvatar from './AgentAvatar';
 import AgentSwitcher from './AgentSwitcher';
 import DelegationIndicator from './DelegationIndicator';
+import UploadDialog from './UploadDialog';
+import InspirationHints from './InspirationHints';
+import type { InspirationHint } from '../types/agent';
 import {
   agentOrchestrator,
   processWithOrchestrator,
@@ -54,15 +57,39 @@ export default function ChatPanel() {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // 自动滚动到底部
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      const container = messagesContainerRef.current;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior
+      });
     }
-  };
+  }, []);
 
+  // 页面加载时自动滚动到底部
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, streamingContent, isTyping]);
+    // 使用 setTimeout 确保 DOM 已完全渲染
+    const timer = setTimeout(() => {
+      scrollToBottom('auto');
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [scrollToBottom]);
+
+  // 消息变化时自动滚动到底部
+  useEffect(() => {
+    scrollToBottom('smooth');
+  }, [messages, streamingContent, isTyping, scrollToBottom]);
+
+  // 当消息从空数组变为有内容时（如从本地存储加载完成），滚动到底部
+  useEffect(() => {
+    if (messages.length > 0) {
+      const timer = setTimeout(() => {
+        scrollToBottom('auto');
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, scrollToBottom]);
 
   // 自动调整输入框高度
   useEffect(() => {
@@ -324,11 +351,17 @@ export default function ChatPanel() {
     }
   };
 
+  // 状态管理
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showInspirationPanel, setShowInspirationPanel] = useState(false);
+
+  const toggleInspirationPanel = () => setShowInspirationPanel(!showInspirationPanel);
+
   // 快速操作
   const quickActions = [
     { icon: Trash2, label: '清空对话', onClick: handleClear },
-    { icon: ImageIcon, label: '上传参考', onClick: () => toast.info('上传功能开发中') },
-    { icon: Sparkles, label: '灵感提示', onClick: () => toast.info('灵感提示功能开发中') }
+    { icon: ImageIcon, label: '上传参考', onClick: () => setShowUploadDialog(true) },
+    { icon: Sparkles, label: '灵感提示', onClick: toggleInspirationPanel }
   ];
 
   // 获取当前 Agent 的颜色
@@ -351,6 +384,19 @@ export default function ChatPanel() {
     }
   };
 
+  const addReferenceImage = (image: { id: string; url: string; name: string; size: number; type: string; uploadedAt: number }) => {
+    // 添加参考图片到消息
+    addMessage({
+      role: 'user',
+      content: '',
+      type: 'image',
+      metadata: {
+        imageUrl: image.url,
+        imageName: image.name
+      }
+    });
+  };
+
   return (
     <div className={`flex flex-col h-full ${isDark ? 'bg-gray-900/50' : 'bg-white/50'}`}>
       {/* Agent Switcher Modal */}
@@ -360,6 +406,49 @@ export default function ChatPanel() {
         isVisible={showAgentSwitcher}
         onComplete={() => setShowAgentSwitcher(false)}
       />
+
+      {/* 上传对话框 */}
+      <UploadDialog
+        isOpen={showUploadDialog}
+        onClose={() => setShowUploadDialog(false)}
+        onUploadComplete={(results) => {
+          results.forEach(result => {
+            addReferenceImage({
+              id: `upload_${Date.now()}_${Math.random()}`,
+              url: result.url,
+              name: result.name,
+              size: result.size,
+              type: result.type,
+              uploadedAt: Date.now()
+            });
+          });
+          toast.success(`已上传 ${results.length} 张图片`);
+        }}
+      />
+
+      {/* 灵感提示面板 */}
+      <AnimatePresence>
+        {showInspirationPanel && (
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`fixed right-0 top-0 h-full w-96 shadow-2xl z-40 ${
+              isDark ? 'bg-gray-800' : 'bg-white'
+            }`}
+          >
+            <InspirationHints
+              onHintSelect={(hint: InspirationHint) => {
+                setInputValue(hint.examplePrompt);
+                toggleInspirationPanel();
+                toast.success(`已应用灵感提示：${hint.title}`);
+              }}
+              onClose={toggleInspirationPanel}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages Area */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">

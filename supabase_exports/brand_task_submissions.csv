@@ -1,0 +1,35 @@
+id,task_id,participant_id,creator_id,work_id,work_title,work_url,work_thumbnail,content,tags,status,reviewed_by,reviewed_at,review_notes,rejection_reason,views_at_submit,likes_at_submit,favorites_at_submit,shares_at_submit,current_views,current_likes,current_favorites,current_shares,estimated_reward,final_reward,reward_calculated_at,submitted_at,approved_at,updated_at
+85bfae63-c8e4-487b-878d-0a4b9fecdb36,ca384ac6-223d-46a8-8198-b10aedf19b9f,21ace23a-1ce8-4d41-b466-3691e744fabf,f3dedf79-5c5e-40fd-9513-d0fb0995d429,91a03020-6700-4831-aa51-9300110b5c49,cs,,https://pptqdicaaewtnaiflfcs.supabase.co/storage/v1/object/public/works/f3dedf79-5c5e-40fd-9513-d0fb0995d429/1772095361925-o6bi5t09j5g.png,"【设计主题】
+面向年轻消费群体的国潮风格零食包装设计，以传统文化符号为内核，打造具有文化认同感的现代消费体验。
+
+【视觉风格】
+新国潮美学风格，将传统装饰元素进行扁平化、几何化处理，兼具文化深度与视觉冲击力，突出年轻化表达。
+
+【色彩体系】
+主色调：中国红（#C41E3A）与富贵金（#D4AF37）
+辅助色：墨黑（#1A1A1A）、象牙白（#FFFFF0）、朱砂橙（#E85D04）
+
+【核心元素】
+- 纹样：祥云纹（流动感）、回纹（秩序感）、如意纹（吉祥寓意）
+- 字体：现代黑体与传统书法笔意结合
+- 材质：仿宣纸纹理、烫金工艺、局部UV
+
+【应用场景】
+年货礼盒、节日限定包装、品牌联名款、伴手礼设计","[""111""]",approved,,"""2026-02-26T08:58:53.737Z""",,,0,0,0,0,0,0,0,0,,50.00,"""2026-02-26T09:00:59.509Z""","""2026-02-26T08:42:45.481Z""",,"""2026-02-26T09:01:00.380Z"""
+b2a98f67-e753-416c-ab16-cf85a4112e20,f526cc02-dfc2-49eb-9a76-acdc7917959c,b538ada5-4110-4e7b-99c9-8b1f603107e3,f3dedf79-5c5e-40fd-9513-d0fb0995d429,43f93f23-a79a-42e7-8ed3-e5053e70178b,新国潮零食包装设计,,https://pptqdicaaewtnaiflfcs.supabase.co/storage/v1/object/public/works/f3dedf79-5c5e-40fd-9513-d0fb0995d429/1772112020428-ijos1ntn5xm.png,"【设计主题】
+面向年轻消费群体的国潮风格零食包装设计，以传统文化符号为内核，打造具有文化认同感的现代消费体验。
+
+【视觉风格】
+新国潮美学风格，将传统装饰元素进行扁平化、几何化处理，兼具文化深度与视觉冲击力，突出年轻化表达。
+
+【色彩体系】
+主色调：中国红（#C41E3A）与富贵金（#D4AF37）
+辅助色：墨黑（#1A1A1A）、象牙白（#FFFFF0）、朱砂橙（#E85D04）
+
+【核心元素】
+- 纹样：祥云纹（流动感）、回纹（秩序感）、如意纹（吉祥寓意）
+- 字体：现代黑体与传统书法笔意结合
+- 材质：仿宣纸纹理、烫金工艺、局部UV
+
+【应用场景】
+年货礼盒、节日限定包装、品牌联名款、伴手礼设计","[""海河"",""国潮"",""纹样设计"",""书法"",""暖色调""]",approved,,"""2026-02-26T13:20:57.788Z""",,,0,0,0,0,0,0,0,0,,50.00,"""2026-02-26T13:20:58.781Z""","""2026-02-26T13:20:27.525Z""",,"""2026-02-26T13:20:59.800Z"""

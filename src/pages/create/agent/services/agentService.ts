@@ -3,6 +3,7 @@
 import { AgentMessage, DesignTask, GeneratedOutput, AgentType, PRESET_STYLES } from '../types/agent';
 import { llmService } from '@/services/llmService';
 import { callQwenChat } from '@/services/llm/chatProviders';
+import { aiGenerationService } from '@/services/aiGenerationService';
 import {
   DIRECTOR_SYSTEM_PROMPT,
   DESIGNER_SYSTEM_PROMPT,
@@ -11,6 +12,12 @@ import {
   STYLE_RECOMMENDATION_PROMPT,
   getAgentSystemPrompt
 } from './agentPrompts';
+import { getMemoryService } from './memoryService';
+import { errorHandler, ErrorHandleResult } from './errorHandler';
+import { AgentErrorType } from './errors';
+import { getRAGService } from './ragService';
+import { getPromptBuilder } from './promptBuilder';
+import { getIntentRecognitionService, IntentType } from './intentRecognition';
 
 // AI响应类型
 export interface AIResponse {
@@ -71,7 +78,7 @@ export async function* streamQwenResponse(
 }
 
 /**
- * 调用Agent获取完整响应
+ * 调用Agent获取完整响应 - 带增强错误处理
  */
 export async function callAgent(
   systemPrompt: string,
@@ -79,8 +86,12 @@ export async function callAgent(
   userMessage: string,
   agent: AgentType
 ): Promise<AIResponse> {
+  // 获取记忆服务并构建记忆增强的Prompt
+  const memoryService = getMemoryService();
+  const enhancedPrompt = memoryService.buildMemoryEnhancedPrompt(systemPrompt, agent);
+
   const messages = [
-    { role: 'system' as const, content: systemPrompt },
+    { role: 'system' as const, content: enhancedPrompt },
     ...history.map(m => ({
       role: m.role === 'user' ? 'user' as const : 'assistant' as const,
       content: m.content
@@ -88,25 +99,48 @@ export async function callAgent(
     { role: 'user' as const, content: userMessage }
   ];
 
-  try {
-    console.log(`[Agent] Calling ${agent} agent...`);
+  // 使用增强的错误处理
+  const result = await errorHandler.handleWithRetry(
+    async () => {
+      console.log(`[Agent] Calling ${agent} agent...`);
 
-    const response = await callQwenChat({
-      model: 'qwen-turbo',
-      messages,
-      temperature: 0.7,
-      max_tokens: 1500
-    });
+      const response = await callQwenChat({
+        model: 'qwen-turbo',
+        messages,
+        temperature: 0.7,
+        max_tokens: 1500
+      });
 
-    console.log('[Agent] Raw response:', response);
+      console.log('[Agent] Raw response:', response);
 
-    // 解析AI响应
-    return parseAIResponse(response, agent);
-  } catch (error) {
-    console.error('[Agent] API call failed:', error);
-    // 降级到本地回复
-    return generateFallbackResponse(userMessage, agent);
+      // 解析AI响应
+      return parseAIResponse(response, agent);
+    },
+    {
+      type: AgentErrorType.API_ERROR,
+      agentType: agent,
+      maxRetries: 2,
+      retryDelay: 1000,
+      onRetry: (attempt, error) => {
+        console.log(`[Agent] Retry attempt ${attempt} for ${agent}: ${error.message}`);
+      },
+      onSuccess: (attempts) => {
+        if (attempts > 0) {
+          console.log(`[Agent] Successfully recovered after ${attempts} retries`);
+        }
+      }
+    }
+  );
+
+  if (result.success && result.data) {
+    // 记录Agent交互
+    memoryService.recordAgentInteraction(agent, 5);
+    return result.data;
   }
+
+  // 如果重试都失败了，使用降级回复
+  console.error('[Agent] API call failed after retries:', result.error);
+  return generateFallbackResponse(userMessage, agent);
 }
 
 /**
@@ -346,6 +380,10 @@ export async function recommendStyles(
   requirements: string
 ): Promise<{ styles: string[]; reasoning: string }> {
   try {
+    // 首先获取用户的历史偏好
+    const memoryService = getMemoryService();
+    const preferredStyles = memoryService.getRecommendedStyles(3);
+
     const availableStyles = PRESET_STYLES.map(s =>
       `- ${s.id}: ${s.name} - ${s.description}`
     ).join('\n');
@@ -361,24 +399,32 @@ export async function recommendStyles(
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      const recommendedStyles = parsed.recommendedStyles || ['warm-color', 'color-pencil'];
+
+      // 合并用户偏好和AI推荐，优先用户偏好
+      const mergedStyles = [...new Set([...preferredStyles, ...recommendedStyles])].slice(0, 4);
+
       return {
-        styles: parsed.recommendedStyles || ['warm-color', 'color-pencil'],
-        reasoning: parsed.reasoning || '根据您的需求推荐这些风格'
+        styles: mergedStyles,
+        reasoning: parsed.reasoning || '根据您的需求和历史偏好推荐这些风格'
       };
     }
   } catch (error) {
     console.error('[Agent] Style recommendation failed:', error);
   }
 
-  // 默认推荐
+  // 使用记忆服务获取默认推荐
+  const memoryService = getMemoryService();
+  const defaultStyles = memoryService.getRecommendedStyles(3);
+
   return {
-    styles: ['warm-color', 'color-pencil', 'crayon-cute'],
-    reasoning: '这些风格适合大多数设计需求，温馨且富有创意'
+    styles: defaultStyles.length > 0 ? defaultStyles : ['warm-color', 'color-pencil', 'crayon-cute'],
+    reasoning: '根据您的历史偏好推荐这些风格'
   };
 }
 
 /**
- * 生成图像
+ * 生成图像 - 带增强错误处理
  */
 export async function generateImage(
   prompt: string,
@@ -389,41 +435,56 @@ export async function generateImage(
     numImages?: number;
   }
 ): Promise<GeneratedOutput[]> {
-  try {
-    // 获取风格prompt
-    const styleOption = PRESET_STYLES.find(s => s.id === style);
-    const fullPrompt = styleOption
-      ? `${prompt}, ${styleOption.prompt}`
-      : prompt;
+  // 获取风格prompt
+  const styleOption = PRESET_STYLES.find(s => s.id === style);
+  const fullPrompt = styleOption
+    ? `${prompt}, ${styleOption.prompt}`
+    : prompt;
 
-    console.log('[Agent] Generating image with prompt:', fullPrompt);
+  console.log('[Agent] Generating image with prompt:', fullPrompt);
 
-    // 调用llmService的图像生成
-    const result = await llmService.generateImage({
-      prompt: fullPrompt,
-      size: `${options?.width || 1024}x${options?.height || 1024}`,
-      n: options?.numImages || 1
-    });
-
-    if (result.ok && result.data?.data) {
-      const images = result.data.data;
-      return images.map((img: any, i: number) => ({
-        id: `generated-${Date.now()}-${i}`,
-        type: 'image' as const,
-        url: img.url,
-        thumbnail: img.url,
+  // 使用增强的错误处理
+  const result = await errorHandler.handleWithRetry(
+    async () => {
+      // 调用llmService的图像生成
+      const apiResult = await llmService.generateImage({
         prompt: fullPrompt,
-        style,
-        createdAt: Date.now()
-      }));
-    }
+        size: `${options?.width || 1024}x${options?.height || 1024}`,
+        n: options?.numImages || 1
+      });
 
-    throw new Error(result.error || 'Image generation failed');
-  } catch (error) {
-    console.error('[Agent] Image generation failed:', error);
-    // 返回模拟数据作为降级
-    return generateMockImages(prompt, style, options);
+      if (apiResult.ok && apiResult.data?.data) {
+        const images = apiResult.data.data;
+        return images.map((img: any, i: number) => ({
+          id: `generated-${Date.now()}-${i}`,
+          type: 'image' as const,
+          url: img.url,
+          thumbnail: img.url,
+          prompt: fullPrompt,
+          style,
+          createdAt: Date.now()
+        }));
+      }
+
+      throw new Error(apiResult.error || 'Image generation failed');
+    },
+    {
+      type: AgentErrorType.GENERATION_ERROR,
+      maxRetries: 2,
+      retryDelay: 2000,
+      onRetry: (attempt, error) => {
+        console.log(`[Agent] Image generation retry attempt ${attempt}: ${error.message}`);
+      }
+    }
+  );
+
+  if (result.success && result.data) {
+    return result.data;
   }
+
+  // 如果重试都失败了，返回模拟数据作为降级
+  console.error('[Agent] Image generation failed after retries:', result.error);
+  return generateMockImages(prompt, style, options);
 }
 
 /**
@@ -455,20 +516,59 @@ export async function generateVideo(
   options?: {
     duration?: number;
     resolution?: string;
+    imageUrl?: string;
+    aspectRatio?: '16:9' | '9:16' | '1:1' | '4:3';
   }
 ): Promise<GeneratedOutput> {
   try {
-    console.log('[Agent] Generating video...');
-    // 这里可以调用视频生成API
-    // 目前返回模拟数据
-    return {
-      id: `video-${Date.now()}`,
-      type: 'video',
-      url: 'https://example.com/video.mp4',
-      thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&h=800&fit=crop',
+    console.log('[Agent] Generating video with real API...');
+
+    // 调用真实的视频生成服务
+    const task = await aiGenerationService.generateVideo({
       prompt,
-      createdAt: Date.now()
-    };
+      imageUrl: options?.imageUrl,
+      duration: options?.duration || 5,
+      resolution: (options?.resolution as '720p' | '1080p' | '4k') || '720p',
+      aspectRatio: options?.aspectRatio || '16:9',
+      model: 'wan2.6-i2v-flash'
+    });
+
+    // 等待任务完成并获取结果
+    return new Promise((resolve, reject) => {
+      const checkTask = () => {
+        const updatedTask = aiGenerationService.getTask(task.id);
+
+        if (!updatedTask) {
+          reject(new Error('任务不存在'));
+          return;
+        }
+
+        if (updatedTask.status === 'completed' && updatedTask.result?.urls?.[0]) {
+          const videoUrl = updatedTask.result.urls[0];
+          resolve({
+            id: task.id,
+            type: 'video',
+            url: videoUrl,
+            thumbnail: videoUrl, // 视频URL也可以作为缩略图（第一帧）
+            prompt,
+            createdAt: task.createdAt
+          });
+        } else if (updatedTask.status === 'failed') {
+          reject(new Error(updatedTask.error || '视频生成失败'));
+        } else {
+          // 继续轮询
+          setTimeout(checkTask, 2000);
+        }
+      };
+
+      // 开始轮询
+      checkTask();
+
+      // 设置超时（5分钟）
+      setTimeout(() => {
+        reject(new Error('视频生成超时，请稍后重试'));
+      }, 300000);
+    });
   } catch (error) {
     console.error('[Agent] Video generation failed:', error);
     throw error;
@@ -537,4 +637,174 @@ export function exportTaskReport(task: DesignTask): string {
   };
 
   return JSON.stringify(report, null, 2);
+}
+
+// ==================== 智能化增强函数 ====================
+
+/**
+ * 智能Agent调用 - 集成RAG、意图识别、动态Prompt构建
+ */
+export async function callAgentIntelligent(
+  userMessage: string,
+  agent: AgentType,
+  options?: {
+    history?: AgentMessage[];
+    taskContext?: {
+      type?: string;
+      requirements?: Record<string, any>;
+      stage?: string;
+    };
+    enableRAG?: boolean;
+    enableMemory?: boolean;
+    enableIntent?: boolean;
+  }
+): Promise<AIResponse & { metadata: { ragUsed: boolean; intentRecognized: string | null } }> {
+  const promptBuilder = getPromptBuilder();
+  const ragService = getRAGService();
+  const intentService = getIntentRecognitionService();
+
+  // 初始化RAG案例库（如果尚未初始化）
+  await ragService.initializeCaseLibrary();
+
+  // 构建智能Prompt
+    const promptResult = await promptBuilder.buildPrompt({
+      agent,
+      userMessage,
+      conversationHistory: options?.history?.map(m => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content
+      })),
+      taskContext: options?.taskContext,
+      enableRAG: options?.enableRAG,
+      enableMemory: options?.enableMemory,
+      enableIntent: options?.enableIntent
+    });
+
+  console.log('[Agent] Intelligent prompt built:', {
+    ragUsed: promptResult.metadata.ragUsed,
+    memoryUsed: promptResult.metadata.memoryUsed,
+    intent: promptResult.metadata.intentRecognized,
+    estimatedTokens: promptResult.estimatedTokens
+  });
+
+  // 调用Agent
+  const response = await callAgent(
+    promptResult.systemPrompt,
+    options?.history || [],
+    userMessage,
+    agent
+  );
+
+  return {
+    ...response,
+    metadata: {
+      ...response.metadata,
+      ragUsed: promptResult.metadata.ragUsed,
+      intentRecognized: promptResult.metadata.intentRecognized
+    }
+  };
+}
+
+/**
+ * 智能需求分析 - 集成意图识别和RAG
+ */
+export async function analyzeRequirementsIntelligent(
+  userInput: string
+): Promise<{
+  intent: IntentType;
+  entities: Record<string, string>;
+  ragRecommendations: {
+    styles: string[];
+    cases: string[];
+    insights: string[];
+  };
+  missingInfo: string[];
+  confidence: number;
+}> {
+  const intentService = getIntentRecognitionService();
+  const ragService = getRAGService();
+
+  // 并行执行意图识别和RAG分析
+  const [intentResult, ragAnalysis] = await Promise.all([
+    intentService.recognizeIntent(userInput),
+    ragService.analyzeAndRecommend(userInput)
+  ]);
+
+  // 提取风格推荐
+  const styleRecommendations = ragAnalysis.styleRecommendations
+    .slice(0, 3)
+    .map(id => PRESET_STYLES.find(s => s.id === id)?.name || id);
+
+  // 提取案例标题
+  const caseTitles = ragAnalysis.cases.slice(0, 3).map(c => c.title);
+
+  return {
+    intent: intentResult.primaryIntent,
+    entities: intentResult.entities,
+    ragRecommendations: {
+      styles: styleRecommendations,
+      cases: caseTitles,
+      insights: ragAnalysis.insights
+    },
+    missingInfo: intentResult.clarificationNeeded
+      ? [intentResult.suggestedResponse || '需要更多信息']
+      : [],
+    confidence: intentResult.confidence
+  };
+}
+
+/**
+ * 生成智能设计建议 - 基于RAG
+ */
+export async function generateIntelligentDesignAdvice(
+  requirements: string
+): Promise<string> {
+  const ragService = getRAGService();
+  return await ragService.generateDesignAdvice(requirements, {
+    includeCases: true,
+    includeStyles: true
+  });
+}
+
+/**
+ * 初始化智能化服务
+ */
+export async function initializeIntelligentServices(): Promise<{
+  ragInitialized: boolean;
+  vectorStoreReady: boolean;
+  promptBuilderReady: boolean;
+}> {
+  try {
+    // 初始化RAG服务
+    const ragService = getRAGService();
+    await ragService.initializeCaseLibrary();
+
+    // 检查向量存储
+    const vectorStore = ragService['vectorStore'];
+    const stats = vectorStore.getStats();
+
+    // 检查Prompt构建器
+    const promptBuilder = getPromptBuilder();
+    const builderStats = promptBuilder.getStats();
+
+    console.log('[Agent] Intelligent services initialized:', {
+      ragCases: stats.total,
+      vectorTypes: stats.byType,
+      ragAvailable: builderStats.ragAvailable,
+      memoryAvailable: builderStats.memoryAvailable
+    });
+
+    return {
+      ragInitialized: stats.total > 0,
+      vectorStoreReady: stats.total > 0,
+      promptBuilderReady: builderStats.ragAvailable
+    };
+  } catch (error) {
+    console.error('[Agent] Failed to initialize intelligent services:', error);
+    return {
+      ragInitialized: false,
+      vectorStoreReady: false,
+      promptBuilderReady: false
+    };
+  }
 }

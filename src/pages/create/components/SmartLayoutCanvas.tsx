@@ -68,7 +68,7 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
       case 'light': return 'bg-gray-100 dark:bg-gray-200';
       case 'dark': return 'bg-gray-800 dark:bg-gray-900';
       case 'gradient': return 'bg-gradient-to-br from-blue-400 to-purple-400 dark:from-blue-600 dark:to-purple-800';
-      default: return 'bg-black';
+      default: return isDark ? 'bg-gray-950' : 'bg-gray-50';
     }
   };
   
@@ -160,17 +160,17 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
           controls
           autoPlay
           loop
-          className={selectedBackground === 'transparent' ? 'bg-black' : ''}
+          className={selectedBackground === 'transparent' ? (isDark ? 'bg-gray-950' : 'bg-gray-50') : ''}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
           style={imageStyle}
         />
       ) : (
-        <motion.img 
-          src={selectedItem?.thumbnail || 'https://via.placeholder.com/800x600?text=No+Image'} 
-          alt="选中的作品" 
-          className={selectedBackground === 'transparent' ? 'bg-black' : ''}
+        <motion.img
+          src={selectedItem?.thumbnail || 'https://via.placeholder.com/800x600?text=No+Image'}
+          alt="选中的作品"
+          className={selectedBackground === 'transparent' ? (isDark ? 'bg-gray-950' : 'bg-gray-50') : ''}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}

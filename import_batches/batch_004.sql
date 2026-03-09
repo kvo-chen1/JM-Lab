@@ -1,0 +1,85 @@
+COPY public.follows (id, follower_id, following_id, created_at) FROM stdin;
+10278a60-901e-4347-94e8-2b55a9f718f0	088cd61c-b4c2-4603-8c2b-3411fa66edf2	a6f38aa1-7281-49f2-b565-2aa93ee89905	2026-02-08 07:13:30.435+00
+b55f839c-29ce-4c71-be71-e58891698765	a6f38aa1-7281-49f2-b565-2aa93ee89905	088cd61c-b4c2-4603-8c2b-3411fa66edf2	2026-02-08 07:22:11.366+00
+3e68aa7b-f48f-48e8-bd10-d595ba327c6d	4591ad1d-ebd8-4be4-baac-9216738a90b1	a6f38aa1-7281-49f2-b565-2aa93ee89905	2026-02-08 07:35:23.936+00
+09a573b2-933c-456e-9fb1-710acb584322	a6f38aa1-7281-49f2-b565-2aa93ee89905	1318394f-c481-48a1-b4ef-95d6854b0d1c	2026-02-08 08:12:15.882+00
+f94a248a-25fa-4ca9-87f4-4083c414332f	1318394f-c481-48a1-b4ef-95d6854b0d1c	a6f38aa1-7281-49f2-b565-2aa93ee89905	2026-02-08 08:14:33.649+00
+50fce0f1-ccd4-4178-9c3c-bef688281a9a	a6f38aa1-7281-49f2-b565-2aa93ee89905	06dbee08-83b6-4d14-a5c1-d0794c8a168e	2026-02-09 13:38:57.968+00
+68c44433-9ddb-452a-a51c-cafd789a2e3b	06dbee08-83b6-4d14-a5c1-d0794c8a168e	a6f38aa1-7281-49f2-b565-2aa93ee89905	2026-02-09 13:42:31.039+00
+9fef9d7b-9ff7-4ea0-89b0-fffc9a673c39	a6f38aa1-7281-49f2-b565-2aa93ee89905	00e1a36a-a77b-4bcc-b604-c5655a4ce802	2026-02-09 13:42:42.273+00
+b2f3022b-2a24-4476-af9a-ba1b5959419b	f3dedf79-5c5e-40fd-9513-d0fb0995d429	06dbee08-83b6-4d14-a5c1-d0794c8a168e	2026-02-10 01:07:48.165+00
+8e7a8e16-1ef2-431b-9343-5eca7b30a6e9	f3dedf79-5c5e-40fd-9513-d0fb0995d429	00e1a36a-a77b-4bcc-b604-c5655a4ce802	2026-02-13 13:19:00.184+00
+8fcb328f-1c97-4dbf-a02a-6b1f2734d199	478c134c-c5c2-4c01-827b-d142352d4873	f3dedf79-5c5e-40fd-9513-d0fb0995d429	2026-02-16 06:09:04.155+00
+19522c66-142e-4345-8f0c-e9475ea29e26	f3dedf79-5c5e-40fd-9513-d0fb0995d429	478c134c-c5c2-4c01-827b-d142352d4873	2026-02-18 08:40:52.378+00
+c43e6daf-3a10-443e-b126-311f238536be	00e1a36a-a77b-4bcc-b604-c5655a4ce802	f3dedf79-5c5e-40fd-9513-d0fb0995d429	2026-02-20 06:26:03.095+00
+ba74c594-756c-4402-bf99-957d6d67f7d0	f3dedf79-5c5e-40fd-9513-d0fb0995d429	45713305-2bc4-48ad-8733-265a379be671	2026-02-20 13:30:49.779+00
+\.
+
+
+--
+-- Data for Name: forbidden_words; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+COPY public.friend_requests (id, sender_id, receiver_id, status, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: friends; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+COPY public.friends (id, user_id, friend_id, user_note, friend_note, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: generation_tasks; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+
+COPY public.messages (id, user_id, conversation_id, content, role, is_deleted, metadata, created_at, updated_at, channel_id, community_id, sender_id, receiver_id, status, type, retry_count, is_read, delivered_at, read_at) FROM stdin;
+bb3a5365-263d-48dd-9577-cb702077af76	\N	\N	hi	user	f	\N	2026-02-08 08:12:22.738+00	2026-02-08 08:12:21.686396+00	global	\N	a6f38aa1-7281-49f2-b565-2aa93ee89905	1318394f-c481-48a1-b4ef-95d6854b0d1c	sent	text	0	f	\N	\N
+b2977fa5-45bd-4382-9d44-13e2b762f323	\N	\N	666	user	f	\N	2026-02-08 08:15:21.073+00	2026-02-08 08:15:20.017517+00	global	\N	a6f38aa1-7281-49f2-b565-2aa93ee89905	1318394f-c481-48a1-b4ef-95d6854b0d1c	sent	text	0	f	\N	\N
+b1a7ed95-10d1-43ee-aad2-d40a79cc1fee	\N	\N	111	user	f	\N	2026-02-08 08:19:27.275+00	2026-02-08 08:19:26.225736+00	global	\N	a6f38aa1-7281-49f2-b565-2aa93ee89905	1318394f-c481-48a1-b4ef-95d6854b0d1c	sent	text	0	f	\N	\N
+f7bb2b10-da8b-4942-a551-6b512f48e733	\N	\N	11	user	f	\N	2026-02-08 13:14:04.047+00	2026-02-08 13:14:02.67018+00	global	\N	a6f38aa1-7281-49f2-b565-2aa93ee89905	1318394f-c481-48a1-b4ef-95d6854b0d1c	sent	text	0	f	\N	\N
+fff0e96b-cd51-433e-b78d-32628b3bfa93	\N	\N	1	user	f	{}	2026-02-08 13:21:42.106054+00	2026-02-08 13:21:42.106054+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	sent	text	0	f	\N	\N
+ac96fb58-fee6-4bde-95b8-0e7740497a47	\N	\N	1	user	f	{}	2026-02-08 13:22:12.536346+00	2026-02-08 13:22:12.536346+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	sent	text	0	f	\N	\N
+4cdcc329-ad19-40ba-bef3-d6e9e0553a3c	\N	\N	。	user	f	\N	2026-02-08 08:13:50.491+00	2026-02-09 00:44:36.758668+00	global	\N	1318394f-c481-48a1-b4ef-95d6854b0d1c	a6f38aa1-7281-49f2-b565-2aa93ee89905	sent	text	0	t	\N	\N
+d488aa97-e8d4-4b32-8698-ba78f2043f33	\N	\N	你好啊	user	f	\N	2026-02-08 07:22:21.605+00	2026-02-09 00:45:01.791327+00	global	\N	a6f38aa1-7281-49f2-b565-2aa93ee89905	088cd61c-b4c2-4603-8c2b-3411fa66edf2	sent	text	0	t	\N	\N
+c7c6c1e6-bfb4-4968-8057-e548a61fb3f9	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	1	user	f	{}	2026-02-10 03:34:09.748509+00	2026-02-10 03:34:09.748509+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:chat	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	text	0	f	\N	\N
+e3d9097a-25b9-4a3d-a821-1a2b6c0f4a50	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	kvo1 分享了一个作品	user	f	{"shareCard": {"id": "4d025f42-dedc-4145-9299-7fdf9002b82b", "url": "http://localhost:3005/square/4d025f42-dedc-4145-9299-7fdf9002b82b", "type": "work", "title": "来尝尝天津伯伯亲手做的煎饼", "author": {"name": "3114995730", "avatar": ""}, "thumbnail": "https://dashscope-result-wlcb-acdr-1.oss-cn-wulanchabu-acdr-1.aliyuncs.com/1d/ee/20260209/77c9ad12/777e3c82-f9e2-4d58-9a31-e82be9dadf661597158595.png?Expires=1770730360&OSSAccessKeyId=LTAI5tKPD3TMqf2Lna1fASuh&Signature=qM9N0PJDUi4LGvib74%2FCU3XS61E%3D", "description": "可爱的煎饼"}}	2026-02-10 11:53:40.331357+00	2026-02-10 11:53:40.331357+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:feed	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	share_card	0	f	\N	\N
+19061d75-0bf1-4d3a-9f0a-27ba0bcb68be	\N	\N	951	user	f	{}	2026-02-09 12:32:33.646787+00	2026-02-09 12:32:33.646787+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	sent	text	0	f	\N	\N
+fbffdea4-95c4-4095-8186-7a58b3d0835a	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	1	user	f	{}	2026-02-09 12:38:23.490406+00	2026-02-09 12:38:23.490406+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	\N	\N	sent	text	0	f	\N	\N
+935d2880-0752-4ebe-afc1-950858666a43	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	1	user	f	{}	2026-02-09 12:43:23.57168+00	2026-02-09 12:43:23.57168+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	\N	\N	sent	text	0	f	\N	\N
+e2308a97-6686-47a4-b39f-8e20694894c1	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	测试	user	f	{}	2026-02-09 12:44:07.540844+00	2026-02-09 12:44:07.540844+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	\N	\N	sent	text	0	f	\N	\N
+80f6226c-15ec-4c43-a5ec-0cac3e94bf51	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	789	user	f	{}	2026-02-09 12:46:35.010269+00	2026-02-09 12:46:35.010269+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	\N	\N	sent	text	0	f	\N	\N
+6749eb1e-5469-4fd3-b9da-04c7188c977e	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	1	user	f	{}	2026-02-09 12:50:53.474143+00	2026-02-09 12:50:53.474143+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	\N	\N	sent	text	0	f	\N	\N
+c0e2e523-9c47-4adb-9e81-11749fa7d79d	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	1	user	f	{}	2026-02-09 12:53:45.599521+00	2026-02-09 12:53:45.599521+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	\N	\N	sent	text	0	f	\N	\N
+447b3141-32de-4ba4-b5b6-e7c8ac5dbcca	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	2	user	f	{}	2026-02-09 12:56:03.940973+00	2026-02-09 12:56:03.940973+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	\N	\N	sent	text	0	f	\N	\N
+6ef1f354-aadb-4684-9c38-23835578c83b	a6f38aa1-7281-49f2-b565-2aa93ee89905	\N	1	user	f	{}	2026-02-09 13:20:17.319899+00	2026-02-09 13:20:17.319899+00	community:8532ee0b-69a5-44b1-a41f-622ea75cb525:chat	8532ee0b-69a5-44b1-a41f-622ea75cb525	\N	\N	sent	text	0	f	\N	\N
+ddf46416-4b03-4efd-8703-13577d60befd	\N	\N	2	user	f	\N	2026-02-09 00:45:32.492+00	2026-02-09 13:40:53.549488+00	global	\N	088cd61c-b4c2-4603-8c2b-3411fa66edf2	a6f38aa1-7281-49f2-b565-2aa93ee89905	sent	text	0	t	\N	\N
+85afd172-8f48-4ee1-891d-56f224a27eb3	\N	\N	1	user	f	\N	2026-02-09 00:59:42.265+00	2026-02-09 13:40:53.549488+00	global	\N	088cd61c-b4c2-4603-8c2b-3411fa66edf2	a6f38aa1-7281-49f2-b565-2aa93ee89905	sent	text	0	t	\N	\N
+01eb001e-6290-4717-989f-250fa708c6ea	\N	\N	1	user	f	\N	2026-02-09 13:39:09.367+00	2026-02-09 13:41:00.898868+00	global	\N	a6f38aa1-7281-49f2-b565-2aa93ee89905	06dbee08-83b6-4d14-a5c1-d0794c8a168e	sent	text	0	t	\N	\N
+7d9e1889-ec5e-4f0d-81c9-1ac61b2eb30c	\N	\N	。-  。	user	f	\N	2026-02-09 13:42:45.702+00	2026-02-09 13:42:47.495101+00	global	\N	06dbee08-83b6-4d14-a5c1-d0794c8a168e	a6f38aa1-7281-49f2-b565-2aa93ee89905	sent	text	0	f	\N	\N
+c878d022-20a9-41b9-ba67-2b24fcf0849b	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	kvo1 分享了一个作品	user	f	{"shareCard": {"id": "4d025f42-dedc-4145-9299-7fdf9002b82b", "url": "http://localhost:3005/square/4d025f42-dedc-4145-9299-7fdf9002b82b", "type": "work", "title": "来尝尝天津伯伯亲手做的煎饼", "author": {"name": "3114995730", "avatar": ""}, "thumbnail": "https://dashscope-result-wlcb-acdr-1.oss-cn-wulanchabu-acdr-1.aliyuncs.com/1d/ee/20260209/77c9ad12/777e3c82-f9e2-4d58-9a31-e82be9dadf661597158595.png?Expires=1770730360&OSSAccessKeyId=LTAI5tKPD3TMqf2Lna1fASuh&Signature=qM9N0PJDUi4LGvib74%2FCU3XS61E%3D", "description": "可爱的煎饼"}}	2026-02-10 11:56:05.190715+00	2026-02-10 11:56:05.190715+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:chat	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	share_card	0	f	\N	\N
+8c0dbcb8-bf8a-470f-ba1c-4ade843f8c12	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	kvo1 分享了一个作品	user	f	{"shareCard": {"id": "16efdbc8-1452-4c2b-9768-d3ff8a1ef04b", "url": "http://localhost:3005/square/16efdbc8-1452-4c2b-9768-d3ff8a1ef04b", "type": "work", "title": "果然这样天津就会变得很可爱", "author": {"name": "3114995730", "avatar": ""}, "thumbnail": "https://picsum.photos/seed/video-1770644989341/800/600", "description": ""}}	2026-02-10 12:05:18.910466+00	2026-02-10 12:05:18.910466+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:chat	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	share_card	0	f	\N	\N
+dab0e8dc-1155-45c9-a4af-8e13c7ef4927	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	kvo1 分享了一个作品	user	f	{"shareCard": {"id": "16efdbc8-1452-4c2b-9768-d3ff8a1ef04b", "url": "http://localhost:3005/square/16efdbc8-1452-4c2b-9768-d3ff8a1ef04b", "type": "work", "title": "果然这样天津就会变得很可爱", "author": {"name": "3114995730", "avatar": ""}, "thumbnail": "https://picsum.photos/seed/video-1770644989341/800/600", "description": ""}}	2026-02-10 12:05:45.065529+00	2026-02-10 12:05:45.065529+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:feed	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	share_card	0	f	\N	\N
+c4edae6c-6e7c-4eb4-8abb-8e76247ed9a9	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N		user	f	{"images": [{"url": "http://localhost:3005/uploads/1770725479810-63645770-681e-45f2-b28a-b4bee7880f79.png", "name": "555.png", "size": 49029}]}	2026-02-10 12:11:19.712817+00	2026-02-10 12:11:19.712817+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:chat	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	image	0	f	\N	\N
+535ba9b3-f18b-4c50-9b47-ee49c467cfff	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	kvo1 分享了一个作品	user	f	{"shareCard": {"id": "16efdbc8-1452-4c2b-9768-d3ff8a1ef04b", "url": "http://localhost:3005/square/16efdbc8-1452-4c2b-9768-d3ff8a1ef04b", "type": "work", "title": "果然这样天津就会变得很可爱", "author": {"name": "我是猫", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=我是猫"}, "videoUrl": "https://pptqdicaaewtnaiflfcs.supabase.co/storage/v1/object/public/community-images/videos/1770644988360-p7bfx2hnje.mp4", "thumbnail": "https://picsum.photos/seed/video-1770644989341/800/600", "description": ""}}	2026-02-12 06:47:11.627694+00	2026-02-12 06:47:11.627694+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:chat	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	share_card	0	f	\N	\N
+14e995ca-1cd9-4620-9446-6bde1b4a1dcb	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	1	user	f	{}	2026-02-13 13:12:24.863638+00	2026-02-13 13:12:24.863638+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:chat	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	text	0	f	\N	\N
+628485c4-907c-4d5c-9b75-80108d5dcea6	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N		user	f	{"images": [{"url": "https://pptqdicaaewtnaiflfcs.supabase.co/storage/v1/object/public/works/works/1770988357157-qewpn0zkjy.jpg", "name": "778.jpg", "size": 90160}]}	2026-02-13 13:12:37.823381+00	2026-02-13 13:12:37.823381+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:chat	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	image	0	f	\N	\N
+548f5697-e58a-49ad-a338-2363187ded58	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	1	user	f	{}	2026-02-13 13:13:01.76649+00	2026-02-13 13:13:01.76649+00	community:042276db-d25a-4b95-b245-4d5e8a028889:chat	042276db-d25a-4b95-b245-4d5e8a028889	\N	\N	sent	text	0	f	\N	\N
+eb99010a-da4b-4d0e-bb1d-a610bf8160c3	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N		user	f	{"images": [{"url": "https://pptqdicaaewtnaiflfcs.supabase.co/storage/v1/object/public/works/works/1770988394905-i8a1om6ipap.jpg", "name": "778.jpg", "size": 90160}]}	2026-02-13 13:13:15.702332+00	2026-02-13 13:13:15.702332+00	community:042276db-d25a-4b95-b245-4d5e8a028889:chat	042276db-d25a-4b95-b245-4d5e8a028889	\N	\N	sent	image	0	f	\N	\N
+ef881c27-0544-404f-a4dc-0311596e0d67	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	1	user	f	{"images": [{"url": "https://pptqdicaaewtnaiflfcs.supabase.co/storage/v1/object/public/works/works/1771574476807-lzu46j3y0f.jpg", "name": "22.jpg", "size": 8036}]}	2026-02-20 08:01:19.771343+00	2026-02-20 08:01:19.771343+00	community:4000e812-564d-4e7e-8247-dab93b75fac4:chat	4000e812-564d-4e7e-8247-dab93b75fac4	\N	\N	sent	image	0	f	\N	\N
+2a0d64b4-aef7-4775-9a81-1d45728cdc6b	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	kvo1 分享了一个作品	user	f	{"shareCard": {"id": "3eb5baba-2dcb-44e6-b342-6957dcb83c26", "url": "http://localhost:3005/square/3eb5baba-2dcb-44e6-b342-6957dcb83c26", "type": "work", "title": "赛博霓虹·智能交互视界", "author": {"name": "kvo1", "avatar": "https://pptqdicaaewtnaiflfcs.supabase.co/storage/v1/object/public/avatars/1770989704242-ekg3fmbcy1c.jpg"}, "thumbnail": "https://pptqdicaaewtnaiflfcs.supabase.co/storage/v1/object/public/works/works/1771164886563-gbjeubdyksw.png", "description": "科技未来感设计，赛博朋克美学，霓虹光效，数字艺术，冷色调蓝紫渐变，智能交互视觉"}}	2026-02-22 13:13:46.120541+00	2026-02-22 13:13:46.120541+00	community:01108040-8d7a-4f1e-910a-40acc85fda0f:chat	01108040-8d7a-4f1e-910a-40acc85fda0f	\N	\N	sent	share_card	0	f	\N	\N
+be5c356d-85d6-47fd-a9a1-a5be33b07d13	f3dedf79-5c5e-40fd-9513-d0fb0995d429	\N	创作者 分享了一个作品	user	f	{"shareCard": {"id": "brand-check-1772161758937", "url": "http://localhost:3005/wizard", "type": "work", "title": "【品牌设计评估】我的设计获得了54分！", "author": {"name": "创作者"}, "thumbnail": "https://dashscope-result-bj.oss-cn-beijing.aliyuncs.com/1d/f5/20260227/c70535fc/6a89a76f-1d03-4bc6-8def-7ce35cfd129d-1.png?Expires=1772240251&OSSAccessKeyId=LTAI5tQZd8AEcZX6KZV4G8qL&Signature=GHS%2BjneHQapMJDGBvvhqilbUiBY%3D", "description": "文化纯正度: 45分 · 品牌一致性: 63分"}}	2026-02-27 03:09:27.116917+00	2026-02-27 03:09:27.116917+00	community:1c8d3b4e-aff0-4fc1-8d11-1c1588d42505:chat	1c8d3b4e-aff0-4fc1-8d11-1c1588d42505	\N	\N	sent	share_card	0	f	\N	\N
+8c9a5a07-6aa6-4d1b-b00f-b0d38e629111	00e1a36a-a77b-4bcc-b604-c5655a4ce802	\N	191469605 分享了一个作品	user	f	{"shareCard": {"id": "brand-check-1772610096953", "url": "https://www.jinmai-lab.tech/wizard", "type": "work", "title": "【品牌设计评估】桂发祥十八街麻花获得了55分！", "author": {"name": "191469605"}, "thumbnail": "https://dashscope-result-wlcb-acdr-1.oss-cn-wulanchabu-acdr-1.aliyuncs.com/7d/fc/20260304/a7d7dcad/865844cb-031a-452f-8d79-12ce05efc49c1393190417.png?Expires=1773215675&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=IDrgGSBlH7KVDqBYOjDchidU%2FcU%3D", "description": "文化纯正度: 60分 · 品牌一致性: 49分"}}	2026-03-04 07:41:52.814844+00	2026-03-04 07:41:52.814844+00	community:1c8d3b4e-aff0-4fc1-8d11-1c1588d42505:chat	1c8d3b4e-aff0-4fc1-8d11-1c1588d42505	\N	\N	sent	share_card	0	f	\N	\N
+\.
+
+
+--
+-- Data for Name: moderation_logs; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+

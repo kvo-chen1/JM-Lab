@@ -8,7 +8,7 @@ import viteCompression from 'vite-plugin-compression'
 import path from 'path'
 // import { createRequire } from 'node:module'
 // const require = createRequire(import.meta.url)
-const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3023'
+const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3030'
 // 使用127.0.0.1而不是localhost，避免IPv6连接问题
 const LOCAL_API_TARGET = `http://127.0.0.1:${LOCAL_API_PORT}`
 
@@ -123,7 +123,6 @@ export default defineConfig({
       'better-sqlite3': '@/utils/databaseStub',
       'mongodb': '@/utils/databaseStub',
       'pg': '@/utils/databaseStub',
-      '@neondatabase/serverless': '@/utils/databaseStub',
       'ws': '@/utils/databaseStub',
     }
   },
@@ -183,7 +182,7 @@ export default defineConfig({
         correctVarValueBeforeDeclaration: true
       },
       // 外部化 Node.js 原生模块和不兼容的依赖，避免打包到浏览器代码中
-      external: ['better-sqlite3', 'mongodb', 'pg', '@neondatabase/serverless', 'ws'],
+      external: ['better-sqlite3', 'mongodb', 'pg', 'ws'],
       // 优化输入选项
       input: {
         main: path.resolve(__dirname, 'index.html'),
@@ -259,7 +258,7 @@ export default defineConfig({
     ],
     // 禁用预构建的依赖，包括数据库依赖和服务器端依赖
     exclude: [
-      'better-sqlite3', 'mongodb', 'pg', '@neondatabase/serverless',
+      'better-sqlite3', 'mongodb', 'pg',
       '@alicloud/dysmsapi20170525', '@alicloud/tea-typescript', '@alicloud/tea-util',
       'tencentcloud-sdk-nodejs-sms', 'twilio',
       'node-fetch', 'nodemailer', 'jsonwebtoken', 'bcryptjs', 'ws'
@@ -508,7 +507,6 @@ export default defineConfig({
         'better-sqlite3': '@/utils/databaseStub',
         'mongodb': '@/utils/databaseStub',
         'pg': '@/utils/databaseStub',
-        '@neondatabase/serverless': '@/utils/databaseStub',
         'ws': '@/utils/databaseStub',
       }
     }

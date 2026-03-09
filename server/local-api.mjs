@@ -3,6 +3,10 @@ import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+// 强制设置端口（优先使用环境变量，否则默认3030）
+// 注意：这必须在 dotenv 加载之前设置，以确保优先级
+const FORCED_LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3030'
+
 // 获取当前文件所在目录
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -368,7 +372,7 @@ const supabaseServer = {
       },
       getPublicUrl: (filePath) => {
         // 返回本地访问 URL
-        const port = process.env.LOCAL_API_PORT || 3023
+        const port = FORCED_LOCAL_API_PORT || '3030'
         return {
           data: {
             publicUrl: `http://localhost:${port}/uploads/${bucketName}/${filePath}`
@@ -404,8 +408,8 @@ const verificationCodes = new Map();
 
 // 注意：缓存函数已在文件顶部定义
 
-// 端口配置 - 默认3023与Vite代理配置保持一致
-const PORT = Number(process.env.LOCAL_API_PORT || process.env.PORT) || 3023
+// 端口配置 - 使用强制设置的端口
+const PORT = Number(FORCED_LOCAL_API_PORT || process.env.PORT || '3030')
 const ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*'
 
 // 豆包模型基础配置
@@ -667,7 +671,7 @@ async function uploadLocalImageToSupabase(localUrl) {
     fs.writeFileSync(fullPath, fileBuffer);
     
     // 返回本地访问 URL
-    const publicUrl = `http://localhost:${process.env.LOCAL_API_PORT || 3023}/uploads/${storagePath}`;
+    const publicUrl = `http://localhost:${FORCED_LOCAL_API_PORT || '3030'}/uploads/${storagePath}`;
     
     console.log('[uploadLocalImageToSupabase] Public URL:', publicUrl);
     return publicUrl;
@@ -7426,7 +7430,7 @@ async function route(req, res, u, path) {
       console.log('[API] Avatar upload: File saved to:', filePath)
       
       // 返回本地访问 URL
-      const port = process.env.LOCAL_API_PORT || 3023
+      const port = FORCED_LOCAL_API_PORT || '3030'
       const fileUrl = `http://localhost:${port}/uploads/avatars/${uniqueName}`
       
       console.log('[API] Avatar uploaded to local storage:', fileUrl)
@@ -9827,38 +9831,16 @@ if (!isVercel) {
   ;(async () => {
     try {
       const { WebSocketServer } = await import('ws');
+      const { handleWebSocketConnection } = await import('./websocket-chat.mjs');
+      
       const wss = new WebSocketServer({ server, path: '/ws' });
 
-      wss.on('connection', (ws) => {
-        console.log('[WebSocket] 客户端已连接');
-        
-        // 发送欢迎消息
-        ws.send(JSON.stringify({ type: 'welcome', payload: { message: '已连接到本地 WebSocket 服务' } }));
-
-        ws.on('message', (message) => {
-          try {
-            const data = JSON.parse(message);
-            console.log('[WebSocket] 收到消息:', data);
-            
-            // 处理心跳检测
-            if (data.type === 'ping') {
-              ws.send(JSON.stringify({ type: 'pong', payload: { timestamp: Date.now() } }));
-            }
-          } catch (e) {
-            console.error('[WebSocket] 消息错误:', e);
-          }
-        });
-
-        ws.on('close', () => {
-          console.log('[WebSocket] 客户端断开连接');
-        });
-        
-        ws.on('error', (error) => {
-          console.error('[WebSocket] 错误:', error);
-        });
+      wss.on('connection', (ws, req) => {
+        // 使用新的聊天模块处理连接
+        handleWebSocketConnection(ws, req);
       });
       
-      console.log('[WebSocket] WebSocket 服务器已启动');
+      console.log('[WebSocket] WebSocket 聊天服务器已启动');
     } catch (e) {
       console.log('[WebSocket] 加载 ws 模块失败，跳过 WebSocket 服务:', e.message);
     }

@@ -6,9 +6,56 @@ import { Shuffle, ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { llmService } from '@/services/llmService';
 
+// 生成标题和描述的辅助函数
+async function generateTitleAndDescription(
+  taskDescription: string,
+  styleName: string
+): Promise<{ title: string; description: string }> {
+  const prompt = `作为一位专业的创意设计师，请为以下设计作品生成一个吸引人的标题和详细的描述。
+
+设计任务：${taskDescription}
+设计风格：${styleName}
+
+要求：
+1. 标题（≤15字）：简洁有力，富有创意，能体现作品特色
+2. 描述（50-100字）：详细描述作品的视觉特点、设计理念、适用场景等
+
+请直接返回JSON格式：
+{
+  "title": "作品标题",
+  "description": "作品描述..."
+}`;
+
+  try {
+    // 使用llmService的chat方法
+    const response = await llmService.generateResponse(prompt, {
+      model: 'qwen-turbo',
+      temperature: 0.8
+    });
+
+    // 尝试解析JSON
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      return {
+        title: result.title?.slice(0, 15) || '未命名作品',
+        description: result.description || '暂无描述'
+      };
+    }
+  } catch (error) {
+    console.error('生成标题描述失败:', error);
+  }
+
+  // 返回默认值
+  return {
+    title: `${styleName}作品`,
+    description: taskDescription
+  };
+}
+
 export default function StyleSelector() {
   const { isDark } = useTheme();
-  const { selectedStyle, selectStyle, addMessage, addOutput, currentTask } = useAgentStore();
+  const { selectedStyle, selectStyle, addMessage, addOutput, updateOutput, currentTask } = useAgentStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleStyleSelect = (styleId: string) => {
@@ -64,7 +111,7 @@ export default function StyleSelector() {
 
         console.log('[StyleSelector] 准备添加到画布，imageUrl:', imageUrl);
 
-        // 添加到画布（这样右边才能显示）
+        // 先添加到画布（这样右边才能显示）
         const outputId = addOutput({
           type: 'image',
           url: imageUrl,
@@ -75,6 +122,25 @@ export default function StyleSelector() {
         });
 
         console.log('[StyleSelector] 已添加到画布，outputId:', outputId);
+
+        // 调用AI生成标题和描述
+        try {
+          const { title, description } = await generateTitleAndDescription(
+            taskDescription,
+            style?.name || '默认风格'
+          );
+          
+          // 更新作品信息
+          updateOutput(outputId, { title, description });
+          console.log('[StyleSelector] 已生成标题和描述:', { title, description });
+        } catch (error) {
+          console.error('[StyleSelector] 生成标题描述失败:', error);
+          // 使用默认标题和描述
+          updateOutput(outputId, {
+            title: `${style?.name || '设计'}作品`,
+            description: taskDescription
+          });
+        }
 
         // 添加生成结果消息（只显示1张）
         addMessage({

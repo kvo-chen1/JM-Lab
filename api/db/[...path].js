@@ -4,14 +4,13 @@
 import { Pool } from 'pg'
 
 // 创建连接池
+// 优先使用 POSTGRES_URL_NON_POOLING，因为它使用直连方式，更可靠
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 
-                    process.env.POSTGRES_URL || 
-                    process.env.POSTGRES_URL_NON_POOLING,
+  connectionString: process.env.POSTGRES_URL_NON_POOLING || 
+                    process.env.DATABASE_URL || 
+                    process.env.POSTGRES_URL,
   ssl: { 
-    rejectUnauthorized: false,
-    requestCert: true,
-    agent: false
+    rejectUnauthorized: false
   },
   max: 10,
   min: 2,

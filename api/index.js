@@ -13,9 +13,10 @@ async function getDbClient() {
   if (pgClient) return pgClient;
 
   // 尝试 Supabase PostgreSQL 环境变量
-  let databaseUrl = process.env.DATABASE_URL ||
-                    process.env.POSTGRES_URL ||
-                    process.env.POSTGRES_URL_NON_POOLING;
+  // 优先使用 POSTGRES_URL_NON_POOLING，因为它使用直连方式，更可靠
+  let databaseUrl = process.env.POSTGRES_URL_NON_POOLING ||
+                    process.env.DATABASE_URL ||
+                    process.env.POSTGRES_URL;
 
   console.log('[DB] Environment check:', {
     hasDatabaseUrl: !!process.env.DATABASE_URL,

@@ -92,3 +92,14 @@ test-*.mjs
 .github/
 .gitlab-ci.yml
 .travis.yml
+
+# 大文件 - 不部署到 Vercel
+*.exe
+*.zip
+*.sql
+backup.sql
+all_public_data.sql
+database-schema.sql
+supabase.exe
+postgresql-installer.exe
+postgresql.zip

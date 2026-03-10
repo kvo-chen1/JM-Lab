@@ -11,6 +11,8 @@ async function generateTitleAndDescription(
   taskDescription: string,
   styleName: string
 ): Promise<{ title: string; description: string }> {
+  console.log('[generateTitleAndDescription] 开始生成标题和描述:', { taskDescription, styleName });
+  
   const prompt = `作为一位专业的创意设计师，请为以下设计作品生成一个吸引人的标题和详细的描述。
 
 设计任务：${taskDescription}
@@ -27,26 +29,31 @@ async function generateTitleAndDescription(
 }`;
 
   try {
-    // 使用llmService的chat方法
+    console.log('[generateTitleAndDescription] 调用 llmService.generateResponse...');
+    // 使用llmService的generateResponse方法
     const response = await llmService.generateResponse(prompt, {
-      model: 'qwen-turbo',
-      temperature: 0.8
+      priority: 'normal'
     });
+    console.log('[generateTitleAndDescription] 收到响应:', response);
 
     // 尝试解析JSON
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0]);
+      console.log('[generateTitleAndDescription] 解析成功:', result);
       return {
         title: result.title?.slice(0, 15) || '未命名作品',
         description: result.description || '暂无描述'
       };
+    } else {
+      console.warn('[generateTitleAndDescription] 未找到JSON格式响应');
     }
   } catch (error) {
-    console.error('生成标题描述失败:', error);
+    console.error('[generateTitleAndDescription] 生成标题描述失败:', error);
   }
 
   // 返回默认值
+  console.log('[generateTitleAndDescription] 返回默认值');
   return {
     title: `${styleName}作品`,
     description: taskDescription
@@ -142,12 +149,16 @@ export default function StyleSelector() {
       const taskDescription = currentTask?.requirements?.description || 'IP形象设计';
       const stylePrompt = style?.prompt || '';
       const requirements = currentTask?.requirements;
-      
+
+      console.log('[StyleSelector] === 开始生成图像 ===');
+      console.log('[StyleSelector] currentTask:', currentTask);
+      console.log('[StyleSelector] taskDescription:', taskDescription);
+      console.log('[StyleSelector] stylePrompt:', stylePrompt);
+      console.log('[StyleSelector] requirements:', requirements);
+
       const prompt = buildOptimizedPrompt(taskDescription, stylePrompt, requirements);
 
-      console.log('[StyleSelector] 开始生成图像，prompt:', prompt);
-      console.log('[StyleSelector] currentTask:', currentTask);
-      console.log('[StyleSelector] requirements:', requirements);
+      console.log('[StyleSelector] 最终生成的prompt:', prompt);
 
       // 调用真实图像生成API
       console.log('[StyleSelector] 调用 llmService.generateImage...');
@@ -343,14 +354,10 @@ export default function StyleSelector() {
       <div className={`flex items-center justify-between text-xs ${
         isDark ? 'text-gray-400' : 'text-gray-500'
       }`}>
-        <button className="flex items-center gap-1 hover:text-[#C02C38] transition-colors">
+        <span className="flex items-center gap-1 text-gray-400">
           <Sparkles className="w-3 h-3" />
-          风格库
-        </button>
-        <button className="flex items-center gap-1 hover:text-[#C02C38] transition-colors">
-          143 Style
-          <ChevronRight className="w-3 h-3" />
-        </button>
+          更多风格请在对话区点击"风格库"
+        </span>
       </div>
 
       {/* Start Design Button */}

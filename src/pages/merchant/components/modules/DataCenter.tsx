@@ -66,21 +66,21 @@ const DataCenter: React.FC = () => {
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-white">数据中心</h2>
-          <p className="text-sm text-gray-500 mt-0.5">查看店铺运营数据和分析报表</p>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">数据中心</h2>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">查看店铺运营数据和分析报表</p>
         </div>
         <div className="flex items-center gap-3">
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value)}
-            className="border border-[#2a2a2a] rounded-lg px-3 py-2 bg-[#1a1a1a] text-white text-sm"
+            className="border border-[var(--border-primary)] rounded-lg px-3 py-2 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm"
           >
             <option value="today">今日</option>
             <option value="7days">近7天</option>
             <option value="30days">近30天</option>
             <option value="90days">近90天</option>
           </select>
-          <Button variant="outline" className="border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#2a2a2a]">
+          <Button variant="outline" className="border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]">
             <Download className="w-4 h-4 mr-2" />
             导出报表
           </Button>
@@ -89,7 +89,7 @@ const DataCenter: React.FC = () => {
 
       {/* 核心数据卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-[#141414] rounded-xl p-5 border border-[#2a2a2a]">
+        <div className="bg-[var(--bg-secondary)] rounded-xl p-5 border border-[var(--border-primary)]">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
               <DollarSign className="w-5 h-5 text-emerald-400" />
@@ -99,11 +99,11 @@ const DataCenter: React.FC = () => {
               <span>{Math.abs(stats.salesChange)}%</span>
             </div>
           </div>
-          <p className="text-sm text-gray-500 mb-1">总销售额</p>
-          <p className="text-2xl font-bold text-white">¥{stats.totalSales.toLocaleString()}</p>
+          <p className="text-sm text-[var(--text-muted)] mb-1">总销售额</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">¥{stats.totalSales.toLocaleString()}</p>
         </div>
 
-        <div className="bg-[#141414] rounded-xl p-5 border border-[#2a2a2a]">
+        <div className="bg-[var(--bg-secondary)] rounded-xl p-5 border border-[var(--border-primary)]">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
               <ShoppingCart className="w-5 h-5 text-blue-400" />
@@ -113,11 +113,11 @@ const DataCenter: React.FC = () => {
               <span>{Math.abs(stats.ordersChange)}%</span>
             </div>
           </div>
-          <p className="text-sm text-gray-500 mb-1">总订单数</p>
-          <p className="text-2xl font-bold text-white">{stats.totalOrders}</p>
+          <p className="text-sm text-[var(--text-muted)] mb-1">总订单数</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">{stats.totalOrders}</p>
         </div>
 
-        <div className="bg-[#141414] rounded-xl p-5 border border-[#2a2a2a]">
+        <div className="bg-[var(--bg-secondary)] rounded-xl p-5 border border-[var(--border-primary)]">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
               <Users className="w-5 h-5 text-purple-400" />
@@ -127,11 +127,11 @@ const DataCenter: React.FC = () => {
               <span>{Math.abs(stats.visitorsChange)}%</span>
             </div>
           </div>
-          <p className="text-sm text-gray-500 mb-1">访客数</p>
-          <p className="text-2xl font-bold text-white">{stats.totalVisitors}</p>
+          <p className="text-sm text-[var(--text-muted)] mb-1">访客数</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">{stats.totalVisitors}</p>
         </div>
 
-        <div className="bg-[#141414] rounded-xl p-5 border border-[#2a2a2a]">
+        <div className="bg-[var(--bg-secondary)] rounded-xl p-5 border border-[var(--border-primary)]">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
               <Package className="w-5 h-5 text-amber-400" />
@@ -141,23 +141,23 @@ const DataCenter: React.FC = () => {
               <span>{Math.abs(stats.aovChange)}%</span>
             </div>
           </div>
-          <p className="text-sm text-gray-500 mb-1">客单价</p>
-          <p className="text-2xl font-bold text-white">¥{stats.avgOrderValue}</p>
+          <p className="text-sm text-[var(--text-muted)] mb-1">客单价</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">¥{stats.avgOrderValue}</p>
         </div>
       </div>
 
       {/* 销售趋势图 */}
-      <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
+      <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] p-5">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="font-semibold text-white">销售趋势</h3>
+          <h3 className="font-semibold text-[var(--text-primary)]">销售趋势</h3>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-[#5ba3d4]" />
-              <span className="text-sm text-gray-400">销售额</span>
+              <span className="text-sm text-[var(--text-tertiary)]">销售额</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-emerald-400" />
-              <span className="text-sm text-gray-400">订单数</span>
+              <span className="text-sm text-[var(--text-tertiary)]">订单数</span>
             </div>
           </div>
         </div>
@@ -183,7 +183,7 @@ const DataCenter: React.FC = () => {
                     className="w-4 bg-emerald-400 rounded-t"
                   />
                 </div>
-                <span className="text-xs text-gray-500">{item.date}</span>
+                <span className="text-xs text-[var(--text-muted)]">{item.date}</span>
               </div>
             );
           })}
@@ -191,8 +191,8 @@ const DataCenter: React.FC = () => {
       </div>
 
       {/* 商品销售排行 */}
-      <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
-        <h3 className="font-semibold text-white mb-4">商品销售排行</h3>
+      <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] p-5">
+        <h3 className="font-semibold text-[var(--text-primary)] mb-4">商品销售排行</h3>
         <div className="space-y-3">
           {productRanking.map((product, index) => (
             <motion.div
@@ -200,22 +200,22 @@ const DataCenter: React.FC = () => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="flex items-center gap-4 p-3 bg-[#1a1a1a] rounded-lg"
+              className="flex items-center gap-4 p-3 bg-[var(--bg-tertiary)] rounded-lg"
             >
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
                 index < 3
                   ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white'
-                  : 'bg-[#2a2a2a] text-gray-400'
+                  : 'bg-[var(--border-secondary)] text-[var(--text-tertiary)]'
               }`}>
                 {index + 1}
               </div>
               <div className="flex-1">
-                <p className="font-medium text-white">{product.name}</p>
-                <p className="text-sm text-gray-500">销量 {product.sales} 件</p>
+                <p className="font-medium text-[var(--text-primary)]">{product.name}</p>
+                <p className="text-sm text-[var(--text-muted)]">销量 {product.sales} 件</p>
               </div>
               <div className="text-right">
                 <p className="font-semibold text-[#5ba3d4]">¥{product.revenue.toLocaleString()}</p>
-                <p className="text-sm text-gray-500">销售额</p>
+                <p className="text-sm text-[var(--text-muted)]">销售额</p>
               </div>
             </motion.div>
           ))}
@@ -224,8 +224,8 @@ const DataCenter: React.FC = () => {
 
       {/* 流量来源分析 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
-          <h3 className="font-semibold text-white mb-4">流量来源</h3>
+        <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] p-5">
+          <h3 className="font-semibold text-[var(--text-primary)] mb-4">流量来源</h3>
           <div className="space-y-3">
             {[
               { source: '搜索', value: 45, color: 'bg-[#5ba3d4]' },
@@ -234,21 +234,21 @@ const DataCenter: React.FC = () => {
               { source: '其他', value: 10, color: 'bg-purple-400' },
             ].map((item) => (
               <div key={item.source} className="flex items-center gap-3">
-                <span className="text-sm text-gray-400 w-16">{item.source}</span>
-                <div className="flex-1 h-2 bg-[#2a2a2a] rounded-full overflow-hidden">
+                <span className="text-sm text-[var(--text-tertiary)] w-16">{item.source}</span>
+                <div className="flex-1 h-2 bg-[var(--border-primary)] rounded-full overflow-hidden">
                   <div
                     className={`h-full ${item.color} rounded-full`}
                     style={{ width: `${item.value}%` }}
                   />
                 </div>
-                <span className="text-sm text-white w-10 text-right">{item.value}%</span>
+                <span className="text-sm text-[var(--text-primary)] w-10 text-right">{item.value}%</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-5">
-          <h3 className="font-semibold text-white mb-4">转化漏斗</h3>
+        <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] p-5">
+          <h3 className="font-semibold text-[var(--text-primary)] mb-4">转化漏斗</h3>
           <div className="space-y-4">
             {[
               { stage: '浏览商品', value: 2156, color: 'bg-[#5ba3d4]' },
@@ -258,10 +258,10 @@ const DataCenter: React.FC = () => {
             ].map((item, index) => (
               <div key={item.stage} className="relative">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-gray-400">{item.stage}</span>
-                  <span className="text-sm text-white">{item.value}</span>
+                  <span className="text-sm text-[var(--text-tertiary)]">{item.stage}</span>
+                  <span className="text-sm text-[var(--text-primary)]">{item.value}</span>
                 </div>
-                <div className="h-8 bg-[#2a2a2a] rounded-lg overflow-hidden">
+                <div className="h-8 bg-[var(--border-primary)] rounded-lg overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${(item.value / 2156) * 100}%` }}

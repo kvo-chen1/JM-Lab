@@ -1,229 +1,156 @@
-import { execSync } from 'child_process';
+#!/usr/bin/env node
+/**
+ * 创建缺失的 brands, products, user_favorites 表
+ */
 
-const PSQL_PATH = 'C:\\postgresql\\pgsql\\bin';
-process.env.PATH = `${process.env.PATH};${PSQL_PATH}`;
+import pg from 'pg'
+import dotenv from 'dotenv'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-const targetHost = 'db.kizgwtrrsmkjeiddotup.supabase.co';
-const targetPort = '5432';
-const targetDb = 'postgres';
-const targetUser = 'postgres';
-const targetPass = 'csh200506207837';
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const projectRoot = path.resolve(__dirname, '..')
 
-const targetConn = `postgresql://${targetUser}:${targetPass}@${targetHost}:${targetPort}/${targetDb}`;
-const env = { ...process.env, PGPASSWORD: targetPass };
+// 加载环境变量
+dotenv.config({ path: path.join(projectRoot, '.env') })
+dotenv.config({ path: path.join(projectRoot, '.env.local'), override: true })
 
-const createTablesSQL = `
--- 创建缺失的表
+const { Pool } = pg
 
--- achievement_configs 表
-CREATE TABLE IF NOT EXISTS public.achievement_configs (
-    id integer PRIMARY KEY,
-    name text NOT NULL,
-    description text,
-    icon text,
-    rarity text,
-    category text,
-    criteria text,
-    points integer,
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
--- achievements 表
-CREATE TABLE IF NOT EXISTS public.achievements (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
-    config_id integer REFERENCES public.achievement_configs(id),
-    unlocked_at timestamp with time zone DEFAULT now()
-);
-
--- admin_roles 表
-CREATE TABLE IF NOT EXISTS public.admin_roles (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    name text NOT NULL,
-    description text,
-    permissions jsonb DEFAULT '[]',
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
--- admin_accounts 表
-CREATE TABLE IF NOT EXISTS public.admin_accounts (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
-    role_id uuid REFERENCES public.admin_roles(id),
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
--- categories 表
-CREATE TABLE IF NOT EXISTS public.categories (
-    id integer PRIMARY KEY,
-    name text NOT NULL,
-    description text,
-    created_at bigint,
-    updated_at bigint
-);
-
--- creator_level_configs 表
-CREATE TABLE IF NOT EXISTS public.creator_level_configs (
-    id integer PRIMARY KEY,
-    level integer NOT NULL,
-    name text NOT NULL,
-    icon text,
-    required_points integer,
-    benefits text[],
-    description text,
-    color text,
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
--- inspiration_nodes 表
-CREATE TABLE IF NOT EXISTS public.inspiration_nodes (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    title text NOT NULL,
-    content text,
-    author_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
-    parent_id uuid REFERENCES public.inspiration_nodes(id) ON DELETE CASCADE,
-    likes_count integer DEFAULT 0,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
--- ai_conversations 表
-CREATE TABLE IF NOT EXISTS public.ai_conversations (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
-    title text,
-    model text,
-    messages jsonb DEFAULT '[]',
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
--- audit_logs 表
-CREATE TABLE IF NOT EXISTS public.audit_logs (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    action text NOT NULL,
-    target_type text,
-    target_id text,
-    details jsonb,
-    ip_address text,
-    created_at timestamp with time zone DEFAULT now()
-);
-
--- works_likes 表
-CREATE TABLE IF NOT EXISTS public.works_likes (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
-    work_id uuid REFERENCES public.works(id) ON DELETE CASCADE,
-    created_at timestamp with time zone DEFAULT now(),
-    UNIQUE(user_id, work_id)
-);
-
--- hot_searches 表
-CREATE TABLE IF NOT EXISTS public.hot_searches (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    keyword text NOT NULL,
-    search_count integer DEFAULT 0,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
--- lottery_activities 表
-CREATE TABLE IF NOT EXISTS public.lottery_activities (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    title text NOT NULL,
-    description text,
-    start_time timestamp with time zone,
-    end_time timestamp with time zone,
-    status text DEFAULT 'active',
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
--- promotion_user_stats 表
-CREATE TABLE IF NOT EXISTS public.promotion_user_stats (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
-    promotion_code text,
-    invite_count integer DEFAULT 0,
-    reward_points integer DEFAULT 0,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
--- 添加 comments 表的 user_id 列（如果不存在）
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'comments' AND column_name = 'user_id') THEN
-        ALTER TABLE public.comments ADD COLUMN user_id uuid REFERENCES public.users(id) ON DELETE CASCADE;
-    END IF;
-END $$;
-
--- 添加 communities 表的 cover 列（如果不存在）
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'communities' AND column_name = 'cover') THEN
-        ALTER TABLE public.communities ADD COLUMN cover text;
-    END IF;
-END $$;
-
--- 添加 posts 表的 community_id 列（如果不存在）
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name = 'posts' AND column_name = 'community_id') THEN
-        ALTER TABLE public.posts ADD COLUMN community_id uuid REFERENCES public.communities(id) ON DELETE SET NULL;
-    END IF;
-END $$;
-`;
-
-console.log('🔄 正在创建缺失的表...\n');
-
-try {
-  const result = execSync(
-    `psql "${targetConn}"`,
-    {
-      input: createTablesSQL,
-      env,
-      encoding: 'utf-8',
-      timeout: 120000,
-      maxBuffer: 1024 * 1024 * 10
-    }
-  );
-
-  console.log('✅ 缺失的表创建成功！');
-  console.log('\n创建的表:');
-  console.log('  - achievement_configs');
-  console.log('  - achievements');
-  console.log('  - admin_roles');
-  console.log('  - admin_accounts');
-  console.log('  - categories');
-  console.log('  - creator_level_configs');
-  console.log('  - inspiration_nodes');
-  console.log('  - ai_conversations');
-  console.log('  - audit_logs');
-  console.log('  - works_likes');
-  console.log('  - hot_searches');
-  console.log('  - lottery_activities');
-  console.log('  - promotion_user_stats');
-  console.log('\n修改的表:');
-  console.log('  - comments (添加 user_id 列)');
-  console.log('  - communities (添加 cover 列)');
-  console.log('  - posts (添加 community_id 列)');
-
-} catch (error) {
-  console.error('❌ 创建失败:', error.message);
-  if (error.stderr) {
-    console.error('错误详情:', error.stderr);
+// 获取连接字符串
+const getConnectionString = () => {
+  if (process.env.POSTGRES_URL_NON_POOLING) {
+    console.log('[DB] Using POSTGRES_URL_NON_POOLING')
+    return process.env.POSTGRES_URL_NON_POOLING
   }
-  process.exit(1);
+  if (process.env.DATABASE_URL) {
+    console.log('[DB] Using DATABASE_URL')
+    return process.env.DATABASE_URL
+  }
+  if (process.env.POSTGRES_URL) {
+    console.log('[DB] Using POSTGRES_URL')
+    return process.env.POSTGRES_URL
+  }
+  throw new Error('No database connection string found')
 }
+
+async function createTables() {
+  const connectionString = getConnectionString()
+
+  // 移除 sslmode 参数
+  let cleanConnectionString = connectionString
+  try {
+    const urlObj = new URL(connectionString)
+    if (urlObj.searchParams.has('sslmode')) {
+      urlObj.searchParams.delete('sslmode')
+      cleanConnectionString = urlObj.toString()
+    }
+  } catch (e) {
+    // 忽略
+  }
+
+  const pool = new Pool({
+    connectionString: cleanConnectionString,
+    ssl: {
+      rejectUnauthorized: false,
+      requestCert: true,
+      agent: false
+    }
+  })
+
+  try {
+    console.log('🔗 连接到数据库...')
+    const client = await pool.connect()
+    console.log('✅ 数据库连接成功')
+
+    // 创建 brands 表
+    console.log('\n📦 创建 brands 表...')
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS brands (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        logo TEXT,
+        description TEXT,
+        category VARCHAR(100),
+        established_year INTEGER,
+        location VARCHAR(255),
+        contact_person VARCHAR(100),
+        contact_phone VARCHAR(50),
+        contact_email VARCHAR(255),
+        website VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+        verification_docs JSONB DEFAULT '[]',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `)
+    console.log('✅ brands 表创建成功')
+
+    // 创建 brands 索引
+    await client.query('CREATE INDEX IF NOT EXISTS idx_brands_user_id ON brands(user_id);')
+    await client.query('CREATE INDEX IF NOT EXISTS idx_brands_status ON brands(status);')
+    await client.query('CREATE INDEX IF NOT EXISTS idx_brands_category ON brands(category);')
+    console.log('✅ brands 索引创建成功')
+
+    // 创建 products 表
+    console.log('\n📦 创建 products 表...')
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        brand_id UUID REFERENCES brands(id) ON DELETE SET NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        price DECIMAL(10, 2),
+        original_price DECIMAL(10, 2),
+        images TEXT[],
+        category VARCHAR(100),
+        tags TEXT[],
+        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'sold_out')),
+        stock INTEGER DEFAULT 0,
+        sales_count INTEGER DEFAULT 0,
+        rating DECIMAL(2, 1) DEFAULT 5.0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `)
+    console.log('✅ products 表创建成功')
+
+    // 创建 products 索引
+    await client.query('CREATE INDEX IF NOT EXISTS idx_products_brand_id ON products(brand_id);')
+    await client.query('CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);')
+    await client.query('CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);')
+    console.log('✅ products 索引创建成功')
+
+    // 创建 user_favorites 表
+    console.log('\n📦 创建 user_favorites 表...')
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_favorites (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(user_id, product_id)
+      );
+    `)
+    console.log('✅ user_favorites 表创建成功')
+
+    // 创建 user_favorites 索引
+    await client.query('CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites(user_id);')
+    await client.query('CREATE INDEX IF NOT EXISTS idx_user_favorites_product_id ON user_favorites(product_id);')
+    console.log('✅ user_favorites 索引创建成功')
+
+    client.release()
+    console.log('\n🎉 所有表创建完成！')
+
+  } catch (error) {
+    console.error('❌ 创建表失败:', error.message)
+    throw error
+  } finally {
+    await pool.end()
+  }
+}
+
+createTables().catch(console.error)

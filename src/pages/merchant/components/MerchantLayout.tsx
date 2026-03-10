@@ -9,7 +9,7 @@ interface MerchantLayoutProps {
 
 const MerchantLayout: React.FC<MerchantLayoutProps> = ({ children }) => {
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
+    <div className="min-h-screen bg-[var(--bg-primary)]">
       {children}
     </div>
   );

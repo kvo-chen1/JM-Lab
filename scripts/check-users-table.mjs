@@ -1,64 +1,38 @@
-import { execSync } from 'child_process';
+import pg from 'pg'
+import dotenv from 'dotenv'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-const PSQL_PATH = 'C:\\postgresql\\pgsql\\bin';
-process.env.PATH = `${process.env.PATH};${PSQL_PATH}`;
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const projectRoot = path.resolve(__dirname, '..')
 
-const targetHost = 'db.kizgwtrrsmkjeiddotup.supabase.co';
-const targetPort = '5432';
-const targetDb = 'postgres';
-const targetUser = 'postgres';
-const targetPass = 'csh200506207837';
+dotenv.config({ path: path.join(projectRoot, '.env') })
+dotenv.config({ path: path.join(projectRoot, '.env.local'), override: true })
 
-const targetConn = `postgresql://${targetUser}:${targetPass}@${targetHost}:${targetPort}/${targetDb}`;
-const env = { ...process.env, PGPASSWORD: targetPass };
+const { Pool } = pg
 
-console.log('🔍 检查 users 表...\n');
+async function checkUsersTable() {
+  const pool = new Pool({
+    connectionString: process.env.POSTGRES_URL_NON_POOLING,
+    ssl: { rejectUnauthorized: false }
+  })
 
-try {
-  // 1. 检查表是否存在
-  console.log('1. 检查 users 表是否存在:');
-  const tableExists = execSync(
-    `psql "${targetConn}" -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users');"`,
-    { env, encoding: 'utf-8' }
-  );
-  console.log(tableExists);
-
-  // 2. 检查 users 表结构
-  console.log('\n2. users 表结构:');
-  const tableStructure = execSync(
-    `psql "${targetConn}" -c "\\d users"`,
-    { env, encoding: 'utf-8' }
-  );
-  console.log(tableStructure);
-
-  // 3. 检查 users 表数据量
-  console.log('\n3. users 表数据量:');
-  const rowCount = execSync(
-    `psql "${targetConn}" -c "SELECT COUNT(*) FROM users;"`,
-    { env, encoding: 'utf-8' }
-  );
-  console.log(rowCount);
-
-  // 4. 检查所有表
-  console.log('\n4. 所有表列表:');
-  const allTables = execSync(
-    `psql "${targetConn}" -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;"`,
-    { env, encoding: 'utf-8' }
-  );
-  console.log(allTables);
-
-  // 5. 检查导入时可能的错误
-  console.log('\n5. 检查最近的错误日志:');
   try {
-    const errors = execSync(
-      `psql "${targetConn}" -c "SELECT * FROM pg_stat_user_tables WHERE tablename = 'users';"`,
-      { env, encoding: 'utf-8' }
-    );
-    console.log(errors);
-  } catch (e) {
-    console.log('无法获取统计信息');
+    const client = await pool.connect()
+    const result = await client.query(`
+      SELECT column_name, data_type, udt_name
+      FROM information_schema.columns
+      WHERE table_name = 'users' AND column_name = 'id'
+    `)
+    console.log('users.id column:', result.rows)
+    client.release()
+  } catch (error) {
+    console.error('Error:', error.message)
+  } finally {
+    await pool.end()
   }
-
-} catch (error) {
-  console.error('❌ 查询失败:', error.message);
 }
+
+checkUsersTable()

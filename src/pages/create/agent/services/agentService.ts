@@ -58,7 +58,7 @@ export async function* streamQwenResponse(
   try {
     // 使用callQwenChat调用千问API
     const response = await callQwenChat({
-      model: options?.model || 'qwen-turbo',
+      model: options?.model || 'qwen-plus',
       messages: formattedMessages,
       temperature: options?.temperature || 0.7,
       max_tokens: options?.maxTokens || 1500,
@@ -105,7 +105,7 @@ export async function callAgent(
       console.log(`[Agent] Calling ${agent} agent...`);
 
       const response = await callQwenChat({
-        model: 'qwen-turbo',
+        model: 'qwen-plus',
         messages,
         temperature: 0.7,
         max_tokens: 1500
@@ -323,7 +323,7 @@ export async function analyzeDesignRequirements(
   try {
     const prompt = REQUIREMENT_ANALYSIS_PROMPT(description);
     const response = await callQwenChat({
-      model: 'qwen-turbo',
+      model: 'qwen-plus',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: 1000
@@ -390,7 +390,7 @@ export async function recommendStyles(
 
     const prompt = STYLE_RECOMMENDATION_PROMPT(requirements, availableStyles);
     const response = await callQwenChat({
-      model: 'qwen-turbo',
+      model: 'qwen-plus',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: 1000

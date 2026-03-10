@@ -28,13 +28,7 @@ export default function DataMigrationDialog() {
 
         if (result.status === 'completed') {
           console.log(`[DataMigration] 迁移完成！共迁移 ${result.completed} 条数据`);
-          // 只在控制台显示，不打扰用户
-          if (result.completed > 0) {
-            toast.success(`数据已自动升级`, {
-              description: `成功迁移 ${result.completed} 条数据到新的存储系统`,
-              duration: 3000
-            });
-          }
+          // 完全静默处理，不显示任何提示
         } else if (result.status === 'failed') {
           console.error('[DataMigration] 迁移失败:', result.errors);
           // 静默失败，不影响用户体验

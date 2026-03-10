@@ -26,6 +26,7 @@ import {
   REQUIREMENT_PRIORITY_PROMPT
 } from './agentPrompts';
 import { callAgent, AIResponse } from './agentService';
+import { callEnhancedAgent, EnhancedAIResponse } from './enhancedAgentIntegration';
 import { llmService } from '@/services/llmService';
 
 // 对话上下文
@@ -35,6 +36,19 @@ export interface ConversationContext {
   taskDescription?: string;
   delegationHistory: DelegationTask[];
   requirementCollection?: RequirementCollection; // 需求收集状态
+  selectedStyle?: string; // 用户选择的风格
+  sessionId?: string; // 会话ID（用于增强功能）
+  userId?: string; // 用户ID（用于增强功能）
+  currentTask?: {
+    type: string;
+    requirements: {
+      description?: string;
+      style?: string;
+      targetAudience?: string;
+      usageScenario?: string;
+      brandValues?: string;
+    };
+  };
 }
 
 // 编排器响应
@@ -58,12 +72,68 @@ export interface OrchestratorResponse {
  */
 export class AgentOrchestrator {
   private currentContext: ConversationContext | null = null;
+  private enableEnhancedFeatures = true; // 是否启用增强功能
 
   /**
    * 设置当前上下文
    */
   setContext(context: ConversationContext) {
     this.currentContext = context;
+  }
+
+  /**
+   * 设置是否启用增强功能
+   */
+  setEnhancedFeatures(enabled: boolean) {
+    this.enableEnhancedFeatures = enabled;
+  }
+
+  /**
+   * 智能调用Agent（自动选择增强版或基础版）
+   */
+  private async smartCallAgent(
+    systemPrompt: string,
+    messages: AgentMessage[],
+    userMessage: string,
+    agent: AgentType
+  ): Promise<AIResponse> {
+    // 如果启用了增强功能且有用户ID和会话ID，使用增强版
+    if (this.enableEnhancedFeatures && 
+        this.currentContext?.userId && 
+        this.currentContext?.sessionId) {
+      try {
+        const enhancedResponse = await callEnhancedAgent(
+          systemPrompt,
+          messages,
+          userMessage,
+          agent,
+          {
+            userId: this.currentContext.userId,
+            sessionId: this.currentContext.sessionId,
+            enableIntentRecognition: true,
+            enableEntityExtraction: true,
+            enableContextTracking: true,
+            enablePersonalization: true,
+            enableMemory: true
+          }
+        );
+        
+        console.log('[Orchestrator] EnhancedAgent used:', {
+          intent: enhancedResponse.detectedIntent,
+          entities: enhancedResponse.extractedEntities?.length,
+          personalized: enhancedResponse.personalized
+        });
+        
+        return enhancedResponse;
+      } catch (error) {
+        console.warn('[Orchestrator] EnhancedAgent failed, falling back to basic:', error);
+        // 降级到基础版本
+        return callAgent(systemPrompt, messages, userMessage, agent);
+      }
+    }
+    
+    // 使用基础版本
+    return callAgent(systemPrompt, messages, userMessage, agent);
   }
 
   /**
@@ -144,7 +214,19 @@ export class AgentOrchestrator {
         return this.executeRequirementInitial(userMessage, context);
 
       case 'collecting':
-        // 收集阶段：继续收集需求信息
+        // 收集阶段：检测用户是否想要跳过并直接生成
+        if (this.isSkipToGeneration(userMessage)) {
+          console.log('[Orchestrator] User wants to skip and generate directly');
+          reqCollection.stage = 'completed';
+          // 直接触发图像生成
+          return this.executeImageGeneration(userMessage, context);
+        }
+        if (this.isConfirmation(userMessage)) {
+          console.log('[Orchestrator] User confirmed during collecting stage, proceeding to assignment');
+          reqCollection.stage = 'completed';
+          return this.executeTaskAssignment(context);
+        }
+        // 继续收集需求信息
         return this.executeRequirementDeepDive(userMessage, context);
 
       case 'confirming':
@@ -174,7 +256,7 @@ export class AgentOrchestrator {
     context: ConversationContext
   ): Promise<OrchestratorResponse> {
     // 使用专门的初始阶段Prompt
-    const response = await callAgent(
+    const response = await this.smartCallAgent(
       REQUIREMENT_INITIAL_PROMPT,
       context.messages,
       userMessage,
@@ -202,7 +284,7 @@ export class AgentOrchestrator {
     const prompt = REQUIREMENT_DEEP_DIVE_PROMPT
       .replace('{{collectedInfo}}', JSON.stringify(reqCollection.collectedInfo, null, 2));
 
-    const response = await callAgent(
+    const response = await this.smartCallAgent(
       prompt,
       context.messages,
       userMessage,
@@ -229,7 +311,7 @@ export class AgentOrchestrator {
     // 构建变更处理的Prompt
     const prompt = `用户想要修改需求。原始需求：${JSON.stringify(reqCollection.collectedInfo)}。用户的修改：${userMessage}`;
 
-    const response = await callAgent(
+    const response = await this.smartCallAgent(
       prompt,
       context.messages,
       userMessage,
@@ -260,7 +342,7 @@ export class AgentOrchestrator {
       .replace('{{pendingQuestions}}', reqCollection.pendingQuestions.join('\n'));
 
     // 调用AI生成回复
-    const response = await callAgent(
+    const response = await this.smartCallAgent(
       prompt,
       context.messages,
       userMessage,
@@ -290,7 +372,7 @@ export class AgentOrchestrator {
     let priorityAnalysis: any = {};
     try {
       const priorityResponse = await callQwenChat({
-        model: 'qwen-turbo',
+        model: 'qwen-plus',
         messages: [{ role: 'user', content: priorityPrompt }],
         temperature: 0.3,
         max_tokens: 1000
@@ -311,7 +393,7 @@ export class AgentOrchestrator {
       .replace('{{collectedInfo}}', JSON.stringify(reqCollection.collectedInfo, null, 2));
 
     // 调用AI生成总结
-    const response = await callAgent(
+    const response = await this.smartCallAgent(
       prompt,
       context.messages,
       '请总结需求',
@@ -372,7 +454,7 @@ export class AgentOrchestrator {
 
     // 调用AI做分配决策
     const response = await callQwenChat({
-      model: 'qwen-turbo',
+      model: 'qwen-plus',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
       max_tokens: 1000
@@ -501,8 +583,10 @@ export class AgentOrchestrator {
   private isSkipToGeneration(message: string): boolean {
     const skipKeywords = [
       '直接生成', '直接开始', '开始生成', '生成吧', '开始吧',
-      '不想', '不用了', '不需要', '跳过', '直接做',
-      '就这样', '直接开始设计', '直接设计', '开始设计'
+      '不想', '不用了', '不需要', '不需要了', '跳过', '直接做',
+      '就这样', '直接开始设计', '直接设计', '开始设计',
+      '可以生成了', '可以开始了', '开始吧', '生成', '开始制作',
+      '不用调整', '不用修改', '直接出图', '出图吧'
     ];
     const lowerMsg = message.toLowerCase();
     return skipKeywords.some(keyword => lowerMsg.includes(keyword));
@@ -544,7 +628,7 @@ export class AgentOrchestrator {
       const prompt = this.buildDecisionPrompt(userMessage, context);
 
       const response = await callQwenChat({
-        model: 'qwen-turbo',
+        model: 'qwen-plus',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.3, // 低温度以获得更确定的决策
         max_tokens: 1000
@@ -742,10 +826,38 @@ export class AgentOrchestrator {
     context: ConversationContext
   ): Promise<OrchestratorResponse> {
     console.log('[Orchestrator] 开始执行图像生成');
+    console.log('[Orchestrator] 用户消息:', userMessage);
+    console.log('[Orchestrator] 当前任务:', context.currentTask);
+    console.log('[Orchestrator] 选择的风格:', context.selectedStyle);
 
     // 构建图像生成提示词
-    const stylePrompt = this.getStylePrompt(context.currentAgent);
-    const prompt = `${userMessage}，${stylePrompt}，高质量，精美细节，专业设计作品`;
+    // 优先使用用户选择的风格，其次是任务需求中的风格，最后是默认风格
+    const selectedStyle = context.selectedStyle ||
+                         context.currentTask?.requirements?.style ||
+                         this.getStylePrompt(context.currentAgent);
+
+    // 构建完整的提示词，包含用户的完整需求
+    const taskDescription = context.currentTask?.requirements?.description || userMessage;
+    const targetAudience = context.currentTask?.requirements?.targetAudience;
+    const usageScenario = context.currentTask?.requirements?.usageScenario;
+
+    // 构建详细的提示词
+    let prompt = `${taskDescription}`;
+
+    // 添加目标受众信息
+    if (targetAudience) {
+      prompt += `，目标受众是${targetAudience}`;
+    }
+
+    // 添加使用场景信息
+    if (usageScenario) {
+      prompt += `，使用场景为${usageScenario}`;
+    }
+
+    // 添加风格要求
+    prompt += `，${selectedStyle}风格，高质量，精美细节，专业设计作品`;
+
+    console.log('[Orchestrator] 生成的提示词:', prompt);
 
     try {
       // 调用图像生成API
@@ -776,7 +888,8 @@ export class AgentOrchestrator {
 
       // 生成回复内容
       const agentName = AGENT_CONFIG[context.currentAgent].name;
-      const content = `好的！我已经为你生成了设计图。这是根据你的描述创作的${stylePrompt}风格作品，你觉得怎么样？如果需要调整，请告诉我！`;
+      const taskType = context.currentTask?.type || '设计';
+      const content = `好的！我已经为你生成了${taskType}图。这是根据你的需求「${taskDescription}」创作的${selectedStyle}风格作品，你觉得怎么样？如果需要调整，请告诉我！`;
 
       return {
         type: 'image_generation',
@@ -844,7 +957,7 @@ export class AgentOrchestrator {
 
     try {
       const systemPrompt = getAgentSystemPrompt(context.currentAgent);
-      const aiResponse = await callAgent(
+      const aiResponse = await this.smartCallAgent(
         systemPrompt,
         context.messages,
         userMessage,
@@ -913,7 +1026,7 @@ export class AgentOrchestrator {
       id: msg.id || Date.now().toString()
     }));
 
-    const aiResponse = await callAgent(
+    const aiResponse = await this.smartCallAgent(
       systemPrompt,
       historyMessages, // 传递完整对话上下文
       delegationMessage,
@@ -1031,7 +1144,7 @@ export class AgentOrchestrator {
 请继续为用户提供服务。`;
 
     const systemPrompt = getAgentSystemPrompt(targetAgent);
-    const aiResponse = await callAgent(
+    const aiResponse = await this.smartCallAgent(
       systemPrompt,
       [], // 清空历史，新 Agent 接管
       handoffMessage,
@@ -1047,7 +1160,7 @@ export class AgentOrchestrator {
   }
 
   /**
-   * 执行 Agent 链
+   * 解析任务分配决策
    */
   private async executeChain(
     decision: AgentDecision,
@@ -1067,7 +1180,7 @@ export class AgentOrchestrator {
 
 请完成你的部分，后续会由其他同事继续。`;
 
-    const aiResponse = await callAgent(
+    const aiResponse = await this.smartCallAgent(
       systemPrompt,
       [],
       chainMessage,
@@ -1104,7 +1217,7 @@ export class AgentOrchestrator {
 
 请基于以上信息继续完成任务。`;
 
-    const aiResponse = await callAgent(
+    const aiResponse = await this.smartCallAgent(
       systemPrompt,
       [],
       chainMessage,
@@ -1139,7 +1252,7 @@ export class AgentOrchestrator {
 
 请专注于你的专业领域，提供你的部分。`;
 
-      const aiResponse = await callAgent(
+      const aiResponse = await this.smartCallAgent(
         systemPrompt,
         [],
         collaborateMessage,

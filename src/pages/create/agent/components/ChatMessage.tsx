@@ -16,10 +16,37 @@ import { generateVideo } from '../services/agentService';
 import { AgentError } from '../types/errors';
 import { ChevronDown, ChevronUp, Lightbulb, Wand2, ArrowRight, Users, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatMessageProps {
   message: AgentMessage;
   isLast?: boolean;
+}
+
+// Markdown 内容渲染组件
+function MarkdownContent({ 
+  content, 
+  isDark 
+}: { 
+  content: string | unknown; 
+  isDark: boolean;
+}) {
+  const safeContent = typeof content === 'string' ? content : String(content || '');
+  
+  return (
+    <div className={`prose prose-sm max-w-none text-left ${isDark ? 'prose-invert' : ''}`}>
+      <ReactMarkdown
+        components={{
+          p: ({ children }) => <p className="mb-2 last:mb-0 text-left">{children}</p>,
+          strong: ({ children }) => <strong className="font-bold text-[#C02C38]">{children}</strong>,
+          ul: ({ children }) => <ul className="list-none mb-2 space-y-2 text-left pl-0">{children}</ul>,
+          li: ({ children }) => <li className="flex items-start gap-2 text-left w-full"><span className="text-[#C02C38] flex-shrink-0">•</span><span className="flex-1">{children}</span></li>,
+        }}
+      >
+        {safeContent}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 // 视频消息内容组件
@@ -53,13 +80,7 @@ function VideoMessageContent({
   return (
     <div className="space-y-3">
       {renderDelegationIndicator()}
-      <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-        {String(message.content || '').split('\n').map((line, index) => (
-          <p key={index} className="mb-1 last:mb-0">
-            {line}
-          </p>
-        ))}
-      </div>
+      <MarkdownContent content={message.content} isDark={isDark} />
       {message.metadata?.videoUrl && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -470,13 +491,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         return (
           <div className="space-y-4">
             {renderDelegationIndicator()}
-            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {String(message.content || '').split('\n').map((line, index) => (
-                <p key={index} className="mb-1 last:mb-0">
-                  {line}
-                </p>
-              ))}
-            </div>
+            <MarkdownContent content={message.content} isDark={isDark} />
             <StyleSelector />
             {message.metadata?.thinking && (
               <ThinkingProcess thinking={message.metadata.thinking} />
@@ -488,13 +503,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
-            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {String(message.content || '').split('\n').map((line, index) => (
-                <p key={index} className="mb-1 last:mb-0">
-                  {line}
-                </p>
-              ))}
-            </div>
+            <MarkdownContent content={message.content} isDark={isDark} />
             {message.metadata?.thinking && (
               <ThinkingProcess thinking={message.metadata.thinking} />
             )}
@@ -505,13 +514,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
-            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {String(message.content || '').split('\n').map((line, index) => (
-                <p key={index} className="mb-1 last:mb-0">
-                  {line}
-                </p>
-              ))}
-            </div>
+            <MarkdownContent content={message.content} isDark={isDark} />
           </div>
         );
 
@@ -519,13 +522,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         return (
           <div className="space-y-3">
             {renderCollaborationIndicator()}
-            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {String(message.content || '').split('\n').map((line, index) => (
-                <p key={index} className="mb-1 last:mb-0">
-                  {line}
-                </p>
-              ))}
-            </div>
+            <MarkdownContent content={message.content} isDark={isDark} />
           </div>
         );
 
@@ -533,13 +530,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
-            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {String(message.content || '').split('\n').map((line, index) => (
-                <p key={index} className="mb-1 last:mb-0">
-                  {line}
-                </p>
-              ))}
-            </div>
+            <MarkdownContent content={message.content} isDark={isDark} />
             {Array.isArray(message.metadata?.images) && (
               <div className="grid grid-cols-2 gap-2">
                 {message.metadata.images.map((image, index) => (
@@ -575,13 +566,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         return (
           <div className="space-y-4">
             {renderDelegationIndicator()}
-            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {String(message.content || '').split('\n').map((line, index) => (
-                <p key={index} className="mb-1 last:mb-0">
-                  {line}
-                </p>
-              ))}
-            </div>
+            <MarkdownContent content={message.content} isDark={isDark} />
             <div className="flex gap-3">
               <motion.button
                 onClick={handleSatisfied}
@@ -611,13 +596,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         return (
           <div className="space-y-4">
             {renderDelegationIndicator()}
-            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {String(message.content || '').split('\n').map((line, index) => (
-                <p key={index} className="mb-1 last:mb-0">
-                  {line}
-                </p>
-              ))}
-            </div>
+            <MarkdownContent content={message.content} isDark={isDark} />
             {Array.isArray(message.metadata?.derivativeOptions) && (
               <div className="space-y-2">
                 {message.metadata.derivativeOptions.map((option) => (
@@ -689,72 +668,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
-            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {String(message.content || '').split('\n').map((line, index) => {
-                // 处理列表项（支持加粗）
-                if (line.trim().startsWith('•')) {
-                  const content = line.trim().substring(1).trim();
-                  // 解析加粗文本 **text**
-                  const parts = content.split(/(\*\*[^*]+\*\*)/g);
-                  return (
-                    <p key={index} className={`ml-4 mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      • {parts.map((part, i) => {
-                        if (part.startsWith('**') && part.endsWith('**')) {
-                          return <strong key={i} className={isDark ? 'text-white' : 'text-gray-900'}>{part.slice(2, -2)}</strong>;
-                        }
-                        return part;
-                      })}
-                    </p>
-                  );
-                }
-                // 处理数字列表（支持加粗）
-                if (/^\d+\./.test(line.trim())) {
-                  const match = line.trim().match(/^(\d+)\.\s*(.+)$/);
-                  if (match) {
-                    const [, num, content] = match;
-                    // 解析加粗文本 **text**
-                    const parts = content.split(/(\*\*[^*]+\*\*)/g);
-                    return (
-                      <p key={index} className={`ml-4 mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {num}. {parts.map((part, i) => {
-                          if (part.startsWith('**') && part.endsWith('**')) {
-                            return <strong key={i} className={isDark ? 'text-white' : 'text-gray-900'}>{part.slice(2, -2)}</strong>;
-                          }
-                          return part;
-                        })}
-                      </p>
-                    );
-                  }
-                }
-                // 处理整行加粗
-                if (line.startsWith('**') && line.endsWith('**')) {
-                  return (
-                    <p key={index} className={`font-bold mt-3 mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {line.replace(/\*\*/g, '')}
-                    </p>
-                  );
-                }
-                // 处理普通文本中的加粗
-                const parts = line.split(/(\*\*[^*]+\*\*)/g);
-                if (parts.length > 1) {
-                  return (
-                    <p key={index} className={`mb-1 last:mb-0 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                      {parts.map((part, i) => {
-                        if (part.startsWith('**') && part.endsWith('**')) {
-                          return <strong key={i} className={isDark ? 'text-white' : 'text-gray-900'}>{part.slice(2, -2)}</strong>;
-                        }
-                        return part;
-                      })}
-                    </p>
-                  );
-                }
-                return (
-                  <p key={index} className={`mb-1 last:mb-0 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                    {line}
-                  </p>
-                );
-              })}
-            </div>
+            <MarkdownContent content={message.content} isDark={isDark} />
           </div>
         );
     }

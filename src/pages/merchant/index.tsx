@@ -51,7 +51,7 @@ const MerchantWorkbench: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
+    <div className="min-h-screen bg-[var(--bg-primary)]">
       {/* 顶部商家信息栏 */}
       <HeaderBar />
 

@@ -1173,6 +1173,68 @@ async function createPostgreSQLTables(pool) {
       `)
       await createIndex('CREATE INDEX IF NOT EXISTS idx_commercial_comments_application_id ON commercial_application_comments(application_id);')
 
+      // 创建品牌表 (brands)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS brands (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          logo TEXT,
+          description TEXT,
+          category VARCHAR(100),
+          established_year INTEGER,
+          location VARCHAR(255),
+          contact_person VARCHAR(100),
+          contact_phone VARCHAR(50),
+          contact_email VARCHAR(255),
+          website VARCHAR(255),
+          status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+          verification_docs JSONB DEFAULT '[]',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_brands_user_id ON brands(user_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_brands_status ON brands(status);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_brands_category ON brands(category);')
+
+      // 创建产品表 (products)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS products (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          brand_id UUID REFERENCES brands(id) ON DELETE SET NULL,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          price DECIMAL(10, 2),
+          original_price DECIMAL(10, 2),
+          images TEXT[],
+          category VARCHAR(100),
+          tags TEXT[],
+          status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'sold_out')),
+          stock INTEGER DEFAULT 0,
+          sales_count INTEGER DEFAULT 0,
+          rating DECIMAL(2, 1) DEFAULT 5.0,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_products_brand_id ON products(brand_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);')
+
+      // 创建用户收藏表 (user_favorites)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS user_favorites (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          UNIQUE(user_id, product_id)
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites(user_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_user_favorites_product_id ON user_favorites(product_id);')
+
       // 创建系统设置表
       await client.query(`
         CREATE TABLE IF NOT EXISTS site_settings (

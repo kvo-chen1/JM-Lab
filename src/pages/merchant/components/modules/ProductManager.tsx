@@ -70,8 +70,8 @@ const ProductManager: React.FC = () => {
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-white">商品管理</h2>
-          <p className="text-sm text-gray-500 mt-0.5">管理您的商品，支持上架、下架、编辑等操作</p>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">商品管理</h2>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">管理您的商品，支持上架、下架、编辑等操作</p>
         </div>
         <Button className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white">
           <Plus className="w-4 h-4 mr-2" />
@@ -81,46 +81,46 @@ const ProductManager: React.FC = () => {
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a]">
+        <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-[#5ba3d4]/10 flex items-center justify-center">
               <Package className="w-5 h-5 text-[#5ba3d4]" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">商品总数</p>
-              <p className="text-xl font-bold text-white">{stats.total}</p>
+              <p className="text-sm text-[var(--text-muted)]">商品总数</p>
+              <p className="text-xl font-bold text-[var(--text-primary)]">{stats.total}</p>
             </div>
           </div>
         </div>
-        <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a]">
+        <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
               <Tag className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">销售中</p>
+              <p className="text-sm text-[var(--text-muted)]">销售中</p>
               <p className="text-xl font-bold text-emerald-400">{stats.onSale}</p>
             </div>
           </div>
         </div>
-        <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a]">
+        <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-slate-500/10 flex items-center justify-center">
               <Package className="w-5 h-5 text-slate-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">已下架</p>
+              <p className="text-sm text-[var(--text-muted)]">已下架</p>
               <p className="text-xl font-bold text-slate-400">{stats.offShelf}</p>
             </div>
           </div>
         </div>
-        <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a]">
+        <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
               <AlertCircle className="w-5 h-5 text-red-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">库存预警</p>
+              <p className="text-sm text-[var(--text-muted)]">库存预警</p>
               <p className="text-xl font-bold text-red-400">{stats.lowStock}</p>
             </div>
           </div>
@@ -128,17 +128,17 @@ const ProductManager: React.FC = () => {
       </div>
 
       {/* 筛选栏 */}
-      <div className="bg-[#141414] rounded-xl p-4 border border-[#2a2a2a]">
+      <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
         <div className="flex flex-wrap items-center gap-3">
           {/* 搜索 */}
           <div className="flex-1 min-w-[200px]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
               <Input
                 placeholder="搜索商品名称..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-[#1a1a1a] border-[#2a2a2a] text-white placeholder:text-gray-500"
+                className="pl-10 bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
               />
             </div>
           </div>
@@ -147,7 +147,7 @@ const ProductManager: React.FC = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-[#2a2a2a] rounded-lg px-3 py-2 bg-[#1a1a1a] text-white text-sm"
+            className="border border-[var(--border-primary)] rounded-lg px-3 py-2 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm"
           >
             <option value="all">全部状态</option>
             <option value="on_sale">销售中</option>
@@ -158,7 +158,7 @@ const ProductManager: React.FC = () => {
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="border border-[#2a2a2a] rounded-lg px-3 py-2 bg-[#1a1a1a] text-white text-sm"
+            className="border border-[var(--border-primary)] rounded-lg px-3 py-2 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm"
           >
             <option value="all">全部分类</option>
             <option value="服饰配饰">服饰配饰</option>
@@ -171,7 +171,7 @@ const ProductManager: React.FC = () => {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="border border-[#2a2a2a] rounded-lg px-3 py-2 bg-[#1a1a1a] text-white text-sm"
+            className="border border-[var(--border-primary)] rounded-lg px-3 py-2 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm"
           >
             <option value="newest">最新上架</option>
             <option value="price_asc">价格从低到高</option>
@@ -180,13 +180,13 @@ const ProductManager: React.FC = () => {
           </select>
 
           {/* 视图切换 */}
-          <div className="flex items-center bg-[#1a1a1a] rounded-lg p-0.5 border border-[#2a2a2a]">
+          <div className="flex items-center bg-[var(--bg-tertiary)] rounded-lg p-0.5 border border-[var(--border-primary)]">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded transition-all ${
                 viewMode === 'grid' 
-                  ? 'bg-[#2a2a2a] text-white' 
-                  : 'text-gray-500 hover:text-gray-300'
+                  ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' 
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               }`}
             >
               <Grid3X3 className="w-4 h-4" />
@@ -195,8 +195,8 @@ const ProductManager: React.FC = () => {
               onClick={() => setViewMode('list')}
               className={`p-2 rounded transition-all ${
                 viewMode === 'list' 
-                  ? 'bg-[#2a2a2a] text-white' 
-                  : 'text-gray-500 hover:text-gray-300'
+                  ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' 
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               }`}
             >
               <List className="w-4 h-4" />
@@ -206,19 +206,19 @@ const ProductManager: React.FC = () => {
       </div>
 
       {/* 商品列表 */}
-      <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-4">
+      <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] p-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-medium text-white">
+          <h3 className="font-medium text-[var(--text-primary)]">
             商品列表
-            <span className="ml-2 text-sm font-normal text-gray-500">
+            <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">
               共 {filteredProducts.length} 件
             </span>
           </h3>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#2a2a2a]">
+            <Button variant="outline" size="sm" className="border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]">
               批量上架
             </Button>
-            <Button variant="outline" size="sm" className="border-[#2a2a2a] text-gray-400 hover:text-white hover:bg-[#2a2a2a]">
+            <Button variant="outline" size="sm" className="border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]">
               批量下架
             </Button>
           </div>
@@ -232,14 +232,14 @@ const ProductManager: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden hover:border-[#3a3a3a] transition-all group"
+                className="bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-primary)] overflow-hidden hover:border-[var(--border-secondary)] transition-all group"
               >
                 {/* 商品图片 */}
-                <div className="aspect-[4/3] bg-[#0a0a0a] flex items-center justify-center relative">
+                <div className="aspect-[4/3] bg-[var(--bg-primary)] flex items-center justify-center relative">
                   {product.image ? (
                     <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                   ) : (
-                    <Package className="w-12 h-12 text-[#3a3a3a]" />
+                    <Package className="w-12 h-12 text-[var(--border-secondary)]" />
                   )}
                   <div className="absolute top-2 left-2">
                     {getStatusBadge(product.status)}
@@ -253,22 +253,22 @@ const ProductManager: React.FC = () => {
 
                 {/* 商品信息 */}
                 <div className="p-4">
-                  <p className="text-xs text-gray-500 mb-1">{product.category}</p>
-                  <h4 className="font-medium text-white mb-2 line-clamp-1">{product.name}</h4>
+                  <p className="text-xs text-[var(--text-muted)] mb-1">{product.category}</p>
+                  <h4 className="font-medium text-[var(--text-primary)] mb-2 line-clamp-1">{product.name}</h4>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-lg font-bold text-[#5ba3d4]">¥{product.price}</span>
-                    <span className="text-sm text-gray-500">库存 {product.stock}</span>
+                    <span className="text-sm text-[var(--text-muted)]">库存 {product.stock}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">销量 {product.sales}</span>
+                    <span className="text-[var(--text-muted)]">销量 {product.sales}</span>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-white">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                         <Eye className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-white">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                         <Edit3 className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-white">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                         <MoreVertical className="w-4 h-4" />
                       </Button>
                     </div>
@@ -282,29 +282,29 @@ const ProductManager: React.FC = () => {
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
-                className="flex items-center gap-4 p-4 bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] hover:border-[#3a3a3a] transition-all"
+                className="flex items-center gap-4 p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)] hover:border-[var(--border-secondary)] transition-all"
               >
-                <div className="w-16 h-16 rounded-lg bg-[#0a0a0a] flex items-center justify-center">
+                <div className="w-16 h-16 rounded-lg bg-[var(--bg-primary)] flex items-center justify-center">
                   {product.image ? (
                     <img src={product.image} alt={product.name} className="w-full h-full object-cover rounded-lg" />
                   ) : (
-                    <Package className="w-6 h-6 text-[#3a3a3a]" />
+                    <Package className="w-6 h-6 text-[var(--border-secondary)]" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-500">{product.category}</p>
-                  <h4 className="font-medium text-white">{product.name}</h4>
+                  <p className="text-xs text-[var(--text-muted)]">{product.category}</p>
+                  <h4 className="font-medium text-[var(--text-primary)]">{product.name}</h4>
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-[#5ba3d4]">¥{product.price}</p>
-                  <p className="text-sm text-gray-500">库存 {product.stock}</p>
+                  <p className="text-sm text-[var(--text-muted)]">库存 {product.stock}</p>
                 </div>
                 <div>{getStatusBadge(product.status)}</div>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-white">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                     <Eye className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-white">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                     <Edit3 className="w-4 h-4" />
                   </Button>
                 </div>

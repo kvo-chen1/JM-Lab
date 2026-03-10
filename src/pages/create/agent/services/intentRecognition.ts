@@ -1,30 +1,22 @@
-// 意图识别服务 - 智能理解用户意图
-
-import { getVectorStore } from './vectorStore';
-import { callQwenChat } from '@/services/llm/chatProviders';
+/**
+ * 意图识别服务 - 兼容层
+ * 已迁移到 semanticIntentAnalyzer.ts 和 entityExtractor.ts
+ * 此文件保留以维持向后兼容
+ */
 
 // 意图类型
 export enum IntentType {
-  // 设计相关
   CREATE_DESIGN = 'CREATE_DESIGN',
   MODIFY_DESIGN = 'MODIFY_DESIGN',
   STYLE_INQUIRY = 'STYLE_INQUIRY',
-  
-  // 信息查询
   ASK_QUESTION = 'ASK_QUESTION',
   REQUEST_EXAMPLE = 'REQUEST_EXAMPLE',
-  
-  // 操作相关
   CONFIRM = 'CONFIRM',
   REJECT = 'REJECT',
   CANCEL = 'CANCEL',
-  
-  // 会话相关
   GREETING = 'GREETING',
   FAREWELL = 'FAREWELL',
   THANKS = 'THANKS',
-  
-  // 其他
   UNCLEAR = 'UNCLEAR',
   OTHER = 'OTHER'
 }
@@ -147,35 +139,14 @@ const INTENT_DEFINITIONS: IntentDefinition[] = [
 ];
 
 /**
- * 意图识别服务
+ * 意图识别服务（兼容层）
  */
 export class IntentRecognitionService {
-  private vectorStore = getVectorStore();
-
   /**
    * 识别用户意图
    */
   async recognizeIntent(userInput: string): Promise<IntentRecognitionResult> {
-    // 1. 基于规则的快速识别
-    const ruleBasedResult = this.ruleBasedRecognition(userInput);
-    
-    // 2. 如果置信度高，直接返回
-    if (ruleBasedResult.confidence > 0.8) {
-      return ruleBasedResult;
-    }
-    
-    // 3. 基于语义的理解
-    const semanticResult = await this.semanticRecognition(userInput);
-    
-    // 4. 融合结果
-    return this.fuseResults(ruleBasedResult, semanticResult);
-  }
-
-  /**
-   * 基于规则的意图识别
-   */
-  private ruleBasedRecognition(input: string): IntentRecognitionResult {
-    const normalized = input.toLowerCase().trim();
+    const normalized = userInput.toLowerCase().trim();
     const scores: Map<IntentType, number> = new Map();
 
     for (const intent of INTENT_DEFINITIONS) {
@@ -209,7 +180,7 @@ export class IntentRecognitionService {
         primaryIntent: IntentType.UNCLEAR,
         confidence: 0,
         secondaryIntents: [],
-        entities: {},
+        entities: this.extractEntities(userInput),
         clarificationNeeded: true,
         suggestedResponse: '抱歉，我不太理解您的意思。您是想设计什么东西吗？'
       };
@@ -222,7 +193,7 @@ export class IntentRecognitionService {
     }));
 
     // 提取实体
-    const entities = this.extractEntities(input);
+    const entities = this.extractEntities(userInput);
 
     return {
       primaryIntent,
@@ -235,72 +206,18 @@ export class IntentRecognitionService {
   }
 
   /**
-   * 基于语义的意图识别
+   * 批量识别意图
    */
-  private async semanticRecognition(input: string): Promise<Partial<IntentRecognitionResult>> {
-    try {
-      // 使用AI进行语义理解
-      const response = await callQwenChat({
-        model: 'qwen-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: `分析用户输入的意图。返回JSON格式：
-{
-  "intent": "意图类型",
-  "confidence": 0-1之间的置信度,
-  "entities": {提取的关键信息},
-  "needsClarification": 是否需要澄清
-}
-
-可能的意图类型：CREATE_DESIGN(创建设计), MODIFY_DESIGN(修改设计), STYLE_INQUIRY(风格询问), ASK_QUESTION(提问), REQUEST_EXAMPLE(请求示例), CONFIRM(确认), REJECT(拒绝), CANCEL(取消), GREETING(问候), FAREWELL(告别), THANKS(感谢), UNCLEAR(不明确)`
-          },
-          {
-            role: 'user',
-            content: input
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 500
-      });
-
-      // 解析JSON
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          primaryIntent: parsed.intent as IntentType,
-          confidence: parsed.confidence,
-          entities: parsed.entities || {},
-          clarificationNeeded: parsed.needsClarification
-        };
-      }
-    } catch (error) {
-      console.warn('[IntentRecognition] Semantic recognition failed:', error);
-    }
-
-    return {};
+  async recognizeBatch(inputs: string[]): Promise<IntentRecognitionResult[]> {
+    return Promise.all(inputs.map(input => this.recognizeIntent(input)));
   }
 
   /**
-   * 融合规则结果和语义结果
+   * 获取意图描述
    */
-  private fuseResults(
-    ruleResult: IntentRecognitionResult,
-    semanticResult: Partial<IntentRecognitionResult>
-  ): IntentRecognitionResult {
-    // 如果语义结果置信度更高，优先使用
-    if (semanticResult.confidence && semanticResult.confidence > ruleResult.confidence) {
-      return {
-        ...ruleResult,
-        primaryIntent: semanticResult.primaryIntent || ruleResult.primaryIntent,
-        confidence: semanticResult.confidence,
-        entities: { ...ruleResult.entities, ...semanticResult.entities },
-        clarificationNeeded: semanticResult.clarificationNeeded ?? ruleResult.clarificationNeeded
-      };
-    }
-
-    return ruleResult;
+  getIntentDescription(intent: IntentType): string {
+    const definition = INTENT_DEFINITIONS.find(d => d.type === intent);
+    return definition?.description || '未知意图';
   }
 
   /**
@@ -372,21 +289,6 @@ export class IntentRecognitionService {
     }
 
     return undefined;
-  }
-
-  /**
-   * 批量识别意图
-   */
-  async recognizeBatch(inputs: string[]): Promise<IntentRecognitionResult[]> {
-    return Promise.all(inputs.map(input => this.recognizeIntent(input)));
-  }
-
-  /**
-   * 获取意图描述
-   */
-  getIntentDescription(intent: IntentType): string {
-    const definition = INTENT_DEFINITIONS.find(d => d.type === intent);
-    return definition?.description || '未知意图';
   }
 }
 

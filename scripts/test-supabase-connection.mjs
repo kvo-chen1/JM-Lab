@@ -31,25 +31,26 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 async function testConnection() {
   try {
     console.log('\n🔌 测试连接...')
-    
-    // 测试查询
+
+    // 测试查询 - 使用简单的 select 而不是 count
     const { data, error } = await supabase
       .from('users')
-      .select('count', { count: 'exact', head: true })
-    
+      .select('*')
+      .limit(1)
+
     if (error) {
       console.error('\n❌ 连接失败:', error.message)
-      
+
       if (error.message.includes('does not exist')) {
         console.log('\n💡 提示: users 表不存在，需要创建数据库表结构')
       }
-      
+
       return
     }
-    
+
     console.log('\n✅ 连接成功!')
-    console.log('📊 users 表记录数:', data)
-    
+    console.log('📊 查询结果:', data)
+
   } catch (error) {
     console.error('\n❌ 测试失败:', error.message)
   }

@@ -17,7 +17,7 @@ const HeaderBar: React.FC = () => {
   };
 
   return (
-    <div className="bg-[#141414] border-b border-[#2a2a2a]">
+    <div className="bg-[var(--bg-secondary)] border-b border-[var(--border-primary)]">
       {/* 主信息栏 */}
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
@@ -39,12 +39,12 @@ const HeaderBar: React.FC = () => {
             {/* 店铺名称和状态 */}
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-semibold text-white">{merchantInfo.name}</h1>
+                <h1 className="text-lg font-semibold text-[var(--text-primary)]">{merchantInfo.name}</h1>
                 <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full border border-emerald-500/30">
                   营业中
                 </span>
               </div>
-              <p className="text-sm text-gray-500">店铺ID: SH20240308001</p>
+              <p className="text-sm text-[var(--text-muted)]">店铺ID: SH20240308001</p>
             </div>
           </div>
 
@@ -55,8 +55,8 @@ const HeaderBar: React.FC = () => {
                 <DollarSign className="w-4 h-4 text-emerald-400" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">今日销售额</p>
-                <p className="text-sm font-semibold text-white">¥{merchantInfo.todaySales.toLocaleString()}</p>
+                <p className="text-xs text-[var(--text-muted)]">今日销售额</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">¥{merchantInfo.todaySales.toLocaleString()}</p>
               </div>
             </div>
             
@@ -65,8 +65,8 @@ const HeaderBar: React.FC = () => {
                 <Package className="w-4 h-4 text-blue-400" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">今日订单</p>
-                <p className="text-sm font-semibold text-white">{merchantInfo.todayOrders} 单</p>
+                <p className="text-xs text-[var(--text-muted)]">今日订单</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{merchantInfo.todayOrders} 单</p>
               </div>
             </div>
             
@@ -75,8 +75,8 @@ const HeaderBar: React.FC = () => {
                 <TrendingUp className="w-4 h-4 text-purple-400" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">今日访客</p>
-                <p className="text-sm font-semibold text-white">{merchantInfo.todayVisitors} 人</p>
+                <p className="text-xs text-[var(--text-muted)]">今日访客</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{merchantInfo.todayVisitors} 人</p>
               </div>
             </div>
           </div>
@@ -86,7 +86,7 @@ const HeaderBar: React.FC = () => {
             <Button 
               variant="ghost" 
               size="sm"
-              className="text-gray-400 hover:text-white hover:bg-[#2a2a2a]"
+              className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
             >
               <Bell className="w-4 h-4 mr-2" />
               消息
@@ -94,7 +94,7 @@ const HeaderBar: React.FC = () => {
             <Button 
               variant="ghost" 
               size="sm"
-              className="text-gray-400 hover:text-white hover:bg-[#2a2a2a]"
+              className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
             >
               <Settings className="w-4 h-4 mr-2" />
               设置
@@ -102,7 +102,7 @@ const HeaderBar: React.FC = () => {
             <Button 
               variant="ghost" 
               size="sm"
-              className="text-gray-400 hover:text-white hover:bg-[#2a2a2a]"
+              className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
             >
               <User className="w-4 h-4 mr-2" />
               个人中心

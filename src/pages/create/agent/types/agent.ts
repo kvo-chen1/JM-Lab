@@ -81,6 +81,9 @@ export interface StyleOption {
   thumbnail: string;
   description?: string;
   prompt?: string;
+  category?: string[]; // 风格分类
+  tags?: string[];    // 搜索标签
+  isCustom?: boolean; // 是否自定义风格
 }
 
 export interface ToolCall {
@@ -150,6 +153,8 @@ export interface RequirementCollection {
   confirmed: boolean;                         // 用户是否已确认
   summaryShown: boolean;                      // 是否已展示总结
   assignmentShown: boolean;                   // 是否已展示分配
+  questionCount: number;                      // 已提问次数（限制追问）
+  lastSummaryAt: number;                      // 上次总结时的提问次数
 }
 
 export interface DesignTask {

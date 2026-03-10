@@ -1,12 +1,13 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useAgentStore, PRESET_STYLES } from '../hooks/useAgentStore';
+import { useAgentStore } from '../hooks/useAgentStore';
+import { supabase } from '@/lib/supabase';
 import { useMonitoring } from '../hooks/useMonitoring';
 import { usePrediction } from '../hooks/usePrediction';
 import { useABTesting } from '../hooks/useABTesting';
 import { useDynamicWorkflow } from '../hooks/useDynamicWorkflow';
-import { Send, Image as ImageIcon, Mic, Sparkles, Trash2, Bot, X, ChevronDown, Wand2 } from 'lucide-react';
+import { Send, Image as ImageIcon, Mic, Sparkles, Trash2, Bot, X, ChevronDown, Wand2, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import ChatMessage from './ChatMessage';
 import AgentAvatar from './AgentAvatar';
@@ -20,7 +21,8 @@ import SchedulerStatus from './SchedulerStatus';
 import ResourceMonitor from './ResourceMonitor';
 import DataMigrationDialog from './DataMigrationDialog';
 import VoiceInputButton from './VoiceInputButton';
-import type { InspirationHint } from '../types/agent';
+import StyleLibrary from './StyleLibrary';
+import type { InspirationHint, StyleOption } from '../types/agent';
 import {
   agentOrchestrator,
   processWithOrchestrator,
@@ -34,8 +36,32 @@ import { getResourceManager } from '../services/resourceManager';
 import { errorHandler } from '../services/errorHandler';
 import { llmService } from '@/services/llmService';
 import type { DesignTask, AgentMessage, AgentType, OrchestratorResponse } from '../types/agent';
-import { AGENT_CONFIG } from '../types/agent';
+import { AGENT_CONFIG, PRESET_STYLES } from '../types/agent';
 import { Suggestion } from '../services/suggestionEngine';
+
+// 从用户消息中检测风格关键词
+function detectStyleFromMessage(message: string): string | null {
+  const lowerMsg = message.toLowerCase();
+
+  // 风格关键词映射
+  const styleKeywords: Record<string, string[]> = {
+    'color-pencil': ['彩铅', '素描', '彩铅素描'],
+    'fantasy-picture-book': ['诡萌', '幻想', '绘本', '诡萌幻想'],
+    'mori-girl': ['森系', '辛逝季', '芙莉', '森系少女'],
+    'warm-color': ['温馨', '彩绘', '温馨彩绘'],
+    'adventure-comic': ['治愈', '冒险', '漫画', '治愈冒险', '治愈冒险漫画'],
+    'grainy-cute': ['颗粒', '粉彩', '童话', '颗粒粉彩'],
+    'dreamy-pastel': ['虹彩', '梦幻', '治愈', '虹彩梦幻']
+  };
+
+  for (const [styleId, keywords] of Object.entries(styleKeywords)) {
+    if (keywords.some(keyword => lowerMsg.includes(keyword))) {
+      return styleId;
+    }
+  }
+
+  return null;
+}
 
 export default function ChatPanel() {
   const { isDark } = useTheme();
@@ -61,7 +87,8 @@ export default function ChatPanel() {
     completeDelegation,
     addToAgentQueue,
     processNextInQueue,
-    setCollaborating
+    setCollaborating,
+    selectStyle
   } = useAgentStore();
 
   const [inputValue, setInputValue] = useState('');
@@ -71,10 +98,13 @@ export default function ChatPanel() {
   const [switcherToAgent, setSwitcherToAgent] = useState<AgentType>('director');
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [analyzingImage, setAnalyzingImage] = useState<string | null>(null);
+  const [showStyleLibrary, setShowStyleLibrary] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
   // 启动监控
   try {
@@ -145,6 +175,32 @@ export default function ChatPanel() {
     };
   }, [scrollToBottom]);
 
+  // 获取用户信息和会话ID
+  useEffect(() => {
+    const initUserSession = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setUserId(user.id);
+          // 生成或从存储中获取会话ID
+          let storedSessionId = localStorage.getItem('agent_session_id');
+          if (!storedSessionId) {
+            storedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem('agent_session_id', storedSessionId);
+          }
+          setSessionId(storedSessionId);
+          console.log('[ChatPanel] 用户已登录:', user.id, '会话ID:', storedSessionId);
+        } else {
+          console.log('[ChatPanel] 用户未登录，增强功能将不可用');
+        }
+      } catch (error) {
+        console.error('[ChatPanel] 获取用户信息失败:', error);
+      }
+    };
+
+    initUserSession();
+  }, []);
+
   // 消息变化时自动滚动到底部
   useEffect(() => {
     scrollToBottom('smooth');
@@ -175,14 +231,95 @@ export default function ChatPanel() {
     setShowAgentSwitcher(true);
   }, []);
 
+  // Agent切换后自动触发图像生成
+  const handleAutoImageGeneration = useCallback(async () => {
+    if (!selectedStyle || !currentTask) return;
+
+    const style = PRESET_STYLES.find(s => s.id === selectedStyle);
+    if (!style) return;
+
+    // 添加设计师消息
+    addMessage({
+      role: currentAgent,
+      content: `好的！我将以「${style.name}」风格为你设计。正在调用AI模型生成概念图，请稍候...`,
+      type: 'text'
+    });
+
+    try {
+      // 构建生成提示词
+      const taskDescription = currentTask.requirements?.description || 'IP形象设计';
+      const prompt = `${taskDescription}，${style.prompt}，高质量，精美细节，专业设计作品`;
+
+      console.log('[ChatPanel] 自动触发图像生成，prompt:', prompt);
+
+      // 调用图像生成API
+      const result = await llmService.generateImage({
+        model: 'wanx-v1',
+        prompt: prompt,
+        size: '1024x1024',
+        n: 1
+      });
+
+      if (!result.ok) {
+        throw new Error(result.error || '图像生成失败');
+      }
+
+      // 提取图像URL
+      let imageUrl: string | undefined;
+      if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
+        imageUrl = result.data.data[0].url;
+      } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+        imageUrl = result.data[0].url;
+      }
+
+      if (!imageUrl) {
+        throw new Error('无法获取生成的图像URL');
+      }
+
+      // 添加生成的图像消息
+      addMessage({
+        role: currentAgent,
+        content: '概念图已生成！这是根据你选择的风格设计的IP形象初稿。你觉得怎么样？',
+        type: 'image',
+        metadata: {
+          images: [imageUrl],
+          prompt: prompt
+        }
+      });
+
+      // 添加到画布
+      addOutput({
+        type: 'image',
+        url: imageUrl,
+        thumbnail: imageUrl,
+        prompt: prompt,
+        style: selectedStyle,
+        agentType: currentAgent
+      });
+
+      toast.success('图像生成成功！');
+    } catch (error: any) {
+      console.error('[ChatPanel] 自动图像生成失败:', error);
+      toast.error('图像生成失败: ' + error.message);
+
+      // 添加错误消息
+      addMessage({
+        role: currentAgent,
+        content: '抱歉，图像生成遇到了问题。请稍后重试，或者尝试换一种描述方式。',
+        type: 'text'
+      });
+    }
+  }, [selectedStyle, currentTask, currentAgent, addMessage, addOutput]);
+
   // 处理编排器响应
   const handleOrchestratorResponse = useCallback(async (
     response: OrchestratorResponse,
     messageId: string
   ) => {
-    // 更新消息内容
+    // 更新消息内容和角色（如果Agent发生变化）
     updateMessage(messageId, {
       content: response.content,
+      role: response.agent, // 更新为实际响应的Agent
       type: response.aiResponse?.type || 'text',
       metadata: {
         thinking: response.aiResponse?.thinking,
@@ -214,6 +351,17 @@ export default function ChatPanel() {
               }
             }
           });
+
+          // Agent切换后，自动触发图像生成
+          setTimeout(() => {
+            if (selectedStyle) {
+              // 如果已选择风格，直接触发图像生成
+              handleAutoImageGeneration();
+            } else {
+              // 如果没有选择风格，显示风格选择器
+              setShowStyleSelector(true);
+            }
+          }, 1500); // 等待切换动画完成
         }
         break;
 
@@ -381,6 +529,14 @@ export default function ChatPanel() {
       type: 'text'
     });
 
+    // 检测用户消息中是否包含风格关键词，自动设置风格
+    const detectedStyle = detectStyleFromMessage(userMessage);
+    if (detectedStyle && !selectedStyle) {
+      console.log('[ChatPanel] 从用户消息中检测到风格:', detectedStyle);
+      selectStyle(detectedStyle);
+      toast.success(`已自动选择风格：${PRESET_STYLES.find(s => s.id === detectedStyle)?.name}`);
+    }
+
     setIsTyping(true);
 
     try {
@@ -393,15 +549,34 @@ export default function ChatPanel() {
         updateTaskRequirements({
           description: userMessage
         });
+      } else {
+        // 已有任务，累积更新需求描述
+        const currentDescription = currentTask.requirements.description || '';
+        const updatedDescription = currentDescription
+          ? `${currentDescription}。${userMessage}`
+          : userMessage;
+
+        updateTaskRequirements({
+          description: updatedDescription
+        });
+
+        console.log('[ChatPanel] 更新任务描述:', updatedDescription);
       }
 
-      // 构建对话上下文（包含用户消息）
+      // 构建对话上下文（包含用户消息和完整任务信息）
       const context: ConversationContext = {
         currentAgent,
         messages: [...messages.slice(-9), userMessageObj],
         taskDescription: currentTask?.requirements.description,
         delegationHistory,
-        requirementCollection
+        requirementCollection,
+        selectedStyle,
+        currentTask: currentTask ? {
+          type: currentTask.type,
+          requirements: currentTask.requirements
+        } : undefined,
+        userId,
+        sessionId
       };
 
       // 创建临时消息用于流式显示
@@ -562,12 +737,20 @@ export default function ChatPanel() {
     }
   };
 
+  // 处理风格库选择
+  const handleStyleLibrarySelect = (style: StyleOption) => {
+    selectStyle(style.id);
+    toast.success(`已选择风格：${style.name}`);
+    setShowStyleLibrary(false);
+  };
+
   // 快速操作
   const quickActions = [
     { icon: Trash2, label: '清空对话', onClick: handleClear },
     { icon: ImageIcon, label: '上传参考', onClick: () => setShowUploadDialog(true) },
     { icon: Sparkles, label: '灵感提示', onClick: toggleInspirationPanel },
-    { icon: Wand2, label: 'AI优化', onClick: handleOptimizePrompt, loading: isOptimizingPrompt }
+    { icon: Wand2, label: 'AI优化', onClick: handleOptimizePrompt, loading: isOptimizingPrompt },
+    { icon: Layers, label: '风格库', onClick: () => setShowStyleLibrary(true) }
   ];
 
   // 获取当前 Agent 的颜色
@@ -678,6 +861,27 @@ export default function ChatPanel() {
                 toast.success(`已应用灵感提示：${hint.title}`);
               }}
               onClose={toggleInspirationPanel}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 风格库面板 */}
+      <AnimatePresence>
+        {showStyleLibrary && (
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`fixed right-0 top-0 h-full w-96 shadow-2xl z-40 ${
+              isDark ? 'bg-gray-800' : 'bg-white'
+            }`}
+          >
+            <StyleLibrary
+              onStyleSelect={handleStyleLibrarySelect}
+              onClose={() => setShowStyleLibrary(false)}
+              currentStyle={selectedStyle || undefined}
             />
           </motion.div>
         )}

@@ -42,12 +42,12 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   return (
     <div className="space-y-4 sticky top-6">
       {/* 功能导航卡片 */}
-      <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] overflow-hidden">
+      <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] overflow-hidden">
         {/* 标题 */}
-        <div className="px-4 py-3 bg-[#1a1a1a] border-b border-[#2a2a2a]">
+        <div className="px-4 py-3 bg-[var(--bg-tertiary)] border-b border-[var(--border-primary)]">
           <div className="flex items-center gap-2">
             <Store className="w-5 h-5 text-[#5ba3d4]" />
-            <span className="font-semibold text-white">工作台</span>
+            <span className="font-semibold text-[var(--text-primary)]">工作台</span>
           </div>
         </div>
         
@@ -67,7 +67,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all mb-1 ${
                   isActive 
                     ? 'bg-[#5ba3d4] text-white shadow-lg shadow-[#5ba3d4]/20' 
-                    : 'text-gray-400 hover:bg-[#1f1f1f] hover:text-white'
+                    : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 <Icon className="w-5 h-5" />
@@ -91,22 +91,22 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       </div>
 
       {/* 快捷帮助 */}
-      <div className="bg-[#141414] rounded-xl border border-[#2a2a2a] p-4">
+      <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] p-4">
         <div className="flex items-center gap-2 mb-3">
-          <HelpCircle className="w-4 h-4 text-gray-500" />
-          <span className="text-sm font-medium text-gray-400">帮助中心</span>
+          <HelpCircle className="w-4 h-4 text-[var(--text-muted)]" />
+          <span className="text-sm font-medium text-[var(--text-tertiary)]">帮助中心</span>
         </div>
         <div className="space-y-2">
-          <button className="w-full text-left text-xs text-gray-500 hover:text-white transition-colors py-1">
+          <button className="w-full text-left text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors py-1">
             • 如何发布商品？
           </button>
-          <button className="w-full text-left text-xs text-gray-500 hover:text-white transition-colors py-1">
+          <button className="w-full text-left text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors py-1">
             • 订单发货流程
           </button>
-          <button className="w-full text-left text-xs text-gray-500 hover:text-white transition-colors py-1">
+          <button className="w-full text-left text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors py-1">
             • 售后处理指南
           </button>
-          <button className="w-full text-left text-xs text-gray-500 hover:text-white transition-colors py-1">
+          <button className="w-full text-left text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors py-1">
             • 联系平台客服
           </button>
         </div>
@@ -115,7 +115,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       {/* 平台公告 */}
       <div className="bg-gradient-to-br from-[#5ba3d4]/10 to-[#3d6a8a]/10 rounded-xl border border-[#5ba3d4]/20 p-4">
         <h4 className="text-sm font-medium text-[#5ba3d4] mb-2">平台公告</h4>
-        <p className="text-xs text-gray-400 leading-relaxed">
+        <p className="text-xs text-[var(--text-tertiary)] leading-relaxed">
           新功能上线：商家数据中心现已支持实时数据监控，帮助您更好地了解店铺运营情况。
         </p>
       </div>

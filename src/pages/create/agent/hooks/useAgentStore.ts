@@ -13,7 +13,7 @@ import {
   DelegationTask,
   AGENT_CONFIG
 } from '../types/agent';
-import { getMemoryService } from '../services/memoryService';
+// import { getMemoryService } from '../services/memoryService';
 
 // 欢迎消息配置选项
 interface WelcomeMessageOptions {
@@ -157,6 +157,18 @@ interface AgentActions {
   // 批量更新
   updateState: (updates: Partial<AgentState>) => void;
   resetState: () => void;
+
+  // 需求收集管理
+  setRequirementStage: (stage: RequirementStage) => void;
+  updateRequirementInfo: (info: Partial<CollectedRequirementInfo>) => void;
+  setRequirementConfirmed: (confirmed: boolean) => void;
+  addPendingQuestion: (question: string) => void;
+  removePendingQuestion: (question: string) => void;
+  setSummaryShown: (shown: boolean) => void;
+  setAssignmentShown: (shown: boolean) => void;
+  resetRequirementCollection: () => void;
+  incrementQuestionCount: () => void;
+  setLastSummaryAt: (count: number) => void;
 }
 
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -191,7 +203,9 @@ const initialState: AgentState = {
     pendingQuestions: [],
     confirmed: false,
     summaryShown: false,
-    assignmentShown: false
+    assignmentShown: false,
+    questionCount: 0,
+    lastSummaryAt: 0
   }
 };
 
@@ -309,14 +323,14 @@ export const useAgentStore = create<AgentState & AgentActions>()(
           createdAt: Date.now()
         };
 
-        // 记录到记忆服务
-        const memoryService = getMemoryService();
-        if (output.style) {
-          memoryService.recordStylePreference(output.style, true);
-        }
-        if (state.currentTask) {
-          memoryService.recordTaskType(state.currentTask.type);
-        }
+        // 记录到记忆服务 (暂时禁用)
+        // const memoryService = getMemoryService();
+        // if (output.style) {
+        //   memoryService.recordStylePreference(output.style, true);
+        // }
+        // if (state.currentTask) {
+        //   memoryService.recordTaskType(state.currentTask.type);
+        // }
 
         return {
           generatedOutputs: [...state.generatedOutputs, newOutput],
@@ -550,7 +564,23 @@ export const useAgentStore = create<AgentState & AgentActions>()(
           ],
           confirmed: false,
           summaryShown: false,
-          assignmentShown: false
+          assignmentShown: false,
+          questionCount: 0,
+          lastSummaryAt: 0
+        }
+      })),
+
+      incrementQuestionCount: () => set((state) => ({
+        requirementCollection: {
+          ...state.requirementCollection,
+          questionCount: state.requirementCollection.questionCount + 1
+        }
+      })),
+
+      setLastSummaryAt: (count) => set((state) => ({
+        requirementCollection: {
+          ...state.requirementCollection,
+          lastSummaryAt: count
         }
       }))
     }},

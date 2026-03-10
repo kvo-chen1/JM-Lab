@@ -84,9 +84,8 @@ import { randomUUID } from 'crypto'
 // 创建模拟的 supabaseServer 对象，使用本地数据库
 // 简化版实现，支持基本的 CRUD 操作
 class SupabaseQueryBuilder {
-  constructor(table, db) {
+  constructor(table) {
     this.table = table
-    this.db = db
     this.query = `SELECT * FROM "${table}"`
     this.conditions = []
     this.values = []
@@ -94,6 +93,14 @@ class SupabaseQueryBuilder {
     this.selectedColumns = '*'
     this.countOptions = {}
     this.isCountQuery = false
+  }
+
+  // 延迟获取数据库连接
+  async getDb() {
+    if (!this.db) {
+      this.db = await getDB()
+    }
+    return this.db
   }
 
   select(columns = '*', options = {}) {
@@ -205,7 +212,8 @@ class SupabaseQueryBuilder {
       finalQuery += ' LIMIT 1'
     }
     try {
-      const result = await this.db.query(finalQuery, this.values)
+      const db = await this.getDb()
+      const result = await db.query(finalQuery, this.values)
       return { data: result.rows[0] || null, error: null }
     } catch (error) {
       return { data: null, error }
@@ -223,7 +231,8 @@ class SupabaseQueryBuilder {
       finalQuery += ' WHERE ' + this.conditions.join(' AND ')
     }
     try {
-      const result = await this.db.query(finalQuery, this.values)
+      const db = await this.getDb()
+      const result = await db.query(finalQuery, this.values)
       
       // 如果是计数查询，返回 count
       if (this.isCountQuery) {
@@ -240,8 +249,7 @@ class SupabaseQueryBuilder {
 
 const supabaseServer = {
   from: (table) => {
-    const db = getDB()
-    const builder = new SupabaseQueryBuilder(table, db)
+    const builder = new SupabaseQueryBuilder(table)
     
     return {
       select: (columns) => builder.select(columns),
@@ -253,6 +261,7 @@ const supabaseServer = {
             const values = Object.values(data)
             const query = `INSERT INTO "${table}" (${columns}) VALUES (${placeholders}) RETURNING *`
             try {
+              const db = await builder.getDb()
               const result = await db.query(query, values)
               return { data: result.rows[0], error: null }
             } catch (error) {
@@ -269,6 +278,7 @@ const supabaseServer = {
               const values = [...Object.values(data), value]
               const query = `UPDATE "${table}" SET ${setClause} WHERE "${column}" = $${values.length} RETURNING *`
               try {
+                const db = await builder.getDb()
                 const result = await db.query(query, values)
                 return { data: result.rows[0], error: null }
               } catch (error) {
@@ -282,6 +292,7 @@ const supabaseServer = {
         eq: async (column, value) => {
           const query = `DELETE FROM "${table}" WHERE "${column}" = $1`
           try {
+            const db = await builder.getDb()
             await db.query(query, [value])
             return { error: null }
           } catch (error) {
@@ -1275,6 +1286,17 @@ async function route(req, res, u, path) {
   }
 
   console.log('[Route] Processing:', req.method, path)
+
+  // 健康检查端点
+  if (path === '/api/health' && req.method === 'GET') {
+    sendJson(res, 200, {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      message: 'Service is healthy'
+    })
+    return
+  }
 
   // 数据库代理路由 - 替代 Supabase
   if (path.startsWith('/api/db/')) {

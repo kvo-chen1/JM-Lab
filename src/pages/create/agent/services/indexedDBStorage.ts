@@ -226,15 +226,17 @@ export class IndexedDBStorage {
       
       let request: IDBRequest;
       
+      const direction = options?.direction || 'next';
+      
       if (options?.indexName) {
         const index = store.index(options.indexName);
         request = options.range 
-          ? index.openCursor(options.range, options.direction)
-          : index.openCursor(undefined, options.direction);
+          ? index.openCursor(options.range, direction)
+          : index.openCursor(null, direction);
       } else {
         request = options?.range
-          ? store.openCursor(options.range, options.direction)
-          : store.openCursor(undefined, options.direction);
+          ? store.openCursor(options.range, direction)
+          : store.openCursor(null, direction);
       }
 
       const results: T[] = [];

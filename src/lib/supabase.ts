@@ -16,7 +16,7 @@ if (isProduction) {
       : ''
   }
 } else {
-  apiBaseUrl = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3023'
+  apiBaseUrl = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3030'
 }
 
 const proxyUrl = `${apiBaseUrl}/api/db`

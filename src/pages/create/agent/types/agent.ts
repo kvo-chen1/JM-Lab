@@ -189,6 +189,7 @@ export interface GeneratedOutput {
   title?: string;         // 作品标题
   description?: string;   // 作品描述（AI生成，可编辑）
   isFavorite?: boolean;   // 是否收藏
+  status?: 'generating' | 'completed' | 'error';  // 生成状态
 }
 
 export interface AgentState {

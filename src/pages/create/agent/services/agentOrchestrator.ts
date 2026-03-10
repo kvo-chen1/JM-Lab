@@ -53,7 +53,7 @@ export interface ConversationContext {
 
 // 编排器响应
 export interface OrchestratorResponse {
-  type: 'response' | 'delegation' | 'collaboration' | 'chain' | 'handoff' | 'image_generation';
+  type: 'response' | 'delegation' | 'collaboration' | 'chain' | 'handoff' | 'image_generation' | 'generating';
   agent: AgentType;
   content: string;
   aiResponse?: AIResponse & { type?: string };
@@ -63,7 +63,10 @@ export interface OrchestratorResponse {
   generatedImage?: {
     url: string;
     prompt: string;
+    description?: string;
+    title?: string;
   };
+  generatingPrompt?: string; // 生成中的提示词
 }
 
 /**
@@ -797,6 +800,8 @@ export class AgentOrchestrator {
       return false;
     }
 
+    const lowerMsg = userMessage.toLowerCase();
+
     // 检测生成图像的关键词
     const generationKeywords = [
       '生成', '画', '画一个', '画一下', '绘制', '创作', '设计',
@@ -806,16 +811,29 @@ export class AgentOrchestrator {
     ];
 
     const hasGenerationIntent = generationKeywords.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
+      lowerMsg.includes(keyword)
     );
+
+    // 检测确认/同意类关键词（在需求收集完成后）
+    const confirmationKeywords = ['可以', '好的', '行', '没问题', '确认', '就这样', '开始吧', '生成吧', '做吧'];
+    const hasConfirmation = confirmationKeywords.some(keyword => 
+      lowerMsg.includes(keyword)
+    );
+
+    // 如果有任务描述且用户确认，也触发生成
+    const hasTaskDescription = !!context.currentTask?.requirements?.description;
+    const shouldGenerate = hasGenerationIntent || (hasConfirmation && hasTaskDescription);
 
     console.log('[Orchestrator] 检测图像生成意图:', {
       userMessage,
       currentAgent: context.currentAgent,
-      hasGenerationIntent
+      hasGenerationIntent,
+      hasConfirmation,
+      hasTaskDescription,
+      shouldGenerate
     });
 
-    return hasGenerationIntent;
+    return shouldGenerate;
   }
 
   /**
@@ -859,6 +877,41 @@ export class AgentOrchestrator {
 
     console.log('[Orchestrator] 生成的提示词:', prompt);
 
+    // 先返回"生成中"状态
+    return {
+      type: 'generating',
+      agent: context.currentAgent,
+      content: `🎨 **开始生成设计稿**
+
+正在根据你的需求创作${selectedStyle}风格的作品...
+
+⏱️ 预计需要 10-30 秒，请稍候～`,
+      generatingPrompt: prompt,
+      aiResponse: {
+        content: `🎨 **开始生成设计稿**
+
+正在根据你的需求创作${selectedStyle}风格的作品...
+
+⏱️ 预计需要 10-30 秒，请稍候～`,
+        type: 'text'
+      }
+    };
+  }
+
+  /**
+   * 继续执行图像生成（实际调用API）
+   */
+  private async continueImageGeneration(
+    prompt: string,
+    context: ConversationContext
+  ): Promise<OrchestratorResponse> {
+    console.log('[Orchestrator] 继续执行图像生成，提示词:', prompt);
+
+    const selectedStyle = context.selectedStyle ||
+                         context.currentTask?.requirements?.style ||
+                         this.getStylePrompt(context.currentAgent);
+    const taskDescription = context.currentTask?.requirements?.description || prompt;
+
     try {
       // 调用图像生成API
       const result = await llmService.generateImage({
@@ -886,10 +939,13 @@ export class AgentOrchestrator {
         throw new Error('无法获取生成的图像URL');
       }
 
-      // 生成回复内容
-      const agentName = AGENT_CONFIG[context.currentAgent].name;
+      // 生成成功后的回复内容
       const taskType = context.currentTask?.type || '设计';
-      const content = `好的！我已经为你生成了${taskType}图。这是根据你的需求「${taskDescription}」创作的${selectedStyle}风格作品，你觉得怎么样？如果需要调整，请告诉我！`;
+      const content = `✨ **生成完成！**
+
+我已经为你创作了${selectedStyle}风格的${taskType}作品，基于你的需求：「${taskDescription}」
+
+看看效果如何？如果需要调整风格、颜色或细节，随时告诉我！`;
 
       return {
         type: 'image_generation',
@@ -902,12 +958,21 @@ export class AgentOrchestrator {
       };
     } catch (error: any) {
       console.error('[Orchestrator] 图像生成失败:', error);
-      
+
       // 返回错误响应
       return {
         type: 'response',
         agent: context.currentAgent,
-        content: `抱歉，图像生成遇到了问题：${error.message}。请稍后重试，或者尝试换一种描述方式。`
+        content: `❌ **生成失败**
+
+抱歉，图像生成遇到了问题：${error.message}
+
+可能的原因：
+- 网络连接不稳定
+- 服务器繁忙
+- 提示词需要调整
+
+请稍后重试，或者换一种描述方式告诉我你的需求～`
       };
     }
   }

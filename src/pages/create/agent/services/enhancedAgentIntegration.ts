@@ -31,6 +31,24 @@ export interface EnhancedAIResponse extends AIResponse {
 }
 
 /**
+ * 带超时的Promise包装器
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T, name: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => {
+        console.warn(`[EnhancedAgent] ${name} timed out after ${timeoutMs}ms`);
+        reject(new Error(`${name} timeout`));
+      }, timeoutMs);
+    })
+  ]).catch(error => {
+    console.warn(`[EnhancedAgent] ${name} failed:`, error.message);
+    return fallback;
+  });
+}
+
+/**
  * 增强版Agent调用 - 集成所有智能化功能
  */
 export async function callEnhancedAgent(
@@ -67,91 +85,150 @@ export async function callEnhancedAgent(
   let usedMemory = false;
   let personalized = false;
 
-  // ========== 1. 指代消解 ==========
-  const corefResolver = getCoreferenceResolver();
-  const corefResult = await corefResolver.resolve(userMessage, history);
-  if (corefResult.resolvedText !== userMessage) {
-    console.log(`[EnhancedAgent] Coreference resolved: "${userMessage}" -> "${corefResult.resolvedText}"`);
-    processedMessage = corefResult.resolvedText;
+  // ========== 1. 指代消解（带超时） ==========
+  try {
+    const corefResolver = getCoreferenceResolver();
+    const corefResult = await withTimeout(
+      corefResolver.resolve(userMessage, history),
+      2000,
+      { originalText: userMessage, resolvedText: userMessage, coreferences: [], unresolved: [], needsConfirmation: false },
+      'Coreference resolution'
+    );
+    if (corefResult.resolvedText !== userMessage) {
+      console.log(`[EnhancedAgent] Coreference resolved: "${userMessage}" -> "${corefResult.resolvedText}"`);
+      processedMessage = corefResult.resolvedText;
+    }
+  } catch (error) {
+    console.warn('[EnhancedAgent] Coreference resolution failed:', error);
   }
 
-  // ========== 2. 语义意图识别 ==========
+  // ========== 2. 语义意图识别（带超时） ==========
   if (enableIntentRecognition) {
-    const intentAnalyzer = getSemanticIntentAnalyzer();
-    const intentResult = await intentAnalyzer.analyze(processedMessage);
-    detectedIntent = intentResult.primaryIntent;
-    console.log(`[EnhancedAgent] Detected intent: ${detectedIntent} (confidence: ${intentResult.confidence})`);
-  }
-
-  // ========== 3. 实体提取 ==========
-  if (enableEntityExtraction) {
-    const entityExtractor = getEntityExtractor();
-    const entityResult = await entityExtractor.extract(processedMessage);
-    extractedEntities = entityResult.entities.map(e => ({
-      type: e.type,
-      value: e.normalizedValue || e.value
-    }));
-    console.log(`[EnhancedAgent] Extracted ${extractedEntities.length} entities:`, extractedEntities);
-
-    // 更新用户画像中的偏好
-    if (enablePersonalization && extractedEntities.length > 0) {
-      const profileService = getUserProfileService();
-      for (const entity of entityResult.entities) {
-        const category = mapEntityTypeToPreference(entity.type);
-        if (category) {
-          profileService.updatePreference(userId, category, entity.value, entity.confidence);
-        }
-      }
+    try {
+      const intentAnalyzer = getSemanticIntentAnalyzer();
+      const intentResult = await withTimeout(
+        intentAnalyzer.analyze(processedMessage),
+        3000,
+        { primaryIntent: 'GENERAL' as any, confidence: 0.5, secondaryIntents: [], semanticScore: 0.5 },
+        'Intent analysis'
+      );
+      detectedIntent = intentResult.primaryIntent;
+      console.log(`[EnhancedAgent] Detected intent: ${detectedIntent} (confidence: ${intentResult.confidence})`);
+    } catch (error) {
+      console.warn('[EnhancedAgent] Intent analysis failed:', error);
     }
   }
 
-  // ========== 4. 对话状态追踪 ==========
-  let nextAction: string = 'CONTINUE';
-  if (enableContextTracking) {
-    const stateTracker = getDialogStateTracker(sessionId);
-    const stateResult = await stateTracker.processUserMessage({
-      id: Date.now().toString(),
-      role: 'user',
-      content: processedMessage
-    });
-    dialogState = stateResult.context.state;
-    nextAction = stateResult.nextAction;
-    console.log(`[EnhancedAgent] Dialog state: ${dialogState}, Next action: ${nextAction}`);
+  // ========== 3. 实体提取（带超时） ==========
+  if (enableEntityExtraction) {
+    try {
+      const entityExtractor = getEntityExtractor();
+      const entityResult = await withTimeout(
+        entityExtractor.extract(processedMessage),
+        5000,
+        { entities: [], relations: [], missingEntities: [], confidence: 0 },
+        'Entity extraction'
+      );
+      extractedEntities = entityResult.entities.map(e => ({
+        type: e.type,
+        value: e.normalizedValue || e.value
+      }));
+      console.log(`[EnhancedAgent] Extracted ${extractedEntities.length} entities:`, extractedEntities);
+
+      // 更新用户画像中的偏好
+      if (enablePersonalization && extractedEntities.length > 0) {
+        const profileService = getUserProfileService();
+        for (const entity of entityResult.entities) {
+          const category = mapEntityTypeToPreference(entity.type);
+          if (category) {
+            profileService.updatePreference(userId, category, entity.value, entity.confidence);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[EnhancedAgent] Entity extraction failed:', error);
+    }
   }
 
-  // ========== 5. 智能上下文压缩 ==========
+  // ========== 4. 对话状态追踪（带超时） ==========
+  let nextAction: string = 'CONTINUE';
+  if (enableContextTracking) {
+    try {
+      const stateTracker = getDialogStateTracker(sessionId);
+      const stateResult = await withTimeout(
+        stateTracker.processUserMessage({
+          id: Date.now().toString(),
+          role: 'user',
+          content: processedMessage
+        }),
+        3000,
+        { context: { state: 'UNKNOWN' } as any, stateChanged: false, newEntities: [], nextAction: 'CONTINUE' },
+        'Dialog state tracking'
+      );
+      dialogState = stateResult.context.state;
+      nextAction = stateResult.nextAction;
+      console.log(`[EnhancedAgent] Dialog state: ${dialogState}, Next action: ${nextAction}`);
+    } catch (error) {
+      console.warn('[EnhancedAgent] Dialog state tracking failed:', error);
+    }
+  }
+
+  // ========== 5. 智能上下文压缩（带超时） ==========
   let compressedHistory = history;
   let contextSummary = '';
   if (history.length > 10) {
-    const compressor = getSmartContextCompressor();
-    const compressionResult = await compressor.compress(history);
-    compressedHistory = compressionResult.compressed;
-    contextSummary = compressionResult.summary;
-    console.log(`[EnhancedAgent] Context compressed: ${history.length} -> ${compressedHistory.length} messages`);
+    try {
+      const compressor = getSmartContextCompressor();
+      const compressionResult = await withTimeout(
+        compressor.compress(history),
+        2000,
+        { compressed: history, summary: '', compressionRatio: 1 },
+        'Context compression'
+      );
+      compressedHistory = compressionResult.compressed;
+      contextSummary = compressionResult.summary;
+      console.log(`[EnhancedAgent] Context compressed: ${history.length} -> ${compressedHistory.length} messages`);
+    } catch (error) {
+      console.warn('[EnhancedAgent] Context compression failed:', error);
+    }
   }
 
-  // ========== 6. 长期记忆检索 ==========
+  // ========== 6. 长期记忆检索（带超时） ==========
   let memoryContext = '';
   if (enableMemory) {
-    const longTermMemory = getLongTermMemory();
+    try {
+      const longTermMemory = getLongTermMemory();
 
-    // 语义搜索相关记忆
-    const relatedMemories = await longTermMemory.search(processedMessage, {
-      userId,
-      limit: 3,
-      threshold: 0.7
-    });
+      // 语义搜索相关记忆
+      const relatedMemories = await withTimeout(
+        longTermMemory.search(processedMessage, {
+          userId,
+          limit: 3,
+          threshold: 0.7
+        }),
+        3000,
+        [],
+        'Memory search'
+      );
 
-    // 获取最近记忆
-    const recentMemories = await longTermMemory.getRecentMemories(userId, {
-      limit: 3,
-      hours: 24
-    });
+      // 获取最近记忆
+      const recentMemories = await withTimeout(
+        longTermMemory.getRecentMemories(userId, {
+          limit: 3,
+          hours: 24
+        }),
+        2000,
+        [],
+        'Recent memories'
+      );
 
-    if (relatedMemories.length > 0 || recentMemories.length > 0) {
-      usedMemory = true;
-      memoryContext = buildMemoryContext(relatedMemories, recentMemories);
-      console.log(`[EnhancedAgent] Retrieved ${relatedMemories.length} related memories`);
+      if (relatedMemories.length > 0 || recentMemories.length > 0) {
+        usedMemory = true;
+        memoryContext = buildMemoryContext(relatedMemories, recentMemories);
+        console.log(`[EnhancedAgent] Retrieved ${relatedMemories.length} related memories`);
+      }
+    } catch (error) {
+      console.warn('[EnhancedAgent] Memory retrieval failed:', error);
     }
   }
 
@@ -197,21 +274,30 @@ export async function callEnhancedAgent(
     agent
   );
 
-  // ========== 10. 存储对话记忆 ==========
+  // ========== 10. 存储对话记忆（带超时，不阻塞） ==========
   if (enableMemory) {
-    const longTermMemory = getLongTermMemory();
-    await longTermMemory.store({
-      userId,
-      sessionId,
-      type: MemoryType.CONVERSATION,
-      content: `用户: ${processedMessage}\n助手: ${response.content}`,
-      entities: extractedEntities.map(e => ({ type: e.type as EntityType, value: e.value, confidence: 0.8 })),
-      importance: calculateImportance(detectedIntent, extractedEntities),
-      metadata: {
-        intent: detectedIntent,
-        agent,
-        responseType: response.type
-      }
+    // 使用 Promise.all 不等待存储完成，避免阻塞响应
+    Promise.race([
+      (async () => {
+        const longTermMemory = getLongTermMemory();
+        await longTermMemory.store({
+          userId,
+          sessionId,
+          type: MemoryType.CONVERSATION,
+          content: `用户: ${processedMessage}\n助手: ${response.content}`,
+          entities: extractedEntities.map(e => ({ type: e.type as EntityType, value: e.value, confidence: 0.8 })),
+          importance: calculateImportance(detectedIntent, extractedEntities),
+          metadata: {
+            intent: detectedIntent,
+            agent,
+            responseType: response.type
+          }
+        });
+        console.log('[EnhancedAgent] Memory stored successfully');
+      })(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Memory store timeout')), 3000))
+    ]).catch(error => {
+      console.warn('[EnhancedAgent] Memory store failed or timed out:', error);
     });
   }
 

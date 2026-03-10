@@ -179,22 +179,38 @@ export default function ChatPanel() {
   useEffect(() => {
     const initUserSession = async () => {
       try {
+        // 生成或从存储中获取会话ID（所有用户都可用）
+        let storedSessionId = localStorage.getItem('agent_session_id');
+        if (!storedSessionId) {
+          storedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          localStorage.setItem('agent_session_id', storedSessionId);
+        }
+        setSessionId(storedSessionId);
+
+        // 获取用户ID（如果已登录）
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setUserId(user.id);
-          // 生成或从存储中获取会话ID
-          let storedSessionId = localStorage.getItem('agent_session_id');
-          if (!storedSessionId) {
-            storedSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            localStorage.setItem('agent_session_id', storedSessionId);
-          }
-          setSessionId(storedSessionId);
           console.log('[ChatPanel] 用户已登录:', user.id, '会话ID:', storedSessionId);
         } else {
-          console.log('[ChatPanel] 用户未登录，增强功能将不可用');
+          // 未登录用户使用匿名ID
+          let anonymousId = localStorage.getItem('agent_anonymous_id');
+          if (!anonymousId) {
+            anonymousId = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem('agent_anonymous_id', anonymousId);
+          }
+          setUserId(anonymousId);
+          console.log('[ChatPanel] 匿名用户，会话ID:', storedSessionId, '匿名ID:', anonymousId);
         }
       } catch (error) {
         console.error('[ChatPanel] 获取用户信息失败:', error);
+        // 出错时也生成匿名ID
+        let anonymousId = localStorage.getItem('agent_anonymous_id');
+        if (!anonymousId) {
+          anonymousId = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          localStorage.setItem('agent_anonymous_id', anonymousId);
+        }
+        setUserId(anonymousId);
       }
     };
 
@@ -276,6 +292,12 @@ export default function ChatPanel() {
         throw new Error('无法获取生成的图像URL');
       }
 
+      // 从之前的消息中提取AI生成的描述（查找最近一条非用户的消息）
+      const lastAgentMessage = messages.slice().reverse().find(m => m.role !== 'user');
+      const generatedDescription = lastAgentMessage?.content || '';
+      // 提取标题（第一行或前20个字符）
+      const title = generatedDescription.split('\n')[0].slice(0, 30) || '未命名作品';
+
       // 添加生成的图像消息
       addMessage({
         role: currentAgent,
@@ -287,14 +309,16 @@ export default function ChatPanel() {
         }
       });
 
-      // 添加到画布
+      // 添加到画布，包含描述信息
       addOutput({
         type: 'image',
         url: imageUrl,
         thumbnail: imageUrl,
         prompt: prompt,
         style: selectedStyle,
-        agentType: currentAgent
+        agentType: currentAgent,
+        title: title,
+        description: generatedDescription
       });
 
       toast.success('图像生成成功！');
@@ -309,7 +333,7 @@ export default function ChatPanel() {
         type: 'text'
       });
     }
-  }, [selectedStyle, currentTask, currentAgent, addMessage, addOutput]);
+  }, [selectedStyle, currentTask, currentAgent, addMessage, addOutput, messages]);
 
   // 处理编排器响应
   const handleOrchestratorResponse = useCallback(async (
@@ -416,18 +440,125 @@ export default function ChatPanel() {
             }
           });
 
-          // 添加到画布
+          // 从之前的消息中提取AI生成的描述
+          const lastAgentMessage = messages.slice().reverse().find(m => m.role !== 'user');
+          const generatedDescription = response.generatedImage.description || lastAgentMessage?.content || '';
+          const title = response.generatedImage.title || generatedDescription.split('\n')[0].slice(0, 30) || '未命名作品';
+
+          // 添加到画布，包含描述信息
           const outputId = addOutput({
             type: 'image',
             url: response.generatedImage.url,
             thumbnail: response.generatedImage.url,
             prompt: response.generatedImage.prompt,
             style: selectedStyle || undefined,
-            agentType: response.agent
+            agentType: response.agent,
+            title: title,
+            description: generatedDescription
           });
 
           console.log('[ChatPanel] 图像已生成并添加到画布:', outputId);
           toast.success('图像生成成功！');
+        }
+        break;
+
+      case 'generating':
+        // 生成中状态 - 添加占位符到画布，然后自动触发实际生成
+        {
+          const generatingOutputId = addOutput({
+            type: 'image',
+            url: '', // 空URL表示生成中
+            thumbnail: '',
+            prompt: response.generatingPrompt || '生成中...',
+            style: selectedStyle || undefined,
+            agentType: response.agent,
+            title: '生成中...',
+            description: 'AI正在为您创作，请稍候～',
+            status: 'generating'
+          });
+
+          // 更新消息
+          updateMessage(messageId, {
+            content: response.content,
+            type: 'text'
+          });
+
+          console.log('[ChatPanel] 生成中占位符已添加:', generatingOutputId);
+
+          // 自动触发实际生成
+          if (response.generatingPrompt) {
+            console.log('[ChatPanel] 自动触发实际生成，提示词:', response.generatingPrompt);
+
+            // 延迟一下让用户看到"生成中"状态
+            setTimeout(async () => {
+              try {
+                // 调用 llmService.generateImage 实际生成图像
+                const result = await llmService.generateImage({
+                  model: 'wanx-v1',
+                  prompt: response.generatingPrompt!,
+                  size: '1024x1024',
+                  n: 1
+                });
+
+                console.log('[ChatPanel] 图像生成结果:', result);
+
+                if (!result.ok) {
+                  throw new Error(result.error || '图像生成失败');
+                }
+
+                // 提取图像URL
+                let imageUrl: string | undefined;
+                if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
+                  imageUrl = result.data.data[0].url;
+                } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+                  imageUrl = result.data[0].url;
+                }
+
+                if (!imageUrl) {
+                  throw new Error('无法获取生成的图像URL');
+                }
+
+                // 更新输出为完成状态
+                updateOutput(generatingOutputId, {
+                  url: imageUrl,
+                  thumbnail: imageUrl,
+                  status: 'completed',
+                  title: '设计作品',
+                  description: '生成完成！'
+                });
+
+                // 添加完成消息
+                addMessage({
+                  role: response.agent,
+                  content: `✨ **生成完成！**
+
+看看效果如何？如果需要调整风格、颜色或细节，随时告诉我！`,
+                  type: 'text'
+                });
+
+                console.log('[ChatPanel] 图像生成完成并更新到画布:', generatingOutputId);
+                toast.success('图像生成成功！');
+              } catch (error: any) {
+                console.error('[ChatPanel] 图像生成失败:', error);
+
+                // 更新输出为错误状态
+                updateOutput(generatingOutputId, {
+                  status: 'error',
+                  title: '生成失败',
+                  description: `生成失败：${error.message}`
+                });
+
+                // 添加错误消息
+                addMessage({
+                  role: 'system',
+                  content: `❌ **生成失败**\n\n抱歉，图像生成遇到了问题：${error.message}\n\n请稍后重试，或者换一种描述方式告诉我你的需求～`,
+                  type: 'text'
+                });
+
+                toast.error('图像生成失败，请重试');
+              }
+            }, 1000); // 延迟1秒让用户看到"生成中"状态
+          }
         }
         break;
 
@@ -455,21 +586,31 @@ export default function ChatPanel() {
 
     // 智能检测：如果设计师或总监说开始设计/生成方案等，自动显示风格选择器
     const designKeywords = [
-      '开始设计', '生成方案', '呈现方案', '设计方案', '概念图', '初步方案', 
-      '为你设计', '提供方案', '制作方案', '提供初步', '设计方案', '设计形象'
+      '开始设计', '生成方案', '呈现方案', '设计方案', '概念图', '概念草图', '初步方案',
+      '为你设计', '提供方案', '制作方案', '提供初步', '设计形象',
+      '草图', '绘制', '创作', '生成', '呈现', '展示', '1分钟', '马上', '立即'
     ];
     const shouldShowStyleSelector = (response.agent === 'designer' || response.agent === 'director') &&
       designKeywords.some(keyword => response.content.includes(keyword));
 
+    console.log('[ChatPanel] 智能检测风格选择器:', {
+      agent: response.agent,
+      content: response.content.slice(0, 100),
+      shouldShowStyleSelector,
+      matchedKeyword: designKeywords.find(keyword => response.content.includes(keyword))
+    });
+
     if (shouldShowStyleSelector) {
+      console.log('[ChatPanel] 触发风格选择器显示');
       setTimeout(() => {
         setShowStyleSelector(true);
         // 添加风格选择提示
-        addMessage({
+        const styleMessageId = addMessage({
           role: 'designer',
           content: '请选择你喜欢的设计风格：',
           type: 'style-options'
         });
+        console.log('[ChatPanel] 已添加风格选择消息:', styleMessageId);
       }, 500);
     }
   }, [currentAgent, updateMessage, addMessage, setCollaborating, addToAgentQueue, handleAgentSwitch, setShowStyleSelector]);

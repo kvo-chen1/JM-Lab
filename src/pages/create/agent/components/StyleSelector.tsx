@@ -111,7 +111,7 @@ function buildOptimizedPrompt(
 
 export default function StyleSelector() {
   const { isDark } = useTheme();
-  const { selectedStyle, selectStyle, addMessage, addOutput, updateOutput, currentTask } = useAgentStore();
+  const { selectedStyle, selectStyle, addMessage, addOutput, updateOutput, currentTask, messages } = useAgentStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleStyleSelect = (styleId: string) => {
@@ -200,35 +200,48 @@ export default function StyleSelector() {
 
       console.log('[StyleSelector] 准备添加到画布，imageUrl:', imageUrl);
 
-      // 先添加到画布（这样右边才能显示）
+      // 从消息历史中提取Agent生成的描述（查找最近一条设计师或总监的消息）
+      const lastAgentMessage = messages.slice().reverse().find(m => 
+        m.role === 'designer' || m.role === 'director'
+      );
+      const generatedDescription = lastAgentMessage?.content || '';
+      // 提取标题（第一行或前30个字符）
+      const title = generatedDescription.split('\n')[0].slice(0, 30) || `${style?.name || '设计'}作品`;
+
+      console.log('[StyleSelector] 提取的描述:', { 
+        title, 
+        descriptionLength: generatedDescription.length,
+        hasDescription: !!generatedDescription 
+      });
+
+      // 先添加到画布（这样右边才能显示），包含描述信息
       const outputId = addOutput({
         type: 'image',
         url: imageUrl,
         thumbnail: imageUrl,
         prompt: prompt,
         style: selectedStyle,
-        agentType: 'designer'
+        agentType: 'designer',
+        title: title,
+        description: generatedDescription || taskDescription
       });
 
       console.log('[StyleSelector] 已添加到画布，outputId:', outputId);
 
-      // 调用AI生成标题和描述
-      try {
-        const { title, description } = await generateTitleAndDescription(
-          taskDescription,
-          style?.name || '默认风格'
-        );
-        
-        // 更新作品信息
-        updateOutput(outputId, { title, description });
-        console.log('[StyleSelector] 已生成标题和描述:', { title, description });
-      } catch (error) {
-        console.error('[StyleSelector] 生成标题描述失败:', error);
-        // 使用默认标题和描述
-        updateOutput(outputId, {
-          title: `${style?.name || '设计'}作品`,
-          description: taskDescription
-        });
+      // 如果描述为空，尝试调用AI生成标题和描述
+      if (!generatedDescription) {
+        try {
+          const { title: aiTitle, description: aiDescription } = await generateTitleAndDescription(
+            taskDescription,
+            style?.name || '默认风格'
+          );
+          
+          // 更新作品信息
+          updateOutput(outputId, { title: aiTitle, description: aiDescription });
+          console.log('[StyleSelector] AI生成标题和描述:', { title: aiTitle, description: aiDescription });
+        } catch (error) {
+          console.error('[StyleSelector] AI生成标题描述失败:', error);
+        }
       }
 
       // 添加生成结果消息（只显示1张）

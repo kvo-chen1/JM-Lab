@@ -400,6 +400,7 @@ export default function WorkCard({
           src={data.imageUrl}
           alt={data.title}
           className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+          isGenerating={!data.imageUrl}
         />
         
         {/* 悬浮操作按钮 */}

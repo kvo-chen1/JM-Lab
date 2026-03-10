@@ -166,12 +166,16 @@ function ImageWithLoading({
   src,
   alt,
   className,
-  isGenerating = false
+  isGenerating = false,
+  title,
+  description
 }: {
   src: string;
   alt: string;
   className?: string;
   isGenerating?: boolean;
+  title?: string;
+  description?: string;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -190,10 +194,22 @@ function ImageWithLoading({
   // 如果是生成中状态
   if (isGenerating) {
     return (
-      <div className={`flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'} ${className}`}>
-        <div className="text-center px-2">
-          <Loader2 className="w-6 h-6 mx-auto mb-1 animate-spin text-[#C02C38]" />
-          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>生成中...</p>
+      <div className={`flex flex-col items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'} ${className}`}>
+        <div className="text-center px-4 max-w-[80%]">
+          <Loader2 className="w-8 h-8 mx-auto mb-3 animate-spin text-[#C02C38]" />
+          {title && (
+            <h4 className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+              {title}
+            </h4>
+          )}
+          {description && (
+            <p className={`text-xs line-clamp-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              {description}
+            </p>
+          )}
+          <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            AI正在创作中...
+          </p>
         </div>
       </div>
     );
@@ -401,6 +417,8 @@ export default function WorkCard({
           alt={data.title}
           className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
           isGenerating={!data.imageUrl}
+          title={data.title}
+          description={data.description}
         />
         
         {/* 悬浮操作按钮 */}

@@ -64,48 +64,49 @@ async function generateTitleAndDescription(
 function buildOptimizedPrompt(
   taskDescription: string,
   stylePrompt: string,
-  requirements: any
+  requirements: any,
+  agentDescription: string = ''
 ): string {
-  // 基础提示词
-  let prompt = taskDescription;
-  
+  // 优先使用Agent生成的详细描述，如果没有则使用任务描述
+  let prompt = agentDescription || taskDescription;
+
   // 添加风格描述
   if (stylePrompt) {
     prompt += `，${stylePrompt}`;
   }
-  
+
   // 根据需求添加详细描述
   if (requirements) {
     const details: string[] = [];
-    
+
     // 添加受众描述
     if (requirements.audience) {
       details.push(`面向${requirements.audience}`);
     }
-    
+
     // 添加场景描述
     if (requirements.scenario) {
       details.push(`适用于${requirements.scenario}`);
     }
-    
+
     // 添加色调偏好
     if (requirements.colorTone) {
       details.push(`${requirements.colorTone}色调`);
     }
-    
+
     // 添加情感氛围
     if (requirements.mood) {
       details.push(`${requirements.mood}氛围`);
     }
-    
+
     if (details.length > 0) {
       prompt += `，${details.join('，')}`;
     }
   }
-  
+
   // 添加质量要求
   prompt += '，高质量，精美细节，专业设计作品';
-  
+
   return prompt;
 }
 
@@ -145,6 +146,13 @@ export default function StyleSelector() {
     });
 
     try {
+      // 从消息历史中提取Agent生成的详细描述（查找最近一条包含IP形象描述的设计师消息）
+      const lastAgentMessage = messages.slice().reverse().find(m =>
+        m.role === 'designer' &&
+        (m.content.includes('IP') || m.content.includes('形象') || m.content.includes('设计') || m.content.includes('主形象'))
+      );
+      const agentDescription = lastAgentMessage?.content || '';
+
       // 构建生成提示词（使用优化后的提示词构建函数）
       const taskDescription = currentTask?.requirements?.description || 'IP形象设计';
       const stylePrompt = style?.prompt || '';
@@ -153,10 +161,12 @@ export default function StyleSelector() {
       console.log('[StyleSelector] === 开始生成图像 ===');
       console.log('[StyleSelector] currentTask:', currentTask);
       console.log('[StyleSelector] taskDescription:', taskDescription);
+      console.log('[StyleSelector] agentDescription:', agentDescription.slice(0, 200));
       console.log('[StyleSelector] stylePrompt:', stylePrompt);
       console.log('[StyleSelector] requirements:', requirements);
 
-      const prompt = buildOptimizedPrompt(taskDescription, stylePrompt, requirements);
+      // 优先使用Agent生成的详细描述来构建提示词
+      const prompt = buildOptimizedPrompt(taskDescription, stylePrompt, requirements, agentDescription);
 
       console.log('[StyleSelector] 最终生成的prompt:', prompt);
 
@@ -200,18 +210,13 @@ export default function StyleSelector() {
 
       console.log('[StyleSelector] 准备添加到画布，imageUrl:', imageUrl);
 
-      // 从消息历史中提取Agent生成的描述（查找最近一条设计师或总监的消息）
-      const lastAgentMessage = messages.slice().reverse().find(m => 
-        m.role === 'designer' || m.role === 'director'
-      );
-      const generatedDescription = lastAgentMessage?.content || '';
-      // 提取标题（第一行或前30个字符）
-      const title = generatedDescription.split('\n')[0].slice(0, 30) || `${style?.name || '设计'}作品`;
+      // 使用前面提取的Agent描述，提取标题（第一行或前30个字符）
+      const title = agentDescription.split('\n')[0].slice(0, 30) || `${style?.name || '设计'}作品`;
 
-      console.log('[StyleSelector] 提取的描述:', { 
-        title, 
-        descriptionLength: generatedDescription.length,
-        hasDescription: !!generatedDescription 
+      console.log('[StyleSelector] 提取的描述:', {
+        title,
+        descriptionLength: agentDescription.length,
+        hasDescription: !!agentDescription
       });
 
       // 先添加到画布（这样右边才能显示），包含描述信息
@@ -223,19 +228,19 @@ export default function StyleSelector() {
         style: selectedStyle,
         agentType: 'designer',
         title: title,
-        description: generatedDescription || taskDescription
+        description: agentDescription || taskDescription
       });
 
       console.log('[StyleSelector] 已添加到画布，outputId:', outputId);
 
       // 如果描述为空，尝试调用AI生成标题和描述
-      if (!generatedDescription) {
+      if (!agentDescription) {
         try {
           const { title: aiTitle, description: aiDescription } = await generateTitleAndDescription(
             taskDescription,
             style?.name || '默认风格'
           );
-          
+
           // 更新作品信息
           updateOutput(outputId, { title: aiTitle, description: aiDescription });
           console.log('[StyleSelector] AI生成标题和描述:', { title: aiTitle, description: aiDescription });

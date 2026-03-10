@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { getFeedbackLoopService, FeedbackType } from '../services/feedbackLoop';
+import { getFeedbackLearning, FeedbackType as NewFeedbackType } from '../services/feedbackLearning';
 import { ThumbsUp, ThumbsDown, MessageSquare, X, Send } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -19,12 +19,31 @@ export default function FeedbackButtons({
   onFeedbackSubmitted
 }: FeedbackButtonsProps) {
   const { isDark } = useTheme();
-  const [feedbackType, setFeedbackType] = useState<FeedbackType | null>(null);
+  const [feedbackType, setFeedbackType] = useState<NewFeedbackType | null>(null);
   const [comment, setComment] = useState('');
   const [showCommentBox, setShowCommentBox] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const feedbackService = getFeedbackLoopService();
+  const feedbackService = getFeedbackLearning();
+
+  // 获取用户ID和会话ID
+  const getUserId = () => {
+    let userId = localStorage.getItem('agent-user-id');
+    if (!userId) {
+      userId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem('agent-user-id', userId);
+    }
+    return userId;
+  };
+
+  const getSessionId = () => {
+    let sessionId = sessionStorage.getItem('agent-session-id');
+    if (!sessionId) {
+      sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      sessionStorage.setItem('agent-session-id', sessionId);
+    }
+    return sessionId;
+  };
 
   // 提交反馈
   const submitFeedback = async () => {
@@ -32,17 +51,18 @@ export default function FeedbackButtons({
 
     setIsSubmitting(true);
     try {
-      await feedbackService.collectExplicitFeedback(
+      await feedbackService.collectFeedback(
+        getUserId(),
+        getSessionId(),
+        messageId,
         feedbackType,
         {
-          agentType,
-          taskType: 'chat',
-          outputId: messageId,
-          response: messageContent,
-          stage: 'interaction'
+          comment: comment.trim() || undefined
         },
-        undefined,
-        comment.trim() || undefined
+        {
+          userInput: '',
+          agentResponse: messageContent
+        }
       );
 
       toast.success('感谢您的反馈！我们会持续改进。');
@@ -62,13 +82,13 @@ export default function FeedbackButtons({
 
   // 处理点赞
   const handleLike = () => {
-    setFeedbackType(FeedbackType.EXPLICIT_LIKE);
+    setFeedbackType(NewFeedbackType.THUMB_UP);
     setShowCommentBox(true);
   };
 
   // 处理点踩
   const handleDislike = () => {
-    setFeedbackType(FeedbackType.EXPLICIT_DISLIKE);
+    setFeedbackType(NewFeedbackType.THUMB_DOWN);
     setShowCommentBox(true);
   };
 
@@ -81,7 +101,7 @@ export default function FeedbackButtons({
           whileTap={{ scale: 0.95 }}
           onClick={handleLike}
           className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
-            feedbackType === FeedbackType.EXPLICIT_LIKE
+            feedbackType === NewFeedbackType.THUMB_UP
               ? 'bg-green-500/20 text-green-500'
               : isDark
                 ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -97,7 +117,7 @@ export default function FeedbackButtons({
           whileTap={{ scale: 0.95 }}
           onClick={handleDislike}
           className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
-            feedbackType === FeedbackType.EXPLICIT_DISLIKE
+            feedbackType === NewFeedbackType.THUMB_DOWN
               ? 'bg-red-500/20 text-red-500'
               : isDark
                 ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -112,11 +132,11 @@ export default function FeedbackButtons({
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => {
-            setFeedbackType(FeedbackType.CORRECTION);
+            setFeedbackType(NewFeedbackType.COMMENT);
             setShowCommentBox(true);
           }}
           className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
-            feedbackType === FeedbackType.CORRECTION
+            feedbackType === NewFeedbackType.COMMENT
               ? 'bg-blue-500/20 text-blue-500'
               : isDark
                 ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -144,9 +164,9 @@ export default function FeedbackButtons({
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder={
-                  feedbackType === FeedbackType.EXPLICIT_LIKE
+                  feedbackType === NewFeedbackType.THUMB_UP
                     ? '有什么地方让您满意？（可选）'
-                    : feedbackType === FeedbackType.EXPLICIT_DISLIKE
+                    : feedbackType === NewFeedbackType.THUMB_DOWN
                       ? '请告诉我们需要改进的地方...'
                       : '请输入您的评论...'
                 }

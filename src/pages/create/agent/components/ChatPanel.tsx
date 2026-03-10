@@ -39,6 +39,57 @@ import type { DesignTask, AgentMessage, AgentType, OrchestratorResponse } from '
 import { AGENT_CONFIG, PRESET_STYLES } from '../types/agent';
 import { Suggestion } from '../services/suggestionEngine';
 
+// 生成标题和描述的辅助函数
+async function generateTitleAndDescription(
+  taskDescription: string,
+  styleName: string
+): Promise<{ title: string; description: string }> {
+  console.log('[generateTitleAndDescription] 开始生成标题和描述:', { taskDescription, styleName });
+
+  const prompt = `作为一位专业的创意设计师，请为以下设计作品生成一个吸引人的标题和详细的描述。
+
+设计任务：${taskDescription}
+设计风格：${styleName}
+
+要求：
+1. 标题（≤15字）：简洁有力，富有创意，能体现作品特色
+2. 描述（50-100字）：详细描述作品的视觉特点、设计理念、适用场景等
+
+请直接返回JSON格式：
+{
+  "title": "作品标题",
+  "description": "作品描述..."
+}`;
+
+  try {
+    console.log('[generateTitleAndDescription] 调用 llmService.generateResponse...');
+    const response = await llmService.generateResponse(prompt, {
+      priority: 'normal'
+    });
+    console.log('[generateTitleAndDescription] 收到响应:', response);
+
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      console.log('[generateTitleAndDescription] 解析成功:', result);
+      return {
+        title: result.title?.slice(0, 15) || '未命名作品',
+        description: result.description || '暂无描述'
+      };
+    } else {
+      console.warn('[generateTitleAndDescription] 未找到JSON格式响应');
+    }
+  } catch (error) {
+    console.error('[generateTitleAndDescription] 生成标题描述失败:', error);
+  }
+
+  console.log('[generateTitleAndDescription] 返回默认值');
+  return {
+    title: `${styleName}作品`,
+    description: taskDescription
+  };
+}
+
 // 从用户消息中检测风格关键词
 function detectStyleFromMessage(message: string): string | null {
   const lowerMsg = message.toLowerCase();
@@ -292,11 +343,13 @@ export default function ChatPanel() {
         throw new Error('无法获取生成的图像URL');
       }
 
-      // 从之前的消息中提取AI生成的描述（查找最近一条非用户的消息）
-      const lastAgentMessage = messages.slice().reverse().find(m => m.role !== 'user');
-      const generatedDescription = lastAgentMessage?.content || '';
-      // 提取标题（第一行或前20个字符）
-      const title = generatedDescription.split('\n')[0].slice(0, 30) || '未命名作品';
+      // 调用千问API生成优质的标题和描述
+      const { title, description } = await generateTitleAndDescription(
+        taskDescription,
+        style.name
+      );
+
+      console.log('[ChatPanel] AI生成的标题和描述:', { title, description });
 
       // 添加生成的图像消息
       addMessage({
@@ -318,7 +371,7 @@ export default function ChatPanel() {
         style: selectedStyle,
         agentType: currentAgent,
         title: title,
-        description: generatedDescription
+        description: description
       });
 
       toast.success('图像生成成功！');
@@ -462,105 +515,7 @@ export default function ChatPanel() {
         }
         break;
 
-      case 'generating':
-        // 生成中状态 - 添加占位符到画布，然后自动触发实际生成
-        {
-          const generatingOutputId = addOutput({
-            type: 'image',
-            url: '', // 空URL表示生成中
-            thumbnail: '',
-            prompt: response.generatingPrompt || '生成中...',
-            style: selectedStyle || undefined,
-            agentType: response.agent,
-            title: '生成中...',
-            description: 'AI正在为您创作，请稍候～',
-            status: 'generating'
-          });
 
-          // 更新消息
-          updateMessage(messageId, {
-            content: response.content,
-            type: 'text'
-          });
-
-          console.log('[ChatPanel] 生成中占位符已添加:', generatingOutputId);
-
-          // 自动触发实际生成
-          if (response.generatingPrompt) {
-            console.log('[ChatPanel] 自动触发实际生成，提示词:', response.generatingPrompt);
-
-            // 延迟一下让用户看到"生成中"状态
-            setTimeout(async () => {
-              try {
-                // 调用 llmService.generateImage 实际生成图像
-                const result = await llmService.generateImage({
-                  model: 'wanx-v1',
-                  prompt: response.generatingPrompt!,
-                  size: '1024x1024',
-                  n: 1
-                });
-
-                console.log('[ChatPanel] 图像生成结果:', result);
-
-                if (!result.ok) {
-                  throw new Error(result.error || '图像生成失败');
-                }
-
-                // 提取图像URL
-                let imageUrl: string | undefined;
-                if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
-                  imageUrl = result.data.data[0].url;
-                } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-                  imageUrl = result.data[0].url;
-                }
-
-                if (!imageUrl) {
-                  throw new Error('无法获取生成的图像URL');
-                }
-
-                // 更新输出为完成状态
-                updateOutput(generatingOutputId, {
-                  url: imageUrl,
-                  thumbnail: imageUrl,
-                  status: 'completed',
-                  title: '设计作品',
-                  description: '生成完成！'
-                });
-
-                // 添加完成消息
-                addMessage({
-                  role: response.agent,
-                  content: `✨ **生成完成！**
-
-看看效果如何？如果需要调整风格、颜色或细节，随时告诉我！`,
-                  type: 'text'
-                });
-
-                console.log('[ChatPanel] 图像生成完成并更新到画布:', generatingOutputId);
-                toast.success('图像生成成功！');
-              } catch (error: any) {
-                console.error('[ChatPanel] 图像生成失败:', error);
-
-                // 更新输出为错误状态
-                updateOutput(generatingOutputId, {
-                  status: 'error',
-                  title: '生成失败',
-                  description: `生成失败：${error.message}`
-                });
-
-                // 添加错误消息
-                addMessage({
-                  role: 'system',
-                  content: `❌ **生成失败**\n\n抱歉，图像生成遇到了问题：${error.message}\n\n请稍后重试，或者换一种描述方式告诉我你的需求～`,
-                  type: 'text'
-                });
-
-                toast.error('图像生成失败，请重试');
-              }
-            }, 1000); // 延迟1秒让用户看到"生成中"状态
-          }
-        }
-        break;
 
       case 'response':
       default:
@@ -585,18 +540,29 @@ export default function ChatPanel() {
     }
 
     // 智能检测：如果设计师或总监说开始设计/生成方案等，自动显示风格选择器
+    // 但只有在没有选择风格且没有生成过图像时才触发
     const designKeywords = [
       '开始设计', '生成方案', '呈现方案', '设计方案', '概念图', '概念草图', '初步方案',
       '为你设计', '提供方案', '制作方案', '提供初步', '设计形象',
-      '草图', '绘制', '创作', '生成', '呈现', '展示', '1分钟', '马上', '立即'
+      '草图', '绘制', '创作', '呈现', '展示', '1分钟', '马上', '立即'
     ];
+    // 排除"生成完成"、"已生成"等表示完成的词汇
+    const isGenerationCompleted = response.content.includes('生成完成') ||
+      response.content.includes('已生成') ||
+      response.content.includes('生成成功') ||
+      response.content.includes('完成了');
+
     const shouldShowStyleSelector = (response.agent === 'designer' || response.agent === 'director') &&
+      !selectedStyle && // 还没有选择风格
+      !isGenerationCompleted && // 不是生成完成的消息
       designKeywords.some(keyword => response.content.includes(keyword));
 
     console.log('[ChatPanel] 智能检测风格选择器:', {
       agent: response.agent,
       content: response.content.slice(0, 100),
       shouldShowStyleSelector,
+      selectedStyle,
+      isGenerationCompleted,
       matchedKeyword: designKeywords.find(keyword => response.content.includes(keyword))
     });
 
@@ -611,6 +577,38 @@ export default function ChatPanel() {
           type: 'style-options'
         });
         console.log('[ChatPanel] 已添加风格选择消息:', styleMessageId);
+      }, 500);
+    }
+
+    // 智能检测：如果Agent询问设计类型，显示设计类型选项按钮
+    const designTypeKeywords = [
+      '设计什么类型', '想设计什么', '设计类型', '项目类型',
+      'IP形象', '品牌设计', '包装设计', '海报设计', '动画视频',
+      '选一个最想开始', '选择类型', '设计方向'
+    ];
+    const shouldShowDesignTypeOptions = (response.agent === 'designer' || response.agent === 'director') &&
+      designTypeKeywords.some(keyword => response.content.includes(keyword));
+
+    if (shouldShowDesignTypeOptions) {
+      console.log('[ChatPanel] 触发设计类型选项显示');
+      setTimeout(() => {
+        // 添加设计类型选项消息
+        const designTypeMessageId = addMessage({
+          role: 'designer',
+          content: '请选择一个设计类型开始：',
+          type: 'design-type-options',
+          metadata: {
+            designTypeOptions: [
+              { id: 'ip-character', label: 'IP形象', description: '独特的角色形象设计', icon: '🎭' },
+              { id: 'brand-design', label: '品牌设计', description: '品牌视觉识别系统', icon: '🎨' },
+              { id: 'packaging', label: '包装设计', description: '产品包装创意设计', icon: '📦' },
+              { id: 'poster', label: '海报设计', description: '宣传海报与物料设计', icon: '🖼️' },
+              { id: 'animation', label: '动画视频', description: '动态视觉与视频制作', icon: '🎬' },
+              { id: 'illustration', label: '插画设计', description: '手绘风格插画创作', icon: '✏️' }
+            ]
+          }
+        });
+        console.log('[ChatPanel] 已添加设计类型选项消息:', designTypeMessageId);
       }, 500);
     }
   }, [currentAgent, updateMessage, addMessage, setCollaborating, addToAgentQueue, handleAgentSwitch, setShowStyleSelector]);
@@ -732,8 +730,8 @@ export default function ChatPanel() {
         async () => {
           const response = await processWithOrchestrator(userMessage, context);
 
-          // 更新当前 Agent
-          if (response.agent !== currentAgent) {
+          // 更新当前 Agent（但如果用户已选择设计类型，保持当前专业Agent不变）
+          if (response.agent !== currentAgent && !currentTask?.requirements?.projectType) {
             setCurrentAgent(response.agent);
           }
 
@@ -1015,7 +1013,7 @@ export default function ChatPanel() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`fixed right-0 top-0 h-full w-96 shadow-2xl z-40 ${
+            className={`fixed right-0 top-0 h-full w-[480px] shadow-2xl z-40 ${
               isDark ? 'bg-gray-800' : 'bg-white'
             }`}
           >

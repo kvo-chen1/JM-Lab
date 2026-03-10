@@ -877,41 +877,6 @@ export class AgentOrchestrator {
 
     console.log('[Orchestrator] 生成的提示词:', prompt);
 
-    // 先返回"生成中"状态
-    return {
-      type: 'generating',
-      agent: context.currentAgent,
-      content: `🎨 **开始生成设计稿**
-
-正在根据你的需求创作${selectedStyle}风格的作品...
-
-⏱️ 预计需要 10-30 秒，请稍候～`,
-      generatingPrompt: prompt,
-      aiResponse: {
-        content: `🎨 **开始生成设计稿**
-
-正在根据你的需求创作${selectedStyle}风格的作品...
-
-⏱️ 预计需要 10-30 秒，请稍候～`,
-        type: 'text'
-      }
-    };
-  }
-
-  /**
-   * 继续执行图像生成（实际调用API）
-   */
-  private async continueImageGeneration(
-    prompt: string,
-    context: ConversationContext
-  ): Promise<OrchestratorResponse> {
-    console.log('[Orchestrator] 继续执行图像生成，提示词:', prompt);
-
-    const selectedStyle = context.selectedStyle ||
-                         context.currentTask?.requirements?.style ||
-                         this.getStylePrompt(context.currentAgent);
-    const taskDescription = context.currentTask?.requirements?.description || prompt;
-
     try {
       // 调用图像生成API
       const result = await llmService.generateImage({

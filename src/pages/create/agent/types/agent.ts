@@ -14,7 +14,7 @@ export type AgentType =
 // 为了向后兼容，保留 AgentRole
 export type AgentRole = AgentType;
 
-export type MessageType = 'text' | 'image' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'thinking' | 'delegation' | 'collaboration' | 'error' | 'character-workflow' | 'chain-progress';
+export type MessageType = 'text' | 'image' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'thinking' | 'delegation' | 'collaboration' | 'error' | 'character-workflow' | 'chain-progress' | 'design-type-options';
 export type TaskType = 'ip-character' | 'brand-packaging' | 'poster' | 'custom';
 export type TaskStage = 'requirement' | 'design' | 'review' | 'derivative' | 'completed';
 

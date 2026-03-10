@@ -254,15 +254,15 @@ export default function StyleLibrary({ onStyleSelect, onClose, currentStyle }: S
       </div>
 
       {/* 分类标签 */}
-      <div className={`px-4 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-        <div className="flex items-center gap-2 overflow-x-auto">
+      <div className={`px-3 py-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+        <div className="flex items-center justify-between">
           {STYLE_CATEGORIES.map(category => {
             const Icon = category.icon;
             return (
               <button
                 key={category.id}
                 onClick={() => setSelectedCategory(category.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors flex-1 justify-center mx-0.5 ${
                   selectedCategory === category.id
                     ? 'bg-[#C02C38] text-white'
                     : isDark
@@ -270,14 +270,14 @@ export default function StyleLibrary({ onStyleSelect, onClose, currentStyle }: S
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                {category.name}
+                <Icon className="w-3.5 h-3.5" />
+                <span className="truncate">{category.name}</span>
               </button>
             );
           })}
           <button
             onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors flex-1 justify-center mx-0.5 ${
               showFavoritesOnly
                 ? 'bg-[#C02C38] text-white'
                 : isDark
@@ -285,8 +285,8 @@ export default function StyleLibrary({ onStyleSelect, onClose, currentStyle }: S
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <Heart className={`w-4 h-4 ${showFavoritesOnly ? 'fill-current' : ''}`} />
-            收藏
+            <Heart className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'fill-current' : ''}`} />
+            <span className="truncate">收藏</span>
           </button>
         </div>
       </div>

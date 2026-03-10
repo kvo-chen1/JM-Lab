@@ -121,13 +121,55 @@ const DraggableCanvas = React.memo(function DraggableCanvas({
     }
   }, [isDragging, setCanvasPosition]);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
+  // 使用 useRef 存储最新的状态，避免在事件监听中依赖状态
+  const canvasStateRef = useRef({ canvasZoom, canvasPosition });
+  useEffect(() => {
+    canvasStateRef.current = { canvasZoom, canvasPosition };
+  }, [canvasZoom, canvasPosition]);
+
+  // 滚轮事件处理 - 使用原生事件监听以确保 preventDefault 生效
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // 只有在鼠标在画布区域内时才处理
+      const rect = container.getBoundingClientRect();
+      if (
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom
+      ) {
+        return;
+      }
+
       e.preventDefault();
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      setCanvasZoom(Math.max(50, Math.min(200, canvasZoom * delta)));
-    }
-  }, [canvasZoom, setCanvasZoom]);
+      e.stopPropagation();
+
+      const { canvasZoom: currentZoom, canvasPosition: currentPos } = canvasStateRef.current;
+
+      // Ctrl+滚轮：缩放画布
+      if (e.ctrlKey || e.metaKey) {
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        setCanvasZoom(Math.max(50, Math.min(200, currentZoom * delta)));
+      } else {
+        // 普通滚轮：平移画布（上下左右滚动）
+        const scrollSpeed = 1.5; // 滚动速度系数
+        setCanvasPosition({
+          x: currentPos.x - e.deltaX * scrollSpeed,
+          y: currentPos.y - e.deltaY * scrollSpeed
+        });
+      }
+    };
+
+    // 使用非 passive 模式添加事件监听
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [setCanvasZoom, setCanvasPosition]);
 
   // 空格键按下/释放处理
   useEffect(() => {
@@ -218,7 +260,7 @@ const DraggableCanvas = React.memo(function DraggableCanvas({
   }), [canvasPosition, canvasZoom, isDragging]);
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`relative w-full h-full overflow-hidden ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}
       style={{ cursor: cursorStyle, touchAction: 'none' }}
@@ -226,28 +268,27 @@ const DraggableCanvas = React.memo(function DraggableCanvas({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
     >
       {/* 网格背景层 */}
       {showGrid && (
-        <div 
+        <div
           className="absolute inset-0 pointer-events-none z-0"
           style={gridStyle}
         />
       )}
-      
-      {/* 画布内容 - 简化结构，移除嵌套的 CanvasContent */}
-      <div 
-        className="absolute inset-0 flex items-center justify-center z-10"
+
+      {/* 画布内容 - 使用滚轮平移 */}
+      <div
+        className="absolute inset-0 z-10 overflow-hidden"
         style={canvasStyle}
       >
-        <div className={`relative ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        <div className={`min-w-full min-h-full p-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {children}
         </div>
       </div>
 
       {/* 控制工具栏 */}
-      <CanvasControls 
+      <CanvasControls
         zoom={canvasZoom}
         onZoomChange={setCanvasZoom}
         onReset={handleReset}

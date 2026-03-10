@@ -158,7 +158,7 @@ function VideoMessageContent({
 
 export default function ChatMessage({ message, isLast = false }: ChatMessageProps) {
   const { isDark } = useTheme();
-  const { setShowThinkingProcess, showThinkingProcess, addMessage, setShowSatisfactionModal, generatedOutputs } = useAgentStore();
+  const { setShowThinkingProcess, showThinkingProcess, addMessage, setShowSatisfactionModal, generatedOutputs, updateTaskRequirements, setCurrentAgent } = useAgentStore();
   const { user } = useContext(AuthContext);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
@@ -225,6 +225,113 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
 
     // 关闭满意度弹窗
     setShowSatisfactionModal(false);
+  };
+
+  // 处理设计类型选项
+  const handleDesignTypeOption = (option: any) => {
+    // 添加用户选择消息
+    addMessage({
+      role: 'user',
+      content: option.label,
+      type: 'text'
+    });
+
+    // 根据设计类型确定对应的Agent
+    const agentMapping: Record<string, { agent: AgentType; questions: string[] }> = {
+      'ip-character': {
+        agent: 'illustrator',
+        questions: [
+          '角色的性格特点是什么？',
+          '有什么特别的元素或符号想要融入？',
+          '目标受众是谁？'
+        ]
+      },
+      'brand-design': {
+        agent: 'designer',
+        questions: [
+          '品牌名称和核心理念是什么？',
+          '希望传达什么样的品牌调性？',
+          '主要应用场景有哪些？'
+        ]
+      },
+      'packaging': {
+        agent: 'designer',
+        questions: [
+          '是什么类型的产品？',
+          '包装规格和材质有什么要求？',
+          '目标消费群体是谁？'
+        ]
+      },
+      'poster': {
+        agent: 'designer',
+        questions: [
+          '海报的主题和用途是什么？',
+          '需要什么尺寸和格式？',
+          '是否有特定的文案或元素要求？'
+        ]
+      },
+      'animation': {
+        agent: 'animator',
+        questions: [
+          '动画的用途和场景是什么？',
+          '需要什么风格（2D/3D/MG动画）？',
+          '时长和分辨率要求？'
+        ]
+      },
+      'illustration': {
+        agent: 'illustrator',
+        questions: [
+          '插画的主题和用途是什么？',
+          '喜欢什么风格（水彩/扁平/手绘）？',
+          '需要什么尺寸和格式？'
+        ]
+      }
+    };
+
+    const mapping = agentMapping[option.id] || { agent: 'designer', questions: ['请描述一下你的具体需求'] };
+    const agentConfig = AGENT_CONFIG[mapping.agent];
+
+    // 构建Agent回复消息，使用配置中的描述和能力
+    const agentMessage = `你好！我是${agentConfig.name}，${agentConfig.description}。
+
+我的专长包括：${agentConfig.capabilities.join('、')}。
+
+我来为你进行${option.label}！请告诉我：
+${mapping.questions.map(q => `• ${q}`).join('\n')}`;
+
+    // 更新任务类型
+    updateTaskRequirements({
+      projectType: option.id,
+      description: option.description
+    });
+
+    // 延迟一下，模拟Agent切换的效果
+    setTimeout(() => {
+      // 设置当前Agent为选中的专业Agent
+      setCurrentAgent(mapping.agent);
+
+      // 添加系统消息，显示Agent切换
+      addMessage({
+        role: 'system',
+        content: `设计总监将任务委派给了${agentConfig.name}`,
+        type: 'delegation',
+        metadata: {
+          delegationInfo: {
+            fromAgent: 'director',
+            toAgent: mapping.agent,
+            taskDescription: option.label,
+            reasoning: `根据设计类型智能分配：${option.label}由${agentConfig.name}负责，专长：${agentConfig.capabilities.join('、')}`
+          }
+        }
+      });
+
+      // 添加对应Agent的回复
+      addMessage({
+        role: mapping.agent,
+        content: agentMessage,
+        type: 'text'
+      });
+    }, 500);
   };
 
   // 处理衍生内容选项
@@ -624,6 +731,67 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
                         {option.description}
                       </p>
                     </div>
+                  </motion.button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'design-type-options':
+        return (
+          <div className="space-y-4">
+            {renderDelegationIndicator()}
+            <MarkdownContent content={message.content} isDark={isDark} />
+            {Array.isArray(message.metadata?.designTypeOptions) && (
+              <div className="grid grid-cols-2 gap-3">
+                {message.metadata.designTypeOptions.map((option: any, index: number) => (
+                  <motion.button
+                    key={option.id}
+                    onClick={() => handleDesignTypeOption(option)}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: 1.03, y: -4 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`group relative p-4 rounded-2xl text-left overflow-hidden transition-all duration-300 ${
+                      isDark
+                        ? 'bg-gradient-to-br from-gray-800/90 to-gray-900/90 border border-gray-700/50 hover:border-[#C02C38]/50 hover:shadow-lg hover:shadow-[#C02C38]/10'
+                        : 'bg-gradient-to-br from-white to-gray-50/80 border border-gray-200/80 hover:border-[#C02C38]/40 hover:shadow-xl hover:shadow-[#C02C38]/10'
+                    }`}
+                  >
+                    {/* 背景装饰 */}
+                    <div className={`absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 ${
+                      isDark ? 'bg-[#C02C38]' : 'bg-[#C02C38]'
+                    }`} />
+
+                    <div className="relative flex items-start gap-3">
+                      {/* 图标容器 */}
+                      <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-transform duration-300 group-hover:scale-110 ${
+                        isDark
+                          ? 'bg-gradient-to-br from-[#C02C38]/20 to-[#C02C38]/5'
+                          : 'bg-gradient-to-br from-[#C02C38]/10 to-[#C02C38]/5'
+                      }`}>
+                        {option.icon}
+                      </div>
+
+                      {/* 文字内容 */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold text-sm mb-1 transition-colors group-hover:text-[#C02C38] ${
+                          isDark ? 'text-gray-100' : 'text-gray-900'
+                        }`}>
+                          {option.label}
+                        </p>
+                        <p className={`text-xs leading-relaxed line-clamp-2 ${
+                          isDark ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
+                          {option.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 底部指示条 */}
+                    <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C02C38] to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
                   </motion.button>
                 ))}
               </div>

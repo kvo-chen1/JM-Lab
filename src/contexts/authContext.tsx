@@ -562,10 +562,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
              }).catch(err => console.warn('恢复 Supabase session 失败:', err));
           }
 
-          // 强制检查 ID 格式 (必须是 UUID)
+          // 检查 ID 格式 - 支持 UUID 和自定义格式（如 user_xxx）
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-          if (!uuidRegex.test(userData.id)) {
-            console.warn('检测到无效的用户 ID (非 UUID)，强制登出以清理脏数据:', userData.id);
+          const customIdRegex = /^user_[a-zA-Z0-9_-]+$/i;
+          if (!uuidRegex.test(userData.id) && !customIdRegex.test(userData.id) && userData.id.length < 5) {
+            console.warn('检测到无效的用户 ID，强制登出以清理脏数据:', userData.id);
             safeLocalStorage.removeItem('token');
             safeLocalStorage.removeItem('refreshToken');
             safeLocalStorage.removeItem('user');

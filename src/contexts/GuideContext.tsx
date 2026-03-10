@@ -96,14 +96,14 @@ export const GuideProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // 监听注册成功和登录成功事件
   useEffect(() => {
-    const registerListenerId = eventBus.subscribe('auth:register', () => {
+    const registerListenerId = eventBus.on('auth:register', () => {
       console.log('Detected new user registration, starting guide...');
       setTimeout(() => {
         startGuide();
       }, 500);
     });
 
-    const loginListenerId = eventBus.subscribe('auth:login', (data: any) => {
+    const loginListenerId = eventBus.on('auth:login', (data: any) => {
       console.log('Detected user login, checking guide status...', data);
       
       if (user?.id) {
@@ -121,8 +121,8 @@ export const GuideProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     });
 
     return () => {
-      eventBus.unsubscribe('auth:register', registerListenerId);
-      eventBus.unsubscribe('auth:login', loginListenerId);
+      eventBus.off('auth:register', registerListenerId);
+      eventBus.off('auth:login', loginListenerId);
     };
   }, [user, startGuide]);
 

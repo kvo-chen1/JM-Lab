@@ -26,6 +26,7 @@ import {
   REQUIREMENT_PRIORITY_PROMPT
 } from './agentPrompts';
 import { callAgent, AIResponse } from './agentService';
+import { llmService } from '@/services/llmService';
 
 // 对话上下文
 export interface ConversationContext {
@@ -38,13 +39,17 @@ export interface ConversationContext {
 
 // 编排器响应
 export interface OrchestratorResponse {
-  type: 'response' | 'delegation' | 'collaboration' | 'chain' | 'handoff';
+  type: 'response' | 'delegation' | 'collaboration' | 'chain' | 'handoff' | 'image_generation';
   agent: AgentType;
   content: string;
-  aiResponse?: AIResponse;
+  aiResponse?: AIResponse & { type?: string };
   delegationTask?: DelegationTask;
   collaborationAgents?: AgentType[];
   chainQueue?: AgentType[];
+  generatedImage?: {
+    url: string;
+    prompt: string;
+  };
 }
 
 /**
@@ -116,6 +121,21 @@ export class AgentOrchestrator {
     const reqCollection = context.requirementCollection!;
 
     console.log('[Orchestrator] Director input, stage:', reqCollection.stage);
+
+    // 检测用户是否想要跳过需求收集直接生成
+    if (this.isSkipToGeneration(userMessage)) {
+      console.log('[Orchestrator] User wants to skip requirement collection');
+      // 标记需求收集完成，使用默认信息
+      reqCollection.stage = 'completed';
+      reqCollection.collectedInfo = {
+        ...reqCollection.collectedInfo,
+        skipDetails: true,
+        note: '用户选择跳过详细需求收集，使用默认配置'
+      };
+
+      // 直接进入任务分配或响应
+      return this.executeTaskAssignment(context);
+    }
 
     // 根据需求收集阶段处理
     switch (reqCollection.stage) {
@@ -476,6 +496,19 @@ export class AgentOrchestrator {
   }
 
   /**
+   * 检测用户是否想要跳过需求收集直接生成
+   */
+  private isSkipToGeneration(message: string): boolean {
+    const skipKeywords = [
+      '直接生成', '直接开始', '开始生成', '生成吧', '开始吧',
+      '不想', '不用了', '不需要', '跳过', '直接做',
+      '就这样', '直接开始设计', '直接设计', '开始设计'
+    ];
+    const lowerMsg = message.toLowerCase();
+    return skipKeywords.some(keyword => lowerMsg.includes(keyword));
+  }
+
+  /**
    * 执行决策
    */
   private async executeDecision(
@@ -578,6 +611,19 @@ export class AgentOrchestrator {
   }
 
   /**
+   * 检测是否是角色设计需求
+   */
+  private isCharacterDesignRequest(userMessage: string): boolean {
+    const lowerMsg = userMessage.toLowerCase();
+    const characterKeywords = [
+      '角色设计', 'ip设计', 'ip形象', '形象设计', '角色形象',
+      '设计一个角色', '设计一个ip', '创建角色', '创建形象',
+      'character design', 'ip character', 'mascot design'
+    ];
+    return characterKeywords.some(keyword => lowerMsg.includes(keyword));
+  }
+
+  /**
    * 获取默认决策
    */
   private getDefaultDecision(
@@ -594,6 +640,19 @@ export class AgentOrchestrator {
       return {
         action: 'respond',
         reasoning: '用户确认继续，保持当前 Agent 处理'
+      };
+    }
+
+    // 检测角色设计需求 - 使用专门的向导式工作流
+    if (this.isCharacterDesignRequest(userMessage)) {
+      return {
+        action: 'respond',
+        reasoning: '用户需要角色设计服务，使用向导式工作流',
+        taskContext: {
+          taskType: 'character-design',
+          requirements: userMessage,
+          priority: 'high'
+        }
       };
     }
 
@@ -621,7 +680,7 @@ export class AgentOrchestrator {
       '短视频', '宣传片', '广告片', '片头', '片尾',
       '转场', '特效', 'mg动画', '二维动画', '三维动画'
     ];
-    
+
     if (videoKeywords.some(keyword => lowerMsg.includes(keyword))) {
       return {
         action: 'delegate',
@@ -646,26 +705,172 @@ export class AgentOrchestrator {
   }
 
   /**
+   * 检测用户是否想要生成图像
+   */
+  private shouldGenerateImage(userMessage: string, context: ConversationContext): boolean {
+    // 如果是设计师或插画师Agent，且用户表达了生成图像的意图
+    if (context.currentAgent !== 'designer' && context.currentAgent !== 'illustrator') {
+      return false;
+    }
+
+    // 检测生成图像的关键词
+    const generationKeywords = [
+      '生成', '画', '画一个', '画一下', '绘制', '创作', '设计',
+      '生成图像', '生成图片', '画出来', '画个', '画幅',
+      '开始设计', '开始画', '开始生成', '帮我画', '帮我生成',
+      '你能画', '你能生成', '可以画', '可以生成'
+    ];
+
+    const hasGenerationIntent = generationKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    console.log('[Orchestrator] 检测图像生成意图:', {
+      userMessage,
+      currentAgent: context.currentAgent,
+      hasGenerationIntent
+    });
+
+    return hasGenerationIntent;
+  }
+
+  /**
+   * 执行图像生成
+   */
+  private async executeImageGeneration(
+    userMessage: string,
+    context: ConversationContext
+  ): Promise<OrchestratorResponse> {
+    console.log('[Orchestrator] 开始执行图像生成');
+
+    // 构建图像生成提示词
+    const stylePrompt = this.getStylePrompt(context.currentAgent);
+    const prompt = `${userMessage}，${stylePrompt}，高质量，精美细节，专业设计作品`;
+
+    try {
+      // 调用图像生成API
+      const result = await llmService.generateImage({
+        model: 'wanx-v1',
+        prompt: prompt,
+        size: '1024x1024',
+        n: 1
+      });
+
+      console.log('[Orchestrator] 图像生成结果:', result);
+
+      if (!result.ok) {
+        throw new Error(result.error || '图像生成失败');
+      }
+
+      // 提取图像URL
+      let imageUrl: string | undefined;
+      if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
+        imageUrl = result.data.data[0].url;
+      } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+        imageUrl = result.data[0].url;
+      }
+
+      if (!imageUrl) {
+        throw new Error('无法获取生成的图像URL');
+      }
+
+      // 生成回复内容
+      const agentName = AGENT_CONFIG[context.currentAgent].name;
+      const content = `好的！我已经为你生成了设计图。这是根据你的描述创作的${stylePrompt}风格作品，你觉得怎么样？如果需要调整，请告诉我！`;
+
+      return {
+        type: 'image_generation',
+        agent: context.currentAgent,
+        content: content,
+        generatedImage: {
+          url: imageUrl,
+          prompt: prompt
+        }
+      };
+    } catch (error: any) {
+      console.error('[Orchestrator] 图像生成失败:', error);
+      
+      // 返回错误响应
+      return {
+        type: 'response',
+        agent: context.currentAgent,
+        content: `抱歉，图像生成遇到了问题：${error.message}。请稍后重试，或者尝试换一种描述方式。`
+      };
+    }
+  }
+
+  /**
+   * 获取当前Agent的风格提示词
+   */
+  private getStylePrompt(agentType: AgentType): string {
+    switch (agentType) {
+      case 'designer':
+        return '现代品牌设计风格，简洁专业';
+      case 'illustrator':
+        return '治愈冒险漫画风格，温暖手绘';
+      case 'copywriter':
+        return '文案配图风格';
+      default:
+        return '高质量插画风格';
+    }
+  }
+
+  /**
    * 执行直接响应
    */
   private async executeRespond(
     userMessage: string,
     context: ConversationContext
   ): Promise<OrchestratorResponse> {
-    const systemPrompt = getAgentSystemPrompt(context.currentAgent);
-    const aiResponse = await callAgent(
-      systemPrompt,
-      context.messages,
-      userMessage,
-      context.currentAgent
-    );
+    // 首先检测是否应该生成图像
+    if (this.shouldGenerateImage(userMessage, context)) {
+      console.log('[Orchestrator] 检测到图像生成意图，执行图像生成');
+      return this.executeImageGeneration(userMessage, context);
+    }
 
-    return {
-      type: 'response',
-      agent: context.currentAgent,
-      content: aiResponse.content,
-      aiResponse
-    };
+    // 检测是否是角色设计需求，使用向导式工作流
+    if (this.isCharacterDesignRequest(userMessage)) {
+      console.log('[Orchestrator] 检测到角色设计需求，启动向导式工作流');
+      return {
+        type: 'response',
+        agent: 'designer',
+        content: '我来帮你设计一个独特的角色形象！请按照下方的向导逐步完成角色设定。',
+        aiResponse: {
+          content: '我来帮你设计一个独特的角色形象！请按照下方的向导逐步完成角色设定。',
+          type: 'character-workflow'
+        }
+      };
+    }
+
+    try {
+      const systemPrompt = getAgentSystemPrompt(context.currentAgent);
+      const aiResponse = await callAgent(
+        systemPrompt,
+        context.messages,
+        userMessage,
+        context.currentAgent
+      );
+
+      return {
+        type: 'response',
+        agent: context.currentAgent,
+        content: aiResponse.content,
+        aiResponse
+      };
+    } catch (error) {
+      console.error('[Orchestrator] executeRespond error:', error);
+
+      // 返回降级回复
+      return {
+        type: 'response',
+        agent: context.currentAgent,
+        content: `抱歉，服务暂时不可用。我是${AGENT_CONFIG[context.currentAgent].name}，请稍后再试，或者重新描述你的需求。`,
+        aiResponse: {
+          content: `抱歉，服务暂时不可用。我是${AGENT_CONFIG[context.currentAgent].name}，请稍后再试，或者重新描述你的需求。`,
+          type: 'text'
+        }
+      };
+    }
   }
 
   /**
@@ -676,7 +881,7 @@ export class AgentOrchestrator {
     userMessage: string,
     context: ConversationContext
   ): Promise<OrchestratorResponse> {
-    const targetAgent = decision.targetAgent!;
+    const targetAgent = decision.targetAgent || 'designer';
     const fromAgent = context.currentAgent;
 
     // 创建委派任务记录
@@ -725,51 +930,82 @@ export class AgentOrchestrator {
   }
 
   /**
-   * 执行协作
+   * 执行协作 - 优化版：支持超时和错误处理
    */
   private async executeCollaborate(
     decision: AgentDecision,
     userMessage: string,
     context: ConversationContext
   ): Promise<OrchestratorResponse> {
-    const targetAgents = decision.targetAgents || [decision.targetAgent!];
+    const targetAgents = decision.targetAgents || [decision.targetAgent || 'designer'];
 
-    // 协作模式：并行调用所有目标 Agents
-    const collaborationPrompts = targetAgents.map(agent => {
+    // 协作模式：并行调用所有目标 Agents，带超时和错误处理
+    const collaborationPromises = targetAgents.map(async (agent) => {
       const systemPrompt = getAgentSystemPrompt(agent);
       const collaborationMessage = `协作任务：${userMessage}\n\n请从你的专业角度提供见解和建议。`;
-      return callAgent(
-        systemPrompt,
-        context.messages,
-        collaborationMessage,
-        agent
-      );
+
+      try {
+        // 添加单个Agent超时控制（15秒）
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error(`${agent} 响应超时`)), 15000);
+        });
+
+        const response = await Promise.race([
+          callAgent(systemPrompt, context.messages, collaborationMessage, agent),
+          timeoutPromise
+        ]);
+
+        return { agent, response, success: true as const };
+      } catch (error) {
+        console.warn(`[Orchestrator] Agent ${agent} collaboration failed:`, error);
+        return {
+          agent,
+          response: { content: '该成员暂时无法提供意见', type: 'text' as const },
+          success: false as const,
+          error: error instanceof Error ? error.message : '未知错误'
+        };
+      }
     });
 
-    // 并行执行所有 Agent 调用
-    const agentResponses = await Promise.all(collaborationPrompts);
+    // 并行执行所有 Agent 调用，等待所有完成
+    const agentResults = await Promise.all(collaborationPromises);
+
+    // 分离成功和失败的结果
+    const successfulResults = agentResults.filter(r => r.success);
+    const failedResults = agentResults.filter(r => !r.success);
 
     // 汇总所有 Agent 的响应
     let combinedContent = `我已组织团队成员进行协作分析：\n\n`;
-    targetAgents.forEach((agent, index) => {
-      const response = agentResponses[index];
-      combinedContent += `**${AGENT_CONFIG[agent].name}**：${response.content}\n\n`;
+
+    successfulResults.forEach(({ agent, response }) => {
+      const agentConfig = AGENT_CONFIG[agent as keyof typeof AGENT_CONFIG];
+      const agentName = agentConfig?.name || agent;
+      combinedContent += `**${agentName}**：${response.content}\n\n`;
     });
 
-    combinedContent += `综合团队意见，我们建议：[综合建议将在此生成]`;
+    // 如果有失败的，添加提示
+    if (failedResults.length > 0) {
+      combinedContent += `\n*注：${failedResults.length}位成员暂时无法参与讨论*\n\n`;
+    }
+
+    combinedContent += `综合团队意见，我们建议：根据以上专业分析，这是一个需要多维度考虑的创意任务。建议结合各位专家的意见，制定综合方案。`;
 
     return {
       type: 'collaboration',
-      agent: 'director', // 由总监汇总
+      agent: 'director',
       content: combinedContent,
       aiResponse: {
         content: combinedContent,
         type: 'text',
         metadata: {
-          collaborationResults: targetAgents.map((agent, index) => ({
+          collaborationResults: successfulResults.map(({ agent, response }) => ({
             agent,
-            content: agentResponses[index].content,
+            content: response.content,
             timestamp: Date.now()
+          })),
+          failedAgents: failedResults.map(({ agent, error }) => ({
+            agent,
+            error
           }))
         }
       },

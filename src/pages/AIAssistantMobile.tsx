@@ -1770,7 +1770,7 @@ export default function AIAssistantMobile() {
                       <AICollaborationMessage
                         message={message}
                         index={index}
-                        userAvatar={user?.avatar}
+                        userAvatar={user?.avatar_url || user?.avatar}
                         onDelete={handleDeleteMessage}
                         hideAvatar={true}
                         conversationId={currentSessionId || undefined}

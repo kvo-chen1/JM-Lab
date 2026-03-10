@@ -280,6 +280,14 @@ export class DataMigrationService {
     try {
       const profile = JSON.parse(data);
       
+      // 确保 profile 有 userId
+      if (!profile || !profile.userId) {
+        console.warn('[DataMigration] 跳过无效的 profile 数据:', profile);
+        this.progress.completed += 1;
+        this.notifyProgress();
+        return;
+      }
+      
       if (config.skipExisting) {
         const existing = await this.indexedDB.get(StoreName.USER_PROFILES, profile.userId);
         if (!existing) {

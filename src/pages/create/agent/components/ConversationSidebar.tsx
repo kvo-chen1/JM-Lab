@@ -186,12 +186,12 @@ export default function ConversationSidebar({ isOpen, onToggle }: ConversationSi
                 <p className="text-xs mt-1">点击上方按钮开始新对话</p>
               </div>
             ) : (
-              sessions.map((session) => (
+              sessions.map((session, index) => (
                 <motion.div
                   key={session.id}
-                  layout
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
                   className={`group relative p-3 rounded-xl cursor-pointer transition-all ${
                     currentSessionId === session.id
                       ? isDark

@@ -2,17 +2,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/authContext';
 import { useChatStore } from '@/stores/chatStore';
-import { chatService } from '@/services/chatService';
 import Square from '@/pages/Square';
 
 // Mock dependencies
-jest.mock('@/services/chatService');
 jest.mock('@/stores/chatStore');
 jest.mock('@/services/postService');
 jest.mock('@/lib/apiClient');
 jest.mock('@/mock/works');
 
-const mockChatService = chatService as jest.Mocked<typeof chatService>;
 const mockUseChatStore = useChatStore as jest.MockedFunction<typeof useChatStore>;
 
 describe('Chat Integration Tests', () => {
@@ -68,10 +65,6 @@ describe('Chat Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseChatStore.mockReturnValue(mockChatStore as any);
-    mockChatService.sendMessage.mockResolvedValue(mockMessages[1] as any);
-    mockChatService.sendCrossPageMessage.mockResolvedValue(mockMessages[1] as any);
-    mockChatService.updateMessageStatus.mockResolvedValue(undefined);
-    mockChatService.resendFailedMessages.mockResolvedValue(undefined);
   });
 
   test('renders chat button on Square page', () => {

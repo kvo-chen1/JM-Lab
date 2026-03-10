@@ -168,12 +168,12 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    const listener1 = eventBus.subscribe('workflow:update', handleWorkflowUpdate)
-    const listener2 = eventBus.subscribe('数据:刷新', handleDataRefresh)
+    const listener1 = eventBus.on('workflow:update', handleWorkflowUpdate)
+    const listener2 = eventBus.on('数据:刷新', handleDataRefresh)
 
     return () => {
-      eventBus.unsubscribe('workflow:update', listener1)
-      eventBus.unsubscribe('数据:刷新', listener2)
+      eventBus.off('workflow:update', listener1)
+      eventBus.off('数据:刷新', listener2)
     }
   }, [subscribers])
 
@@ -223,7 +223,7 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
       const changes = typeof s === 'function' ? s(prev) : s
       const newState = { ...prev, ...changes }
       // 发布状态更新事件
-      eventBus.publish('workflow:update', { state: newState, changes })
+      eventBus.emit('workflow:update', { state: newState, changes })
       // 通知订阅者
       subscribers.forEach(callback => callback(newState, changes))
       return newState
@@ -242,7 +242,7 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
       }
     }
     // 发布重置事件
-    eventBus.publish('workflow:reset', undefined)
+    eventBus.emit('workflow:reset', undefined)
     // 通知订阅者
     subscribers.forEach(callback => callback({}, {}))
   }
@@ -337,7 +337,7 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
       lastStateRef.current = { ...state, draftId: draft.id, lastSavedAt: draft.updatedAt }
       
       // Publish event
-      eventBus.publish('workflow:draftSaved', { draft })
+      eventBus.emit('workflow:draftSaved', { draft })
       
       return draft
     } catch (error) {
@@ -369,7 +369,7 @@ export const WorkflowProvider = ({ children }: { children: ReactNode }) => {
       lastStateRef.current = result.state
       
       // Publish event
-      eventBus.publish('workflow:draftLoaded', { draftId, state: result.state })
+      eventBus.emit('workflow:draftLoaded', { draftId, state: result.state })
       
       return true
     } catch (error) {

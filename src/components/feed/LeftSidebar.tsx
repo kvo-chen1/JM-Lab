@@ -61,7 +61,7 @@ export function LeftSidebar({ activeFilter, onFilterChange, user, userStats }: L
         <div className="flex items-center gap-4">
           <div className="relative">
             <img
-              src={user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'}
+              src={user?.avatar_url || user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'}
               alt={user?.username || '用户'}
               className="w-14 h-14 rounded-full object-cover ring-2 ring-offset-2 ring-blue-500"
             />

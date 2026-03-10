@@ -729,11 +729,11 @@ export default function App() {
       };
 
       // 监听登录成功事件，保存listenerId用于取消订阅
-      const listenerId = eventBus.subscribe('auth:login', handleLogin);
+      const listenerId = eventBus.on('auth:login', handleLogin);
 
       return () => {
         // 清理事件监听
-        eventBus.unsubscribe('auth:login', listenerId);
+        eventBus.off('auth:login', listenerId);
       };
     });
   }, [navigate]);

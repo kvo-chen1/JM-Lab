@@ -162,14 +162,16 @@ function EditableDescription({
 }
 
 // 图片加载组件
-function ImageWithLoading({ 
-  src, 
-  alt, 
-  className 
-}: { 
-  src: string; 
-  alt: string; 
+function ImageWithLoading({
+  src,
+  alt,
+  className,
+  isGenerating = false
+}: {
+  src: string;
+  alt: string;
   className?: string;
+  isGenerating?: boolean;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -185,12 +187,29 @@ function ImageWithLoading({
     setError(true);
   }, []);
 
+  // 如果是生成中状态
+  if (isGenerating) {
+    return (
+      <div className={`flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'} ${className}`}>
+        <div className="text-center px-2">
+          <Loader2 className="w-6 h-6 mx-auto mb-1 animate-spin text-[#C02C38]" />
+          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>生成中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 如果是加载错误
   if (error) {
     return (
-      <div className={`flex items-center justify-center bg-gray-800 ${className}`}>
-        <div className="text-center">
-          <Wand2 className="w-8 h-8 mx-auto mb-1 opacity-50 text-gray-500" />
-          <p className="text-xs text-gray-500">加载失败</p>
+      <div className={`flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'} ${className}`}>
+        <div className="text-center px-2">
+          <div className="w-6 h-6 mx-auto mb-1 rounded-full bg-red-500/20 flex items-center justify-center">
+            <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>加载失败</p>
         </div>
       </div>
     );
@@ -199,7 +218,7 @@ function ImageWithLoading({
   return (
     <div className="relative w-full h-full">
       {loading && (
-        <div className={`absolute inset-0 flex items-center justify-center bg-gray-800/50 ${className}`}>
+        <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-gray-800/50' : 'bg-gray-100/50'} ${className}`}>
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       )}

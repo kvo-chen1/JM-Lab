@@ -236,7 +236,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <div className="flex flex-col items-center space-y-3">
             <div className="relative">
               <img
-                src={user?.avatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Admin%20avatar'}
+                src={user?.avatar_url || user?.avatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Admin%20avatar'}
                 alt={user?.username || '管理员'}
                 className="h-10 w-10 rounded-full object-cover border-2 border-transparent hover:border-red-500 transition-colors"
               />
@@ -260,7 +260,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <div className="flex items-center">
             <div className="relative">
               <img
-                src={user?.avatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Admin%20avatar'}
+                src={user?.avatar_url || user?.avatar || 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Admin%20avatar'}
                 alt={user?.username || '管理员'}
                 className="h-10 w-10 rounded-full mr-3 object-cover border-2 border-transparent hover:border-red-500 transition-colors"
               />

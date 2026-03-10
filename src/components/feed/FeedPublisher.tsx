@@ -413,7 +413,7 @@ export function FeedPublisher({ onPublish, user }: FeedPublisherProps) {
         {/* 用户头像和输入框 */}
         <div className="flex gap-4">
           <img
-            src={user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'}
+            src={user?.avatar_url || user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=default'}
             alt={user?.username || '用户'}
             className="w-10 h-10 rounded-full object-cover flex-shrink-0"
           />

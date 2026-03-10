@@ -156,7 +156,7 @@ export const FeedSection: React.FC<FeedSectionProps> = ({
           onClick={onCreateThread}
           className={`flex items-center gap-2 md:gap-3 p-3 md:p-4 rounded-xl border mb-4 md:mb-6 cursor-pointer shadow-sm hover:shadow-md transition-all ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
         >
-          <TianjinAvatar size="md" src={user?.avatar || ''} alt={user?.username || '当前用户'} className="w-9 h-9 md:w-10 md:h-10 border-2 border-white dark:border-gray-700 shadow-sm flex-shrink-0" />
+          <TianjinAvatar size="md" src={user?.avatar_url || user?.avatar || ''} alt={user?.username || '当前用户'} className="w-9 h-9 md:w-10 md:h-10 border-2 border-white dark:border-gray-700 shadow-sm flex-shrink-0" />
           <div className="flex-1 relative group min-w-0">
             <input
                 type="text"

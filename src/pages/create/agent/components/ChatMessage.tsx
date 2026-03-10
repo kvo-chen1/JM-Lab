@@ -1,12 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore } from '../hooks/useAgentStore';
 import { AgentMessage, AGENT_CONFIG, AgentType } from '../types/agent';
 import AgentAvatar from './AgentAvatar';
+import { AuthContext } from '@/contexts/authContext';
 import StyleSelector from './StyleSelector';
 import ThinkingProcess from './ThinkingProcess';
+import ErrorDisplay from './ErrorDisplay';
+import CharacterDesignWorkflow from './CharacterDesignWorkflow';
+import ChainTaskProgress from './ChainTaskProgress';
+import FeedbackButtons from './FeedbackButtons';
+import DelegationIndicator from './DelegationIndicator';
 import { generateVideo } from '../services/agentService';
+import { AgentError } from '../types/errors';
 import { ChevronDown, ChevronUp, Lightbulb, Wand2, ArrowRight, Users, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -47,7 +54,7 @@ function VideoMessageContent({
     <div className="space-y-3">
       {renderDelegationIndicator()}
       <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-        {message.content.split('\n').map((line, index) => (
+        {String(message.content || '').split('\n').map((line, index) => (
           <p key={index} className="mb-1 last:mb-0">
             {line}
           </p>
@@ -131,6 +138,7 @@ function VideoMessageContent({
 export default function ChatMessage({ message, isLast = false }: ChatMessageProps) {
   const { isDark } = useTheme();
   const { setShowThinkingProcess, showThinkingProcess, addMessage, setShowSatisfactionModal, generatedOutputs } = useAgentStore();
+  const { user } = useContext(AuthContext);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
 
@@ -371,22 +379,22 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
     if (!message.metadata?.delegationInfo) return null;
 
     const { fromAgent, toAgent, reasoning } = message.metadata.delegationInfo;
-    const fromInfo = getAgentInfo(fromAgent);
-    const toInfo = getAgentInfo(toAgent);
-
+    
+    // 使用 DelegationIndicator 组件
     return (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-3 ${
-          isDark ? 'bg-gray-800/80 border border-gray-700' : 'bg-gray-50 border border-gray-200'
-        }`}
-      >
-        <span className={`font-medium ${fromInfo.color}`}>{fromInfo.name}</span>
-        <ArrowRight className="w-3 h-3 text-gray-400" />
-        <span className={`font-medium ${toInfo.color}`}>{toInfo.name}</span>
-        <span className="text-gray-400 ml-2">{reasoning}</span>
-      </motion.div>
+      <DelegationIndicator
+        delegation={{
+          id: message.id + '-delegation',
+          fromAgent,
+          toAgent,
+          taskDescription: reasoning || '任务委派',
+          context: reasoning || '',
+          status: 'completed',
+          createdAt: message.timestamp,
+          completedAt: message.timestamp
+        }}
+        showDetails={true}
+      />
     );
   };
 
@@ -396,7 +404,8 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
 
     const collaborationInfo = message.metadata?.collaborationInfo;
     const collaborationResults = message.metadata?.collaborationResults;
-    const participatingAgents = collaborationInfo?.participatingAgents || collaborationResults?.map((result: any) => result.agent) || [];
+    const participatingAgents = collaborationInfo?.participatingAgents || 
+      (Array.isArray(collaborationResults) ? collaborationResults.map((result: any) => result?.agent).filter(Boolean) : []) || [];
     const taskDescription = collaborationInfo?.taskDescription || '协作任务';
     const progress = collaborationInfo?.progress || 100;
 
@@ -433,7 +442,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
             />
           </div>
         )}
-        {collaborationResults && collaborationResults.length > 0 && (
+        {Array.isArray(collaborationResults) && collaborationResults.length > 0 && (
           <div className="mt-1">
             <div className="text-gray-500 mb-1">协作结果：</div>
             <div className="space-y-1">
@@ -462,7 +471,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           <div className="space-y-4">
             {renderDelegationIndicator()}
             <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {message.content.split('\n').map((line, index) => (
+              {String(message.content || '').split('\n').map((line, index) => (
                 <p key={index} className="mb-1 last:mb-0">
                   {line}
                 </p>
@@ -480,7 +489,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           <div className="space-y-3">
             {renderDelegationIndicator()}
             <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {message.content.split('\n').map((line, index) => (
+              {String(message.content || '').split('\n').map((line, index) => (
                 <p key={index} className="mb-1 last:mb-0">
                   {line}
                 </p>
@@ -497,7 +506,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           <div className="space-y-3">
             {renderDelegationIndicator()}
             <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {message.content.split('\n').map((line, index) => (
+              {String(message.content || '').split('\n').map((line, index) => (
                 <p key={index} className="mb-1 last:mb-0">
                   {line}
                 </p>
@@ -511,7 +520,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           <div className="space-y-3">
             {renderCollaborationIndicator()}
             <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {message.content.split('\n').map((line, index) => (
+              {String(message.content || '').split('\n').map((line, index) => (
                 <p key={index} className="mb-1 last:mb-0">
                   {line}
                 </p>
@@ -525,13 +534,13 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           <div className="space-y-3">
             {renderDelegationIndicator()}
             <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {message.content.split('\n').map((line, index) => (
+              {String(message.content || '').split('\n').map((line, index) => (
                 <p key={index} className="mb-1 last:mb-0">
                   {line}
                 </p>
               ))}
             </div>
-            {message.metadata?.images && (
+            {Array.isArray(message.metadata?.images) && (
               <div className="grid grid-cols-2 gap-2">
                 {message.metadata.images.map((image, index) => (
                   <motion.div
@@ -567,7 +576,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           <div className="space-y-4">
             {renderDelegationIndicator()}
             <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {message.content.split('\n').map((line, index) => (
+              {String(message.content || '').split('\n').map((line, index) => (
                 <p key={index} className="mb-1 last:mb-0">
                   {line}
                 </p>
@@ -603,13 +612,13 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           <div className="space-y-4">
             {renderDelegationIndicator()}
             <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {message.content.split('\n').map((line, index) => (
+              {String(message.content || '').split('\n').map((line, index) => (
                 <p key={index} className="mb-1 last:mb-0">
                   {line}
                 </p>
               ))}
             </div>
-            {message.metadata?.derivativeOptions && (
+            {Array.isArray(message.metadata?.derivativeOptions) && (
               <div className="space-y-2">
                 {message.metadata.derivativeOptions.map((option) => (
                   <motion.button
@@ -643,13 +652,45 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           </div>
         );
 
+      case 'error':
+        return (
+          <div className="space-y-3">
+            {renderDelegationIndicator()}
+            <ErrorDisplay
+              error={message.metadata?.error as AgentError}
+              onRetry={message.metadata?.onRetry}
+              onDismiss={message.metadata?.onDismiss}
+              showDetails={message.metadata?.showDetails}
+            />
+          </div>
+        );
+
+      case 'character-workflow':
+        return (
+          <div className="space-y-3">
+            {renderDelegationIndicator()}
+            <CharacterDesignWorkflow />
+          </div>
+        );
+
+      case 'chain-progress':
+        return (
+          <div className="space-y-3">
+            {renderDelegationIndicator()}
+            <ChainTaskProgress
+              queue={message.metadata?.taskQueue}
+              progress={message.metadata?.progress}
+            />
+          </div>
+        );
+
       case 'text':
       default:
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
             <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-              {message.content.split('\n').map((line, index) => {
+              {String(message.content || '').split('\n').map((line, index) => {
                 // 处理列表项（支持加粗）
                 if (line.trim().startsWith('•')) {
                   const content = line.trim().substring(1).trim();
@@ -757,7 +798,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
     >
       {/* Avatar */}
       <div className="flex-shrink-0">
-        <AgentAvatar role={agentRole} size="md" />
+        <AgentAvatar role={agentRole} size="md" userAvatarUrl={user?.avatar_url || user?.avatar} />
       </div>
 
       {/* Message Content */}
@@ -794,6 +835,17 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         <span className={`text-xs mt-1 px-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
           {formatTime(message.timestamp)}
         </span>
+
+        {/* Feedback Buttons - only for AI messages */}
+        {!isUser && isLast && (
+          <div className="mt-2">
+            <FeedbackButtons
+              messageId={message.id}
+              messageContent={message.content}
+              agentType={agentRole}
+            />
+          </div>
+        )}
       </div>
     </motion.div>
   );

@@ -74,3 +74,6 @@ fixed_skeleton.tsx
 *.zip
 postgresql-installer.exe
 postgresql.zip
+
+.vercel
+.env*.local

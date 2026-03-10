@@ -163,19 +163,19 @@ const notificationUtils = {
     communityId: string
   ) => {
     if (!user || !communityId) return;
-    
+
     const notification = {
       type,
       title,
       content,
       senderId: user.id,
       senderName: user.username,
-      recipientId: 'admin',
+      recipientId: user.id,
       communityId,
       priority: 'medium',
       link: `/community/${communityId}`
     };
-    
+
     if (addNotificationWithNavigate) {
       addNotificationWithNavigate(notification, navigate);
     } else {

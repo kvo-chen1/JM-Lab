@@ -63,7 +63,7 @@ class UserSyncService {
     this.setupStorageListener();
 
     // 监听事件总线的登出事件
-    eventBus.subscribe(LOGOUT_EVENT, () => {
+    eventBus.on(LOGOUT_EVENT, () => {
       this.clear();
     });
 
@@ -409,9 +409,9 @@ class UserSyncService {
    * @returns 取消订阅函数
    */
   onUserUpdate(callback: (user: UserData | null) => void): () => void {
-    const listenerId = eventBus.subscribe(UPDATE_EVENT, callback);
+    const listenerId = eventBus.on(UPDATE_EVENT, callback);
     return () => {
-      eventBus.unsubscribe(UPDATE_EVENT, listenerId);
+      eventBus.off(UPDATE_EVENT, listenerId);
     };
   }
 
@@ -421,9 +421,9 @@ class UserSyncService {
    * @returns 取消订阅函数
    */
   onUserLogout(callback: () => void): () => void {
-    const listenerId = eventBus.subscribe(LOGOUT_EVENT, callback);
+    const listenerId = eventBus.on(LOGOUT_EVENT, callback);
     return () => {
-      eventBus.unsubscribe(LOGOUT_EVENT, listenerId);
+      eventBus.off(LOGOUT_EVENT, listenerId);
     };
   }
 }

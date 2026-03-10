@@ -514,3 +514,6 @@ export function resetIndexedDBStorage(): void {
   indexedDBInstance?.close();
   indexedDBInstance = null;
 }
+
+// 导出单例实例（供直接导入使用）
+export const indexedDBStorage = getIndexedDBStorage();

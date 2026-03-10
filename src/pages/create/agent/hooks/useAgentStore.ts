@@ -15,12 +15,94 @@ import {
 } from '../types/agent';
 import { getMemoryService } from '../services/memoryService';
 
+// 欢迎消息配置选项
+interface WelcomeMessageOptions {
+  userName?: string;
+  timeOfDay?: 'morning' | 'afternoon' | 'evening';
+  isReturningUser?: boolean;
+  previousTaskType?: string;
+}
+
+// 根据时间获取问候语
+const getGreetingByTime = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return '早上好';
+  if (hour < 18) return '下午好';
+  return '晚上好';
+};
+
+// 获取个性化欢迎消息
+const getWelcomeMessage = (options: WelcomeMessageOptions = {}): AgentMessage => {
+  const { userName, timeOfDay, isReturningUser, previousTaskType } = options;
+
+  // 基础问候
+  const greeting = timeOfDay || getGreetingByTime();
+  const namePart = userName ? `，${userName}` : '';
+
+  // 根据用户类型调整内容
+  let welcomeContent = '';
+
+  if (isReturningUser && previousTaskType) {
+    // 回头客，提及之前的任务类型
+    welcomeContent = `${greeting}${namePart}！欢迎回来，我是津脉设计总监。\n\n我可以帮你完成：
+• IP形象设计与孵化
+• 品牌创意包装设计
+• 老字号宣传海报设计
+• 其他创意设计需求\n\n上次你关注了${previousTaskType}，今天想要设计什么？我会为你安排最合适的团队成员。`;
+  } else if (isReturningUser) {
+    // 回头客，无特定任务类型
+    welcomeContent = `${greeting}${namePart}！欢迎回来，我是津脉设计总监，很高兴再次为你服务。\n\n我可以帮你完成：
+• IP形象设计与孵化
+• 品牌创意包装设计
+• 老字号宣传海报设计
+• 其他创意设计需求\n\n今天想要设计什么？`;
+  } else {
+    // 新用户
+    welcomeContent = `${greeting}${namePart}！我是津脉设计总监，很高兴为你服务。\n\n我可以帮你完成：
+• IP形象设计与孵化
+• 品牌创意包装设计
+• 老字号宣传海报设计
+• 其他创意设计需求\n\n请告诉我你想要设计什么？我会根据你的需求安排最合适的团队成员为你服务。`;
+  }
+
+  return {
+    id: generateId(),
+    role: 'director',
+    content: welcomeContent,
+    timestamp: Date.now(),
+    type: 'text'
+  };
+};
+
+// 从localStorage获取用户信息
+const getUserInfoFromStorage = (): WelcomeMessageOptions => {
+  try {
+    const userInfo = localStorage.getItem('agent-user-info');
+    if (userInfo) {
+      return JSON.parse(userInfo);
+    }
+  } catch (e) {
+    console.warn('[AgentStore] Failed to parse user info:', e);
+  }
+  return {};
+};
+
+// 保存用户信息到localStorage
+export const saveUserInfo = (options: WelcomeMessageOptions): void => {
+  try {
+    localStorage.setItem('agent-user-info', JSON.stringify(options));
+  } catch (e) {
+    console.warn('[AgentStore] Failed to save user info:', e);
+  }
+};
+
 interface AgentActions {
   // 消息操作
   addMessage: (message: Omit<AgentMessage, 'id' | 'timestamp'>) => string;
   updateMessage: (id: string, updates: Partial<AgentMessage>) => void;
   deleteMessage: (id: string) => void;
   clearMessages: () => void;
+  setMessages: (messages: AgentMessage[]) => void; // 新增：直接设置消息列表
 
   // Agent切换
   setCurrentAgent: (agent: AgentType) => void;
@@ -32,12 +114,15 @@ interface AgentActions {
   updateTaskRequirements: (requirements: Partial<DesignTask['requirements']>) => void;
   setTaskStage: (stage: TaskStage) => void;
   completeTask: () => void;
+  setTasks: (tasks: DesignTask[]) => void; // 新增：直接设置任务列表
 
   // 生成内容管理
   addOutput: (output: Omit<GeneratedOutput, 'id' | 'createdAt'>) => void;
+  updateOutput: (id: string, updates: Partial<GeneratedOutput>) => void;
   selectOutput: (id: string | null) => void;
   deleteOutput: (id: string) => void;
   clearOutputs: () => void;
+  setGeneratedContent: (content: GeneratedOutput[]) => void; // 新增：直接设置生成内容
 
   // 风格选择
   selectStyle: (styleId: string | null) => void;
@@ -98,25 +183,33 @@ const initialState: AgentState = {
   delegationHistory: [],
   isCollaborating: false,
   collaborationAgents: [],
-  currentDelegation: null
+  currentDelegation: null,
+  // 需求收集状态
+  requirementCollection: {
+    stage: 'initial',
+    collectedInfo: {},
+    pendingQuestions: [],
+    confirmed: false,
+    summaryShown: false,
+    assignmentShown: false
+  }
 };
-
-// 欢迎消息
-const getWelcomeMessage = (): AgentMessage => ({
-  id: generateId(),
-  role: 'director',
-  content: '你好！我是津脉设计总监，很高兴为你服务。\n\n我可以帮你完成：\n• IP形象设计与孵化\n• 品牌创意包装设计\n• 老字号宣传海报设计\n• 其他创意设计需求\n\n请告诉我你想要设计什么？我会根据你的需求安排最合适的团队成员为你服务。',
-  timestamp: Date.now(),
-  type: 'text'
-});
 
 export const useAgentStore = create<AgentState & AgentActions>()(
   persist(
-    (set, get) => ({
-      ...initialState,
+    (set, get) => {
+      // 获取用户信息并生成个性化欢迎消息
+      const userInfo = getUserInfoFromStorage();
+      const welcomeMessage = getWelcomeMessage({
+        ...userInfo,
+        previousTaskType: undefined
+      });
 
-      // 初始化欢迎消息
-      messages: [getWelcomeMessage()],
+      return {
+        ...initialState,
+
+        // 初始化欢迎消息
+        messages: [welcomeMessage],
 
       // 消息操作
       addMessage: (message) => {
@@ -141,9 +234,18 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         messages: state.messages.filter(msg => msg.id !== id)
       })),
 
-      clearMessages: () => set({
-        messages: [getWelcomeMessage()]
+      clearMessages: () => set((state) => {
+        const userInfo = getUserInfoFromStorage();
+        const welcomeMessage = getWelcomeMessage({
+          ...userInfo,
+          previousTaskType: state.currentTask?.type,
+          isReturningUser: state.messages.length > 2
+        });
+        return { messages: [welcomeMessage] };
       }),
+
+      // 新增：直接设置消息列表（用于资源管理器清理）
+      setMessages: (messages) => set({ messages }),
 
       // Agent切换
       setCurrentAgent: (agent) => set({ currentAgent: agent }),
@@ -194,6 +296,11 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         taskStage: 'completed'
       })),
 
+      // 新增：直接设置任务列表（用于资源管理器清理）
+      setTasks: (tasks) => set({
+        currentTask: tasks.length > 0 ? tasks[tasks.length - 1] : null
+      }),
+
       // 生成内容管理
       addOutput: (output) => set((state) => {
         const newOutput: GeneratedOutput = {
@@ -217,6 +324,12 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         };
       }),
 
+      updateOutput: (id, updates) => set((state) => ({
+        generatedOutputs: state.generatedOutputs.map(out =>
+          out.id === id ? { ...out, ...updates } : out
+        )
+      })),
+
       selectOutput: (id) => set({ selectedOutput: id }),
 
       deleteOutput: (id) => set((state) => ({
@@ -230,6 +343,9 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         generatedOutputs: [],
         selectedOutput: null
       }),
+
+      // 新增：直接设置生成内容列表（用于资源管理器清理）
+      setGeneratedContent: (content) => set({ generatedOutputs: content }),
 
       // 风格选择
       selectStyle: (styleId) => set({ selectedStyle: styleId }),
@@ -355,10 +471,17 @@ export const useAgentStore = create<AgentState & AgentActions>()(
       // 批量更新
       updateState: (updates) => set((state) => ({ ...state, ...updates })),
 
-      resetState: () => set({
-        ...initialState,
-        messages: [getWelcomeMessage()]
-      }),
+      resetState: () => {
+        const userInfo = getUserInfoFromStorage();
+        const welcomeMessage = getWelcomeMessage({
+          ...userInfo,
+          isReturningUser: true
+        });
+        return set({
+          ...initialState,
+          messages: [welcomeMessage]
+        });
+      },
 
       // 需求收集管理
       setRequirementStage: (stage) => set((state) => ({
@@ -430,7 +553,7 @@ export const useAgentStore = create<AgentState & AgentActions>()(
           assignmentShown: false
         }
       }))
-    }),
+    }},
     {
       name: 'agent-store',
       partialize: (state) => ({

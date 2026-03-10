@@ -95,7 +95,7 @@ const CreatorHeader: React.FC<CreatorHeaderProps> = ({ user, isDark, onMenuToggl
               className="relative"
             >
               <img
-                src={user?.avatar || '/default-avatar.png'}
+                src={user?.avatar_url || user?.avatar || '/default-avatar.png'}
                 alt="头像"
                 className="w-9 h-9 rounded-full object-cover ring-2 ring-blue-500/30"
               />

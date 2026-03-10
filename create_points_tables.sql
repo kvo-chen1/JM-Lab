@@ -1,6 +1,23 @@
 -- 创建积分系统相关表
 
--- 1. 签到记录表
+-- 1. 积分记录表 (核心表 - 记录所有积分变动)
+CREATE TABLE IF NOT EXISTS public.points_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    points INTEGER NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('earned', 'spent', 'adjustment')),
+    source TEXT NOT NULL,
+    source_type TEXT,
+    description TEXT NOT NULL DEFAULT '',
+    balance_after INTEGER NOT NULL,
+    related_id UUID,
+    related_type TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 2. 签到记录表
 CREATE TABLE IF NOT EXISTS public.checkin_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -14,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.checkin_records (
     UNIQUE(user_id, checkin_date)
 );
 
--- 2. 任务记录表
+-- 3. 任务记录表
 CREATE TABLE IF NOT EXISTS public.task_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -31,7 +48,7 @@ CREATE TABLE IF NOT EXISTS public.task_records (
     UNIQUE(user_id, task_id)
 );
 
--- 3. 兑换记录表
+-- 4. 兑换记录表
 CREATE TABLE IF NOT EXISTS public.exchange_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -44,7 +61,7 @@ CREATE TABLE IF NOT EXISTS public.exchange_records (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. 邀请记录表
+-- 5. 邀请记录表
 CREATE TABLE IF NOT EXISTS public.invite_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     inviter_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -58,7 +75,7 @@ CREATE TABLE IF NOT EXISTS public.invite_records (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 5. 消费返积分记录表
+-- 6. 消费返积分记录表
 CREATE TABLE IF NOT EXISTS public.consumption_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -71,7 +88,7 @@ CREATE TABLE IF NOT EXISTS public.consumption_records (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 6. 积分规则表
+-- 7. 积分规则表
 CREATE TABLE IF NOT EXISTS public.points_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
@@ -101,6 +118,7 @@ INSERT INTO public.points_rules (name, description, rule_type, source_type, poin
 ON CONFLICT DO NOTHING;
 
 -- 启用 RLS
+ALTER TABLE public.points_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.checkin_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.exchange_records ENABLE ROW LEVEL SECURITY;
@@ -109,6 +127,12 @@ ALTER TABLE public.consumption_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.points_rules ENABLE ROW LEVEL SECURITY;
 
 -- 创建 RLS 策略
+-- points_records 策略
+CREATE POLICY "Users can view own points records" ON public.points_records
+    FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Service role can manage all points records" ON public.points_records
+    FOR ALL USING (true) WITH CHECK (true);
+
 -- checkin_records 策略
 CREATE POLICY "Users can view own checkin records" ON public.checkin_records
     FOR SELECT USING (auth.uid() = user_id);
@@ -154,6 +178,7 @@ CREATE POLICY "Service role can manage points rules" ON public.points_rules
     FOR ALL USING (true) WITH CHECK (true);
 
 -- 授予权限
+GRANT ALL ON public.points_records TO anon, authenticated, service_role;
 GRANT ALL ON public.checkin_records TO anon, authenticated, service_role;
 GRANT ALL ON public.task_records TO anon, authenticated, service_role;
 GRANT ALL ON public.exchange_records TO anon, authenticated, service_role;
@@ -162,6 +187,9 @@ GRANT ALL ON public.consumption_records TO anon, authenticated, service_role;
 GRANT ALL ON public.points_rules TO anon, authenticated, service_role;
 
 -- 创建索引
+CREATE INDEX IF NOT EXISTS idx_points_records_user_id ON public.points_records(user_id);
+CREATE INDEX IF NOT EXISTS idx_points_records_created_at ON public.points_records(created_at);
+CREATE INDEX IF NOT EXISTS idx_points_records_type ON public.points_records(type);
 CREATE INDEX IF NOT EXISTS idx_checkin_records_user_id ON public.checkin_records(user_id);
 CREATE INDEX IF NOT EXISTS idx_checkin_records_date ON public.checkin_records(checkin_date);
 CREATE INDEX IF NOT EXISTS idx_task_records_user_id ON public.task_records(user_id);

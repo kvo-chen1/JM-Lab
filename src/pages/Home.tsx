@@ -96,23 +96,23 @@ export default function Home() {
     setIsMounted(true);
     
     // 添加事件监听器
-    const loginListener = eventBus.subscribe('auth:login', (data) => {
+    const loginListener = eventBus.on('auth:login', (data) => {
       console.log('Home page received login event:', data);
       const username = data?.user?.username || '用户';
       toast.success(`欢迎回来，${username}!`);
     });
     
-    const logoutListener = eventBus.subscribe('auth:logout', () => {
+    const logoutListener = eventBus.on('auth:logout', () => {
       console.log('Home page received logout event');
       toast.info('您已成功登出');
     });
     
-    const workCreatedListener = eventBus.subscribe('作品:创建', (data) => {
+    const workCreatedListener = eventBus.on('作品:创建', (data) => {
       console.log('Home page received work created event:', data);
       toast.success('作品创建成功！');
     });
     
-    const workPublishedListener = eventBus.subscribe('作品:发布', (data) => {
+    const workPublishedListener = eventBus.on('作品:发布', (data) => {
       console.log('Home page received work published event:', data);
       toast.success(
         <div className="flex items-center justify-between gap-4 min-w-[280px]">
@@ -134,7 +134,7 @@ export default function Home() {
       );
     });
     
-    const dataRefreshListener = eventBus.subscribe('数据:刷新', (data) => {
+    const dataRefreshListener = eventBus.on('数据:刷新', (data) => {
       console.log('Home page received data refresh event:', data);
       // 只处理特定类型的数据刷新事件，避免无限循环
       if (data.type === 'work:created' || data.type === 'work:updated' || data.type === 'work:deleted') {
@@ -144,11 +144,11 @@ export default function Home() {
     
     // 清理事件监听器
     return () => {
-      eventBus.unsubscribe('auth:login', loginListener);
-      eventBus.unsubscribe('auth:logout', logoutListener);
-      eventBus.unsubscribe('作品:创建', workCreatedListener);
-      eventBus.unsubscribe('作品:发布', workPublishedListener);
-      eventBus.unsubscribe('数据:刷新', dataRefreshListener);
+      eventBus.off('auth:login', loginListener);
+      eventBus.off('auth:logout', logoutListener);
+      eventBus.off('作品:创建', workCreatedListener);
+      eventBus.off('作品:发布', workPublishedListener);
+      eventBus.off('数据:刷新', dataRefreshListener);
     };
   }, []);
   
@@ -378,7 +378,7 @@ export default function Home() {
       localStorage.setItem('workshopInspirationData', JSON.stringify(workshopData));
       
       // 发布创作生成事件
-      eventBus.publish('请求:开始', {
+      eventBus.emit('请求:开始', {
         url: '/create',
         method: 'GET',
         options: { query: p, from: 'home' }
@@ -392,7 +392,7 @@ export default function Home() {
     const p = ensurePrompt();
     
     // 发布优化开始事件
-    eventBus.publish('请求:开始', {
+    eventBus.emit('请求:开始', {
       url: '/optimize',
       method: 'POST',
       options: { prompt: p }
@@ -425,7 +425,7 @@ export default function Home() {
       toast.success(`发现${issues.length}条优化建议`);
       
       // 发布优化成功事件
-      eventBus.publish('请求:成功', {
+      eventBus.emit('请求:成功', {
         url: '/optimize',
         method: 'POST',
         data: { issues, optimized: cleaned, summary }
@@ -434,7 +434,7 @@ export default function Home() {
       console.error('优化失败:', error);
       
       // 发布优化失败事件
-      eventBus.publish('请求:失败', {
+      eventBus.emit('请求:失败', {
         url: '/optimize',
         method: 'POST',
         error: error instanceof Error ? error.message : 'Unknown error'

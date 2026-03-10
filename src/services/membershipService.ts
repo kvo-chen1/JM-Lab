@@ -277,16 +277,16 @@ class MembershipService {
 
   private setupRealtimeSync() {
     // 监听会员数据变化事件
-    eventBus.subscribe('membership:dataChanged', (data: any) => {
+    eventBus.on('membership:dataChanged', (data: any) => {
       this.handleDataChange(data);
     });
 
     // 监听用户登录/登出
-    eventBus.subscribe('auth:login', () => {
+    eventBus.on('auth:login', () => {
       this.clearCache();
     });
 
-    eventBus.subscribe('auth:logout', () => {
+    eventBus.on('auth:logout', () => {
       this.clearCache();
       this.unsubscribeRealtime();
     });
@@ -342,7 +342,7 @@ class MembershipService {
     this.cache.lastUpdated[type as keyof MembershipCache['lastUpdated']] = 0;
     
     // 发布数据更新事件
-    eventBus.publish('membership:dataChanged', {
+    eventBus.emit('membership:dataChanged', {
       type,
       payload,
       timestamp: Date.now(),
@@ -681,7 +681,7 @@ class MembershipService {
       this.cache.lastUpdated.info = 0;
 
       // 发布更新事件
-      eventBus.publish('membership:dataChanged', {
+      eventBus.emit('membership:dataChanged', {
         type: 'info',
         payload: { userId, updates },
         timestamp: Date.now(),
@@ -1047,7 +1047,7 @@ class MembershipService {
       this.cache.lastUpdated.info = 0;
 
       // 发布事件
-      eventBus.publish('membership:orderCompleted', { orderId, plan: order.plan });
+      eventBus.emit('membership:orderCompleted', { orderId, plan: order.plan });
 
       return true;
     } catch (error) {
@@ -1143,7 +1143,7 @@ class MembershipService {
       this.cache.lastUpdated.info = 0;
 
       // 发布事件
-      eventBus.publish('membership:pointsChanged', {
+      eventBus.emit('membership:pointsChanged', {
         userId,
         change: points,
         balance: newBalance,
@@ -1195,7 +1195,7 @@ class MembershipService {
       this.cache.lastUpdated.info = 0;
 
       // 发布事件
-      eventBus.publish('membership:pointsChanged', {
+      eventBus.emit('membership:pointsChanged', {
         userId,
         change: -points,
         balance: newBalance,

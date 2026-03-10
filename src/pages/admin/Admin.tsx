@@ -300,36 +300,42 @@ export default function Admin() {
   // 获取扩展统计数据
   const fetchExtendedStats = async () => {
     try {
+      // 检查 supabaseAdmin 是否可用
+      if (!supabaseAdmin || !supabaseAdmin.from) {
+        console.warn('[fetchExtendedStats] supabaseAdmin 未初始化');
+        return;
+      }
+
       // 获取推广订单数据
       const { count: promotionOrders } = await supabaseAdmin
         .from('promotion_orders')
         .select('*', { count: 'exact', head: true });
-      
+
       const { count: activePromotions } = await supabaseAdmin
         .from('promoted_works')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active');
-      
+
       // 获取品牌任务数据
       const { count: brandTasks } = await supabaseAdmin
         .from('brand_tasks')
         .select('*', { count: 'exact', head: true });
-      
+
       const { count: pendingBrandTasks } = await supabaseAdmin
         .from('brand_task_submissions')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'pending');
-      
+
       // 获取 IP 资产数据
       const { count: ipAssets } = await supabaseAdmin
         .from('ip_assets')
         .select('*', { count: 'exact', head: true });
-      
+
       // 获取知识库数据
       const { count: knowledgeBaseItems } = await supabaseAdmin
         .from('cultural_knowledge')
         .select('*', { count: 'exact', head: true });
-      
+
       setExtendedStats({
         promotionOrders: promotionOrders || 0,
         activePromotions: activePromotions || 0,
@@ -354,8 +360,14 @@ export default function Admin() {
         clearDashboardCache();
       }
 
-      // 并行获取所有数据
-      const [statsData, activity, audit, pending, brandPartnerships] = await Promise.all([
+      // 并行获取所有数据（使用 Promise.allSettled 避免一个失败影响其他）
+      const [
+        statsResult,
+        activityResult,
+        auditResult,
+        pendingResult,
+        brandPartnershipsResult
+      ] = await Promise.allSettled([
         adminService.getDashboardStats(),
         adminService.getUserActivityData(activityPeriod),
         adminService.getAuditStats(),
@@ -363,17 +375,51 @@ export default function Admin() {
         brandPartnershipService.getAllPartnerships({ limit: 5 })
       ]);
 
-      setStats(statsData);
-      setActivityData(activity.length > 0 ? activity : getDefaultActivityData(activityPeriod));
-      setAuditStats(audit);
-      setPendingWorks(pending);
-      setCommercialApplications(brandPartnerships.partnerships || []);
-      
-      // 获取扩展统计数据
-      await fetchExtendedStats();
+      // 处理每个结果
+      if (statsResult.status === 'fulfilled') {
+        setStats(statsResult.value);
+      } else {
+        console.error('获取统计数据失败:', statsResult.reason);
+      }
 
-      // 获取新增图表数据（传递 forceRefresh 参数）
-      await fetchEnhancedChartData(forceRefresh);
+      if (activityResult.status === 'fulfilled') {
+        setActivityData(activityResult.value.length > 0 ? activityResult.value : getDefaultActivityData(activityPeriod));
+      } else {
+        console.error('获取活动数据失败:', activityResult.reason);
+        setActivityData(getDefaultActivityData(activityPeriod));
+      }
+
+      if (auditResult.status === 'fulfilled') {
+        setAuditStats(auditResult.value);
+      } else {
+        console.error('获取审核统计失败:', auditResult.reason);
+      }
+
+      if (pendingResult.status === 'fulfilled') {
+        setPendingWorks(pendingResult.value);
+      } else {
+        console.error('获取待审核作品失败:', pendingResult.reason);
+      }
+
+      if (brandPartnershipsResult.status === 'fulfilled') {
+        setCommercialApplications(brandPartnershipsResult.value.partnerships || []);
+      } else {
+        console.error('获取商业化申请失败:', brandPartnershipsResult.reason);
+      }
+
+      // 获取扩展统计数据（独立错误处理）
+      try {
+        await fetchExtendedStats();
+      } catch (error) {
+        console.warn('获取扩展统计数据失败:', error);
+      }
+
+      // 获取新增图表数据（独立错误处理）
+      try {
+        await fetchEnhancedChartData(forceRefresh);
+      } catch (error) {
+        console.warn('获取图表数据失败:', error);
+      }
 
       setLastRefreshTime(new Date());
     } catch (error) {
@@ -990,6 +1036,14 @@ export default function Admin() {
       const satisfactionScore = commentSentimentData.length > 0
         ? Math.round((commentSentimentData[0]?.value || 0) / 20 * 10) / 10
         : 0;
+
+      // 计算7日活跃用户
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const users7Day = userActivity?.filter(u => {
+        const activityDate = new Date(u.created_at || u.last_active || Date.now());
+        return activityDate >= sevenDaysAgo;
+      }).length || 0;
 
       setCompetitorData([
         { metric: '日活跃用户', ours: dailyActiveUsers, competitorA: 8200, competitorB: 4500, industryAvg: 5800, note: '竞品数据为行业估算' },

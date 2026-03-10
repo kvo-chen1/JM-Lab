@@ -336,3 +336,5 @@ export const usePermissionAware = (
     isLoading: permissionResult.isLoading
   };
 };
+
+export default usePermission;

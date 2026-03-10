@@ -60,11 +60,11 @@ export default function ProfileEdit() {
     github: user?.github || '',
     twitter: user?.twitter || '',
     interests: user?.interests?.join(', ') || '',
-    avatar: user?.avatar || '',
+    avatar: user?.avatar_url || user?.avatar || '',
     coverImage: user?.coverImage || '',
   })
-  
-  const [avatarPreview, setAvatarPreview] = useState<string>(user?.avatar || '')
+
+  const [avatarPreview, setAvatarPreview] = useState<string>(user?.avatar_url || user?.avatar || '')
   const [coverPreview, setCoverPreview] = useState<string>(user?.coverImage || '')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [coverFile, setCoverFile] = useState<File | null>(null)
@@ -93,10 +93,10 @@ export default function ProfileEdit() {
         github: user.github || '',
         twitter: user.twitter || '',
         interests: user.interests?.join(', ') || '',
-        avatar: user.avatar || '',
+        avatar: user.avatar_url || user.avatar || '',
         coverImage: user.coverImage || '',
       })
-      setAvatarPreview(user.avatar || '')
+      setAvatarPreview(user.avatar_url || user.avatar || '')
       setCoverPreview(user.coverImage || '')
       setTags(user.tags || [])
     }

@@ -109,13 +109,13 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
         <motion.div
           initial={false}
           animate={{
-            width: isChatCollapsed ? 0 : 560,
+            width: isChatCollapsed ? 0 : 480,
             opacity: isChatCollapsed ? 0 : 1
           }}
           transition={{ duration: 0.3, ease: 'easeInOut' }}
           className="flex-shrink-0 h-full"
         >
-          <div className="w-[560px] h-full">
+          <div className="w-[480px] h-full">
             {children.chatPanel}
           </div>
         </motion.div>

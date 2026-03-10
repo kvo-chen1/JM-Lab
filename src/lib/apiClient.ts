@@ -474,7 +474,7 @@ export async function apiRequest<TResp, TBody = unknown>(
       
       // 发布缓存命中事件（只在开发环境发布）
       if (import.meta.env.DEV) {
-        eventBus.publish('数据:刷新', { 
+        eventBus.emit('数据:刷新', { 
           type: 'api-cache-hit', 
           payload: { path, method, stale: cachedResult.isStale } 
         });
@@ -490,7 +490,7 @@ export async function apiRequest<TResp, TBody = unknown>(
             console.error(`Cache Revalidation Failed: ${method} ${path}`, error);
             // 发布缓存重新验证失败事件（只在开发环境发布）
             if (import.meta.env.DEV) {
-              eventBus.publish('数据:刷新', { 
+              eventBus.emit('数据:刷新', { 
                 type: 'api-cache-revalidation-failed', 
                 payload: { path, method, error: error.message } 
               });
@@ -536,7 +536,7 @@ export async function apiRequest<TResp, TBody = unknown>(
         
         // 发布请求开始事件（只在开发环境发布）
         if (import.meta.env.DEV) {
-          eventBus.publish('数据:刷新', { 
+          eventBus.emit('数据:刷新', { 
             type: 'api-request-start', 
             payload: { path, method, url: target, body: options.body, timestamp } 
           });
@@ -628,7 +628,7 @@ export async function apiRequest<TResp, TBody = unknown>(
             })
             // 发布缓存更新事件（只在开发环境发布）
             if (import.meta.env.DEV) {
-              eventBus.publish('数据:刷新', { 
+              eventBus.emit('数据:刷新', { 
                 type: 'api-cache-updated', 
                 payload: { path, method, cacheKey: requestKey } 
               });
@@ -649,7 +649,7 @@ export async function apiRequest<TResp, TBody = unknown>(
           
           // 发布请求成功事件（只在开发环境发布）
           if (import.meta.env.DEV) {
-            eventBus.publish('数据:刷新', { 
+            eventBus.emit('数据:刷新', { 
               type: 'api-request-success', 
               payload: { path, method, url: target, status: res.status, data: responseData, duration } 
             });
@@ -711,7 +711,7 @@ export async function apiRequest<TResp, TBody = unknown>(
         
         // 发布请求失败事件（只在开发环境发布）
         if (import.meta.env.DEV) {
-          eventBus.publish('数据:刷新', { 
+          eventBus.emit('数据:刷新', { 
             type: 'api-request-error', 
             payload: { path, method, url: target, status: res.status, error: errorMessage, data: errorData, duration } 
           });
@@ -741,7 +741,7 @@ export async function apiRequest<TResp, TBody = unknown>(
         // 发布请求重试事件（只在开发环境发布）
         if (import.meta.env.DEV) {
           const errorObj = error as Error
-          eventBus.publish('数据:刷新', { 
+          eventBus.emit('数据:刷新', { 
             type: 'api-request-retry', 
             payload: { path, method, attempt, retries, error: errorObj.message, timeoutMs } 
           });
@@ -762,7 +762,7 @@ export async function apiRequest<TResp, TBody = unknown>(
           
           // 发布请求最终失败事件（只在开发环境发布）
           if (import.meta.env.DEV) {
-            eventBus.publish('数据:刷新', { 
+            eventBus.emit('数据:刷新', { 
               type: 'api-request-failed', 
               payload: { path, method, url: useFallback ? altUrl : url, error: finalErrorMessage, retries: attempt - 1 } 
             });
@@ -789,7 +789,7 @@ export async function apiRequest<TResp, TBody = unknown>(
     const finalErrorMessage = 'Max retries exceeded'
     // 发布请求失败事件（只在开发环境发布）
     if (import.meta.env.DEV) {
-      eventBus.publish('数据:刷新', { 
+      eventBus.emit('数据:刷新', { 
         type: 'api-request-failed', 
         payload: { path, method, url: useFallback ? altUrl : url, error: finalErrorMessage, retries: retries } 
       });

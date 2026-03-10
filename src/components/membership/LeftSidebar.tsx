@@ -106,9 +106,9 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               ${isDark ? 'bg-slate-800' : 'bg-white'}
               shadow-lg
             `}>
-              {user?.avatar ? (
+              {user?.avatar_url || user?.avatar ? (
                 <img
-                  src={user.avatar}
+                  src={user?.avatar_url || user?.avatar}
                   alt={user.username}
                   className="w-full h-full rounded-xl object-cover"
                 />

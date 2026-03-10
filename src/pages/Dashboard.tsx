@@ -787,9 +787,9 @@ export default function Dashboard() {
                 {/* 头像 */}
                 <div className="relative mb-4">
                   <div className="w-24 h-24 rounded-full p-1 bg-gradient-to-br from-red-500 via-orange-500 to-yellow-500">
-                    {user?.avatar && user.avatar.trim() ? (
+                    {(user?.avatar_url || user?.avatar) && (user?.avatar_url || user?.avatar)?.trim() ? (
                       <img
-                        src={user.avatar}
+                        src={user?.avatar_url || user?.avatar}
                         alt={user.username}
                         className="w-full h-full rounded-full object-cover border-4 border-white dark:border-gray-800"
                       />

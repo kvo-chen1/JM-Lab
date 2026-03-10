@@ -1,5 +1,5 @@
 // 管理后台数据服务
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 
 export interface DashboardStats {
   totalUsers: number;
@@ -67,6 +67,12 @@ class AdminService {
   // 获取控制台统计数据 - 直接从 Supabase 获取，确保数据一致性
   async getDashboardStats(): Promise<DashboardStats> {
     try {
+      // 检查 supabaseAdmin 是否可用
+      if (!supabaseAdmin || !supabaseAdmin.from) {
+        console.error('[AdminService] supabaseAdmin 未初始化，使用默认数据');
+        return this.getDefaultDashboardStats();
+      }
+
       // 获取总用户数
       const { count: totalUsers, error: userError } = await supabaseAdmin
         .from('users')

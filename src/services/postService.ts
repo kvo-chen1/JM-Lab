@@ -1539,8 +1539,9 @@ export async function syncWorkToSupabase(work: any, currentUser: User): Promise<
     
     // 判断是否为视频
     const isVideo = work.type === 'video' || work.video_url || work.category === 'video';
-    
-    const now = Date.now();
+
+    // 使用秒级时间戳（与后端API一致）
+    const nowSeconds = Math.floor(Date.now() / 1000);
     const insertData: any = {
       title: work.title,
       content: work.description,
@@ -1550,8 +1551,8 @@ export async function syncWorkToSupabase(work: any, currentUser: User): Promise<
       images: work.thumbnail && !isVideo ? [work.thumbnail] : [],
       attachments: work.thumbnail ? [{ type: isVideo ? 'video' : 'image', url: work.thumbnail }] : [],
       status: 'published',
-      created_at: work.created_at || now,
-      updated_at: now,
+      created_at: work.created_at || nowSeconds,
+      updated_at: nowSeconds,
       likes_count: 0,
       view_count: 0,
       comments_count: 0
@@ -1617,8 +1618,9 @@ async function addPostDirectToWorks(p: Partial<Post>, currentUser?: User): Promi
     }
 
     const isVideo = p.type === 'video' || p.videoUrl;
-    const now = Date.now();
-    
+    // 使用秒级时间戳（与后端API一致）
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
     // 构建插入数据，匹配 works 表结构
     const insertData: any = {
       id: workId,
@@ -1629,9 +1631,9 @@ async function addPostDirectToWorks(p: Partial<Post>, currentUser?: User): Promi
       category: isVideo ? 'video' : (p.category || 'design'),
       status: 'published',
       visibility: 'public',
-      created_at: now,
-      updated_at: now,
-      published_at: now,
+      created_at: nowSeconds,
+      updated_at: nowSeconds,
+      published_at: nowSeconds,
       likes_count: 0,
       comments_count: 0,
       views: 0,

@@ -2,14 +2,24 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, PRESET_STYLES } from '../hooks/useAgentStore';
-import { Send, Image as ImageIcon, Mic, Sparkles, Trash2, Bot, X, ChevronDown } from 'lucide-react';
+import { useMonitoring } from '../hooks/useMonitoring';
+import { usePrediction } from '../hooks/usePrediction';
+import { useABTesting } from '../hooks/useABTesting';
+import { useDynamicWorkflow } from '../hooks/useDynamicWorkflow';
+import { Send, Image as ImageIcon, Mic, Sparkles, Trash2, Bot, X, ChevronDown, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ChatMessage from './ChatMessage';
 import AgentAvatar from './AgentAvatar';
 import AgentSwitcher from './AgentSwitcher';
-import DelegationIndicator from './DelegationIndicator';
 import UploadDialog from './UploadDialog';
 import InspirationHints from './InspirationHints';
+import SuggestionPanel from './SuggestionPanel';
+import ImageAnalyzer from './ImageAnalyzer';
+import WorkflowStatus from './WorkflowStatus';
+import SchedulerStatus from './SchedulerStatus';
+import ResourceMonitor from './ResourceMonitor';
+import DataMigrationDialog from './DataMigrationDialog';
+import VoiceInputButton from './VoiceInputButton';
 import type { InspirationHint } from '../types/agent';
 import {
   agentOrchestrator,
@@ -19,8 +29,13 @@ import {
 import {
   analyzeDesignRequirements
 } from '../services/agentService';
+import { agentScheduler, AgentResponse } from '../services/agentScheduler';
+import { getResourceManager } from '../services/resourceManager';
+import { errorHandler } from '../services/errorHandler';
+import { llmService } from '@/services/llmService';
 import type { DesignTask, AgentMessage, AgentType, OrchestratorResponse } from '../types/agent';
 import { AGENT_CONFIG } from '../types/agent';
+import { Suggestion } from '../services/suggestionEngine';
 
 export default function ChatPanel() {
   const { isDark } = useTheme();
@@ -31,7 +46,10 @@ export default function ChatPanel() {
     currentTask,
     delegationHistory,
     agentQueue,
+    selectedStyle,
+    requirementCollection,
     addMessage,
+    addOutput,
     setIsTyping,
     setCurrentAgent,
     clearMessages,
@@ -51,10 +69,53 @@ export default function ChatPanel() {
   const [showAgentSwitcher, setShowAgentSwitcher] = useState(false);
   const [switcherFromAgent, setSwitcherFromAgent] = useState<AgentType | undefined>();
   const [switcherToAgent, setSwitcherToAgent] = useState<AgentType>('director');
+  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
+  const [analyzingImage, setAnalyzingImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // 启动监控
+  try {
+    useMonitoring();
+  } catch (e) {
+    console.warn('[ChatPanel] Monitoring hook failed:', e);
+  }
+
+  // 启动预测
+  let prediction = null, userProfile = null, recordBehavior = () => {};
+  try {
+    const predictionResult = usePrediction();
+    prediction = predictionResult.prediction;
+    userProfile = predictionResult.userProfile;
+    recordBehavior = predictionResult.recordBehavior;
+  } catch (e) {
+    console.warn('[ChatPanel] Prediction hook failed:', e);
+  }
+
+  // 启动 A/B 测试
+  let abTestingReady = false, getVariant = () => null, trackABEvent = () => {};
+  try {
+    const abTestingResult = useABTesting();
+    abTestingReady = abTestingResult.isReady;
+    getVariant = abTestingResult.getVariant;
+    trackABEvent = abTestingResult.trackEvent;
+  } catch (e) {
+    console.warn('[ChatPanel] AB Testing hook failed:', e);
+  }
+
+  // 启动动态工作流
+  let isWorkflowGenerating = false, workflowSuggestions = [], analyzeAndSuggest = async () => [], getRecommendedTemplates = async () => [];
+  try {
+    const workflowResult = useDynamicWorkflow();
+    isWorkflowGenerating = workflowResult.isGenerating;
+    workflowSuggestions = workflowResult.suggestions;
+    analyzeAndSuggest = workflowResult.analyzeAndSuggest;
+    getRecommendedTemplates = workflowResult.getRecommendedTemplates;
+  } catch (e) {
+    console.warn('[ChatPanel] Dynamic Workflow hook failed:', e);
+  }
 
   // 自动滚动到底部
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -67,13 +128,21 @@ export default function ChatPanel() {
     }
   }, []);
 
-  // 页面加载时自动滚动到底部
+  // 页面加载时自动滚动到底部，并启动资源管理器
   useEffect(() => {
+    // 启动资源管理器
+    const resourceManager = getResourceManager();
+    resourceManager.start();
+
     // 使用 setTimeout 确保 DOM 已完全渲染
     const timer = setTimeout(() => {
       scrollToBottom('auto');
     }, 500);
-    return () => clearTimeout(timer);
+
+    return () => {
+      clearTimeout(timer);
+      resourceManager.stop();
+    };
   }, [scrollToBottom]);
 
   // 消息变化时自动滚动到底部
@@ -186,11 +255,47 @@ export default function ChatPanel() {
         handleAgentSwitch(currentAgent, response.agent);
         break;
 
+      case 'image_generation':
+        // 图像生成响应
+        if (response.generatedImage) {
+          // 更新消息为图像类型
+          updateMessage(messageId, {
+            content: response.content,
+            type: 'image',
+            metadata: {
+              images: [response.generatedImage.url],
+              prompt: response.generatedImage.prompt
+            }
+          });
+
+          // 添加到画布
+          const outputId = addOutput({
+            type: 'image',
+            url: response.generatedImage.url,
+            thumbnail: response.generatedImage.url,
+            prompt: response.generatedImage.prompt,
+            style: selectedStyle || undefined,
+            agentType: response.agent
+          });
+
+          console.log('[ChatPanel] 图像已生成并添加到画布:', outputId);
+          toast.success('图像生成成功！');
+        }
+        break;
+
       case 'response':
       default:
         // 普通响应，检查是否需要切换 Agent
         if (response.agent !== currentAgent) {
           handleAgentSwitch(currentAgent, response.agent);
+        }
+
+        // 处理角色设计工作流
+        if (response.aiResponse?.type === 'character-workflow') {
+          updateMessage(messageId, {
+            content: response.content,
+            type: 'character-workflow'
+          });
         }
         break;
     }
@@ -221,23 +326,37 @@ export default function ChatPanel() {
     }
   }, [currentAgent, updateMessage, addMessage, setCollaborating, addToAgentQueue, handleAgentSwitch, setShowStyleSelector]);
 
-  // 流式显示AI响应
+  // 流式显示AI响应 - 优化版：动态延迟
   const streamResponse = useCallback(async (content: string, messageId: string) => {
     setStreamingContent('');
     const chars = content.split('');
+    const totalChars = chars.length;
 
-    for (let i = 0; i < chars.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 15));
-      setStreamingContent(prev => prev + chars[i]);
+    // 动态计算延迟：内容越长，延迟越短，保证总时间在2-4秒之间
+    const targetDuration = Math.min(4000, Math.max(2000, totalChars * 8));
+    const delay = Math.max(3, Math.min(20, Math.floor(targetDuration / totalChars)));
 
-      // 每50个字符更新一次消息
-      if (i % 50 === 0 || i === chars.length - 1) {
+    // 批量处理字符，减少setState次数
+    const batchSize = Math.max(1, Math.floor(totalChars / 100));
+
+    for (let i = 0; i < totalChars; i += batchSize) {
+      await new Promise(resolve => setTimeout(resolve, delay * batchSize));
+
+      const endIndex = Math.min(i + batchSize, totalChars);
+      const currentContent = content.slice(0, endIndex);
+
+      setStreamingContent(currentContent);
+
+      // 每100ms或结束时更新一次消息
+      if (endIndex % 20 === 0 || endIndex === totalChars) {
         updateMessage(messageId, {
-          content: content.slice(0, i + 1)
+          content: currentContent
         });
       }
     }
 
+    // 确保最终内容完整
+    updateMessage(messageId, { content });
     setStreamingContent('');
   }, [updateMessage]);
 
@@ -248,7 +367,14 @@ export default function ChatPanel() {
     const userMessage = inputValue.trim();
     setInputValue('');
 
-    // 添加用户消息
+    // 添加用户消息到store
+    const userMessageObj: AgentMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: userMessage,
+      timestamp: Date.now(),
+      type: 'text'
+    };
     addMessage({
       role: 'user',
       content: userMessage,
@@ -269,20 +395,13 @@ export default function ChatPanel() {
         });
       }
 
-      // 构建对话上下文（包含刚添加的用户消息）
-      const userMessageObj: AgentMessage = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: userMessage,
-        timestamp: Date.now(),
-        type: 'text'
-      };
-
+      // 构建对话上下文（包含用户消息）
       const context: ConversationContext = {
         currentAgent,
-        messages: [...messages.slice(-9), userMessageObj], // 包含用户消息
+        messages: [...messages.slice(-9), userMessageObj],
         taskDescription: currentTask?.requirements.description,
-        delegationHistory
+        delegationHistory,
+        requirementCollection
       };
 
       // 创建临时消息用于流式显示
@@ -292,29 +411,73 @@ export default function ChatPanel() {
         type: 'text'
       });
 
-      // 使用编排器处理用户输入
-      const response = await processWithOrchestrator(userMessage, context);
+      // 使用编排器处理用户输入（带错误处理和重试）
+      const orchestratorResult = await errorHandler.handleWithRetry(
+        async () => {
+          const response = await processWithOrchestrator(userMessage, context);
 
-      // 更新当前 Agent
-      if (response.agent !== currentAgent) {
-        setCurrentAgent(response.agent);
+          // 更新当前 Agent
+          if (response.agent !== currentAgent) {
+            setCurrentAgent(response.agent);
+          }
+
+          // 流式显示响应
+          await streamResponse(response.content, tempMessageId);
+
+          // 处理编排器响应
+          await handleOrchestratorResponse(response, tempMessageId);
+
+          return response;
+        },
+        {
+          type: 'API_ERROR',
+          agentType: currentAgent,
+          maxRetries: 2,
+          retryDelay: 1000,
+          onRetry: (attempt, error) => {
+            console.log(`[Chat] Retry attempt ${attempt}:`, error.message);
+            toast.info(`正在重试... (${attempt}/2)`);
+          },
+          onSuccess: (attempts) => {
+            if (attempts > 0) {
+              toast.success('重试成功！');
+            }
+          }
+        }
+      );
+
+      if (!orchestratorResult.success) {
+        throw orchestratorResult.error || new Error('处理失败');
       }
-
-      // 流式显示响应
-      await streamResponse(response.content, tempMessageId);
-
-      // 处理编排器响应
-      await handleOrchestratorResponse(response, tempMessageId);
 
     } catch (error) {
       console.error('[Chat] Error:', error);
-      toast.error('AI响应失败，请重试');
 
-      // 添加错误提示消息
+      // 使用 errorHandler 处理错误
+      const agentError = errorHandler.handleError(error, {
+        type: 'API_ERROR',
+        agentType: currentAgent,
+        operation: 'handleSend'
+      });
+
+      // 使用 ErrorDisplay 显示错误
       addMessage({
-        role: currentAgent,
-        content: '抱歉，我遇到了一些问题。请稍后再试，或者换个方式描述你的需求。',
-        type: 'text'
+        role: 'system',
+        content: 'AI响应失败',
+        type: 'error',
+        metadata: {
+          error: {
+            type: agentError.type,
+            message: agentError.message,
+            retryable: agentError.retryable,
+            level: agentError.level
+          },
+          onRetry: () => {
+            // 重试发送消息
+            setInputValue(userMessage);
+            handleSend();
+          }
+        }
       });
     } finally {
       setIsTyping(false);
@@ -357,11 +520,54 @@ export default function ChatPanel() {
 
   const toggleInspirationPanel = () => setShowInspirationPanel(!showInspirationPanel);
 
+  // AI优化提示词
+  const handleOptimizePrompt = async () => {
+    if (!inputValue.trim()) {
+      toast.warning('请先输入需要优化的内容');
+      return;
+    }
+
+    setIsOptimizingPrompt(true);
+    try {
+      llmService.setCurrentModel('qwen');
+      const optimized = await llmService.generateResponse(
+        `请将以下创作描述优化为AI绘画提示词，要求：
+1. 保留核心主题和风格
+2. 添加细节描述（色彩、构图、质感）
+3. 使用逗号分隔关键词
+4. 控制在50字以内
+5. 必须使用中文输出，不要出现英文
+6. 只输出优化后的提示词，不要解释
+
+原文：${inputValue}`
+      );
+
+      const cleaned = String(optimized || '').trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/^(提示词|优化后)[:：]\s*/i, '')
+        .replace(/[\n\r]+/g, ' ')
+        .trim();
+
+      if (cleaned && cleaned !== inputValue && !/接口不可用|未返回内容/.test(cleaned)) {
+        setInputValue(cleaned);
+        toast.success('提示词优化完成');
+      } else {
+        toast.info('当前提示词已很完善');
+      }
+    } catch (error) {
+      console.error('优化失败:', error);
+      toast.error('优化失败，请稍后重试');
+    } finally {
+      setIsOptimizingPrompt(false);
+    }
+  };
+
   // 快速操作
   const quickActions = [
     { icon: Trash2, label: '清空对话', onClick: handleClear },
     { icon: ImageIcon, label: '上传参考', onClick: () => setShowUploadDialog(true) },
-    { icon: Sparkles, label: '灵感提示', onClick: toggleInspirationPanel }
+    { icon: Sparkles, label: '灵感提示', onClick: toggleInspirationPanel },
+    { icon: Wand2, label: 'AI优化', onClick: handleOptimizePrompt, loading: isOptimizingPrompt }
   ];
 
   // 获取当前 Agent 的颜色
@@ -395,6 +601,33 @@ export default function ChatPanel() {
         imageName: image.name
       }
     });
+
+    // 自动打开图像分析
+    setAnalyzingImage(image.url);
+  };
+
+  // 处理建议点击
+  const handleSuggestionClick = (suggestion: Suggestion) => {
+    switch (suggestion.action.type) {
+      case 'message':
+        // 发送建议的消息
+        setInputValue(suggestion.action.payload);
+        toast.success(`已应用建议：${suggestion.title}`);
+        break;
+      case 'switch_agent':
+        // 切换Agent
+        setCurrentAgent(suggestion.action.payload);
+        toast.success(`已切换到：${AGENT_CONFIG[suggestion.action.payload as keyof typeof AGENT_CONFIG]?.name}`);
+        break;
+      case 'generate':
+        // 触发生成
+        handleSend();
+        break;
+      case 'navigate':
+        // 导航到指定页面
+        window.location.href = suggestion.action.payload;
+        break;
+    }
   };
 
   return (
@@ -450,10 +683,52 @@ export default function ChatPanel() {
         )}
       </AnimatePresence>
 
+      {/* 图像分析弹窗 */}
+      <AnimatePresence>
+        {analyzingImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setAnalyzingImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-md w-full"
+            >
+              <ImageAnalyzer
+                imageUrl={analyzingImage}
+                onAnalysisComplete={(result) => {
+                  // 可以在这里添加分析完成后的处理
+                  console.log('[ChatPanel] Image analysis completed:', result);
+                }}
+                onClose={() => setAnalyzingImage(null)}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Messages Area */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+        {/* 调度器状态 */}
+        <SchedulerStatus />
+
+        {/* 资源监控 */}
+        <ResourceMonitor />
+
+        {/* 智能建议面板 */}
+        <SuggestionPanel onSuggestionClick={handleSuggestionClick} />
+
+        {/* 工作流状态 */}
+        <WorkflowStatus />
+
         <AnimatePresence>
-          {messages.map((message, index) => (
+          {Array.isArray(messages) && messages.map((message, index) => (
             <ChatMessage
               key={message.id}
               message={message}
@@ -505,13 +780,22 @@ export default function ChatPanel() {
             <button
               key={index}
               onClick={action.onClick}
+              disabled={(action as any).loading}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
                 isDark
                   ? 'bg-gray-800 hover:bg-gray-700 text-gray-400'
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-              }`}
+              } ${(action as any).loading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <action.icon className="w-3 h-3" />
+              {(action as any).loading ? (
+                <motion.div
+                  className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                />
+              ) : (
+                <action.icon className="w-3 h-3" />
+              )}
               {action.label}
             </button>
           ))}
@@ -536,14 +820,28 @@ export default function ChatPanel() {
             rows={1}
           />
           <div className="flex items-center gap-1 pb-1">
-            <button
-              className={`p-2 rounded-lg transition-colors ${
-                isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
-              }`}
-              title="语音输入"
-            >
-              <Mic className="w-4 h-4" />
-            </button>
+            <VoiceInputButton
+              onTranscript={(text) => {
+                setInputValue(prev => prev + text);
+                toast.success('语音识别: ' + text);
+              }}
+              onCommand={(command, action) => {
+                // 处理语音命令
+                switch (action) {
+                  case 'send_message':
+                    handleSend();
+                    break;
+                  case 'start_design_task':
+                    setInputValue('我想设计一个');
+                    break;
+                  case 'generate_image':
+                    setInputValue('生成一张图片');
+                    break;
+                  default:
+                    console.log('[Voice] Command:', command, action);
+                }
+              }}
+            />
             <motion.button
               onClick={handleSend}
               disabled={!inputValue.trim() || isTyping}
@@ -566,6 +864,9 @@ export default function ChatPanel() {
           按 Enter 发送，Shift + Enter 换行
         </p>
       </div>
+
+      {/* 数据迁移对话框 */}
+      <DataMigrationDialog />
     </div>
   );
 }

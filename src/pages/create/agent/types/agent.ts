@@ -14,7 +14,7 @@ export type AgentType =
 // 为了向后兼容，保留 AgentRole
 export type AgentRole = AgentType;
 
-export type MessageType = 'text' | 'image' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'thinking' | 'delegation' | 'collaboration';
+export type MessageType = 'text' | 'image' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'thinking' | 'delegation' | 'collaboration' | 'error' | 'character-workflow' | 'chain-progress';
 export type TaskType = 'ip-character' | 'brand-packaging' | 'poster' | 'custom';
 export type TaskStage = 'requirement' | 'design' | 'review' | 'derivative' | 'completed';
 
@@ -35,6 +35,28 @@ export interface AgentMessage {
     derivativeOptions?: DerivativeOption[];
     delegationInfo?: DelegationInfo;
     collaborationInfo?: CollaborationInfo;
+    // Error display
+    error?: {
+      type: string;
+      message: string;
+      retryable?: boolean;
+      level?: 'critical' | 'error' | 'warning' | 'info';
+    };
+    onRetry?: () => void;
+    onDismiss?: () => void;
+    showDetails?: boolean;
+    // Chain progress
+    taskQueue?: any;
+    progress?: {
+      current: number;
+      total: number;
+      percentage: number;
+    };
+    // Image generation
+    prompt?: string;
+    // Upload
+    imageUrl?: string;
+    imageName?: string;
   };
 }
 
@@ -235,7 +257,7 @@ export const PRESET_STYLES: StyleOption[] = [
   {
     id: 'fantasy-picture-book',
     name: '诡萌幻想绘本',
-    thumbnail: 'https://images.unsplash.com/photo-1633479399362-75121048d4c6?w=200&h=200&fit=crop',
+    thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200&h=200&fit=crop',
     description: '奇幻可爱的绘本风格',
     prompt: 'whimsical fantasy picture book style, cute and mysterious, storybook illustration'
   },
@@ -263,7 +285,7 @@ export const PRESET_STYLES: StyleOption[] = [
   {
     id: 'grainy-cute',
     name: '颗粒粉彩童话',
-    thumbnail: 'https://images.unsplash.com/photo-1560964645-6c9e2c3c5b8e?w=200&h=200&fit=crop',
+    thumbnail: 'https://images.unsplash.com/photo-1490750967868-88aa4486c946?w=200&h=200&fit=crop',
     description: '复古颗粒感的粉彩风格',
     prompt: 'grainy pastel fairy tale style, retro texture, dreamy atmosphere'
   },

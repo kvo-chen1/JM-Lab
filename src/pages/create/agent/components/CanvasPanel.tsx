@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, DERIVATIVE_OPTIONS } from '../hooks/useAgentStore';
 import DraggableCanvas from './DraggableCanvas';
 import WorkCard, { WorkCardData } from './WorkCard';
+import CharacterDesignWorkflow from './CharacterDesignWorkflow';
 import { 
   Maximize2, 
   Download, 
@@ -25,16 +26,18 @@ import {
 import { toast } from 'sonner';
 
 // 图片加载状态管理组件
-function ImageWithLoading({ 
-  src, 
-  alt, 
-  className, 
-  onError 
-}: { 
-  src: string; 
-  alt: string; 
+function ImageWithLoading({
+  src,
+  alt,
+  className,
+  onError,
+  isGenerating = false
+}: {
+  src: string;
+  alt: string;
   className?: string;
   onError?: () => void;
+  isGenerating?: boolean;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -51,12 +54,31 @@ function ImageWithLoading({
     onError?.();
   }, [onError]);
 
+  // 如果是生成中状态，显示生成中提示
+  if (isGenerating) {
+    return (
+      <div className={`flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'} ${className}`}>
+        <div className="text-center px-4">
+          <Loader2 className="w-10 h-10 mx-auto mb-3 animate-spin text-[#C02C38]" />
+          <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>内容生成中...</p>
+          <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>请稍候，AI正在为您创作</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 如果是加载错误，显示错误提示
   if (error) {
     return (
-      <div className={`flex items-center justify-center bg-gray-800 text-gray-400 ${className}`}>
-        <div className="text-center">
-          <Wand2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">图片加载失败</p>
+      <div className={`flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-gray-100'} ${className}`}>
+        <div className="text-center px-4">
+          <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-red-500/20 flex items-center justify-center">
+            <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>图片加载失败</p>
+          <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>请检查网络连接或稍后重试</p>
         </div>
       </div>
     );
@@ -65,7 +87,7 @@ function ImageWithLoading({
   return (
     <div className="relative">
       {loading && (
-        <div className={`absolute inset-0 flex items-center justify-center bg-gray-800/50 ${className}`}>
+        <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-gray-800/50' : 'bg-gray-100/50'} ${className}`}>
           <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
         </div>
       )}
@@ -298,7 +320,16 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
 
       {/* Main Canvas Area - 占据整个右半边区域 */}
       <div className="relative flex-1 h-full overflow-hidden">
-        {generatedOutputs.length === 0 ? (
+        {/* 角色设计工作流 - 当任务是IP角色设计时显示 */}
+        {currentTask?.type === 'ip-character' && (
+          <CharacterDesignWorkflow
+            onComplete={(result) => {
+              console.log('[CanvasPanel] 角色设计工作流完成:', result);
+            }}
+          />
+        )}
+
+        {generatedOutputs.length === 0 && currentTask?.type !== 'ip-character' ? (
           // Empty State
           <div className="flex items-center justify-center h-full">
             <div className="text-center">

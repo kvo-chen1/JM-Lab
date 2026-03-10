@@ -1,7 +1,7 @@
 import { useTheme } from '@/hooks/useTheme'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { TianjinDivider, TianjinImage } from '@/components/TianjinStyleComponents'
+import { TianjinDivider } from '@/components/TianjinThemeComponents'
 
 
 export default function About() {

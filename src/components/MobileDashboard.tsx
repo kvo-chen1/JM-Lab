@@ -431,9 +431,9 @@ export default function MobileDashboard({
                 whileTap={{ scale: 0.95 }}
               >
                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full p-1 bg-gradient-to-br from-red-500 via-orange-500 to-yellow-500">
-                  {user?.avatar && user.avatar.trim() ? (
+                  {(user?.avatar_url || user?.avatar) && (user?.avatar_url || user?.avatar)?.trim() ? (
                     <img
-                      src={user.avatar}
+                      src={user?.avatar_url || user?.avatar}
                       alt={user.username}
                       className="w-full h-full rounded-full object-cover border-2 sm:border-3 border-white dark:border-gray-800"
                     />

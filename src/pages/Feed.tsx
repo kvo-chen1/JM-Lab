@@ -689,7 +689,7 @@ export default function Feed() {
                       onClose={handleCloseComment}
                       currentUserId={user?.id}
                       currentUserName={user?.username || user?.name}
-                      currentUserAvatar={user?.avatar}
+                      currentUserAvatar={user?.avatar_url || user?.avatar}
                       onCommentAdded={handleCommentAdded}
                     />
                   </motion.div>
@@ -758,7 +758,7 @@ export default function Feed() {
         onCommentAdded={handleCommentAdded}
         currentUserId={user?.id}
         currentUserName={user?.username || user?.name}
-        currentUserAvatar={user?.avatar}
+        currentUserAvatar={user?.avatar_url || user?.avatar}
         communityId={selectedFeed?.communityId}
       />
 

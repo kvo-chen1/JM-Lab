@@ -310,7 +310,7 @@ export default function EventCard({
           shareData={shareData}
           userId={user?.id || ''}
           userName={user?.username || user?.name || ''}
-          userAvatar={user?.avatar}
+          userAvatar={user?.avatar_url || user?.avatar}
         />
       </motion.div>
     );
@@ -465,7 +465,7 @@ export default function EventCard({
         shareData={shareData}
         userId={user?.id || ''}
         userName={user?.username || user?.name || ''}
-        userAvatar={user?.avatar}
+        userAvatar={user?.avatar_url || user?.avatar}
       />
     </motion.div>
   );

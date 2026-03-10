@@ -232,23 +232,24 @@ const MobileLayout = memo(function MobileLayout({ children }: MobileLayoutProps)
     const [imgError, setImgError] = useState(false);
     
     // 当头像URL变化时重置错误状态
+    const avatarUrl = user?.avatar_url || user?.avatar;
     useEffect(() => {
       setImgError(false);
-    }, [user?.avatar]);
+    }, [avatarUrl]);
 
-    const showImage = user?.avatar && user.avatar.trim() && !imgError;
+    const showImage = avatarUrl && avatarUrl.trim() && !imgError;
 
     return (
       <div className={clsx(
         'w-8 h-8 min-w-[32px] min-h-[32px] aspect-square flex-shrink-0 rounded-full overflow-hidden border-2 shadow-md transition-all duration-300 hover:ring-2 relative',
-        isDark ? 'border-gray-700 hover:ring-blue-500' : 
-        theme === 'pink' ? 'border-pink-300 hover:ring-pink-500' : 
+        isDark ? 'border-gray-700 hover:ring-blue-500' :
+        theme === 'pink' ? 'border-pink-300 hover:ring-pink-500' :
         'border-gray-300 hover:ring-orange-500'
       )}>
         {showImage ? (
           <img
-            key={user?.avatar} // 添加 key 确保 URL 变化时重新渲染 img 标签
-            src={user.avatar}
+            key={avatarUrl} // 添加 key 确保 URL 变化时重新渲染 img 标签
+            src={avatarUrl}
             alt={user.username || t('common.user')}
             className="w-full h-full object-cover"
             loading="lazy"

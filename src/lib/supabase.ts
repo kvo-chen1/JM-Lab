@@ -93,10 +93,14 @@ try {
   }
 
   console.log('[Supabase] 客户端初始化成功（通过代理，使用轮询替代 realtime）')
+  
+  // 初始化 supabaseAdmin（使用相同的客户端，因为代理会处理权限）
+  supabaseAdmin = supabase
 } catch (error) {
   console.error('[Supabase] 客户端初始化失败:', error)
   // 创建一个空的客户端避免崩溃
   supabase = {} as SupabaseClient
+  supabaseAdmin = {} as SupabaseClient
 }
 
 // 导出配置检查函数

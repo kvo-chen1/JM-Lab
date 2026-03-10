@@ -1150,11 +1150,11 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
-                    {user?.avatar && user.avatar.trim() ? (
+                    {(user?.avatar_url || user?.avatar) && (user?.avatar_url || user?.avatar)?.trim() ? (
                       <div className={`relative h-14 w-14 rounded-full overflow-hidden transition-all duration-300 ${showUserMenu ? 'shadow-2xl scale-110' : 'group-hover:shadow-xl'}`}>
-                        <img 
-                          src={user.avatar} 
-                          alt={user?.username || '用户头像'} 
+                        <img
+                          src={user?.avatar_url || user?.avatar}
+                          alt={user?.username || '用户头像'}
                           className="h-full w-full rounded-full object-cover transition-transform duration-300 group-hover:scale-110"
                           loading="lazy"
                           onError={(e) => {

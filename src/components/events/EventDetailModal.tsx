@@ -630,7 +630,7 @@ export default function EventDetailModal({ event, isOpen, onClose, submissionCou
         shareData={shareData}
         userId={user?.id || ''}
         userName={user?.username || user?.name || ''}
-        userAvatar={user?.avatar}
+        userAvatar={user?.avatar_url || user?.avatar}
       />
     </AnimatePresence>
   );

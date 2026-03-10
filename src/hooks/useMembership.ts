@@ -431,11 +431,11 @@ export function useMembership(): UseMembershipReturn {
       }
     };
 
-    const listenerId = eventBus.subscribe('membership:dataChanged', handleDataChange);
+    const unsubscribe = eventBus.on('membership:dataChanged', handleDataChange);
 
     return () => {
       // 清理订阅
-      eventBus.unsubscribe('membership:dataChanged', listenerId);
+      unsubscribe();
     };
   }, [refreshMembershipInfo, refreshUsageStats, refreshOrders, refreshPointsRecords]);
 

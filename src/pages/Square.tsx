@@ -1094,7 +1094,7 @@ export default function Square() {
           }}
           userId={user?.id || ''}
           userName={user?.username || '用户'}
-          userAvatar={user?.avatar}
+          userAvatar={user?.avatar_url || user?.avatar}
         />
       )}
 

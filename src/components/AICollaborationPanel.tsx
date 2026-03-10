@@ -2707,7 +2707,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                           <AICollaborationMessage
                             message={message}
                             index={index}
-                            userAvatar={user?.avatar}
+                            userAvatar={user?.avatar_url || user?.avatar}
                             feedbackRating={feedbackRatings[index]}
                             feedbackComment={feedbackComments[index]}
                             isFeedbackVisible={feedbackVisible[index]}

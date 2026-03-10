@@ -89,6 +89,9 @@ class LicensedProductService {
       const response = await apiClient.get(`/api/copyright/products?status=on_sale&sortBy=sales&limit=${limit}`);
       let data = response.data;
       // 确保返回数组
+      if (!data) {
+        return [];
+      }
       if (!Array.isArray(data)) {
         data = data.products || data.data || [];
       }
@@ -108,6 +111,9 @@ class LicensedProductService {
       const response = await apiClient.get(`/api/copyright/products?status=on_sale&sortBy=newest&limit=${limit}`);
       let data = response.data;
       // 确保返回数组
+      if (!data) {
+        return [];
+      }
       if (!Array.isArray(data)) {
         data = data.products || data.data || [];
       }

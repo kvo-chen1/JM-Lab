@@ -53,6 +53,55 @@ async function generateTitleAndDescription(
   };
 }
 
+// 构建优化的图像生成提示词
+function buildOptimizedPrompt(
+  taskDescription: string,
+  stylePrompt: string,
+  requirements: any
+): string {
+  // 基础提示词
+  let prompt = taskDescription;
+  
+  // 添加风格描述
+  if (stylePrompt) {
+    prompt += `，${stylePrompt}`;
+  }
+  
+  // 根据需求添加详细描述
+  if (requirements) {
+    const details: string[] = [];
+    
+    // 添加受众描述
+    if (requirements.audience) {
+      details.push(`面向${requirements.audience}`);
+    }
+    
+    // 添加场景描述
+    if (requirements.scenario) {
+      details.push(`适用于${requirements.scenario}`);
+    }
+    
+    // 添加色调偏好
+    if (requirements.colorTone) {
+      details.push(`${requirements.colorTone}色调`);
+    }
+    
+    // 添加情感氛围
+    if (requirements.mood) {
+      details.push(`${requirements.mood}氛围`);
+    }
+    
+    if (details.length > 0) {
+      prompt += `，${details.join('，')}`;
+    }
+  }
+  
+  // 添加质量要求
+  prompt += '，高质量，精美细节，专业设计作品';
+  
+  return prompt;
+}
+
 export default function StyleSelector() {
   const { isDark } = useTheme();
   const { selectedStyle, selectStyle, addMessage, addOutput, updateOutput, currentTask } = useAgentStore();
@@ -89,14 +138,19 @@ export default function StyleSelector() {
     });
 
     try {
-      // 构建生成提示词
-      const taskDescription = currentTask?.requirements.description || 'IP形象设计';
+      // 构建生成提示词（使用优化后的提示词构建函数）
+      const taskDescription = currentTask?.requirements?.description || 'IP形象设计';
       const stylePrompt = style?.prompt || '';
-      const prompt = `${taskDescription}，${stylePrompt}，高质量，精美细节`;
+      const requirements = currentTask?.requirements;
+      
+      const prompt = buildOptimizedPrompt(taskDescription, stylePrompt, requirements);
 
       console.log('[StyleSelector] 开始生成图像，prompt:', prompt);
+      console.log('[StyleSelector] currentTask:', currentTask);
+      console.log('[StyleSelector] requirements:', requirements);
 
       // 调用真实图像生成API
+      console.log('[StyleSelector] 调用 llmService.generateImage...');
       const result = await llmService.generateImage({
         model: 'wanx-v1',
         prompt: prompt,
@@ -104,75 +158,97 @@ export default function StyleSelector() {
         n: 1 // 只生成1张
       });
 
-      console.log('[StyleSelector] 图像生成结果:', result);
+      console.log('[StyleSelector] 图像生成结果:', JSON.stringify(result, null, 2));
 
-      if (result.ok && result.data?.data && result.data.data.length > 0) {
-        const imageUrl = result.data.data[0].url;
-
-        console.log('[StyleSelector] 准备添加到画布，imageUrl:', imageUrl);
-
-        // 先添加到画布（这样右边才能显示）
-        const outputId = addOutput({
-          type: 'image',
-          url: imageUrl,
-          thumbnail: imageUrl,
-          prompt: prompt,
-          style: selectedStyle,
-          agentType: 'designer'
-        });
-
-        console.log('[StyleSelector] 已添加到画布，outputId:', outputId);
-
-        // 调用AI生成标题和描述
-        try {
-          const { title, description } = await generateTitleAndDescription(
-            taskDescription,
-            style?.name || '默认风格'
-          );
-          
-          // 更新作品信息
-          updateOutput(outputId, { title, description });
-          console.log('[StyleSelector] 已生成标题和描述:', { title, description });
-        } catch (error) {
-          console.error('[StyleSelector] 生成标题描述失败:', error);
-          // 使用默认标题和描述
-          updateOutput(outputId, {
-            title: `${style?.name || '设计'}作品`,
-            description: taskDescription
-          });
-        }
-
-        // 添加生成结果消息（只显示1张）
-        addMessage({
-          role: 'designer',
-          content: '概念图已生成！这是根据你选择的风格设计的IP形象初稿。你觉得怎么样？',
-          type: 'image',
-          metadata: {
-            images: [imageUrl]
-          }
-        });
-
-        // 添加满意度检查消息
-        setTimeout(() => {
-          addMessage({
-            role: 'designer',
-            content: '请问你对当前设计满意吗？如果满意，我可以继续为你制作：\n• 短视频\n• 剧情故事短片\n• 文创周边\n• 宣传海报',
-            type: 'satisfaction-check'
-          });
-        }, 1000);
-
-        toast.success('图像生成成功！');
-      } else {
+      // 检查结果是否成功
+      if (!result.ok) {
+        console.error('[StyleSelector] 图像生成失败:', result.error);
         throw new Error(result.error || '图像生成失败');
       }
+      
+      // 检查数据结构
+      let imageUrl: string | undefined;
+      
+      console.log('[StyleSelector] 检查数据结构...');
+      console.log('[StyleSelector] result.data:', result.data);
+      
+      if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
+        // 标准结构：{ data: { data: [{url}] } }
+        imageUrl = result.data.data[0].url;
+        console.log('[StyleSelector] 从 result.data.data[0].url 获取图片URL:', imageUrl);
+      } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+        // 备选结构：{ data: [{url}] }
+        imageUrl = result.data[0].url;
+        console.log('[StyleSelector] 从 result.data[0].url 获取图片URL:', imageUrl);
+      }
+      
+      if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.trim() === '') {
+        console.error('[StyleSelector] 图片URL无效:', imageUrl);
+        throw new Error('生成的图片URL无效');
+      }
+
+      console.log('[StyleSelector] 准备添加到画布，imageUrl:', imageUrl);
+
+      // 先添加到画布（这样右边才能显示）
+      const outputId = addOutput({
+        type: 'image',
+        url: imageUrl,
+        thumbnail: imageUrl,
+        prompt: prompt,
+        style: selectedStyle,
+        agentType: 'designer'
+      });
+
+      console.log('[StyleSelector] 已添加到画布，outputId:', outputId);
+
+      // 调用AI生成标题和描述
+      try {
+        const { title, description } = await generateTitleAndDescription(
+          taskDescription,
+          style?.name || '默认风格'
+        );
+        
+        // 更新作品信息
+        updateOutput(outputId, { title, description });
+        console.log('[StyleSelector] 已生成标题和描述:', { title, description });
+      } catch (error) {
+        console.error('[StyleSelector] 生成标题描述失败:', error);
+        // 使用默认标题和描述
+        updateOutput(outputId, {
+          title: `${style?.name || '设计'}作品`,
+          description: taskDescription
+        });
+      }
+
+      // 添加生成结果消息（只显示1张）
+      addMessage({
+        role: 'designer',
+        content: '概念图已生成！这是根据你选择的风格设计的IP形象初稿。你觉得怎么样？',
+        type: 'image',
+        metadata: {
+          images: [imageUrl]
+        }
+      });
+
+      // 添加满意度检查消息
+      setTimeout(() => {
+        addMessage({
+          role: 'designer',
+          content: '请问你对当前设计满意吗？如果满意，我可以继续为你制作：\n• 短视频\n• 剧情故事短片\n• 文创周边\n• 宣传海报',
+          type: 'satisfaction-check'
+        });
+      }, 1000);
+
+      toast.success('图像生成成功！');
     } catch (error: any) {
       console.error('[StyleSelector] 图像生成失败:', error);
+      console.error('[StyleSelector] 错误详情:', error.stack);
       toast.error(`图像生成失败: ${error.message || '请重试'}`);
 
       // 添加错误提示消息
       addMessage({
         role: 'designer',
-        content: '抱歉，图像生成遇到了问题。请稍后重试，或者尝试换一种描述方式。',
+        content: `抱歉，图像生成遇到了问题：${error.message || '请稍后重试，或者尝试换一种描述方式。'}`,
         type: 'text'
       });
     } finally {
@@ -200,11 +276,20 @@ export default function StyleSelector() {
             }`}
           >
             {/* Style Image */}
-            <div className="aspect-square relative">
+            <div className="aspect-square relative bg-gray-100 dark:bg-gray-700">
               <img
                 src={style.thumbnail}
                 alt={style.name}
                 className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                onError={(e) => {
+                  // 图片加载失败时显示备用内容
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent) {
+                    parent.innerHTML = `<div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500"><span class="text-2xl">${style.name.charAt(0)}</span></div>`;
+                  }
+                }}
               />
               {/* Overlay */}
               <div className={`absolute inset-0 transition-opacity ${

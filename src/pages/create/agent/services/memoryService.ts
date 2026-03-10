@@ -61,6 +61,16 @@ export interface AgentInteractionMemory {
   commonTopics: string[];
 }
 
+// 行为记录类型
+export interface BehaviorRecord {
+  id: string;
+  type: 'click' | 'view' | 'scroll' | 'input' | 'hover' | 'action';
+  target: string;
+  metadata?: Record<string, any>;
+  timestamp: number;
+  sessionId: string;
+}
+
 // 完整记忆数据
 export interface AgentMemory {
   userId: string;
@@ -68,6 +78,7 @@ export interface AgentMemory {
   references: ReferenceMemory[];
   feedbacks: FeedbackMemory[];
   agentInteractions: Map<AgentType, AgentInteractionMemory>;
+  behaviorRecords: BehaviorRecord[]; // 新增：行为记录
   createdAt: number;
   lastUpdated: number;
 }
@@ -76,6 +87,7 @@ export interface AgentMemory {
 const MEMORY_STORAGE_KEY = 'agent-memory';
 const MAX_REFERENCES = 50;
 const MAX_FEEDBACKS = 100;
+const MAX_BEHAVIOR_RECORDS = 500; // 新增：行为记录最大数量
 
 /**
  * 记忆服务类
@@ -132,6 +144,7 @@ export class MemoryService {
       references: [],
       feedbacks: [],
       agentInteractions: new Map(),
+      behaviorRecords: [], // 新增：初始化行为记录数组
       createdAt: Date.now(),
       lastUpdated: Date.now()
     };
@@ -503,6 +516,96 @@ ${memories.map(m => `- ${m}`).join('\n')}
 请根据以上偏好信息，提供更个性化的服务。`;
   }
 
+  // ==================== 行为记录管理 ====================
+
+  /**
+   * 记录用户行为
+   */
+  recordBehavior(
+    type: BehaviorRecord['type'],
+    target: string,
+    metadata?: Record<string, any>,
+    sessionId?: string
+  ): string {
+    const id = `behavior-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    const record: BehaviorRecord = {
+      id,
+      type,
+      target,
+      metadata,
+      timestamp: Date.now(),
+      sessionId: sessionId || this.getCurrentSessionId()
+    };
+
+    this.memory.behaviorRecords.push(record);
+
+    // 限制数量，移除最旧的
+    if (this.memory.behaviorRecords.length > MAX_BEHAVIOR_RECORDS) {
+      this.memory.behaviorRecords.shift();
+    }
+
+    this.memory.lastUpdated = Date.now();
+    this.saveMemory();
+
+    return id;
+  }
+
+  /**
+   * 获取行为记录
+   */
+  getBehaviorRecords(limit?: number): BehaviorRecord[] {
+    const records = [...this.memory.behaviorRecords];
+    if (limit) {
+      return records.slice(-limit);
+    }
+    return records;
+  }
+
+  /**
+   * 设置行为记录（用于资源管理器清理）
+   */
+  setBehaviorRecords(records: BehaviorRecord[]): void {
+    this.memory.behaviorRecords = records;
+    this.memory.lastUpdated = Date.now();
+    this.saveMemory();
+  }
+
+  /**
+   * 获取特定类型的行为记录
+   */
+  getBehaviorRecordsByType(type: BehaviorRecord['type']): BehaviorRecord[] {
+    return this.memory.behaviorRecords.filter(r => r.type === type);
+  }
+
+  /**
+   * 获取特定目标的行为记录
+   */
+  getBehaviorRecordsByTarget(target: string): BehaviorRecord[] {
+    return this.memory.behaviorRecords.filter(r => r.target === target);
+  }
+
+  /**
+   * 获取当前会话ID
+   */
+  private getCurrentSessionId(): string {
+    let sessionId = sessionStorage.getItem('agent-session-id');
+    if (!sessionId) {
+      sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      sessionStorage.setItem('agent-session-id', sessionId);
+    }
+    return sessionId;
+  }
+
+  /**
+   * 清除行为记录
+   */
+  clearBehaviorRecords(): void {
+    this.memory.behaviorRecords = [];
+    this.memory.lastUpdated = Date.now();
+    this.saveMemory();
+  }
+
   // ==================== 数据导出/导入 ====================
 
   /**
@@ -552,6 +655,7 @@ ${memories.map(m => `- ${m}`).join('\n')}
     totalReferences: number;
     totalFeedbacks: number;
     totalInteractions: number;
+    totalBehaviorRecords: number; // 新增：行为记录数量
     preferredStylesCount: number;
     frequentTaskTypesCount: number;
     lastUpdated: number;
@@ -561,6 +665,7 @@ ${memories.map(m => `- ${m}`).join('\n')}
       totalFeedbacks: this.memory.feedbacks.length,
       totalInteractions: Array.from(this.memory.agentInteractions.values())
         .reduce((sum, i) => sum + i.interactionCount, 0),
+      totalBehaviorRecords: this.memory.behaviorRecords.length, // 新增
       preferredStylesCount: this.memory.preferences.preferredStyles.length,
       frequentTaskTypesCount: this.memory.preferences.frequentTaskTypes.length,
       lastUpdated: this.memory.lastUpdated

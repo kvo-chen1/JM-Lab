@@ -605,8 +605,8 @@ async function createPostgreSQLTables(pool) {
             max_participants INTEGER,
             participant_count INTEGER DEFAULT 0,
             visibility VARCHAR(20) DEFAULT 'public',
-            created_at BIGINT DEFAULT extract(epoch from now()),
-            updated_at BIGINT DEFAULT extract(epoch from now())
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
           );
         `)
         await client.query('CREATE INDEX IF NOT EXISTS idx_events_organizer_id ON events(organizer_id);')
@@ -711,23 +711,23 @@ async function createPostgreSQLTables(pool) {
           id SERIAL PRIMARY KEY,
           user_id TEXT NOT NULL,
           tutorial_id INTEGER NOT NULL,
-          created_at BIGINT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           UNIQUE(user_id, tutorial_id)
         );
       `)
-      
+
       // 创建视频任务表
       await client.query(`
         CREATE TABLE IF NOT EXISTS video_tasks (
           id TEXT PRIMARY KEY,
           status TEXT,
           model TEXT,
-          created_at BIGINT,
-          updated_at BIGINT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           payload_json TEXT
         );
       `)
-      
+
       // 创建社区表
       await client.query(`
         CREATE TABLE IF NOT EXISTS communities (
@@ -739,8 +739,8 @@ async function createPostgreSQLTables(pool) {
           topic VARCHAR(50),
           is_active BOOLEAN DEFAULT TRUE,
           is_special BOOLEAN DEFAULT FALSE,
-          created_at BIGINT,
-          updated_at BIGINT
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
       `)
       
@@ -748,15 +748,20 @@ async function createPostgreSQLTables(pool) {
       await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS avatar TEXT;`)
       // 确保 creator_id 字段存在
       await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS creator_id TEXT;`)
+      // 确保 is_active 字段存在
+      await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;`)
+      // 确保 is_special 字段存在
+      await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS is_special BOOLEAN DEFAULT FALSE;`)
 
       // 创建社区成员表
       await client.query(`
         CREATE TABLE IF NOT EXISTS community_members (
+          id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid(),
           community_id VARCHAR(50) NOT NULL,
           user_id TEXT NOT NULL,
           role VARCHAR(20) DEFAULT 'member',
           joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          PRIMARY KEY (community_id, user_id),
+          UNIQUE (community_id, user_id),
           FOREIGN KEY (community_id) REFERENCES communities(id) ON DELETE CASCADE,
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
@@ -776,8 +781,8 @@ async function createPostgreSQLTables(pool) {
         likes INTEGER DEFAULT 0,
         votes INTEGER DEFAULT 0,
         comments INTEGER DEFAULT 0,
-        created_at BIGINT NOT NULL,
-        updated_at BIGINT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `)
@@ -852,22 +857,22 @@ async function createPostgreSQLTables(pool) {
           id SERIAL PRIMARY KEY,
           name VARCHAR(50) UNIQUE NOT NULL,
           description TEXT,
-          created_at BIGINT NOT NULL,
-          updated_at BIGINT NOT NULL
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
       `)
-      
+
       // 创建标签表
       await client.query(`
         CREATE TABLE IF NOT EXISTS tags (
           id SERIAL PRIMARY KEY,
           name VARCHAR(50) UNIQUE NOT NULL,
           description TEXT,
-          created_at BIGINT NOT NULL,
-          updated_at BIGINT NOT NULL
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
       `)
-      
+
       // 创建帖子表
       await client.query(`
         CREATE TABLE IF NOT EXISTS posts (
@@ -880,8 +885,8 @@ async function createPostgreSQLTables(pool) {
           views INTEGER DEFAULT 0,
           likes_count INTEGER DEFAULT 0,
           comments_count INTEGER DEFAULT 0,
-          created_at BIGINT NOT NULL,
-          updated_at BIGINT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
         );
@@ -912,8 +917,8 @@ async function createPostgreSQLTables(pool) {
           user_id TEXT NOT NULL, -- Changed to TEXT
           post_id INTEGER NOT NULL,
           parent_id INTEGER,
-          created_at BIGINT NOT NULL,
-          updated_at BIGINT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
           FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
@@ -935,14 +940,14 @@ async function createPostgreSQLTables(pool) {
         // 忽略错误（可能已经是 nullable）
       }
 
-      // 修改 created_at 和 updated_at 字段类型为 BIGINT（如果不是的话）
+      // 确保 comments 表的 created_at 和 updated_at 是 TIMESTAMP WITH TIME ZONE 类型
       try {
-        await client.query(`ALTER TABLE comments ALTER COLUMN created_at TYPE BIGINT USING EXTRACT(EPOCH FROM created_at)::BIGINT`)
-        await client.query(`ALTER TABLE comments ALTER COLUMN updated_at TYPE BIGINT USING EXTRACT(EPOCH FROM updated_at)::BIGINT`)
-        console.log('[DB] Changed comments.created_at and comments.updated_at to BIGINT')
+        await client.query(`ALTER TABLE comments ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING to_timestamp(created_at / 1000)`)
+        await client.query(`ALTER TABLE comments ALTER COLUMN updated_at TYPE TIMESTAMP WITH TIME ZONE USING to_timestamp(updated_at / 1000)`)
+        console.log('[DB] Changed comments.created_at and comments.updated_at to TIMESTAMP WITH TIME ZONE')
       } catch (e) {
-        // 忽略错误（可能已经是 BIGINT）
-        console.log('[DB] comments.created_at and comments.updated_at are already BIGINT or error:', e.message)
+        // 忽略错误（可能已经是 TIMESTAMP WITH TIME ZONE）
+        console.log('[DB] comments.created_at and comments.updated_at are already TIMESTAMP WITH TIME ZONE or error:', e.message)
       }
 
       // 创建点赞表
@@ -950,7 +955,7 @@ async function createPostgreSQLTables(pool) {
         CREATE TABLE IF NOT EXISTS likes (
           user_id TEXT NOT NULL, -- Changed to TEXT
           post_id INTEGER NOT NULL,
-          created_at BIGINT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           PRIMARY KEY (user_id, post_id),
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
@@ -978,7 +983,7 @@ async function createPostgreSQLTables(pool) {
           source VARCHAR(50),
           type VARCHAR(20),
           points INTEGER NOT NULL,
-          created_at BIGINT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           description TEXT,
           balance_after INTEGER DEFAULT 0,
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -2600,9 +2605,9 @@ export const leaderboardDB = {
             { $project: { id: 1, title: 1, content: 1, user_id: 1, category_id: 1, status: 1, views: 1, likes_count: 1, comments_count: 1, created_at: 1, updated_at: 1, username: '$user_info.username', avatar_url: '$user_info.avatar_url' } }
           ]).toArray()
       case DB_TYPE.POSTGRESQL:
-        const pgWhereClause = startTime > 0 
-          ? `WHERE w.created_at >= to_timestamp($1/1000.0) AND (w.hidden_in_square = FALSE OR w.hidden_in_square IS NULL)` 
-          : `WHERE (w.hidden_in_square = FALSE OR w.hidden_in_square IS NULL)`
+        const pgWhereClause = startTime > 0
+          ? `WHERE w.created_at >= to_timestamp($1/1000.0) AND (w.hidden_in_square IS NULL OR w.hidden_in_square = FALSE OR w.hidden_in_square = 'false')`
+          : `WHERE (w.hidden_in_square IS NULL OR w.hidden_in_square = FALSE OR w.hidden_in_square = 'false')`
         const pgParams = startTime > 0 ? [startTime, limit] : [limit]
         const pgParamOffset = startTime > 0 ? 1 : 0
         
@@ -3220,24 +3225,25 @@ export const workDB = {
   async createWork(workData) {
     console.log('[workDB.createWork] Called with:', JSON.stringify(workData));
     console.log('[workDB.createWork] Current dbType:', config.dbType);
-    
+
     const db = await getDB()
-    const { title, description, cover_url, thumbnail, creator_id, category, tags, media, community_id } = workData
-    const now = workData.created_at || Date.now()
+    const { title, description, cover_url, thumbnail, creator_id, category, tags, media, community_id, source, hidden_in_square } = workData
+    // 使用秒级时间戳（与前端一致），如果前端提供了 created_at 则使用，否则生成新的秒级时间戳
+    const now = workData.created_at || Math.floor(Date.now() / 1000)
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
-    
+
     console.log('[workDB.createWork] Using typeKey:', typeKey);
-    
+
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL:
         console.log('[workDB.createWork] PostgreSQL case - db:', db ? 'exists' : 'null');
-        
+
         // 检查 creator_id 是否有效
         if (!creator_id) {
           console.error('[workDB.createWork] ERROR: creator_id is null or undefined!');
           throw new Error('creator_id is required')
         }
-        
+
         // 首先检查并添加缺失的列
         try {
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS cover_url TEXT`);
@@ -3249,6 +3255,8 @@ export const workDB = {
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS video_url TEXT`);
           // 添加 community_id 列（如果不存在），用于社群@提及功能
           await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS community_id TEXT`);
+          // 添加 source 列（如果不存在），用于标识作品来源
+          await db.query(`ALTER TABLE works ADD COLUMN IF NOT EXISTS source TEXT`);
         } catch (e) {
           console.log('Column already exists or error adding column:', e.message);
         }
@@ -3305,20 +3313,22 @@ export const workDB = {
           const videoUrl = workData.video_url || workData.videoUrl || null;
           
           const { rows } = await db.query(`
-            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, creator, category, tags, media, video_url, community_id, views, likes, votes, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            INSERT INTO works (title, description, cover_url, thumbnail, creator_id, creator, category, tags, media, video_url, community_id, views, likes, votes, created_at, updated_at, source, hidden_in_square)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, to_timestamp($15), to_timestamp($16), $17, $18)
             RETURNING *
           `, [
-            title, description, cover_url, thumbnail || cover_url, creator_id, creatorName || '未知用户', category, 
-            tagsValue, 
+            title, description, cover_url, thumbnail || cover_url, creator_id, creatorName || '未知用户', category,
+            tagsValue,
             mediaValue,
             videoUrl,
             community_id || null, // community_id
             0, // views
             0, // likes
             0, // votes
-            now, // created_at
-            now // updated_at
+            now, // created_at (Unix timestamp in seconds)
+            now, // updated_at (Unix timestamp in seconds)
+            source || '津脉广场', // source - 默认为津脉广场
+            hidden_in_square || false // hidden_in_square - 默认不隐藏
           ])
           console.log('[workDB.createWork] Insert successful:', rows[0]);
           return rows[0]
@@ -3334,7 +3344,9 @@ export const workDB = {
           video_url: workData.video_url || workData.videoUrl || null,
           community_id: community_id || null,
           views: 0, likes: 0, comments: 0,
-          created_at: now, updated_at: now
+          created_at: now, updated_at: now,
+          source: source || '津脉广场',
+          hidden_in_square: hidden_in_square || false
         }
         if (!memoryStore.works) memoryStore.works = []
         memoryStore.works.push(newWork)
@@ -3358,20 +3370,20 @@ export const workDB = {
           .slice(offset, offset + limit)
       case DB_TYPE.POSTGRESQL:
         return (await db.query(`
-          SELECT 
-            w.*, 
-            u.username, 
+          SELECT
+            w.*,
+            u.username,
             u.avatar_url,
-            COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
-          FROM works w 
-          LEFT JOIN users u ON w.creator_id = u.id 
+            COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes
+          FROM works w
+          LEFT JOIN users u ON w.creator_id = u.id::text
           WHERE (w.source = '津脉广场' OR w.source IS NULL)
             AND LENGTH(COALESCE(w.title, '')) >= 3
             AND COALESCE(w.thumbnail, w.cover_url, '') <> ''
             AND COALESCE(w.thumbnail, w.cover_url, '') <> 'EMPTY'
             AND LOWER(COALESCE(w.thumbnail, w.cover_url, '')) NOT LIKE '%empty%'
-            AND (w.hidden_in_square = FALSE OR w.hidden_in_square IS NULL)
-          ORDER BY w.created_at DESC 
+            AND (w.hidden_in_square IS NULL OR w.hidden_in_square = FALSE OR w.hidden_in_square = 'false')
+          ORDER BY w.created_at DESC
           LIMIT $1 OFFSET $2
         `, [limit, offset])).rows
       default: return []
@@ -3392,9 +3404,9 @@ export const workDB = {
               w.*, 
               u.username, 
               u.avatar_url,
-              COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+              COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes
             FROM works w
-            LEFT JOIN users u ON w.creator_id = u.id
+            LEFT JOIN users u ON w.creator_id = u.id::text
             WHERE w.id = $1
           `, [workId])
           if (worksRows && worksRows.length > 0) {
@@ -3421,7 +3433,7 @@ export const workDB = {
               u.username,
               u.avatar_url
             FROM posts p 
-            LEFT JOIN users u ON p.author_id = u.id 
+            LEFT JOIN users u ON p.author_id = u.id::text 
             WHERE p.id = $1 AND p.status = 'published'
           `, [workId])
           
@@ -3495,9 +3507,9 @@ export const workDB = {
             w.*,
             u.username,
             u.avatar_url,
-            COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id), 0) as likes
+            COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes
           FROM works w
-          LEFT JOIN users u ON w.creator_id = u.id
+          LEFT JOIN users u ON w.creator_id = u.id::text
           WHERE w.creator_id = $1 AND (w.source = '津脉广场' OR w.source IS NULL)
             AND LENGTH(COALESCE(w.title, '')) >= 3
             AND COALESCE(w.thumbnail, w.cover_url, '') <> ''
@@ -3557,9 +3569,9 @@ export const workDB = {
             w.updated_at,
             u.username,
             u.avatar_url
-          FROM works w 
-          LEFT JOIN users u ON w.creator_id = u.id 
-          WHERE (w.hidden_in_square = FALSE OR w.hidden_in_square IS NULL)
+          FROM works w
+          LEFT JOIN users u ON w.creator_id = u.id
+          WHERE (w.hidden_in_square IS NULL OR w.hidden_in_square = FALSE OR w.hidden_in_square = 'false')
           ORDER BY w.created_at DESC
           LIMIT 100
         `)
@@ -4541,13 +4553,23 @@ export const communityDB = {
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL:
         // 添加查询超时控制
+        // 先尝试查询所有社区（兼容没有 is_active 列的情况）
+        const createTimeoutPromise = (ms) => new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Query timeout')), ms)
+        )
         const queryPromise = includeInactive 
           ? db.query('SELECT * FROM communities ORDER BY member_count DESC LIMIT 100')
-          : db.query('SELECT * FROM communities WHERE is_active = true ORDER BY member_count DESC LIMIT 100')
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Query timeout')), 5000)
-        )
-        communities = (await Promise.race([queryPromise, timeoutPromise])).rows
+          : db.query(`SELECT * FROM communities 
+                      WHERE is_active IS DISTINCT FROM false 
+                      ORDER BY member_count DESC LIMIT 100`)
+        try {
+          communities = (await Promise.race([queryPromise, createTimeoutPromise(5000)])).rows
+        } catch (queryError) {
+          // 如果查询失败（比如列不存在），尝试简单查询
+          console.warn('[communityDB] Query with is_active failed, falling back to simple query:', queryError.message)
+          const fallbackQuery = db.query('SELECT * FROM communities ORDER BY member_count DESC LIMIT 100')
+          communities = (await Promise.race([fallbackQuery, createTimeoutPromise(5000)])).rows
+        }
         break
       case DB_TYPE.MEMORY:
         communities = [...(memoryStore.communities || [])]
@@ -4776,8 +4798,8 @@ export const communityDB = {
         // 使用 ISO 格式的时间戳，避免时区问题
         const nowISO = new Date().toISOString()
         const result = await db.query(`
-          INSERT INTO community_members (community_id, user_id, role, joined_at)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO community_members (id, community_id, user_id, role, joined_at)
+          VALUES (gen_random_uuid(), $1, $2, $3, $4)
           ON CONFLICT (community_id, user_id) DO NOTHING
         `, [communityId, userId, role, nowISO])
 
@@ -4796,7 +4818,7 @@ export const communityDB = {
         const exists = members.some(m => m.community_id === communityId && m.user_id === userId)
         console.log('[DB] joinCommunity MEMORY: exists =', exists, 'current members count =', members.length);
         if (!exists) {
-          members.push({ community_id: communityId, user_id: userId, role, joined_at: now })
+          members.push({ id: randomUUID(), community_id: communityId, user_id: userId, role, joined_at: now })
           memoryStore.community_members = members
           console.log('[DB] joinCommunity MEMORY: added new member, total members =', members.length);
           const community = (memoryStore.communities || []).find(c => c.id === communityId)

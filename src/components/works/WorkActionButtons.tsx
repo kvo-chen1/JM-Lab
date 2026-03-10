@@ -202,7 +202,7 @@ export function WorkActionButtons({
           shareData={shareData}
           userId={user?.id || ''}
           userName={user?.username || user?.name || ''}
-          userAvatar={user?.avatar}
+          userAvatar={user?.avatar_url || user?.avatar}
         />
       )}
     </div>

@@ -110,6 +110,7 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
         ordersResult,
         communitiesResult,
         usersResult,
+        promotionUserResult,
       ] = await Promise.allSettled([
         // 反馈管理 - 待处理反馈
         supabase
@@ -238,7 +239,6 @@ export const useNavNotifications = (): UseNavNotificationsReturn => {
       }
 
       // 处理推广用户管理结果
-      const promotionUserResult = results[7];
       if (promotionUserResult.status === 'fulfilled' && promotionUserResult.value.count !== null) {
         const count = promotionUserResult.value.count;
         newNotifications.promotionUserManagement = {

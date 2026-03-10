@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { X, Upload, Image as ImageIcon, Trash2, MessageSquare, History } from 'lucide-react';
@@ -11,6 +11,8 @@ import {
   getFeedbackTypeColor
 } from '@/types/feedback';
 import { feedbackService } from '@/services/feedbackService';
+import { supabase } from '@/lib/supabase';
+import { uploadImage } from '@/services/imageService';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -25,6 +27,16 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // 获取当前用户ID
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUserId(session?.user?.id || null);
+    };
+    getUser();
+  }, []);
   
   // 表单状态
   const [formData, setFormData] = useState<FeedbackFormData>({
@@ -37,16 +49,30 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
   // 加载历史反馈
   const loadFeedbacks = useCallback(async () => {
+    if (!userId) {
+      // 如果用户未登录，从 localStorage 加载
+      const stored = localStorage.getItem('user_feedbacks_local');
+      if (stored) {
+        try {
+          const data = JSON.parse(stored);
+          setFeedbacks(data);
+        } catch (e) {
+          console.error('解析本地反馈数据失败:', e);
+        }
+      }
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const data = await feedbackService.getUserFeedbacks();
+      const data = await feedbackService.getUserFeedbacks(userId);
       setFeedbacks(data);
     } catch (error) {
       console.error('加载反馈历史失败:', error);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   // 切换标签时加载历史
   const handleTabChange = (tab: TabType) => {
@@ -64,12 +90,12 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     for (const file of files) {
       const tempId = `temp_${Date.now()}_${Math.random()}`;
       setUploadingImages(prev => [...prev, tempId]);
-      
+
       try {
-        const result = await feedbackService.uploadFeedbackImage(file);
+        const imageUrl = await uploadImage(file, 'feedback-images');
         setFormData(prev => ({
           ...prev,
-          images: [...prev.images, result.url]
+          images: [...prev.images, imageUrl]
         }));
       } catch (error) {
         toast.error(`上传图片失败: ${file.name}`);
@@ -96,9 +122,18 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
     setIsSubmitting(true);
     try {
-      await feedbackService.submitFeedback(formData);
+      // 将 FeedbackFormData 转换为 feedbackService 期望的格式
+      await feedbackService.submitFeedback({
+        type: formData.type,
+        content: formData.description,  // 将 description 映射为 content
+        screenshots: formData.images,    // 将 images 映射为 screenshots
+        contact_info: formData.contact,  // 将 contact 映射为 contact_info
+        contact_type: formData.contact ? 'email' : undefined,
+        user_id: userId || undefined,
+        page_url: window.location.href
+      });
       toast.success('反馈提交成功！我们会尽快处理');
-      
+
       // 重置表单
       setFormData({
         type: 'bug',
@@ -106,7 +141,7 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
         images: [],
         contact: ''
       });
-      
+
       // 切换到历史记录
       handleTabChange('history');
     } catch (error) {
@@ -342,13 +377,16 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                         </span>
                       </div>
                       <p className={`text-sm line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {feedback.description}
+                        {/* @ts-ignore - API 返回的是 content 字段 */}
+                        {feedback.content || feedback.description}
                       </p>
-                      {feedback.images.length > 0 && (
+                      {/* @ts-ignore - API 返回的是 screenshots 字段 */}
+                      {(feedback.screenshots?.length > 0 || feedback.images?.length > 0) && (
                         <div className="flex gap-1 mt-2">
                           <ImageIcon className="w-4 h-4 text-gray-400" />
                           <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            {feedback.images.length} 张图片
+                            {/* @ts-ignore */}
+                            {(feedback.screenshots?.length || feedback.images?.length || 0)} 张图片
                           </span>
                         </div>
                       )}

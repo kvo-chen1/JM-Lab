@@ -8,6 +8,7 @@ interface AgentAvatarProps {
   size?: 'sm' | 'md' | 'lg';
   showName?: boolean;
   animate?: boolean;
+  userAvatarUrl?: string;
 }
 
 const sizeClasses = {
@@ -22,11 +23,17 @@ const iconSizes = {
   lg: 'w-6 h-6'
 };
 
-export default function AgentAvatar({ role, size = 'md', showName = false, animate = true }: AgentAvatarProps) {
+export default function AgentAvatar({ role, size = 'md', showName = false, animate = true, userAvatarUrl }: AgentAvatarProps) {
   const renderAvatar = () => {
     switch (role) {
       case 'user':
-        return (
+        return userAvatarUrl ? (
+          <img
+            src={userAvatarUrl}
+            alt="用户头像"
+            className={`${sizeClasses[size]} rounded-full object-cover shadow-lg`}
+          />
+        ) : (
           <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg`}>
             <User className={`${iconSizes[size]} text-white`} />
           </div>

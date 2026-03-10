@@ -5437,8 +5437,9 @@ async function route(req, res, u, path) {
       }
       sendJson(res, 200, { code: 0, data: communities || [] })
     } catch (e) {
-      console.error('[API] Get communities failed:', e)
-      sendJson(res, 500, { code: 1, message: '获取社区列表失败' })
+      console.error('[API] Get communities failed:', e.message || e)
+      console.error('[API] Error stack:', e.stack || 'No stack')
+      sendJson(res, 500, { code: 1, message: '获取社区列表失败: ' + (e.message || String(e)) })
     }
     return
   }

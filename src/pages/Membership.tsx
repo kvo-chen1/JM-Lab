@@ -436,8 +436,8 @@ const Membership: React.FC = () => {
           w-9 h-9 rounded-xl flex items-center justify-center
           ${isDark ? 'bg-slate-800' : 'bg-gray-100'}
         `}>
-          {user?.avatar ? (
-            <img src={user.avatar} alt="" className="w-full h-full rounded-xl object-cover" />
+          {user?.avatar_url || user?.avatar ? (
+            <img src={user?.avatar_url || user?.avatar} alt="" className="w-full h-full rounded-xl object-cover" />
           ) : (
             <span className="text-sm font-bold">{user?.username?.charAt(0)?.toUpperCase() || 'U'}</span>
           )}

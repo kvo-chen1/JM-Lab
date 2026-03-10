@@ -385,7 +385,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const needsProfileCompletion = userWithMembership.isNewUser || !isProfileComplete;
     
     // 发布登录成功事件
-    eventBus.publish('auth:login', { 
+    eventBus.emit('auth:login', { 
       userId: userWithMembership.id, 
       user: userWithMembership,
       isProfileComplete: !needsProfileCompletion
@@ -480,7 +480,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             
             // 延迟发布事件
             setTimeout(() => {
-              eventBus.publish('auth:login', { 
+              eventBus.emit('auth:login', { 
                 userId: userWithMembership.id, 
                 user: userWithMembership,
                 isProfileComplete
@@ -908,7 +908,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                                avatarValue && avatarValue.trim() !== '');
       
       // 发布登录成功事件
-      eventBus.publish('auth:login', { 
+      eventBus.emit('auth:login', { 
         userId: userWithMembership.id, 
         user: userWithMembership,
         isProfileComplete
@@ -1011,7 +1011,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                                profileAvatarValue && profileAvatarValue.trim() !== '');
         
         // 发布登录成功事件
-        eventBus.publish('auth:login', { 
+        eventBus.emit('auth:login', { 
           userId: userWithMembership.id, 
           user: userWithMembership,
           isProfileComplete
@@ -1172,7 +1172,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const isProfileComplete = userWithMembership.username && userWithMembership.username.trim() !== '' &&
                            finalAvatarValue && finalAvatarValue.trim() !== '';
     
-    eventBus.publish('auth:login', { 
+    eventBus.emit('auth:login', { 
       userId: userWithMembership.id, 
       user: userWithMembership,
       isProfileComplete
@@ -1184,7 +1184,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // 如果是新用户，同时也发布注册成功事件，以触发新手引导
     if (userWithMembership.isNewUser) {
       console.log('登录检测为新用户，触发新手引导');
-      eventBus.publish('auth:register', { 
+      eventBus.emit('auth:register', { 
         userId: userWithMembership.id, 
         user: userWithMembership 
       });
@@ -1312,7 +1312,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     securityService.setSecureItem('SECURE_USER', null);
     
     // 发布登出成功事件
-    eventBus.publish('auth:logout', undefined);
+    eventBus.emit('auth:logout', undefined);
   };
 
   // 用户ID一致性验证方法
@@ -1373,7 +1373,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         securityService.setSecureItem('SECURE_USER', next);
         
         // 发布用户信息更新事件
-        eventBus.publish('auth:update', { isAuthenticated: true, user: next });
+        eventBus.emit('auth:update', { isAuthenticated: true, user: next });
       } catch (error) {
         console.error('Failed to update user information:', error);
       }
@@ -1395,7 +1395,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         // 如果是新用户，初始化统计数据
         if (partial.isNewUser === false) {
-          eventBus.publish('auth:register', { 
+          eventBus.emit('auth:register', { 
             userId: updatedUser.id, 
             user: updatedUser 
           });
@@ -1458,7 +1458,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // 发布会员信息更新事件（只在开发环境发布）
           if (import.meta.env.DEV) {
-            eventBus.publish('数据:刷新', {
+            eventBus.emit('数据:刷新', {
               type: 'user:membership',
               payload: { membership: updatedUser, changes: membershipData }
             });
@@ -1473,7 +1473,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       // 发布会员信息更新事件（只在开发环境发布）
       if (import.meta.env.DEV) {
-        eventBus.publish('数据:刷新', {
+        eventBus.emit('数据:刷新', {
           type: 'user:membership',
           payload: { membership: { ...user, ...membershipData }, changes: membershipData }
         });
@@ -1486,7 +1486,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       updateUser(membershipData);
       
       // 发布会员信息更新失败事件
-      eventBus.publish('错误:发生', {
+      eventBus.emit('错误:发生', {
         error,
         context: { membershipData, user }
       });

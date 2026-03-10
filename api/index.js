@@ -40,12 +40,11 @@ async function getDbClient() {
     const { Client } = await import('pg');
     
     // Supabase PostgreSQL 连接配置
+    // 注意：使用 ssl: { rejectUnauthorized: false } 来允许自签名证书
     const connectionConfig = {
       connectionString: databaseUrl,
       ssl: {
-        rejectUnauthorized: false,
-        requestCert: true,
-        agent: false
+        rejectUnauthorized: false
       },
       // Vercel Serverless 优化
       connectionTimeoutMillis: 10000,

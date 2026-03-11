@@ -23,13 +23,15 @@ interface ChatMessageProps {
   isLast?: boolean;
 }
 
-// Markdown 内容渲染组件
+// Markdown 内容渲染组件 - 美化版本
 function MarkdownContent({ 
   content, 
-  isDark 
+  isDark,
+  isUser = false
 }: { 
   content: string | unknown; 
   isDark: boolean;
+  isUser?: boolean;
 }) {
   const safeContent = typeof content === 'string' ? content : String(content || '');
   
@@ -37,10 +39,80 @@ function MarkdownContent({
     <div className={`prose prose-sm max-w-none text-left ${isDark ? 'prose-invert' : ''}`}>
       <ReactMarkdown
         components={{
-          p: ({ children }) => <p className="mb-2 last:mb-0 text-left">{children}</p>,
-          strong: ({ children }) => <strong className="font-bold text-[#C02C38]">{children}</strong>,
-          ul: ({ children }) => <ul className="list-none mb-2 space-y-2 text-left pl-0">{children}</ul>,
-          li: ({ children }) => <li className="flex items-start gap-2 text-left w-full"><span className="text-[#C02C38] flex-shrink-0">•</span><span className="flex-1">{children}</span></li>,
+          p: ({ children }) => (
+            <p className={`mb-3 last:mb-0 text-left leading-relaxed ${
+              isUser ? 'text-white' : isDark ? 'text-gray-200' : 'text-gray-700'
+            }`}>
+              {children}
+            </p>
+          ),
+          strong: ({ children }) => (
+            <strong className={`font-bold ${
+              isUser 
+                ? 'text-white/95' 
+                : 'bg-gradient-to-r from-[#C02C38] to-[#E85D75] bg-clip-text text-transparent'
+            }`}>
+              {children}
+            </strong>
+          ),
+          ul: ({ children }) => (
+            <ul className="list-none mb-3 space-y-2.5 text-left pl-0">
+              {children}
+            </ul>
+          ),
+          li: ({ children }) => (
+            <li className="flex items-start gap-3 text-left w-full group">
+              <span className={`flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold ${
+                isUser 
+                  ? 'bg-white/20 text-white' 
+                  : 'bg-gradient-to-br from-[#C02C38] to-[#E85D75] text-white shadow-sm'
+              }`}>
+                •
+              </span>
+              <span className={`flex-1 leading-relaxed ${
+                isUser ? 'text-white/90' : isDark ? 'text-gray-300' : 'text-gray-600'
+              }`}>
+                {children}
+              </span>
+            </li>
+          ),
+          h1: ({ children }) => (
+            <h1 className={`text-lg font-bold mb-3 ${isUser ? 'text-white' : isDark ? 'text-white' : 'text-gray-900'}`}>
+              {children}
+            </h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className={`text-base font-semibold mb-2 ${isUser ? 'text-white' : isDark ? 'text-gray-100' : 'text-gray-800'}`}>
+              {children}
+            </h2>
+          ),
+          h3: ({ children }) => (
+            <h3 className={`text-sm font-semibold mb-2 ${isUser ? 'text-white' : isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+              {children}
+            </h3>
+          ),
+          code: ({ children }) => (
+            <code className={`px-1.5 py-0.5 rounded text-xs font-mono ${
+              isUser 
+                ? 'bg-white/20 text-white' 
+                : isDark 
+                  ? 'bg-[#1E1E28] text-[#E85D75]' 
+                  : 'bg-gray-100 text-[#C02C38]'
+            }`}>
+              {children}
+            </code>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className={`border-l-2 pl-3 my-2 italic ${
+              isUser 
+                ? 'border-white/30 text-white/80' 
+                : isDark 
+                  ? 'border-[#C02C38]/50 text-gray-400' 
+                  : 'border-[#C02C38]/30 text-gray-500'
+            }`}>
+              {children}
+            </blockquote>
+          ),
         }}
       >
         {safeContent}
@@ -80,7 +152,7 @@ function VideoMessageContent({
   return (
     <div className="space-y-3">
       {renderDelegationIndicator()}
-      <MarkdownContent content={message.content} isDark={isDark} />
+      <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
       {message.metadata?.videoUrl && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -598,7 +670,7 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         return (
           <div className="space-y-4">
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} />
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
             <StyleSelector />
             {message.metadata?.thinking && (
               <ThinkingProcess thinking={message.metadata.thinking} />
@@ -610,7 +682,7 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} />
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
             {message.metadata?.thinking && (
               <ThinkingProcess thinking={message.metadata.thinking} />
             )}
@@ -621,7 +693,7 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} />
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
           </div>
         );
 
@@ -629,7 +701,7 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         return (
           <div className="space-y-3">
             {renderCollaborationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} />
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
           </div>
         );
 
@@ -637,7 +709,7 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} />
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
             {Array.isArray(message.metadata?.images) && (
               <div className="grid grid-cols-2 gap-2">
                 {message.metadata.images.map((image, index) => (
@@ -673,7 +745,7 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         return (
           <div className="space-y-4">
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} />
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
             <div className="flex gap-3">
               <motion.button
                 onClick={handleSatisfied}
@@ -703,7 +775,7 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         return (
           <div className="space-y-4">
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} />
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
             {Array.isArray(message.metadata?.derivativeOptions) && (
               <div className="space-y-2">
                 {message.metadata.derivativeOptions.map((option) => (
@@ -742,7 +814,7 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         return (
           <div className="space-y-4">
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} />
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
             {Array.isArray(message.metadata?.designTypeOptions) && (
               <div className="grid grid-cols-2 gap-3">
                 {message.metadata.designTypeOptions.map((option: any, index: number) => (
@@ -836,7 +908,7 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} />
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
           </div>
         );
     }

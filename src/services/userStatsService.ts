@@ -36,14 +36,14 @@ class UserStatsService {
   // 初始化事件监听器
   private initializeEventListeners(): void {
     // 监听用户注册事件，初始化统计数据
-    eventBus.subscribe('auth:register', async (userData) => {
+    eventBus.on('auth:register', async (userData) => {
       if (userData && userData.userId) {
         await this.initializeUserStats(userData.userId);
       }
     });
 
     // 监听用户登录事件，检查统计数据完整性
-    eventBus.subscribe('auth:login', async (userData) => {
+    eventBus.on('auth:login', async (userData) => {
       if (userData && userData.userId) {
         await this.checkStatsIntegrity(userData.userId);
       }

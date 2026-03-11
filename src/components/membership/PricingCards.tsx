@@ -7,7 +7,10 @@ import {
   Check,
   Sparkles,
   ArrowRight,
-  Zap
+  Zap,
+  Coins,
+  Gem,
+  Award
 } from 'lucide-react';
 import { User as UserType } from '@/contexts/authContext';
 
@@ -25,6 +28,8 @@ interface PricingPlan {
   period: string;
   description: string;
   features: string[];
+  jinbiPerMonth: number;
+  discountRate: string;
   popular?: boolean;
   icon: React.ElementType;
   gradient: string;
@@ -35,7 +40,17 @@ interface PricingPlan {
 }
 
 interface PricingData {
-  premium: {
+  base: {
+    monthly: PricingPeriod;
+    quarterly: PricingPeriod;
+    yearly: PricingPeriod;
+  };
+  pro: {
+    monthly: PricingPeriod;
+    quarterly: PricingPeriod;
+    yearly: PricingPeriod;
+  };
+  star: {
     monthly: PricingPeriod;
     quarterly: PricingPeriod;
     yearly: PricingPeriod;
@@ -58,6 +73,7 @@ interface PricingCardsProps {
 const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLevel, onUpgrade, pricing }) => {
   // 优先使用传入的会员等级，否则使用 user 对象中的
   const currentLevel = membershipLevel || user?.membershipLevel || 'free';
+  
   // 获取价格显示
   const getPriceDisplay = (planId: string) => {
     if (pricing) {
@@ -70,29 +86,41 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLev
         };
       }
     }
-    // 默认价格
+    // 默认价格（五级会员体系）
     const defaultPrices: Record<string, { monthly: PricingPeriod; quarterly: PricingPeriod; yearly: PricingPeriod }> = {
-      premium: {
+      base: {
+        monthly: { price: 29, period: '月' },
+        quarterly: { price: 79, period: '季度', discount: '9折', originalPrice: 87 },
+        yearly: { price: 279, period: '年', discount: '8折', originalPrice: 348 }
+      },
+      pro: {
         monthly: { price: 99, period: '月' },
         quarterly: { price: 269, period: '季度', discount: '9折', originalPrice: 297 },
         yearly: { price: 899, period: '年', discount: '7.6折', originalPrice: 1188 }
       },
-      vip: {
+      star: {
         monthly: { price: 199, period: '月' },
         quarterly: { price: 539, period: '季度', discount: '9折', originalPrice: 597 },
         yearly: { price: 1799, period: '年', discount: '7.5折', originalPrice: 2388 }
+      },
+      vip: {
+        monthly: { price: 399, period: '月' },
+        quarterly: { price: 1079, period: '季度', discount: '9折', originalPrice: 1197 },
+        yearly: { price: 3599, period: '年', discount: '7.5折', originalPrice: 4788 }
       }
     };
-    return defaultPrices[planId] || defaultPrices.premium;
+    return defaultPrices[planId] || defaultPrices.pro;
   };
 
   const plans: PricingPlan[] = [
     {
       id: 'free',
-      name: '免费会员',
+      name: '免费体验',
       price: 0,
       period: '永久',
       description: '基础AI创作体验',
+      jinbiPerMonth: 0,
+      discountRate: '无折扣',
       features: [
         '每天10次AI生成',
         '基础AI模型',
@@ -110,21 +138,48 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLev
       buttonGradient: 'from-gray-500 to-slate-500'
     },
     {
-      id: 'premium',
-      name: '高级会员',
-      price: getPriceDisplay('premium').monthly.price,
+      id: 'base',
+      name: '基础会员',
+      price: getPriceDisplay('base').monthly.price,
       period: '月',
-      description: '解锁高级AI创作功能',
+      description: '适合轻度使用者',
+      jinbiPerMonth: 1000,
+      discountRate: '95折',
       features: [
-        '无限AI生成次数',
-        '高级AI模型访问',
-        '高清作品导出',
-        '优先处理队列',
-        '专属模板库',
-        '去除水印',
-        '50GB云存储'
+        '每月1000津币',
+        '3个并发任务',
+        '10GB云存储',
+        '消费95折优惠',
+        '每日签到奖励',
+        '基础客服支持'
       ],
+      icon: Award,
+      gradient: 'from-emerald-500 via-teal-500 to-cyan-500',
+      bgGradient: isDark
+        ? 'from-emerald-500/10 via-teal-500/10 to-cyan-500/10'
+        : 'from-emerald-50 via-teal-50 to-cyan-50',
+      borderColor: isDark ? 'border-emerald-500/30' : 'border-emerald-200',
+      textColor: isDark ? 'text-emerald-300' : 'text-emerald-700',
+      buttonGradient: 'from-emerald-500 to-teal-500'
+    },
+    {
+      id: 'pro',
+      name: '专业会员',
+      price: getPriceDisplay('pro').monthly.price,
+      period: '月',
+      description: '性价比之选，最受欢迎',
+      jinbiPerMonth: 3000,
+      discountRate: '9折',
       popular: true,
+      features: [
+        '每月3000津币',
+        '5个并发任务',
+        '50GB云存储',
+        '消费9折优惠',
+        '高清无水印导出',
+        '优先处理队列',
+        '专属模板库'
+      ],
       icon: Star,
       gradient: 'from-blue-500 via-cyan-500 to-teal-500',
       bgGradient: isDark
@@ -135,29 +190,59 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLev
       buttonGradient: 'from-blue-500 to-cyan-500'
     },
     {
+      id: 'star',
+      name: '星耀会员',
+      price: getPriceDisplay('star').monthly.price,
+      period: '月',
+      description: '专业创作者首选',
+      jinbiPerMonth: 8000,
+      discountRate: '85折',
+      features: [
+        '每月8000津币',
+        '10个并发任务',
+        '200GB云存储',
+        '消费85折优惠',
+        '4K超清导出',
+        '高级AI模型',
+        '一对一客服',
+        '商业使用授权'
+      ],
+      icon: Gem,
+      gradient: 'from-violet-500 via-purple-500 to-fuchsia-500',
+      bgGradient: isDark
+        ? 'from-violet-500/10 via-purple-500/10 to-fuchsia-500/10'
+        : 'from-violet-50 via-purple-50 to-fuchsia-50',
+      borderColor: isDark ? 'border-violet-500/30' : 'border-violet-200',
+      textColor: isDark ? 'text-violet-300' : 'text-violet-700',
+      buttonGradient: 'from-violet-500 to-purple-500'
+    },
+    {
       id: 'vip',
-      name: 'VIP会员',
+      name: '至尊会员',
       price: getPriceDisplay('vip').monthly.price,
       period: '月',
       description: '享受顶级AI创作体验',
+      jinbiPerMonth: 20000,
+      discountRate: '8折',
       features: [
-        '包含高级会员所有权益',
+        '每月20000津币',
+        '20个并发任务',
+        '无限云存储',
+        '消费8折优惠',
         '专属AI训练模型',
-        '一对一设计师服务',
-        '商业授权',
-        '专属活动邀请',
-        '无限作品存储',
         '最高优先级处理',
-        '7x24小时专属客服'
+        '7x24小时专属客服',
+        '专属活动邀请',
+        'API访问权限'
       ],
       icon: Crown,
-      gradient: 'from-purple-500 via-violet-500 to-indigo-500',
+      gradient: 'from-amber-500 via-orange-500 to-red-500',
       bgGradient: isDark
-        ? 'from-purple-500/10 via-violet-500/10 to-indigo-500/10'
-        : 'from-purple-50 via-violet-50 to-indigo-50',
-      borderColor: isDark ? 'border-purple-500/30' : 'border-purple-200',
-      textColor: isDark ? 'text-purple-300' : 'text-purple-700',
-      buttonGradient: 'from-purple-500 to-violet-500'
+        ? 'from-amber-500/10 via-orange-500/10 to-red-500/10'
+        : 'from-amber-50 via-orange-50 to-red-50',
+      borderColor: isDark ? 'border-amber-500/30' : 'border-amber-200',
+      textColor: isDark ? 'text-amber-300' : 'text-amber-700',
+      buttonGradient: 'from-amber-500 to-orange-500'
     }
   ];
 
@@ -183,7 +268,7 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLev
           选择适合您的会员方案
         </h3>
         <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-          升级会员，解锁更多AI创作功能
+          升级会员，每月获得津币奖励，享受更多AI创作功能
         </p>
       </div>
 
@@ -191,7 +276,7 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLev
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4"
       >
         {plans.map((plan) => {
           const Icon = plan.icon;
@@ -204,8 +289,8 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLev
               variants={cardVariants}
               whileHover={{ scale: 1.02, y: -4 }}
               className={`
-                relative rounded-3xl overflow-hidden border-2
-                ${plan.popular ? 'md:-mt-4 md:mb-4' : ''}
+                relative rounded-2xl overflow-hidden border-2
+                ${plan.popular ? 'md:-mt-2 md:mb-2 ring-2 ring-offset-2 ring-offset-background ring-blue-500' : ''}
                 ${isCurrentPlan ? 'ring-2 ring-offset-2 ring-offset-background ' + plan.borderColor.replace('border-', 'ring-') : ''}
                 ${plan.borderColor}
                 ${isDark ? 'bg-slate-900/50' : 'bg-white'}
@@ -214,11 +299,11 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLev
               {/* 热门标签 */}
               {plan.popular && (
                 <div className={`
-                  absolute top-0 left-0 right-0 py-2 text-center text-sm font-medium text-white
+                  absolute top-0 left-0 right-0 py-1.5 text-center text-xs font-medium text-white
                   bg-gradient-to-r ${plan.gradient}
                 `}>
                   <div className="flex items-center justify-center gap-1">
-                    <Sparkles size={14} />
+                    <Sparkles size={12} />
                     <span>最受欢迎</span>
                   </div>
                 </div>
@@ -227,119 +312,144 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLev
               {/* 当前计划标签 */}
               {isCurrentPlan && (
                 <div className={`
-                  absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-medium
+                  absolute top-3 right-3 px-2 py-0.5 rounded-full text-xs font-medium
                   ${isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700'}
                 `}>
-                  当前计划
+                  当前
                 </div>
               )}
 
-              <div className={`p-6 ${plan.popular ? 'pt-14' : ''}`}>
+              <div className={`p-4 ${plan.popular ? 'pt-10' : ''}`}>
                 {/* 图标和名称 */}
-                <div className="text-center mb-6">
+                <div className="text-center mb-4">
                   <motion.div
                     whileHover={{ scale: 1.1, rotate: 5 }}
                     className={`
-                      w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4
+                      w-12 h-12 mx-auto rounded-xl flex items-center justify-center mb-3
                       bg-gradient-to-br ${plan.gradient}
                       shadow-lg
                     `}
                   >
-                    <Icon size={32} className="text-white" />
+                    <Icon size={24} className="text-white" />
                   </motion.div>
-                  <h4 className={`text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {plan.name}
-                  </h4>
-                  <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                  <h4 className={`text-lg font-bold ${plan.textColor}`}>{plan.name}</h4>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
                     {plan.description}
                   </p>
                 </div>
 
                 {/* 价格 */}
-                <div className="text-center mb-6">
+                <div className="text-center mb-4">
                   <div className="flex items-baseline justify-center gap-1">
-                    <span className={`text-4xl font-bold ${plan.textColor}`}>
+                    <span className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       ¥{plan.price}
                     </span>
                     <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
                       /{plan.period}
                     </span>
                   </div>
+                  
+                  {/* 津币奖励 */}
+                  {plan.jinbiPerMonth > 0 && (
+                    <div className={`
+                      mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs
+                      ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'}
+                    `}>
+                      <Coins size={12} />
+                      每月{plan.jinbiPerMonth.toLocaleString()}津币
+                    </div>
+                  )}
+                  
+                  {/* 折扣 */}
+                  {plan.discountRate !== '无折扣' && (
+                    <div className={`
+                      mt-1 text-xs
+                      ${isDark ? 'text-emerald-400' : 'text-emerald-600'}
+                    `}>
+                      消费{plan.discountRate}
+                    </div>
+                  )}
                 </div>
 
                 {/* 功能列表 */}
-                <ul className="space-y-3 mb-6">
+                <ul className="space-y-2 mb-4">
                   {plan.features.map((feature, index) => (
-                    <motion.li
-                      key={index}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="flex items-start gap-3"
-                    >
-                      <div className={`
-                        w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5
-                        ${isDark ? 'bg-slate-800' : 'bg-gray-100'}
-                      `}>
-                        <Check size={12} className={plan.textColor} />
-                      </div>
-                      <span className={`text-sm ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                    <li key={index} className="flex items-start gap-2">
+                      <Check size={14} className={`mt-0.5 flex-shrink-0 ${plan.textColor}`} />
+                      <span className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
                         {feature}
                       </span>
-                    </motion.li>
+                    </li>
                   ))}
                 </ul>
 
-                {/* 操作按钮 */}
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => canUpgrade && onUpgrade(plan.id)}
-                  disabled={!canUpgrade}
-                  className={`
-                    w-full py-3 rounded-xl font-medium text-sm
-                    flex items-center justify-center gap-2
-                    transition-all duration-200
-                    ${isCurrentPlan
-                      ? isDark
-                        ? 'bg-slate-800 text-slate-400 cursor-default'
-                        : 'bg-gray-100 text-gray-400 cursor-default'
-                      : plan.id === 'free'
-                        ? isDark
-                          ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        : `bg-gradient-to-r ${plan.buttonGradient} text-white shadow-lg hover:shadow-xl hover:brightness-110`
-                    }
-                  `}
-                >
-                  {isCurrentPlan ? (
-                    '当前计划'
-                  ) : plan.id === 'free' ? (
-                    '免费使用'
-                  ) : (
-                    <>
-                      <Zap size={16} />
-                      <span>立即升级</span>
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </motion.button>
+                {/* 按钮 */}
+                {plan.id === 'free' ? (
+                  <button
+                    disabled
+                    className={`
+                      w-full py-2 rounded-xl text-sm font-medium
+                      ${isDark 
+                        ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'}
+                    `}
+                  >
+                    免费使用
+                  </button>
+                ) : isCurrentPlan ? (
+                  <button
+                    disabled
+                    className={`
+                      w-full py-2 rounded-xl text-sm font-medium
+                      ${isDark 
+                        ? 'bg-emerald-500/20 text-emerald-300 cursor-not-allowed' 
+                        : 'bg-emerald-100 text-emerald-700 cursor-not-allowed'}
+                    `}
+                  >
+                    当前计划
+                  </button>
+                ) : (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => onUpgrade(plan.id)}
+                    className={`
+                      w-full py-2 rounded-xl text-sm font-medium text-white
+                      bg-gradient-to-r ${plan.buttonGradient}
+                      shadow-lg hover:shadow-xl transition-shadow
+                      flex items-center justify-center gap-1
+                    `}
+                  >
+                    <Zap size={14} />
+                    立即升级
+                  </motion.button>
+                )}
               </div>
-
-              {/* 底部装饰 */}
-              <div className={`
-                h-1 bg-gradient-to-r ${plan.gradient}
-                ${plan.popular ? 'opacity-100' : 'opacity-50'}
-              `} />
             </motion.div>
           );
         })}
       </motion.div>
 
-      {/* 底部说明 */}
-      <p className={`text-center text-xs mt-6 ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
-        所有付费方案均支持7天无理由退款 · 可随时取消订阅
-      </p>
+      {/* 津币说明 */}
+      <div className={`mt-8 p-4 rounded-xl ${isDark ? 'bg-slate-800/50' : 'bg-gray-50'}`}>
+        <div className="flex items-start gap-3">
+          <div className={`
+            w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
+            ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}
+          `}>
+            <Coins className="w-5 h-5 text-amber-500" />
+          </div>
+          <div>
+            <h4 className={`font-semibold ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>
+              什么是津币？
+            </h4>
+            <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
+              津币是平台的虚拟货币，用于支付AI生成服务。升级会员每月可获得津币奖励，
+              也可以直接充值购买。津币余额不足时，部分功能将无法使用。
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

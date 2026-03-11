@@ -4,6 +4,7 @@
  */
 import React, { ReactNode } from 'react';
 import { motion } from 'framer-motion';
+import { useTheme } from '@/hooks/useTheme';
 
 interface ThreeColumnLayoutProps {
   leftSidebar: ReactNode;
@@ -18,18 +19,20 @@ const ThreeColumnLayout: React.FC<ThreeColumnLayoutProps> = ({
   children,
   className = '',
 }) => {
+  const { isDark } = useTheme();
+
   return (
-    <div className={`min-h-screen bg-[var(--bg-primary)] marketplace-theme ${className}`}>
+    <div className={`min-h-screen bg-[var(--bg-primary)] marketplace-theme ${isDark ? '' : 'light'} ${className}`}>
       <div className="max-w-[1600px] mx-auto">
-        <div className="flex gap-6 px-4 lg:px-6 py-6">
+        <div className="flex gap-4 lg:gap-6 px-3 sm:px-4 lg:px-6 py-4 lg:py-6">
           {/* 左侧栏 - 在移动端隐藏 */}
           <motion.aside
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-            className="hidden lg:block w-[240px] flex-shrink-0"
+            className="hidden lg:block w-[220px] xl:w-[240px] flex-shrink-0"
           >
-            <div className="sticky top-6">
+            <div className="sticky top-4 lg:top-6">
               {leftSidebar}
             </div>
           </motion.aside>
@@ -39,7 +42,7 @@ const ThreeColumnLayout: React.FC<ThreeColumnLayoutProps> = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1, ease: [0.4, 0, 0.2, 1] }}
-            className="flex-1 min-w-0"
+            className="flex-1 min-w-0 overflow-hidden"
           >
             {children}
           </motion.main>
@@ -49,9 +52,9 @@ const ThreeColumnLayout: React.FC<ThreeColumnLayoutProps> = ({
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="hidden xl:block w-[320px] flex-shrink-0"
+            className="hidden xl:block w-[300px] 2xl:w-[320px] flex-shrink-0"
           >
-            <div className="sticky top-6 space-y-4">
+            <div className="sticky top-4 lg:top-6 space-y-3 lg:space-y-4">
               {rightSidebar}
             </div>
           </motion.aside>

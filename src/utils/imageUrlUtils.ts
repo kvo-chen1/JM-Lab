@@ -101,72 +101,76 @@ export function calculateResponsiveSize(baseWidth: number, baseHeight: number): 
  * @param options 图片处理选项
  * @returns 处理后的图片URL
  */
+// URL处理结果缓存，避免重复处理相同URL
+const urlCache = new Map<string, string>();
+const MAX_CACHE_SIZE = 1000;
+
 export function processImageUrl(url: string, options: ImageProcessingOptions = {}): string {
   if (!url) {
-    console.warn('Empty URL provided to processImageUrl');
     return '';
   }
+  
+  // 检查缓存
+  const cached = urlCache.get(url);
+  if (cached !== undefined) {
+    return cached;
+  }
+  
+  let result: string;
   
   try {
     // 直接返回base64数据URL
     if (url.startsWith('data:')) {
-      return url;
+      result = url;
     }
-    
     // 直接返回相对路径（本地存储的图片）
-    if (url.startsWith('/')) {
-      return url;
+    else if (url.startsWith('/')) {
+      result = url;
     }
-    
     // 直接返回trae-api相关URL
-    if (url.includes('trae-api')) {
-      return url;
+    else if (url.includes('trae-api')) {
+      result = url;
     }
-    
-    // 直接返回已知图片服务URL
-    const knownImageServices = [
-      'unsplash.com',
-      'picsum.photos',
-      'images.pexels.com',
-      'pixabay.com',
-      'cdn.pixabay.com',
-      'i.imgur.com',
-      'imgur.com',
-      'via.placeholder.com',
-      'placehold.co'
-    ];
-    
-    for (const service of knownImageServices) {
-      if (url.includes(service)) {
-        return url;
-      }
+    // 快速检查已知图片服务URL（使用更高效的检查方式）
+    else if (url.includes('unsplash.com') || 
+             url.includes('picsum.photos') || 
+             url.includes('pexels.com') || 
+             url.includes('pixabay.com') || 
+             url.includes('imgur.com') || 
+             url.includes('placeholder')) {
+      result = url;
     }
-    
     // 处理代理URL，提取真实URL
-    if (url.includes('jinmalab.tech/proxy?url=')) {
+    else if (url.includes('jinmalab.tech/proxy?url=')) {
       try {
         const urlObj = new URL(url);
         const realUrl = urlObj.searchParams.get('url');
-        return realUrl || url;
-      } catch (error) {
-        console.warn('Failed to parse proxy URL, returning original:', url, error);
-        return url;
+        result = realUrl || url;
+      } catch {
+        result = url;
       }
     }
-    
     // 检测 Supabase Storage URL（已无法访问）
-    if (url.includes('supabase.co/storage')) {
-      console.warn('[processImageUrl] Supabase Storage URL detected (deprecated):', url.substring(0, 50));
-      // 返回空字符串，让调用方使用 fallback 图片
-      return '';
+    else if (url.includes('supabase.co/storage')) {
+      result = ''; // 返回空字符串，让调用方使用 fallback 图片
     }
-    
     // 其他所有URL直接返回
-    return url;
-  } catch (error) {
-    console.warn('Error processing URL, returning original:', url, error);
-    return url;
+    else {
+      result = url;
+    }
+  } catch {
+    result = url;
   }
+  
+  // 缓存结果（限制缓存大小）
+  if (urlCache.size >= MAX_CACHE_SIZE) {
+    // 删除最早的缓存项
+    const firstKey = urlCache.keys().next().value;
+    urlCache.delete(firstKey);
+  }
+  urlCache.set(url, result);
+  
+  return result;
 }
 
 /**

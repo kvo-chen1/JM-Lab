@@ -1,7 +1,7 @@
 /**
  * 商家工作平台 - 交易管理模块
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   ShoppingCart, 
@@ -12,38 +12,56 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Package
+  Package,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-
-// 模拟订单数据
-const mockOrders = [
-  { id: 1, orderNo: 'ORD20240308001', buyer: '张三', product: '津小脉文创 T 恤', amount: 500, status: 'pending_payment', createTime: '2024-03-08 10:30:00' },
-  { id: 2, orderNo: 'ORD20240308002', buyer: '李四', product: '智能保温杯', amount: 600, status: 'paid', createTime: '2024-03-08 11:15:00' },
-  { id: 3, orderNo: 'ORD20240308003', buyer: '王五', product: '津脉智坊定制笔记本', amount: 300, status: 'shipped', createTime: '2024-03-08 09:20:00' },
-  { id: 4, orderNo: 'ORD20240308004', buyer: '赵六', product: '无线充电宝', amount: 1200, status: 'completed', createTime: '2024-03-07 16:45:00' },
-  { id: 5, orderNo: 'ORD20240308005', buyer: '钱七', product: '津小脉毛绒公仔', amount: 800, status: 'cancelled', createTime: '2024-03-07 14:30:00' },
-];
+import { merchantService, Order } from '@/services/merchantService';
+import { toast } from 'sonner';
 
 const OrderManager: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [merchantId, setMerchantId] = useState<string>('');
 
-  const filteredOrders = mockOrders.filter(order => {
-    const matchesSearch = order.orderNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         order.buyer.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const merchant = await merchantService.getCurrentMerchant();
+        if (merchant) {
+          setMerchantId(merchant.id);
+          const merchantOrders = await merchantService.getOrders(merchant.id);
+          setOrders(merchantOrders);
+        }
+      } catch (error) {
+        console.error('获取订单数据失败:', error);
+        toast.error('获取订单数据失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = order.order_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         order.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         order.items.some(item => item.product_name.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const stats = {
-    total: mockOrders.length,
-    pending: mockOrders.filter(o => o.status === 'pending_payment').length,
-    paid: mockOrders.filter(o => o.status === 'paid').length,
-    shipped: mockOrders.filter(o => o.status === 'shipped').length,
-    completed: mockOrders.filter(o => o.status === 'completed').length,
+    total: orders.length,
+    pending: orders.filter(o => o.status === 'pending_payment').length,
+    paid: orders.filter(o => o.status === 'paid').length,
+    shipped: orders.filter(o => o.status === 'shipped').length,
+    completed: orders.filter(o => o.status === 'completed').length,
   };
 
   const getStatusBadge = (status: string) => {
@@ -62,6 +80,27 @@ const OrderManager: React.FC = () => {
         return <Badge className="border-0">{status}</Badge>;
     }
   };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-[#5ba3d4]" />
+        <span className="ml-2 text-[var(--text-muted)]">加载中...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -104,7 +143,7 @@ const OrderManager: React.FC = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
               <Input
-                placeholder="搜索订单号或买家..."
+                placeholder="搜索订单号、买家或商品..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
@@ -142,35 +181,48 @@ const OrderManager: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-primary)]">
-              {filteredOrders.map((order, index) => (
-                <motion.tr
-                  key={order.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="hover:bg-[var(--bg-hover)] transition-colors"
-                >
-                  <td className="px-4 py-3 text-sm text-[var(--text-primary)]">{order.orderNo}</td>
-                  <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{order.buyer}</td>
-                  <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{order.product}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-[#5ba3d4]">¥{order.amount}</td>
-                  <td className="px-4 py-3">{getStatusBadge(order.status)}</td>
-                  <td className="px-4 py-3 text-sm text-[var(--text-muted)]">{order.createTime}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      {order.status === 'paid' && (
-                        <Button size="sm" className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white">
-                          <Truck className="w-4 h-4 mr-1" />
-                          发货
-                        </Button>
-                      )}
-                    </div>
+              {filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                    暂无订单数据
                   </td>
-                </motion.tr>
-              ))}
+                </tr>
+              ) : (
+                filteredOrders.map((order, index) => (
+                  <motion.tr
+                    key={order.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="hover:bg-[var(--bg-hover)] transition-colors"
+                  >
+                    <td className="px-4 py-3 text-sm text-[var(--text-primary)]">{order.order_no}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{order.customer_name}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
+                      {order.items && order.items.length > 0 
+                        ? order.items.map(item => item.product_name).join(', ')
+                        : '-'
+                      }
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-[#5ba3d4]">¥{order.total_amount}</td>
+                    <td className="px-4 py-3">{getStatusBadge(order.status)}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-muted)]">{formatDate(order.created_at)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        {order.status === 'paid' && (
+                          <Button size="sm" className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white">
+                            <Truck className="w-4 h-4 mr-1" />
+                            发货
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

@@ -163,17 +163,18 @@ class SharedService {
     
     // 发布获取共享数据事件
     let result: T | null = null
-    const listenerId = eventBus.subscribe('数据:刷新', (data) => {
+    const handler = (data: any) => {
       if (data.type === 'data-shared' && data.payload.key === key) {
         result = data.payload.data as T
       }
-    })
+    }
+    const unsubscribe = eventBus.on('数据:刷新', handler)
     
     // 等待一段时间，看看是否能获取到数据
     await new Promise(resolve => setTimeout(resolve, 100))
     
     // 取消订阅
-    eventBus.unsubscribe('数据:刷新', listenerId)
+    unsubscribe()
     
     return result
   }

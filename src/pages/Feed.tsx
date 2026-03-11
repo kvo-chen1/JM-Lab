@@ -572,8 +572,12 @@ export default function Feed() {
         await feedService.leaveCommunity(communityId);
         toast.success('已退出社群');
       } else {
-        await feedService.joinCommunity(communityId);
-        toast.success('加入成功');
+        const result = await feedService.joinCommunity(communityId);
+        if (result.alreadyMember) {
+          toast.success('您已经是该社群的成员');
+        } else {
+          toast.success('加入成功');
+        }
       }
 
       setRecommendedCommunities(prev => prev.map(community =>

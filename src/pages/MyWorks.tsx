@@ -75,7 +75,7 @@ export default function MyWorks() {
 
       if (token) {
         try {
-          const response = await fetch(`/api/works?creator_id=${user.id}&limit=100`, {
+          const response = await fetch(`/api/works?creator_id=${user.id}&limit=100&skip_cache=true`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
 
@@ -92,13 +92,7 @@ export default function MyWorks() {
                   workDate = new Date().toLocaleDateString('zh-CN');
                 }
 
-                console.log('[MyWorks] Mapping work:', {
-                  id: w.id,
-                  title: w.title,
-                  thumbnail: w.thumbnail?.substring(0, 50),
-                  type: w.type,
-                  videoUrl: w.videoUrl?.substring(0, 50)
-                });
+                // Debug: console.log('[MyWorks] Mapping work:', { id: w.id, title: w.title });
 
                 return {
                   id: w.id?.toString() || '',
@@ -131,6 +125,7 @@ export default function MyWorks() {
           .order('created_at', { ascending: false });
 
         if (!error && supabaseWorks) {
+          // Debug: console.log('[MyWorks] Supabase works count:', supabaseWorks.length);
           loadedWorks = supabaseWorks.map(w => {
             let workDate: string;
             if (w.created_at) {
@@ -157,6 +152,7 @@ export default function MyWorks() {
         }
       }
 
+      // Debug: console.log('[MyWorks] Loaded works count:', loadedWorks.length);
       setWorks(loadedWorks);
       setFilteredWorks(loadedWorks);
     } catch (error) {
@@ -198,6 +194,7 @@ export default function MyWorks() {
       }
     });
 
+    // Debug: console.log('[MyWorks] Filtered works:', result.length, 'of', works.length);
     setFilteredWorks(result);
   }, [works, statusFilter, searchQuery, sortBy]);
 

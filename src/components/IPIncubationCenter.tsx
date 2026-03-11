@@ -37,7 +37,7 @@ interface NavItem {
   badge?: number;
 }
 
-// ==================== 深色主题配色常量 ====================
+// ==================== 主题配色常量 ====================
 const DARK_THEME = {
   // 主背景色 - 深邃的深蓝黑色
   bgPrimary: 'bg-slate-950',
@@ -45,36 +45,79 @@ const DARK_THEME = {
   bgTertiary: 'bg-slate-800',
   bgCard: 'bg-slate-900/80',
   bgCardHover: 'bg-slate-800/80',
-  
+
   // 边框颜色
   borderPrimary: 'border-slate-800',
   borderSecondary: 'border-slate-700',
   borderAccent: 'border-cyan-500/30',
-  
+
   // 文字颜色
   textPrimary: 'text-slate-100',
   textSecondary: 'text-slate-300',
   textTertiary: 'text-slate-400',
   textMuted: 'text-slate-500',
-  
+
   // 强调色 - 科技感的青色/蓝色渐变
   accentPrimary: 'from-cyan-500 to-blue-600',
   accentSecondary: 'from-violet-500 to-purple-600',
   accentSuccess: 'from-emerald-400 to-teal-500',
   accentWarning: 'from-amber-400 to-orange-500',
-  
+
   // 渐变背景
   gradientPrimary: 'bg-gradient-to-br from-slate-900 via-slate-950 to-black',
   gradientCard: 'bg-gradient-to-br from-slate-800/50 to-slate-900/50',
   gradientAccent: 'bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10',
-  
+
   // 发光效果
   glowPrimary: 'shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]',
   glowAccent: 'shadow-[0_0_20px_-5px_rgba(139,92,246,0.3)]',
-  
+
   // 玻璃效果
   glass: 'backdrop-blur-xl bg-slate-900/90',
 };
+
+const LIGHT_THEME = {
+  // 主背景色 - 浅灰色系
+  bgPrimary: 'bg-gray-50',
+  bgSecondary: 'bg-white',
+  bgTertiary: 'bg-gray-100',
+  bgCard: 'bg-white/80',
+  bgCardHover: 'bg-gray-50/80',
+
+  // 边框颜色
+  borderPrimary: 'border-gray-200',
+  borderSecondary: 'border-gray-300',
+  borderAccent: 'border-cyan-500/30',
+
+  // 文字颜色
+  textPrimary: 'text-gray-900',
+  textSecondary: 'text-gray-700',
+  textTertiary: 'text-gray-600',
+  textMuted: 'text-gray-400',
+
+  // 强调色 - 科技感的青色/蓝色渐变
+  accentPrimary: 'from-cyan-500 to-blue-600',
+  accentSecondary: 'from-violet-500 to-purple-600',
+  accentSuccess: 'from-emerald-500 to-teal-600',
+  accentWarning: 'from-amber-500 to-orange-600',
+
+  // 渐变背景
+  gradientPrimary: 'bg-gradient-to-br from-gray-50 via-white to-gray-100',
+  gradientCard: 'bg-gradient-to-br from-white/50 to-gray-50/50',
+  gradientAccent: 'bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10',
+
+  // 发光效果
+  glowPrimary: 'shadow-[0_0_30px_-5px_rgba(6,182,212,0.15)]',
+  glowAccent: 'shadow-[0_0_20px_-5px_rgba(139,92,246,0.15)]',
+
+  // 玻璃效果
+  glass: 'backdrop-blur-xl bg-white/90',
+};
+
+// 获取主题对象
+function useIPTheme(isDark: boolean) {
+  return isDark ? DARK_THEME : LIGHT_THEME;
+}
 
 // ==================== 左侧导航栏组件 ====================
 function Sidebar({
@@ -83,7 +126,9 @@ function Sidebar({
   isCollapsed,
   onToggleCollapse,
   navItems,
-  onSubmitWork
+  onSubmitWork,
+  theme,
+  isDark
 }: {
   activeTab: string;
   onTabChange: (tab: string) => void;
@@ -91,6 +136,8 @@ function Sidebar({
   onToggleCollapse: () => void;
   navItems: NavItem[];
   onSubmitWork: () => void;
+  theme: typeof DARK_THEME;
+  isDark: boolean;
 }) {
   return (
     <motion.aside
@@ -98,17 +145,17 @@ function Sidebar({
       animate={{ x: 0, opacity: 1 }}
       className={`${isCollapsed ? 'w-16' : 'w-60'} flex-shrink-0 transition-all duration-300`}
     >
-      <div className={`sticky top-4 rounded-2xl overflow-hidden ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary} ${DARK_THEME.glowPrimary}`}>
+      <div className={`sticky top-4 rounded-2xl overflow-hidden ${theme.glass} border ${theme.borderPrimary} ${theme.glowPrimary}`}>
         {/* 折叠按钮 */}
         <button
           onClick={onToggleCollapse}
-          className={`w-full py-3 flex items-center justify-center border-b ${DARK_THEME.borderPrimary} hover:bg-white/5 transition-colors`}
+          className={`w-full py-3 flex items-center justify-center border-b ${theme.borderPrimary} ${isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'} transition-colors`}
         >
           <motion.div
             animate={{ rotate: isCollapsed ? 180 : 0 }}
             transition={{ duration: 0.2 }}
           >
-            <ChevronDown className="w-4 h-4 text-slate-400" />
+            <ChevronDown className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-gray-400'}`} />
           </motion.div>
         </button>
 
@@ -126,8 +173,8 @@ function Sidebar({
                 whileTap={{ scale: 0.98 }}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl mb-1 transition-all duration-200 ${
                   isActive
-                    ? `bg-gradient-to-r ${DARK_THEME.accentPrimary} text-white shadow-lg shadow-cyan-500/25`
-                    : `text-slate-400 hover:bg-white/5 hover:text-slate-200`
+                    ? `bg-gradient-to-r ${theme.accentPrimary} text-white shadow-lg ${isDark ? 'shadow-cyan-500/25' : 'shadow-cyan-500/15'}`
+                    : `${isDark ? 'text-slate-400 hover:bg-white/5 hover:text-slate-200' : 'text-gray-600 hover:bg-black/5 hover:text-gray-900'}`
                 }`}
               >
                 <div className={`flex-shrink-0 ${isActive ? 'text-white' : ''}`}>
@@ -151,10 +198,10 @@ function Sidebar({
 
         {/* 底部快捷操作 */}
         {!isCollapsed && (
-          <div className={`p-3 border-t ${DARK_THEME.borderPrimary}`}>
-            <button 
+          <div className={`p-3 border-t ${theme.borderPrimary}`}>
+            <button
               onClick={onSubmitWork}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${isDark ? 'text-cyan-400 hover:bg-cyan-500/10' : 'text-cyan-600 hover:bg-cyan-50'}`}
             >
               <Plus className="w-4 h-4" />
               <span>提交新作品</span>
@@ -175,7 +222,9 @@ function RightPanel({
   onApplyOpportunity,
   isLoading,
   onSubmitWork,
-  onExportData
+  onExportData,
+  theme,
+  isDark
 }: {
   ipStats: IPStats;
   selectedAsset: IPAsset | null;
@@ -185,6 +234,8 @@ function RightPanel({
   isLoading: boolean;
   onSubmitWork: () => void;
   onExportData: () => void;
+  theme: typeof DARK_THEME;
+  isDark: boolean;
 }) {
   // 获取匹配度最高的机会
   const topOpportunities = useMemo(() =>
@@ -218,57 +269,57 @@ function RightPanel({
     >
       <div className="sticky top-4 space-y-4">
         {/* 统计卡片 */}
-        <div className={`rounded-2xl p-4 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary} ${DARK_THEME.glowPrimary}`}>
-          <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${DARK_THEME.textPrimary}`}>
-            <BarChart3 className="w-4 h-4 text-cyan-400" />
+        <div className={`rounded-2xl p-4 ${theme.glass} border ${theme.borderPrimary} ${theme.glowPrimary}`}>
+          <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${theme.textPrimary}`}>
+            <BarChart3 className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
             数据概览
           </h3>
           {isLoading ? (
             <div className="flex justify-center py-4">
-              <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
+              <Loader2 className={`w-6 h-6 animate-spin ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              <div className={`p-3 rounded-xl ${DARK_THEME.bgTertiary} border ${DARK_THEME.borderSecondary}`}>
-                <p className="text-2xl font-bold text-cyan-400">{ipStats.totalAssets}</p>
-                <p className={`text-xs ${DARK_THEME.textMuted}`}>IP资产</p>
+              <div className={`p-3 rounded-xl ${theme.bgTertiary} border ${theme.borderSecondary}`}>
+                <p className={`text-2xl font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>{ipStats.totalAssets}</p>
+                <p className={`text-xs ${theme.textMuted}`}>IP资产</p>
               </div>
-              <div className={`p-3 rounded-xl ${DARK_THEME.bgTertiary} border ${DARK_THEME.borderSecondary}`}>
-                <p className="text-2xl font-bold text-violet-400">{ipStats.totalPartnerships}</p>
-                <p className={`text-xs ${DARK_THEME.textMuted}`}>商业合作</p>
+              <div className={`p-3 rounded-xl ${theme.bgTertiary} border ${theme.borderSecondary}`}>
+                <p className={`text-2xl font-bold ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>{ipStats.totalPartnerships}</p>
+                <p className={`text-xs ${theme.textMuted}`}>商业合作</p>
               </div>
-              <div className={`p-3 rounded-xl ${DARK_THEME.bgTertiary} border ${DARK_THEME.borderSecondary} col-span-2`}>
-                <p className="text-2xl font-bold text-emerald-400">
+              <div className={`p-3 rounded-xl ${theme.bgTertiary} border ${theme.borderSecondary} col-span-2`}>
+                <p className={`text-2xl font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                   ¥{(ipStats.totalEstimatedValue / 10000).toFixed(1)}万
                 </p>
-                <p className={`text-xs ${DARK_THEME.textMuted}`}>预估总价值</p>
+                <p className={`text-xs ${theme.textMuted}`}>预估总价值</p>
               </div>
             </div>
           )}
         </div>
 
         {/* 快捷操作 */}
-        <div className={`rounded-2xl p-4 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
-          <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${DARK_THEME.textPrimary}`}>
-            <Zap className="w-4 h-4 text-amber-400" />
+        <div className={`rounded-2xl p-4 ${theme.glass} border ${theme.borderPrimary}`}>
+          <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${theme.textPrimary}`}>
+            <Zap className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
             快捷操作
           </h3>
           <div className="space-y-2">
-            <button 
+            <button
               onClick={onSubmitWork}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/30 transition-all"
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl border transition-all ${isDark ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 hover:from-cyan-500/30 hover:to-blue-500/30 border-cyan-500/30' : 'bg-gradient-to-r from-cyan-500/10 to-blue-500/10 text-cyan-700 hover:from-cyan-500/20 hover:to-blue-500/20 border-cyan-500/20'}`}
             >
               <Plus className="w-4 h-4" />
               <span>提交新作品</span>
             </button>
-            <button 
+            <button
               onClick={onExportData}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl ${DARK_THEME.bgTertiary} hover:bg-slate-700 border ${DARK_THEME.borderSecondary} transition-colors ${DARK_THEME.textSecondary}`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl border transition-colors ${theme.bgTertiary} ${theme.borderSecondary} ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-200'} ${theme.textSecondary}`}
             >
               <FileText className="w-4 h-4" />
               <span>导出数据</span>
             </button>
-            <button className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl ${DARK_THEME.bgTertiary} hover:bg-slate-700 border ${DARK_THEME.borderSecondary} transition-colors ${DARK_THEME.textSecondary}`}>
+            <button className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl border transition-colors ${theme.bgTertiary} ${theme.borderSecondary} ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-200'} ${theme.textSecondary}`}>
               <Share2 className="w-4 h-4" />
               <span>分享展示</span>
             </button>
@@ -276,37 +327,37 @@ function RightPanel({
         </div>
 
         {/* 最近动态 */}
-        <div className={`rounded-2xl p-4 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
-          <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${DARK_THEME.textPrimary}`}>
-            <Clock className="w-4 h-4 text-blue-400" />
+        <div className={`rounded-2xl p-4 ${theme.glass} border ${theme.borderPrimary}`}>
+          <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${theme.textPrimary}`}>
+            <Clock className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
             最近动态
           </h3>
           {isLoading ? (
             <div className="flex justify-center py-4">
-              <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
+              <Loader2 className={`w-6 h-6 animate-spin ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
             </div>
           ) : (
             <div className="space-y-3">
               {activities.slice(0, 4).map((activity) => (
                 <div
                   key={activity.id}
-                  className={`flex gap-3 p-2 rounded-lg ${!activity.isRead ? 'bg-cyan-500/10 border border-cyan-500/20' : ''}`}
+                  className={`flex gap-3 p-2 rounded-lg ${!activity.isRead ? (isDark ? 'bg-cyan-500/10 border border-cyan-500/20' : 'bg-cyan-50 border border-cyan-200') : ''}`}
                 >
                   <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                    activity.type === 'progress' ? 'bg-emerald-400' :
-                    activity.type === 'opportunity' ? 'bg-amber-400' :
-                    activity.type === 'milestone' ? 'bg-violet-400' :
-                    'bg-red-400'
+                    activity.type === 'progress' ? (isDark ? 'bg-emerald-400' : 'bg-emerald-500') :
+                    activity.type === 'opportunity' ? (isDark ? 'bg-amber-400' : 'bg-amber-500') :
+                    activity.type === 'milestone' ? (isDark ? 'bg-violet-400' : 'bg-violet-500') :
+                    (isDark ? 'bg-red-400' : 'bg-red-500')
                   }`} />
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${DARK_THEME.textSecondary}`}>{activity.title}</p>
-                    <p className={`text-xs ${DARK_THEME.textMuted} mt-0.5`}>{activity.description}</p>
-                    <p className={`text-xs ${DARK_THEME.textMuted} mt-1`}>{formatTimeAgo(activity.createdAt)}</p>
+                    <p className={`text-sm font-medium truncate ${theme.textSecondary}`}>{activity.title}</p>
+                    <p className={`text-xs ${theme.textMuted} mt-0.5`}>{activity.description}</p>
+                    <p className={`text-xs ${theme.textMuted} mt-1`}>{formatTimeAgo(activity.createdAt)}</p>
                   </div>
                 </div>
               ))}
               {activities.length === 0 && (
-                <p className={`text-sm ${DARK_THEME.textMuted} text-center py-4`}>暂无动态</p>
+                <p className={`text-sm ${theme.textMuted} text-center py-4`}>暂无动态</p>
               )}
             </div>
           )}
@@ -314,34 +365,34 @@ function RightPanel({
 
         {/* 推荐机会 */}
         {topOpportunities.length > 0 && (
-          <div className={`rounded-2xl p-4 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
-            <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${DARK_THEME.textPrimary}`}>
-              <Sparkles className="w-4 h-4 text-purple-400" />
+          <div className={`rounded-2xl p-4 ${theme.glass} border ${theme.borderPrimary}`}>
+            <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${theme.textPrimary}`}>
+              <Sparkles className={`w-4 h-4 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
               推荐机会
             </h3>
             <div className="space-y-3">
               {topOpportunities.map((opportunity) => (
                 <div
                   key={opportunity.id}
-                  className={`p-3 rounded-xl ${DARK_THEME.bgTertiary} border ${DARK_THEME.borderSecondary} hover:border-cyan-500/30 transition-all cursor-pointer group`}
+                  className={`p-3 rounded-xl ${theme.bgTertiary} border ${theme.borderSecondary} hover:border-cyan-500/30 transition-all cursor-pointer group`}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className={`text-sm font-medium group-hover:text-cyan-400 transition-colors ${DARK_THEME.textSecondary}`}>
+                    <h4 className={`text-sm font-medium group-hover:text-cyan-400 transition-colors ${theme.textSecondary}`}>
                       {opportunity.name}
                     </h4>
-                    <span className="text-xs font-medium text-emerald-400">
+                    <span className={`text-xs font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                       {opportunity.reward}
                     </span>
                   </div>
-                  <p className={`text-xs ${DARK_THEME.textMuted} mb-2 line-clamp-2`}>
+                  <p className={`text-xs ${theme.textMuted} mb-2 line-clamp-2`}>
                     {opportunity.description}
                   </p>
                   <div className="flex justify-between items-center">
-                    <span className={`text-xs ${DARK_THEME.textMuted}`}>{opportunity.brandName}</span>
+                    <span className={`text-xs ${theme.textMuted}`}>{opportunity.brandName}</span>
                     <button
                       onClick={() => selectedAsset && onApplyOpportunity(opportunity.id, selectedAsset.id)}
                       disabled={!selectedAsset}
-                      className="text-xs text-cyan-400 hover:text-cyan-300 font-medium disabled:text-slate-600"
+                      className={`text-xs font-medium ${isDark ? 'text-cyan-400 hover:text-cyan-300 disabled:text-slate-600' : 'text-cyan-600 hover:text-cyan-700 disabled:text-gray-400'}`}
                     >
                       申请 →
                     </button>
@@ -380,46 +431,49 @@ function RightPanel({
 function ProgressOverview({
   selectedAsset,
   progress,
+  isDark
 }: {
   selectedAsset: IPAsset | null;
   progress: number;
+  isDark: boolean;
 }) {
+  const theme = useIPTheme(isDark);
   if (!selectedAsset) return null;
 
   return (
     <motion.div
       initial={{ y: 20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className={`rounded-2xl p-6 mb-6 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary} ${DARK_THEME.glowPrimary}`}
+      className={`rounded-2xl p-6 mb-6 ${theme.glass} border ${theme.borderPrimary} ${theme.glowPrimary}`}
     >
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <TianjinImage
             src={selectedAsset.thumbnail}
             alt={selectedAsset.name}
-            className="w-16 h-16 rounded-xl object-cover ring-2 ring-cyan-500/30"
+            className={`w-16 h-16 rounded-xl object-cover ring-2 ${isDark ? 'ring-cyan-500/30' : 'ring-cyan-400/30'}`}
             ratio="square"
           />
           <div>
-            <h2 className={`text-xl font-bold ${DARK_THEME.textPrimary}`}>{selectedAsset.name}</h2>
-            <p className={`text-sm ${DARK_THEME.textMuted} mt-1`}>
+            <h2 className={`text-xl font-bold ${theme.textPrimary}`}>{selectedAsset.name}</h2>
+            <p className={`text-sm mt-1 ${theme.textMuted}`}>
               {selectedAsset.type === 'illustration' ? '插画' :
                selectedAsset.type === 'pattern' ? '纹样' :
                selectedAsset.type === '3d_model' ? '3D模型' :
                selectedAsset.type === 'digital_collectible' ? '数字藏品' : '设计'}
               {' · '}
-              预估价值 <span className="text-emerald-400">¥{selectedAsset.commercialValue.toLocaleString()}</span>
+              预估价值 <span className={isDark ? 'text-emerald-400' : 'text-emerald-600'}>¥{selectedAsset.commercialValue.toLocaleString()}</span>
             </p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-3xl font-bold text-cyan-400">{progress}%</p>
-          <p className={`text-sm ${DARK_THEME.textMuted}`}>孵化进度</p>
+          <p className={`text-3xl font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>{progress}%</p>
+          <p className={`text-sm ${theme.textMuted}`}>孵化进度</p>
         </div>
       </div>
 
       {/* 进度条 */}
-      <div className={`h-3 rounded-full ${DARK_THEME.bgTertiary} overflow-hidden`}>
+      <div className={`h-3 rounded-full overflow-hidden ${theme.bgTertiary}`}>
         <motion.div
           className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-violet-500 to-purple-500"
           initial={{ width: 0 }}
@@ -438,12 +492,12 @@ function ProgressOverview({
           return (
             <div key={stage} className="flex flex-col items-center">
               <div className={`w-3 h-3 rounded-full mb-2 ${
-                isCompleted ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]' :
-                isCurrent ? 'bg-cyan-400 ring-4 ring-cyan-500/30 shadow-[0_0_10px_rgba(34,211,238,0.5)]' :
-                'bg-slate-600'
+                isCompleted ? (isDark ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]') :
+                isCurrent ? (isDark ? 'bg-cyan-400 ring-4 ring-cyan-500/30 shadow-[0_0_10px_rgba(34,211,238,0.5)]' : 'bg-cyan-500 ring-4 ring-cyan-400/30 shadow-[0_0_10px_rgba(6,182,212,0.3)]') :
+                (isDark ? 'bg-slate-600' : 'bg-gray-300')
               }`} />
               <span className={`text-xs ${
-                isCompleted || isCurrent ? `${DARK_THEME.textSecondary} font-medium` : DARK_THEME.textMuted
+                isCompleted || isCurrent ? `${theme.textSecondary} font-medium` : theme.textMuted
               }`}>
                 {stage}
               </span>
@@ -460,13 +514,16 @@ function StageTimeline({
   stages,
   onUpdateStage,
   assetId,
-  isLoading
+  isLoading,
+  isDark
 }: {
   stages: ServiceIPStage[];
   onUpdateStage: (stageId: string, completed: boolean) => void;
   assetId: string;
   isLoading: boolean;
+  isDark: boolean;
 }) {
+  const theme = useIPTheme(isDark);
   const getStageIcon = (stageName: string) => {
     switch (stageName) {
       case '创意设计': return <Sparkles className="w-4 h-4" />;
@@ -479,15 +536,15 @@ function StageTimeline({
   };
 
   return (
-    <div className={`rounded-2xl p-6 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
-      <h3 className={`text-lg font-semibold mb-6 flex items-center gap-2 ${DARK_THEME.textPrimary}`}>
-        <Target className="w-5 h-5 text-cyan-400" />
+    <div className={`rounded-2xl p-6 ${theme.glass} border ${theme.borderPrimary}`}>
+      <h3 className={`text-lg font-semibold mb-6 flex items-center gap-2 ${theme.textPrimary}`}>
+        <Target className={`w-5 h-5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
         孵化阶段
       </h3>
 
       <div className="relative">
         {/* 垂直线 */}
-        <div className={`absolute left-6 top-0 bottom-0 w-0.5 ${DARK_THEME.bgTertiary}`} />
+        <div className={`absolute left-6 top-0 bottom-0 w-0.5 ${theme.bgTertiary}`} />
 
         {/* 阶段列表 */}
         <div className="space-y-6">
@@ -506,10 +563,10 @@ function StageTimeline({
                 {/* 图标 */}
                 <div className={`relative z-10 w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
                   isCompleted
-                    ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]'
+                    ? (isDark ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]')
                     : isActive
-                      ? 'bg-cyan-500 text-white ring-4 ring-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.4)]'
-                      : `${DARK_THEME.bgTertiary} text-slate-500`
+                      ? (isDark ? 'bg-cyan-500 text-white ring-4 ring-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.4)]' : 'bg-cyan-500 text-white ring-4 ring-cyan-400/20 shadow-[0_0_15px_rgba(6,182,212,0.3)]')
+                      : `${theme.bgTertiary} ${isDark ? 'text-slate-500' : 'text-gray-400'}`
                 }`}>
                   {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : getStageIcon(stage.name)}
                 </div>
@@ -518,14 +575,14 @@ function StageTimeline({
                 <div className="flex-1 pt-1">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h4 className={`font-semibold ${isActive ? 'text-cyan-400' : DARK_THEME.textSecondary}`}>
+                      <h4 className={`font-semibold ${isActive ? (isDark ? 'text-cyan-400' : 'text-cyan-600') : theme.textSecondary}`}>
                         {stage.name}
                       </h4>
-                      <p className={`text-sm mt-1 ${DARK_THEME.textMuted}`}>
+                      <p className={`text-sm mt-1 ${theme.textMuted}`}>
                         {stage.description}
                       </p>
                       {stage.completedAt && (
-                        <p className={`text-xs ${DARK_THEME.textMuted} mt-2 flex items-center gap-1`}>
+                        <p className={`text-xs mt-2 flex items-center gap-1 ${theme.textMuted}`}>
                           <Clock className="w-3 h-3" />
                           完成于 {new Date(stage.completedAt).toLocaleDateString('zh-CN')}
                         </p>
@@ -541,7 +598,7 @@ function StageTimeline({
                         onChange={(e) => onUpdateStage(stage.id, e.target.checked)}
                         disabled={isLoading}
                       />
-                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500" />
+                      <div className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${isDark ? 'bg-slate-700 peer-focus:ring-4 peer-focus:ring-cyan-500/20 peer-checked:bg-cyan-500 after:border-slate-600' : 'bg-gray-300 peer-focus:ring-4 peer-focus:ring-cyan-400/20 peer-checked:bg-cyan-500 after:border-gray-400'}`} />
                     </label>
                   </div>
                 </div>
@@ -557,11 +614,14 @@ function StageTimeline({
 // ==================== 示例IP资产卡片组件 ====================
 function SampleIPAssetCard({
   asset,
-  onViewDetails
+  onViewDetails,
+  isDark
 }: {
   asset: SampleIPAsset;
   onViewDetails: (asset: SampleIPAsset) => void;
+  isDark: boolean;
 }) {
+  const theme = useIPTheme(isDark);
   const progress = useMemo(() => {
     const completedStages = asset.stages.filter(s => s.completed).length;
     return Math.round((completedStages / asset.stages.length) * 100);
@@ -583,7 +643,7 @@ function SampleIPAssetCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -4, scale: 1.02 }}
-      className={`rounded-2xl overflow-hidden cursor-pointer ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary} hover:border-cyan-500/30 transition-all ${DARK_THEME.glowPrimary}`}
+      className={`rounded-2xl overflow-hidden cursor-pointer ${theme.glass} border ${theme.borderPrimary} hover:border-cyan-500/30 transition-all ${theme.glowPrimary}`}
       onClick={() => onViewDetails(asset)}
     >
       <div className="relative">
@@ -593,7 +653,7 @@ function SampleIPAssetCard({
           className="w-full h-40 object-cover"
         />
         <div className="absolute top-3 left-3">
-          <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${DARK_THEME.glass} backdrop-blur text-slate-200`}>
+          <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${theme.glass} backdrop-blur text-slate-200`}>
             {getTypeLabel(asset.type)}
           </span>
         </div>
@@ -605,7 +665,7 @@ function SampleIPAssetCard({
       </div>
       <div className="p-4">
         <div className="flex justify-between items-start mb-2">
-          <h3 className={`font-semibold text-sm ${DARK_THEME.textSecondary}`}>{asset.name}</h3>
+          <h3 className={`font-semibold text-sm ${theme.textSecondary}`}>{asset.name}</h3>
           <span className={`text-xs px-2 py-1 rounded-full ${
             progress === 100
               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
@@ -614,10 +674,10 @@ function SampleIPAssetCard({
             {progress}%
           </span>
         </div>
-        <p className={`text-xs mb-3 line-clamp-2 ${DARK_THEME.textMuted}`}>
+        <p className={`text-xs mb-3 line-clamp-2 ${theme.textMuted}`}>
           {asset.description}
         </p>
-        <div className={`h-1.5 rounded-full ${DARK_THEME.bgTertiary}`}>
+        <div className={`h-1.5 rounded-full ${theme.bgTertiary}`}>
           <div
             className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-purple-500"
             style={{ width: `${progress}%` }}
@@ -627,7 +687,7 @@ function SampleIPAssetCard({
           {asset.highlights.map((highlight, idx) => (
             <span
               key={idx}
-              className={`text-xs px-2 py-0.5 rounded-full ${DARK_THEME.bgTertiary} ${DARK_THEME.textMuted} border ${DARK_THEME.borderSecondary}`}
+              className={`text-xs px-2 py-0.5 rounded-full ${theme.bgTertiary} ${theme.textMuted} border ${theme.borderSecondary}`}
             >
               {highlight}
             </span>
@@ -642,12 +702,15 @@ function SampleIPAssetCard({
 function SampleAssetDetailModal({
   asset,
   onClose,
-  onCreateSimilar
+  onCreateSimilar,
+  isDark
 }: {
   asset: SampleIPAsset | null;
   onClose: () => void;
   onCreateSimilar: () => void;
+  isDark: boolean;
 }) {
+  const theme = useIPTheme(isDark);
   if (!asset) return null;
 
   const progress = useMemo(() => {
@@ -672,14 +735,14 @@ function SampleAssetDetailModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
+        className={`fixed inset-0 backdrop-blur-sm z-[70] flex items-center justify-center p-4 ${isDark ? 'bg-black/70' : 'bg-black/40'}`}
         onClick={onClose}
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl ${DARK_THEME.bgSecondary} border ${DARK_THEME.borderPrimary} shadow-2xl`}
+          className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl ${theme.bgSecondary} ${theme.borderPrimary}`}
           onClick={e => e.stopPropagation()}
         >
           {/* 头部图片 */}
@@ -689,16 +752,16 @@ function SampleAssetDetailModal({
               alt={asset.name}
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent" />
+            <div className={`absolute inset-0 ${isDark ? 'bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent' : 'bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent'}`} />
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors backdrop-blur"
+              className={`absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center transition-colors backdrop-blur ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/10 hover:bg-black/20 text-gray-900'}`}
             >
               ×
             </button>
             <div className="absolute bottom-4 left-6 right-6">
-              <h2 className="text-2xl font-bold text-white mb-1">{asset.name}</h2>
-              <p className="text-white/70 text-sm">{asset.category}</p>
+              <h2 className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-white'}`}>{asset.name}</h2>
+              <p className={`text-sm ${isDark ? 'text-white/70' : 'text-white/70'}`}>{asset.category}</p>
             </div>
           </div>
 
@@ -707,10 +770,10 @@ function SampleAssetDetailModal({
             {/* 进度总览 */}
             <div className="mb-6">
               <div className="flex justify-between items-center mb-3">
-                <span className={DARK_THEME.textMuted}>孵化进度</span>
-                <span className="text-lg font-bold text-cyan-400">{progress}%</span>
+                <span className={theme.textMuted}>孵化进度</span>
+                <span className={`text-lg font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>{progress}%</span>
               </div>
-              <div className={`h-3 rounded-full ${DARK_THEME.bgTertiary} overflow-hidden`}>
+              <div className={`h-3 rounded-full overflow-hidden ${theme.bgTertiary}`}>
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-violet-500 to-purple-500"
                   style={{ width: `${progress}%` }}
@@ -719,51 +782,51 @@ function SampleAssetDetailModal({
             </div>
 
             {/* 描述 */}
-            <div className={`p-4 rounded-xl mb-6 ${DARK_THEME.bgTertiary} border ${DARK_THEME.borderSecondary}`}>
-              <h3 className={`font-semibold mb-2 flex items-center gap-2 ${DARK_THEME.textSecondary}`}>
-                <Lightbulb className="w-4 h-4 text-amber-400" />
+            <div className={`p-4 rounded-xl mb-6 border ${theme.bgTertiary} ${theme.borderSecondary}`}>
+              <h3 className={`font-semibold mb-2 flex items-center gap-2 ${theme.textSecondary}`}>
+                <Lightbulb className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
                 作品描述
               </h3>
-              <p className={`text-sm ${DARK_THEME.textMuted}`}>
+              <p className={`text-sm ${theme.textMuted}`}>
                 {asset.description}
               </p>
             </div>
 
             {/* 孵化阶段 */}
             <div className="mb-6">
-              <h3 className={`font-semibold mb-4 flex items-center gap-2 ${DARK_THEME.textSecondary}`}>
-                <Target className="w-4 h-4 text-cyan-400" />
+              <h3 className={`font-semibold mb-4 flex items-center gap-2 ${theme.textSecondary}`}>
+                <Target className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
                 孵化阶段
               </h3>
               <div className="space-y-3">
                 {asset.stages.map((stage, index) => (
                   <div
                     key={stage.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl ${
+                    className={`flex items-center gap-3 p-3 rounded-xl border ${
                       stage.completed
-                        ? 'bg-emerald-500/10 border border-emerald-500/20'
-                        : `${DARK_THEME.bgTertiary} border ${DARK_THEME.borderSecondary}`
+                        ? (isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200')
+                        : `${theme.bgTertiary} ${theme.borderSecondary}`
                     }`}
                   >
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                       stage.completed
                         ? 'bg-emerald-500 text-white'
-                        : `${DARK_THEME.bgSecondary} text-slate-500`
+                        : `${theme.bgSecondary} ${isDark ? 'text-slate-500' : 'text-gray-400'}`
                     }`}>
                       {stage.completed ? <CheckCircle2 className="w-4 h-4" /> : getStageIcon(stage.name)}
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between items-center">
-                        <span className={`font-medium ${stage.completed ? 'text-emerald-400' : DARK_THEME.textSecondary}`}>
+                        <span className={`font-medium ${stage.completed ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : theme.textSecondary}`}>
                           {stage.name}
                         </span>
                         {stage.completed && stage.completedAt && (
-                          <span className={`text-xs ${DARK_THEME.textMuted}`}>
+                          <span className={`text-xs ${theme.textMuted}`}>
                             {new Date(stage.completedAt).toLocaleDateString('zh-CN')}
                           </span>
                         )}
                       </div>
-                      <p className={`text-xs ${DARK_THEME.textMuted}`}>{stage.description}</p>
+                      <p className={`text-xs ${theme.textMuted}`}>{stage.description}</p>
                     </div>
                   </div>
                 ))}
@@ -772,7 +835,7 @@ function SampleAssetDetailModal({
 
             {/* 亮点 */}
             <div className="mb-6">
-              <h3 className={`font-semibold mb-3 flex items-center gap-2 ${DARK_THEME.textSecondary}`}>
+              <h3 className={`font-semibold mb-3 flex items-center gap-2 ${theme.textSecondary}`}>
                 <Sparkles className="w-4 h-4 text-purple-400" />
                 作品亮点
               </h3>
@@ -792,7 +855,7 @@ function SampleAssetDetailModal({
             <div className={`p-4 rounded-xl mb-6 bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border border-emerald-500/20`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className={`text-sm ${DARK_THEME.textMuted} mb-1`}>预估商业价值</p>
+                  <p className={`text-sm ${theme.textMuted} mb-1`}>预估商业价值</p>
                   <p className="text-2xl font-bold text-emerald-400">¥{asset.commercialValue.toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
@@ -812,7 +875,7 @@ function SampleAssetDetailModal({
               </button>
               <button
                 onClick={onClose}
-                className={`px-6 py-3 rounded-xl font-medium transition-colors ${DARK_THEME.bgTertiary} hover:bg-slate-700 ${DARK_THEME.textSecondary} border ${DARK_THEME.borderSecondary}`}
+                className={`px-6 py-3 rounded-xl font-medium transition-colors ${theme.bgTertiary} hover:bg-slate-700 ${theme.textSecondary} border ${theme.borderSecondary}`}
               >
                 关闭
               </button>
@@ -828,21 +891,24 @@ function SampleAssetDetailModal({
 function EmptyStateWithSamples({
   onSubmitWork,
   sampleAssets,
-  onViewSampleDetails
+  onViewSampleDetails,
+  isDark
 }: {
   onSubmitWork: () => void;
   sampleAssets: SampleIPAsset[];
   onViewSampleDetails: (asset: SampleIPAsset) => void;
+  isDark: boolean;
 }) {
+  const theme = useIPTheme(isDark);
   return (
     <div className="space-y-8">
       {/* 主空状态 */}
-      <div className={`flex flex-col items-center justify-center py-12 ${DARK_THEME.glass} rounded-2xl border ${DARK_THEME.borderPrimary} ${DARK_THEME.glowPrimary}`}>
+      <div className={`flex flex-col items-center justify-center py-12 ${theme.glass} rounded-2xl border ${theme.borderPrimary} ${theme.glowPrimary}`}>
         <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center mb-4 ring-2 ring-cyan-500/30">
           <Gem className="w-10 h-10 text-cyan-400" />
         </div>
-        <h3 className={`text-xl font-bold mb-2 ${DARK_THEME.textPrimary}`}>还没有IP资产</h3>
-        <p className={`text-center max-w-md mb-4 ${DARK_THEME.textMuted}`}>
+        <h3 className={`text-xl font-bold mb-2 ${theme.textPrimary}`}>还没有IP资产</h3>
+        <p className={`text-center max-w-md mb-4 ${theme.textMuted}`}>
           提交作品并完成版权存证后，即可创建IP资产并开始孵化之旅
         </p>
         <div className="flex gap-3">
@@ -860,11 +926,11 @@ function EmptyStateWithSamples({
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className={`text-lg font-semibold flex items-center gap-2 ${DARK_THEME.textPrimary}`}>
+            <h3 className={`text-lg font-semibold flex items-center gap-2 ${theme.textPrimary}`}>
               <Sparkles className="w-5 h-5 text-amber-400" />
               参考示例
             </h3>
-            <p className={`text-sm mt-1 ${DARK_THEME.textMuted}`}>
+            <p className={`text-sm mt-1 ${theme.textMuted}`}>
               查看其他创作者的IP资产，了解孵化流程
             </p>
           </div>
@@ -881,6 +947,7 @@ function EmptyStateWithSamples({
               <SampleIPAssetCard
                 asset={asset}
                 onViewDetails={onViewSampleDetails}
+                isDark={isDark}
               />
             </motion.div>
           ))}
@@ -889,7 +956,7 @@ function EmptyStateWithSamples({
 
       {/* 孵化流程说明 */}
       <div className={`p-6 rounded-2xl bg-gradient-to-br from-cyan-500/10 via-violet-500/10 to-purple-500/10 border border-cyan-500/20`}>
-        <h3 className={`font-semibold mb-4 flex items-center gap-2 ${DARK_THEME.textPrimary}`}>
+        <h3 className={`font-semibold mb-4 flex items-center gap-2 ${theme.textPrimary}`}>
           <Route className="w-5 h-5 text-cyan-400" />
           IP孵化流程
         </h3>
@@ -910,8 +977,8 @@ function EmptyStateWithSamples({
                   <div className="hidden md:block w-full h-0.5 bg-gradient-to-r from-cyan-500/50 to-violet-500/50 ml-2" />
                 )}
               </div>
-              <p className={`text-sm font-medium ${DARK_THEME.textSecondary}`}>{step.name}</p>
-              <p className={`text-xs ${DARK_THEME.textMuted}`}>{step.desc}</p>
+              <p className={`text-sm font-medium ${theme.textSecondary}`}>{step.name}</p>
+              <p className={`text-xs ${theme.textMuted}`}>{step.desc}</p>
             </div>
           ))}
         </div>
@@ -929,18 +996,20 @@ function IncubationPathContent({
   onUpdateStage,
   onSubmitWork,
   sampleAssets,
-  onViewSampleDetails
+  onViewSampleDetails,
+  isDark
 }: {
   selectedAsset: IPAsset | null;
   ipAssets: IPAsset[];
-  isDark: boolean;
+  isLoading: boolean;
   onAssetChange: (asset: IPAsset | null) => void;
   onUpdateStage: (assetId: string, stageId: string, completed: boolean) => void;
   onSubmitWork: () => void;
-  isLoading: boolean;
   sampleAssets: SampleIPAsset[];
   onViewSampleDetails: (asset: SampleIPAsset) => void;
+  isDark: boolean;
 }) {
+  const theme = useIPTheme(isDark);
   const progress = useMemo(() => {
     if (!selectedAsset) return 0;
     const completedStages = selectedAsset.stages.filter(s => s.completed).length;
@@ -954,9 +1023,9 @@ function IncubationPathContent({
 
   if (isLoading) {
     return (
-      <div className={`flex flex-col items-center justify-center py-20 ${DARK_THEME.glass} rounded-2xl border ${DARK_THEME.borderPrimary}`}>
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mb-4" />
-        <p className={DARK_THEME.textMuted}>加载中...</p>
+      <div className={`flex flex-col items-center justify-center py-20 ${theme.glass} rounded-2xl border ${theme.borderPrimary}`}>
+        <Loader2 className={`w-12 h-12 animate-spin mb-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+        <p className={theme.textMuted}>加载中...</p>
       </div>
     );
   }
@@ -965,8 +1034,8 @@ function IncubationPathContent({
     if (ipAssets.length > 0) {
       return (
         <div className="space-y-6">
-          <div className={`rounded-2xl p-6 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
-            <h3 className={`text-lg font-semibold mb-4 ${DARK_THEME.textPrimary}`}>选择IP资产开始孵化</h3>
+          <div className={`rounded-2xl p-6 ${theme.glass} border ${theme.borderPrimary}`}>
+            <h3 className={`text-lg font-semibold mb-4 ${theme.textPrimary}`}>选择IP资产开始孵化</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {ipAssets.map((asset) => (
                 <motion.button
@@ -974,26 +1043,26 @@ function IncubationPathContent({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => onAssetChange(asset)}
-                  className={`p-4 rounded-xl border-2 text-left transition-all ${DARK_THEME.bgSecondary} border-slate-700 hover:border-cyan-500/50`}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${theme.bgSecondary} ${isDark ? 'border-slate-700 hover:border-cyan-500/50' : 'border-gray-200 hover:border-cyan-400/50'}`}
                 >
                   <div className="flex items-center gap-3">
                     {asset.thumbnail ? (
-                      <img src={asset.thumbnail} alt={asset.name} className="w-16 h-16 rounded-lg object-cover ring-2 ring-cyan-500/30" />
+                      <img src={asset.thumbnail} alt={asset.name} className={`w-16 h-16 rounded-lg object-cover ring-2 ${isDark ? 'ring-cyan-500/30' : 'ring-cyan-400/30'}`} />
                     ) : (
-                      <div className={`w-16 h-16 rounded-lg flex items-center justify-center ${DARK_THEME.bgTertiary}`}>
-                        <Gem className="w-8 h-8 text-cyan-400" />
+                      <div className={`w-16 h-16 rounded-lg flex items-center justify-center ${theme.bgTertiary}`}>
+                        <Gem className={`w-8 h-8 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
                       </div>
                     )}
                     <div className="flex-1">
-                      <h4 className={`font-medium ${DARK_THEME.textSecondary}`}>{asset.name}</h4>
-                      <p className={`text-sm ${DARK_THEME.textMuted}`}>
-                        预估价值: <span className="text-emerald-400">¥{asset.commercialValue?.toLocaleString() || 0}</span>
+                      <h4 className={`font-medium ${theme.textSecondary}`}>{asset.name}</h4>
+                      <p className={`text-sm ${theme.textMuted}`}>
+                        预估价值: <span className={isDark ? 'text-emerald-400' : 'text-emerald-600'}>¥{asset.commercialValue?.toLocaleString() || 0}</span>
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          asset.stages?.some(s => s.completed) 
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                            : `${DARK_THEME.bgTertiary} ${DARK_THEME.textMuted}`
+                          asset.stages?.some(s => s.completed)
+                            ? (isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-600 border border-emerald-200')
+                            : `${theme.bgTertiary} ${theme.textMuted}`
                         }`}>
                           {asset.stages?.filter(s => s.completed).length || 0}/{asset.stages?.length || 5} 阶段完成
                         </span>
@@ -1009,11 +1078,11 @@ function IncubationPathContent({
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className={`text-lg font-semibold flex items-center gap-2 ${DARK_THEME.textPrimary}`}>
+                <h3 className={`text-lg font-semibold flex items-center gap-2 ${theme.textPrimary}`}>
                   <Sparkles className="w-5 h-5 text-amber-400" />
                   参考示例
                 </h3>
-                <p className={`text-sm mt-1 ${DARK_THEME.textMuted}`}>
+                <p className={`text-sm mt-1 ${theme.textMuted}`}>
                   查看其他创作者的IP资产，了解孵化流程
                 </p>
               </div>
@@ -1029,6 +1098,7 @@ function IncubationPathContent({
                   <SampleIPAssetCard
                     asset={asset}
                     onViewDetails={onViewSampleDetails}
+                    isDark={isDark}
                   />
                 </motion.div>
               ))}
@@ -1051,7 +1121,7 @@ function IncubationPathContent({
     <div className="space-y-6">
       {/* IP资产选择器 */}
       <div className="flex items-center gap-4">
-        <span className={`text-sm ${DARK_THEME.textMuted}`}>选择IP资产:</span>
+        <span className={`text-sm ${theme.textMuted}`}>选择IP资产:</span>
         <div className="relative">
           <select
             value={selectedAsset.id}
@@ -1059,13 +1129,13 @@ function IncubationPathContent({
               const asset = ipAssets.find(a => a.id === e.target.value);
               onAssetChange(asset || null);
             }}
-            className={`appearance-none px-4 py-2 pr-10 rounded-xl border ${DARK_THEME.bgSecondary} ${DARK_THEME.borderSecondary} ${DARK_THEME.textSecondary} focus:outline-none focus:ring-2 focus:ring-cyan-500/50`}
+            className={`appearance-none px-4 py-2 pr-10 rounded-xl border ${theme.bgSecondary} ${theme.borderSecondary} ${theme.textSecondary} focus:outline-none focus:ring-2 focus:ring-cyan-500/50`}
           >
             {ipAssets.map(asset => (
               <option key={asset.id} value={asset.id}>{asset.name}</option>
             ))}
           </select>
-          <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${DARK_THEME.textMuted}`} />
+          <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${theme.textMuted}`} />
         </div>
       </div>
 
@@ -1073,6 +1143,7 @@ function IncubationPathContent({
       <ProgressOverview
         selectedAsset={selectedAsset}
         progress={progress}
+        isDark={isDark}
       />
 
       {/* 当前阶段提示 */}
@@ -1081,31 +1152,31 @@ function IncubationPathContent({
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className={`rounded-2xl p-6 bg-gradient-to-br from-cyan-500/10 via-violet-500/10 to-purple-500/10 border border-cyan-500/20`}
+          className={`rounded-2xl p-6 border ${isDark ? 'bg-gradient-to-br from-cyan-500/10 via-violet-500/10 to-purple-500/10 border-cyan-500/20' : 'bg-gradient-to-br from-cyan-50 via-violet-50 to-purple-50 border-cyan-200'}`}
         >
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-500/25">
+            <div className={`w-12 h-12 rounded-xl text-white flex items-center justify-center flex-shrink-0 shadow-lg ${isDark ? 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/25' : 'bg-gradient-to-br from-cyan-600 to-blue-700 shadow-cyan-500/15'}`}>
               <Target className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <h3 className={`font-semibold text-lg mb-2 ${DARK_THEME.textPrimary}`}>
-                当前阶段: <span className="text-cyan-400">{activeStage.name}</span>
+              <h3 className={`font-semibold text-lg mb-2 ${theme.textPrimary}`}>
+                当前阶段: <span className={isDark ? 'text-cyan-400' : 'text-cyan-600'}>{activeStage.name}</span>
               </h3>
-              <p className={`text-sm ${DARK_THEME.textMuted} mb-4`}>
+              <p className={`text-sm mb-4 ${theme.textMuted}`}>
                 {activeStage.description}
               </p>
               <div className="grid grid-cols-3 gap-4">
-                <div className={`p-3 rounded-xl ${DARK_THEME.glass} text-center border ${DARK_THEME.borderPrimary}`}>
-                  <p className={`text-xs ${DARK_THEME.textMuted} mb-1`}>完成条件</p>
-                  <p className={`text-sm font-medium ${DARK_THEME.textSecondary}`}>完成该阶段要求</p>
+                <div className={`p-3 rounded-xl text-center border ${theme.glass} ${theme.borderPrimary}`}>
+                  <p className={`text-xs mb-1 ${theme.textMuted}`}>完成条件</p>
+                  <p className={`text-sm font-medium ${theme.textSecondary}`}>完成该阶段要求</p>
                 </div>
-                <div className={`p-3 rounded-xl ${DARK_THEME.glass} text-center border ${DARK_THEME.borderPrimary}`}>
-                  <p className={`text-xs ${DARK_THEME.textMuted} mb-1`}>预期收益</p>
-                  <p className={`text-sm font-medium ${DARK_THEME.textSecondary}`}>提升IP价值</p>
+                <div className={`p-3 rounded-xl text-center border ${theme.glass} ${theme.borderPrimary}`}>
+                  <p className={`text-xs mb-1 ${theme.textMuted}`}>预期收益</p>
+                  <p className={`text-sm font-medium ${theme.textSecondary}`}>提升IP价值</p>
                 </div>
-                <div className={`p-3 rounded-xl ${DARK_THEME.glass} text-center border ${DARK_THEME.borderPrimary}`}>
-                  <p className={`text-xs ${DARK_THEME.textMuted} mb-1`}>下一阶段</p>
-                  <p className={`text-sm font-medium ${DARK_THEME.textSecondary}`}>
+                <div className={`p-3 rounded-xl text-center border ${theme.glass} ${theme.borderPrimary}`}>
+                  <p className={`text-xs mb-1 ${theme.textMuted}`}>下一阶段</p>
+                  <p className={`text-sm font-medium ${theme.textSecondary}`}>
                     {selectedAsset.stages[selectedAsset.stages.indexOf(activeStage) + 1]?.name || '收益分成'}
                   </p>
                 </div>
@@ -1121,6 +1192,7 @@ function IncubationPathContent({
         assetId={selectedAsset.id}
         onUpdateStage={(stageId, completed) => onUpdateStage(selectedAsset.id, stageId, completed)}
         isLoading={isLoading}
+        isDark={isDark}
       />
     </div>
   );
@@ -1131,7 +1203,8 @@ function AssetsContent({
   ipAssets,
   onSelectAsset,
   calculateProgress,
-  isLoading
+  isLoading,
+  isDark
 }: {
   ipAssets: IPAsset[];
   isDark: boolean;
@@ -1139,6 +1212,7 @@ function AssetsContent({
   calculateProgress: (stages: ServiceIPStage[]) => number;
   isLoading: boolean;
 }) {
+  const theme = useIPTheme(isDark);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
@@ -1163,9 +1237,9 @@ function AssetsContent({
 
   if (isLoading) {
     return (
-      <div className={`flex flex-col items-center justify-center py-20 ${DARK_THEME.glass} rounded-2xl border ${DARK_THEME.borderPrimary}`}>
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mb-4" />
-        <p className={DARK_THEME.textMuted}>加载中...</p>
+      <div className={`flex flex-col items-center justify-center py-20 rounded-2xl border ${theme.glass} ${theme.borderPrimary}`}>
+        <Loader2 className={`w-12 h-12 animate-spin mb-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+        <p className={theme.textMuted}>加载中...</p>
       </div>
     );
   }
@@ -1173,22 +1247,22 @@ function AssetsContent({
   return (
     <div className="space-y-6">
       {/* 搜索和筛选 */}
-      <div className={`rounded-2xl p-4 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
+      <div className={`rounded-2xl p-4 border ${theme.glass} ${theme.borderPrimary}`}>
         <div className="flex gap-4">
           <div className="flex-1 relative">
-            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${DARK_THEME.textMuted}`} />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${theme.textMuted}`} />
             <input
               type="text"
               placeholder="搜索IP资产..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full pl-10 pr-4 py-2.5 rounded-xl border ${DARK_THEME.bgSecondary} ${DARK_THEME.borderSecondary} ${DARK_THEME.textSecondary} focus:outline-none focus:ring-2 focus:ring-cyan-500/50 placeholder:${DARK_THEME.textMuted}`}
+              className={`w-full pl-10 pr-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 ${theme.bgSecondary} ${theme.borderSecondary} ${theme.textSecondary} ${isDark ? 'focus:ring-cyan-500/50 placeholder:text-slate-500' : 'focus:ring-cyan-400/50 placeholder:text-gray-400'}`}
             />
           </div>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className={`px-4 py-2.5 rounded-xl border ${DARK_THEME.bgSecondary} ${DARK_THEME.borderSecondary} ${DARK_THEME.textSecondary} focus:outline-none focus:ring-2 focus:ring-cyan-500/50`}
+            className={`px-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 ${theme.bgSecondary} ${theme.borderSecondary} ${theme.textSecondary} ${isDark ? 'focus:ring-cyan-500/50' : 'focus:ring-cyan-400/50'}`}
           >
             <option value="all">所有类型</option>
             <option value="illustration">插画</option>
@@ -1211,29 +1285,29 @@ function AssetsContent({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={{ y: -4 }}
-                className={`rounded-2xl p-4 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary} hover:border-cyan-500/30 transition-all cursor-pointer ${DARK_THEME.glowPrimary}`}
+                className={`rounded-2xl p-4 border hover:border-cyan-500/30 transition-all cursor-pointer ${theme.glass} ${theme.borderPrimary} ${theme.glowPrimary}`}
                 onClick={() => onSelectAsset(asset)}
               >
                 <div className="flex items-start gap-4">
                   {asset.thumbnail ? (
-                    <img src={asset.thumbnail} alt={asset.name} className="w-20 h-20 rounded-xl object-cover ring-2 ring-cyan-500/30" />
+                    <img src={asset.thumbnail} alt={asset.name} className={`w-20 h-20 rounded-xl object-cover ring-2 ${isDark ? 'ring-cyan-500/30' : 'ring-cyan-400/30'}`} />
                   ) : (
-                    <div className={`w-20 h-20 rounded-xl flex items-center justify-center ${DARK_THEME.bgTertiary}`}>
-                      <Gem className="w-10 h-10 text-cyan-400" />
+                    <div className={`w-20 h-20 rounded-xl flex items-center justify-center ${theme.bgTertiary}`}>
+                      <Gem className={`w-10 h-10 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h4 className={`font-semibold truncate ${DARK_THEME.textSecondary}`}>{asset.name}</h4>
-                    <p className={`text-sm ${DARK_THEME.textMuted} mt-1`}>{getTypeLabel(asset.type)}</p>
-                    <p className="text-sm text-emerald-400 mt-1">¥{asset.commercialValue.toLocaleString()}</p>
+                    <h4 className={`font-semibold truncate ${theme.textSecondary}`}>{asset.name}</h4>
+                    <p className={`text-sm mt-1 ${theme.textMuted}`}>{getTypeLabel(asset.type)}</p>
+                    <p className={`text-sm mt-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{asset.commercialValue.toLocaleString()}</p>
                     <div className="flex items-center gap-2 mt-2">
-                      <div className={`flex-1 h-1.5 rounded-full ${DARK_THEME.bgTertiary}`}>
+                      <div className={`flex-1 h-1.5 rounded-full ${theme.bgTertiary}`}>
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-purple-500"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
-                      <span className={`text-xs ${DARK_THEME.textMuted}`}>{progress}%</span>
+                      <span className={`text-xs ${theme.textMuted}`}>{progress}%</span>
                     </div>
                   </div>
                 </div>
@@ -1242,12 +1316,12 @@ function AssetsContent({
           })}
         </div>
       ) : (
-        <div className={`flex flex-col items-center justify-center py-12 ${DARK_THEME.glass} rounded-2xl border ${DARK_THEME.borderPrimary}`}>
-          <div className="w-16 h-16 rounded-full bg-cyan-500/10 flex items-center justify-center mb-4">
-            <Search className="w-8 h-8 text-cyan-400" />
+        <div className={`flex flex-col items-center justify-center py-12 rounded-2xl border ${theme.glass} ${theme.borderPrimary}`}>
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-cyan-500/10' : 'bg-cyan-100'}`}>
+            <Search className={`w-8 h-8 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
           </div>
-          <h3 className={`text-lg font-medium ${DARK_THEME.textSecondary}`}>未找到匹配的IP资产</h3>
-          <p className={`text-sm ${DARK_THEME.textMuted} mt-1`}>尝试调整搜索条件</p>
+          <h3 className={`text-lg font-medium ${theme.textSecondary}`}>未找到匹配的IP资产</h3>
+          <p className={`text-sm mt-1 ${theme.textMuted}`}>尝试调整搜索条件</p>
         </div>
       )}
     </div>
@@ -1258,13 +1332,15 @@ function AssetsContent({
 function AnalyticsContent({
   ipStats,
   ipAssets,
-  isLoading
+  isLoading,
+  isDark
 }: {
   ipStats: IPStats;
   ipAssets: IPAsset[];
   isDark: boolean;
   isLoading: boolean;
 }) {
+  const theme = useIPTheme(isDark);
   // 类型分布数据
   const typeDistribution = useMemo(() => {
     const distribution: Record<string, number> = {};
@@ -1299,9 +1375,9 @@ function AnalyticsContent({
 
   if (isLoading) {
     return (
-      <div className={`flex flex-col items-center justify-center py-20 ${DARK_THEME.glass} rounded-2xl border ${DARK_THEME.borderPrimary}`}>
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-400 mb-4" />
-        <p className={DARK_THEME.textMuted}>加载分析数据...</p>
+      <div className={`flex flex-col items-center justify-center py-20 rounded-2xl border ${theme.glass} ${theme.borderPrimary}`}>
+        <Loader2 className={`w-12 h-12 animate-spin mb-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+        <p className={theme.textMuted}>加载分析数据...</p>
       </div>
     );
   }
@@ -1310,47 +1386,47 @@ function AnalyticsContent({
     <div className="space-y-6">
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className={`rounded-2xl p-6 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary} ${DARK_THEME.glowPrimary}`}>
+        <div className={`rounded-2xl p-6 border ${theme.glass} ${theme.borderPrimary} ${theme.glowPrimary}`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center">
-              <Gem className="w-6 h-6 text-cyan-400" />
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDark ? 'bg-cyan-500/20' : 'bg-cyan-100'}`}>
+              <Gem className={`w-6 h-6 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
             </div>
             <div>
-              <p className={`text-2xl font-bold ${DARK_THEME.textPrimary}`}>{ipStats.totalAssets}</p>
-              <p className={`text-sm ${DARK_THEME.textMuted}`}>IP资产总数</p>
+              <p className={`text-2xl font-bold ${theme.textPrimary}`}>{ipStats.totalAssets}</p>
+              <p className={`text-sm ${theme.textMuted}`}>IP资产总数</p>
             </div>
           </div>
         </div>
-        <div className={`rounded-2xl p-6 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
+        <div className={`rounded-2xl p-6 border ${theme.glass} ${theme.borderPrimary}`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'}`}>
+              <CheckCircle2 className={`w-6 h-6 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
             </div>
             <div>
-              <p className={`text-2xl font-bold ${DARK_THEME.textPrimary}`}>{ipStats.completedAssets}</p>
-              <p className={`text-sm ${DARK_THEME.textMuted}`}>已完成孵化</p>
+              <p className={`text-2xl font-bold ${theme.textPrimary}`}>{ipStats.completedAssets}</p>
+              <p className={`text-sm ${theme.textMuted}`}>已完成孵化</p>
             </div>
           </div>
         </div>
-        <div className={`rounded-2xl p-6 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
+        <div className={`rounded-2xl p-6 border ${theme.glass} ${theme.borderPrimary}`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center">
-              <Handshake className="w-6 h-6 text-violet-400" />
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDark ? 'bg-violet-500/20' : 'bg-violet-100'}`}>
+              <Handshake className={`w-6 h-6 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
             </div>
             <div>
-              <p className={`text-2xl font-bold ${DARK_THEME.textPrimary}`}>{ipStats.totalPartnerships}</p>
-              <p className={`text-sm ${DARK_THEME.textMuted}`}>商业合作</p>
+              <p className={`text-2xl font-bold ${theme.textPrimary}`}>{ipStats.totalPartnerships}</p>
+              <p className={`text-sm ${theme.textMuted}`}>商业合作</p>
             </div>
           </div>
         </div>
-        <div className={`rounded-2xl p-6 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
+        <div className={`rounded-2xl p-6 border ${theme.glass} ${theme.borderPrimary}`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-amber-400" />
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
+              <TrendingUp className={`w-6 h-6 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
             </div>
             <div>
-              <p className={`text-2xl font-bold text-emerald-400`}>¥{(ipStats.totalEstimatedValue / 10000).toFixed(1)}万</p>
-              <p className={`text-sm ${DARK_THEME.textMuted}`}>预估总价值</p>
+              <p className={`text-2xl font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{(ipStats.totalEstimatedValue / 10000).toFixed(1)}万</p>
+              <p className={`text-sm ${theme.textMuted}`}>预估总价值</p>
             </div>
           </div>
         </div>
@@ -1359,8 +1435,8 @@ function AnalyticsContent({
       {/* 图表区域 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 类型分布饼图 */}
-        <div className={`rounded-2xl p-6 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
-          <h3 className={`text-lg font-semibold mb-4 ${DARK_THEME.textPrimary}`}>IP类型分布</h3>
+        <div className={`rounded-2xl p-6 border ${theme.glass} ${theme.borderPrimary}`}>
+          <h3 className={`text-lg font-semibold mb-4 ${theme.textPrimary}`}>IP类型分布</h3>
           {typeDistribution.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
@@ -1379,8 +1455,8 @@ function AnalyticsContent({
                 </Pie>
                 <Tooltip 
                   contentStyle={{ 
-                    backgroundColor: '#0f172a', 
-                    border: '1px solid #1e293b',
+                    backgroundColor: isDark ? '#0f172a' : '#ffffff', 
+                    border: isDark ? '1px solid #1e293b' : '1px solid #e5e7eb',
                     borderRadius: '8px'
                   }}
                 />
@@ -1389,24 +1465,24 @@ function AnalyticsContent({
             </ResponsiveContainer>
           ) : (
             <div className="flex flex-col items-center justify-center h-[250px]">
-              <p className={DARK_THEME.textMuted}>暂无数据</p>
+              <p className={theme.textMuted}>暂无数据</p>
             </div>
           )}
         </div>
 
         {/* 阶段完成度柱状图 */}
-        <div className={`rounded-2xl p-6 ${DARK_THEME.glass} border ${DARK_THEME.borderPrimary}`}>
-          <h3 className={`text-lg font-semibold mb-4 ${DARK_THEME.textPrimary}`}>各阶段完成度</h3>
+        <div className={`rounded-2xl p-6 border ${theme.glass} ${theme.borderPrimary}`}>
+          <h3 className={`text-lg font-semibold mb-4 ${theme.textPrimary}`}>各阶段完成度</h3>
           {ipAssets.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={stageCompletion}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" tick={{ fill: '#64748b' }} />
-                <YAxis tick={{ fill: '#64748b' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e5e7eb'} />
+                <XAxis dataKey="name" tick={{ fill: isDark ? '#64748b' : '#6b7280' }} />
+                <YAxis tick={{ fill: isDark ? '#64748b' : '#6b7280' }} />
                 <Tooltip 
                   contentStyle={{ 
-                    backgroundColor: '#0f172a', 
-                    border: '1px solid #1e293b',
+                    backgroundColor: isDark ? '#0f172a' : '#ffffff', 
+                    border: isDark ? '1px solid #1e293b' : '1px solid #e5e7eb',
                     borderRadius: '8px'
                   }}
                 />
@@ -1415,7 +1491,7 @@ function AnalyticsContent({
             </ResponsiveContainer>
           ) : (
             <div className="flex flex-col items-center justify-center h-[250px]">
-              <p className={DARK_THEME.textMuted}>暂无数据</p>
+              <p className={theme.textMuted}>暂无数据</p>
             </div>
           )}
         </div>
@@ -1428,6 +1504,7 @@ function AnalyticsContent({
 export function IPIncubationCenter() {
   const navigate = useNavigate();
   const { isDark } = useTheme();
+  const theme = useIPTheme(isDark);
   const { user } = useContext(AuthContext);
 
   // 状态管理
@@ -1589,6 +1666,7 @@ export function IPIncubationCenter() {
             }}
             calculateProgress={calculateProgress}
             isLoading={isLoading}
+            isDark={isDark}
           />
         );
       case 'analytics':
@@ -1597,6 +1675,7 @@ export function IPIncubationCenter() {
             ipStats={ipStats}
             ipAssets={ipAssets}
             isLoading={isLoading}
+            isDark={isDark}
           />
         );
       case 'brand-licenses':
@@ -1613,24 +1692,20 @@ export function IPIncubationCenter() {
         );
       default:
         return (
-          <div className={`flex flex-col items-center justify-center py-20 ${DARK_THEME.glass} rounded-2xl border ${DARK_THEME.borderPrimary}`}>
-            <div className="w-16 h-16 rounded-full bg-cyan-500/20 flex items-center justify-center mb-4">
-              <Loader2 className="w-8 h-8 text-cyan-400" />
+          <div className={`flex flex-col items-center justify-center py-20 rounded-2xl border ${theme.glass} ${theme.borderPrimary}`}>
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-cyan-500/20' : 'bg-cyan-100'}`}>
+              <Loader2 className={`w-8 h-8 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
             </div>
-            <h3 className={`text-lg font-medium ${DARK_THEME.textSecondary}`}>功能开发中</h3>
-            <p className={`text-sm ${DARK_THEME.textMuted} mt-1`}>敬请期待</p>
+            <h3 className={`text-lg font-medium ${theme.textSecondary}`}>功能开发中</h3>
+            <p className={`text-sm mt-1 ${theme.textMuted}`}>敬请期待</p>
           </div>
         );
     }
   };
 
   return (
-    <div 
-      className="min-h-screen w-full py-6 px-4" 
-      style={{ 
-        backgroundColor: '#020617',
-        background: 'linear-gradient(to bottom right, #0f172a 0%, #020617 50%, #000000 100%)'
-      }}
+    <div
+      className={`min-h-screen w-full py-6 px-4 ${theme.gradientPrimary}`}
     >
       <div className="max-w-[1600px] mx-auto">
         {/* 页面标题 */}
@@ -1641,19 +1716,19 @@ export function IPIncubationCenter() {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h1 className={`text-3xl font-bold ${DARK_THEME.textPrimary} mb-2`}>
-                <span className="bg-gradient-to-r from-cyan-400 via-violet-400 to-purple-400 bg-clip-text text-transparent">
+              <h1 className={`text-3xl font-bold mb-2 ${theme.textPrimary}`}>
+                <span className={`bg-gradient-to-r bg-clip-text text-transparent ${isDark ? 'from-cyan-400 via-violet-400 to-purple-400' : 'from-cyan-600 via-violet-600 to-purple-600'}`}>
                   IP孵化中心
                 </span>
               </h1>
-              <p className={DARK_THEME.textMuted}>
+              <p className={theme.textMuted}>
                 从创意到商业，全程护航您的IP成长之旅
               </p>
             </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSubmitWork}
-                className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-medium rounded-xl transition-all shadow-lg shadow-cyan-500/25 flex items-center gap-2"
+                className={`px-6 py-3 font-medium rounded-xl transition-all flex items-center gap-2 ${isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/25' : 'bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 text-white shadow-lg shadow-cyan-500/15'}`}
               >
                 <Plus className="w-5 h-5" />
                 提交作品
@@ -1672,6 +1747,8 @@ export function IPIncubationCenter() {
             onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             navItems={navItems}
             onSubmitWork={handleSubmitWork}
+            theme={theme}
+            isDark={isDark}
           />
 
           {/* 中间内容区 */}
@@ -1689,6 +1766,8 @@ export function IPIncubationCenter() {
             isLoading={isLoading}
             onSubmitWork={handleSubmitWork}
             onExportData={handleExportData}
+            theme={theme}
+            isDark={isDark}
           />
         </div>
       </div>
@@ -1698,6 +1777,7 @@ export function IPIncubationCenter() {
         asset={selectedSampleAsset}
         onClose={() => setSelectedSampleAsset(null)}
         onCreateSimilar={handleSubmitWork}
+        isDark={isDark}
       />
     </div>
   );

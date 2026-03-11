@@ -111,20 +111,8 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
   const isVideo = post.type === 'video' || post.category === 'video' || post.videoUrl ||
     (post.thumbnail && (post.thumbnail.endsWith('.mp4') || post.thumbnail.endsWith('.webm') || post.thumbnail.endsWith('.mov')))
 
-  // 调试日志
-  if (isVideo) {
-    console.log('Video post in PostGrid:', {
-      id: post.id,
-      title: post.title,
-      thumbnail: post.thumbnail,
-      videoUrl: post.videoUrl,
-      category: post.category
-    });
-  }
-
   // 视频加载错误处理
   const handleVideoError = () => {
-    console.warn('Video failed to load:', post.videoUrl);
     setVideoError(true);
   };
 
@@ -207,21 +195,16 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
             );
           }
           
-          // 调试：检查缩略图URL
-          console.log('[PostGrid] Rendering thumbnail:', { 
-            id: post.id, 
-            title: post.title, 
-            thumbnail: post.thumbnail,
-            hasThumbnail: !!post.thumbnail,
-            thumbnailLength: post.thumbnail?.length
-          });
+          // 使用 memoized fallback SVG，避免每次渲染重新生成
+          const fallbackSvg = useMemo(() => {
+            const safeTitle = (post.title?.slice(0, 10) || 'Work').replace(/[^\x00-\x7F]/g, '?');
+            const svgText = safeTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const svgContent = `<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="600" height="400" fill="#3b82f6"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">${svgText}</text></svg>`;
+            return `data:image/svg+xml;base64,${btoa(svgContent)}`;
+          }, [post.title]);
           
-          // 使用内联 SVG 作为 fallback，避免外部服务不稳定
-          // 使用英文文本避免编码问题
-          const safeTitle = (post.title?.slice(0, 10) || 'Work').replace(/[^\x00-\x7F]/g, '?');
-          const svgText = safeTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          const svgContent = `<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg"><rect width="600" height="400" fill="#3b82f6"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">${svgText}</text></svg>`;
-          const fallbackSvg = `data:image/svg+xml;base64,${btoa(svgContent)}`;
+          // 首屏前8个图片优先加载，提升用户体验
+          const isPriority = index < 8;
           
           return (
             <div className="relative overflow-hidden bg-gray-100 dark:bg-gray-800">
@@ -229,8 +212,8 @@ const PostItem = memo(({ post, index, onLike, onComment, onShare, onBookmark, on
                 src={post.thumbnail || ''}  
                 alt={post.title}
                 className="w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-110"
-                priority={index < 5}
-                quality={index < 6 ? 'high' : 'medium'}
+                priority={isPriority}
+                quality={isPriority ? 'high' : 'medium'}
                 placeholder="skeleton"
                 loadingAnimation="fade"
                 fit="cover"

@@ -64,113 +64,53 @@ interface PointsRule {
 }
 
 class AdminService {
-  // 获取控制台统计数据 - 直接从 Supabase 获取，确保数据一致性
+  // 获取 API 基础 URL
+  private getApiBaseUrl(): string {
+    const isProduction = import.meta.env.PROD;
+    if (isProduction) {
+      return '';
+    }
+    return import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3030';
+  }
+
+  // 获取请求头
+  private getHeaders(): HeadersInit {
+    const token = localStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : '',
+    };
+  }
+
+  // 获取控制台统计数据 - 使用后端 API
   async getDashboardStats(): Promise<DashboardStats> {
     try {
-      // 检查 supabaseAdmin 是否可用
-      if (!supabaseAdmin || !supabaseAdmin.from) {
-        console.error('[AdminService] supabaseAdmin 未初始化，使用默认数据');
+      console.log('[AdminService] 开始获取控制台统计数据...');
+
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/dashboard/stats`;
+      console.log('[AdminService] API URL:', apiUrl);
+
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        console.error('[AdminService] API 请求失败:', response.status, response.statusText);
         return this.getDefaultDashboardStats();
       }
 
-      // 获取总用户数
-      const { count: totalUsers, error: userError } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true });
-      
-      if (userError) {
-        console.warn('获取总用户数失败:', userError);
+      const result = await response.json();
+      console.log('[AdminService] API 响应:', result);
+
+      if (result.code !== 0 || !result.data) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return this.getDefaultDashboardStats();
       }
 
-      // 获取作品总数
-      const { count: totalWorks, error: worksError } = await supabaseAdmin
-        .from('works')
-        .select('*', { count: 'exact', head: true });
-      
-      if (worksError) {
-        console.warn('获取作品总数失败:', worksError);
-      }
-
-      // 获取待审核数量
-      const { count: pendingAudit, error: pendingError } = await supabaseAdmin
-        .from('works')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-      
-      if (pendingError) {
-        console.warn('获取待审核数失败:', pendingError);
-      }
-
-      // 获取已采纳的活动数量（已发布的活动）
-      const { count: adopted, error: adoptedError } = await supabaseAdmin
-        .from('events')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'published');
-      
-      if (adoptedError) {
-        console.warn('获取已采纳数失败:', adoptedError);
-      }
-
-      // 计算趋势（与上月比较）
-      const lastMonth = new Date();
-      lastMonth.setMonth(lastMonth.getMonth() - 1);
-      const lastMonthStr = lastMonth.toISOString();
-
-      // 获取上月用户数
-      const { count: lastMonthUsers } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .lt('created_at', lastMonthStr);
-
-      // 获取上月作品数
-      const { count: lastMonthWorks } = await supabaseAdmin
-        .from('works')
-        .select('*', { count: 'exact', head: true })
-        .lt('created_at', lastMonthStr);
-
-      // 获取上月已采纳活动数
-      const { count: lastMonthAdopted } = await supabaseAdmin
-        .from('events')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'published')
-        .lt('created_at', lastMonthStr);
-
-      // 获取昨日待审核数
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const { count: yesterdayPending } = await supabaseAdmin
-        .from('works')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending')
-        .lt('created_at', yesterday.toISOString());
-
-      // 计算各项趋势
-      const userTrend = (lastMonthUsers || 0) > 0
-        ? Math.round(((totalUsers || 0) - (lastMonthUsers || 0)) / (lastMonthUsers || 1) * 100)
-        : 0;
-
-      const worksTrend = (lastMonthWorks || 0) > 0
-        ? Math.round(((totalWorks || 0) - (lastMonthWorks || 0)) / (lastMonthWorks || 1) * 100)
-        : 0;
-
-      const adoptedTrend = (lastMonthAdopted || 0) > 0
-        ? Math.round(((adopted || 0) - (lastMonthAdopted || 0)) / (lastMonthAdopted || 1) * 100)
-        : 0;
-
-      const pendingTrend = (pendingAudit || 0) - (yesterdayPending || 0);
-
-      return {
-        totalUsers: totalUsers || 0,
-        totalWorks: totalWorks || 0,
-        pendingAudit: pendingAudit || 0,
-        adopted: adopted || 0,
-        userTrend,
-        worksTrend,
-        pendingTrend,
-        adoptedTrend
-      };
+      return result.data;
     } catch (error) {
-      console.error('获取统计数据失败:', error);
+      console.error('[AdminService] 获取统计数据失败:', error);
       return this.getDefaultDashboardStats();
     }
   }

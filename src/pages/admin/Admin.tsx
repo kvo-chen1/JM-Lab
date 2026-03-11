@@ -457,7 +457,9 @@ export default function Admin() {
         ordersByStatus, worksByType, postsByDay, commentsByDay,
         aiTasks, worksWithCategory, userSessionsForHeatmap,
         ordersByDate, usersWithOrders, worksByHour, userActivity,
-        commentsForSentiment, userHistoryData
+        commentsForSentiment, userHistoryData,
+        // 真实的用户活跃度数据
+        worksActivity, commentsActivity, likesActivity, postsActivity
       } = baseStats;
 
       // 作品分类数据
@@ -862,7 +864,30 @@ export default function Admin() {
         { feature: 'AI写作', usage: 0, satisfaction: 0 },
       ]);
 
-      // 热门标签
+      // 热门标签 - 分类名称中英文映射
+      const categoryNameMap: Record<string, string> = {
+        'design': '设计',
+        'video': '视频',
+        'illustration': '插画',
+        'photography': '摄影',
+        'writing': '写作',
+        'music': '音乐',
+        'animation': '动画',
+        '3d': '3D建模',
+        'ui': 'UI设计',
+        'graphic': '平面设计',
+        'art': '艺术',
+        'craft': '手工艺',
+        'fashion': '时尚',
+        'architecture': '建筑',
+        'product': '产品设计',
+        'game': '游戏',
+        'technology': '科技',
+        'lifestyle': '生活方式',
+        'food': '美食',
+        'travel': '旅行',
+      };
+
       const categoryCountMap = new Map<string, number>();
       worksWithCategory?.forEach(work => {
         const category = work.category || '未分类';
@@ -870,7 +895,11 @@ export default function Admin() {
       });
 
       const topTags = Array.from(categoryCountMap.entries())
-        .map(([name, count]) => ({ name, count, trend: 0 }))
+        .map(([name, count]) => ({
+          name: categoryNameMap[name] || name,
+          count,
+          trend: 0
+        }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 8);
 
@@ -903,20 +932,42 @@ export default function Admin() {
         { date: '周日', pending: 0, approved: 0, rejected: 0, autoPass: 0 },
       ]);
 
-      // 用户活跃度热力图
+      // 用户活跃度热力图 - 使用真实的用户活动数据
       const heatmapData = [];
       const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
       const activityMap = new Map<string, number>();
 
-      userSessionsForHeatmap?.forEach(record => {
-        if (record.last_active) {
-          const date = new Date(record.last_active);
-          const dayIndex = (date.getDay() + 6) % 7;
+      // 合并所有用户活动数据
+      const allActivities = [
+        ...(worksActivity || []),
+        ...(commentsActivity || []),
+        ...(likesActivity || []),
+        ...(postsActivity || []),
+      ];
+
+      // 处理真实的用户活动数据
+      allActivities.forEach(record => {
+        if (record.created_at) {
+          const date = new Date(record.created_at);
+          const dayIndex = (date.getDay() + 6) % 7; // 转换为周一到周日
           const hour = date.getHours();
           const key = `${dayIndex}-${hour}`;
           activityMap.set(key, (activityMap.get(key) || 0) + 1);
         }
       });
+
+      // 如果没有真实数据，回退到会话数据
+      if (activityMap.size === 0) {
+        userSessionsForHeatmap?.forEach(record => {
+          if (record.last_active) {
+            const date = new Date(parseInt(record.last_active));
+            const dayIndex = (date.getDay() + 6) % 7;
+            const hour = date.getHours();
+            const key = `${dayIndex}-${hour}`;
+            activityMap.set(key, (activityMap.get(key) || 0) + 1);
+          }
+        });
+      }
 
       for (let d = 0; d < 7; d++) {
         for (let h = 0; h < 24; h++) {

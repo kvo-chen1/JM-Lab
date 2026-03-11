@@ -1,5 +1,16 @@
 // Agent类型定义
 
+// LLM 模型类型
+export type LLMModelType = 'qwen' | 'kimi' | 'deepseek';
+
+export interface LLMModelConfig {
+  id: LLMModelType;
+  name: string;
+  icon: string;
+  description: string;
+  color: string;
+}
+
 // 扩展后的 Agent 类型
 export type AgentType =
   | 'director'      // 设计总监 - 统筹全局、需求分析、任务分配
@@ -197,6 +208,9 @@ export interface AgentState {
   messages: AgentMessage[];
   currentAgent: AgentType;
   isTyping: boolean;
+
+  // LLM 模型状态
+  currentModel: LLMModelType;           // 当前使用的 LLM 模型
 
   // 设计任务状态
   currentTask: DesignTask | null;
@@ -402,10 +416,40 @@ export const AGENT_CONFIG: AgentConfig = {
   }
 };
 
+// LLM 模型配置
+export const LLM_MODELS: LLMModelConfig[] = [
+  {
+    id: 'qwen',
+    name: '通义千问',
+    icon: '千',
+    description: '阿里云大模型，擅长中文理解与创作',
+    color: 'from-orange-500 to-red-600'
+  },
+  {
+    id: 'kimi',
+    name: 'Kimi',
+    icon: 'K',
+    description: 'Moonshot AI，长文本处理能力强',
+    color: 'from-blue-500 to-cyan-600'
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    icon: 'D',
+    description: '深度求索，代码与推理能力优秀',
+    color: 'from-purple-500 to-indigo-600'
+  }
+];
+
 // 辅助函数：获取 Agent 配置
 export function getAgentConfig(agentType: AgentType): AgentConfigItem | null {
   if (agentType === 'system' || agentType === 'user') return null;
   return AGENT_CONFIG[agentType] || null;
+}
+
+// 辅助函数：获取 LLM 模型配置
+export function getLLMModelConfig(modelId: LLMModelType): LLMModelConfig | null {
+  return LLM_MODELS.find(m => m.id === modelId) || null;
 }
 
 // 辅助函数：检查是否为有效的专业 Agent

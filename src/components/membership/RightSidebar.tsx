@@ -16,7 +16,10 @@ import {
   Star,
   AlertCircle,
   CheckCircle2,
-  Infinity
+  Infinity,
+  Coins,
+  TrendingDown,
+  Wallet
 } from 'lucide-react';
 import { User } from '@/contexts/authContext';
 
@@ -35,6 +38,11 @@ interface UsageStats {
     used: number;
     total: number | null;
     percentage: number;
+  };
+  jinbi?: {
+    earned: number;
+    spent: number;
+    netChange: number;
   };
 }
 
@@ -70,11 +78,18 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     : null;
 
   // 使用传入的统计数据或默认值
-  const stats = usageStats || {
+  const defaultStats = {
     aiGenerations: { used: 0, total: 10, percentage: 0 },
     storage: { used: 0, total: 1, percentage: 0 },
     exports: { used: 0, total: 5, percentage: 0 }
   };
+
+  const stats = usageStats ? {
+    aiGenerations: usageStats.aiGenerations || defaultStats.aiGenerations,
+    storage: usageStats.storage || defaultStats.storage,
+    exports: usageStats.exports || defaultStats.exports,
+    jinbi: usageStats.jinbi
+  } : defaultStats;
 
   const getProgressColor = (percentage: number) => {
     if (percentage >= 80) return 'bg-rose-500';
@@ -253,6 +268,49 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           </motion.button>
         </div>
       </div>
+
+      {/* 津币统计 */}
+      {stats.jinbi && (
+        <div className={`p-5 ${isDark ? 'border-b border-slate-700/50' : 'border-b border-gray-200'}`}>
+          <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+            <Coins size={16} className={isDark ? 'text-amber-400' : 'text-amber-600'} />
+            津币统计
+          </h3>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className={`
+              rounded-xl p-3 text-center
+              ${isDark ? 'bg-emerald-500/10' : 'bg-emerald-50'}
+            `}>
+              <TrendingUp className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>本月收入</p>
+              <p className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                +{stats.jinbi.earned.toLocaleString()}
+              </p>
+            </div>
+            <div className={`
+              rounded-xl p-3 text-center
+              ${isDark ? 'bg-rose-500/10' : 'bg-rose-50'}
+            `}>
+              <TrendingDown className="w-4 h-4 text-rose-500 mx-auto mb-1" />
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>本月支出</p>
+              <p className={`font-bold ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                -{stats.jinbi.spent.toLocaleString()}
+              </p>
+            </div>
+            <div className={`
+              rounded-xl p-3 text-center
+              ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}
+            `}>
+              <Wallet className="w-4 h-4 text-amber-500 mx-auto mb-1" />
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>净变化</p>
+              <p className={`font-bold ${stats.jinbi.netChange >= 0 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-rose-400' : 'text-rose-600')}`}>
+                {stats.jinbi.netChange >= 0 ? '+' : ''}{stats.jinbi.netChange.toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 使用统计 */}
       <div className={`p-5 ${isDark ? 'border-b border-slate-700/50' : 'border-b border-gray-200'}`}>

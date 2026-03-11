@@ -89,7 +89,7 @@ export default function LeftSidebar({
               <button
                 key={mode}
                 onClick={() => onViewModeChange(mode)}
-                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all duration-200 ${
+                className={`flex flex-col xl:flex-row items-center justify-center gap-1 py-2 px-2 rounded-lg text-xs font-medium transition-all duration-200 h-14 xl:h-auto ${
                   viewMode === mode
                     ? 'bg-white dark:bg-gray-700 text-[#C02C38] shadow-sm'
                     : isDark
@@ -98,8 +98,8 @@ export default function LeftSidebar({
                 }`}
                 title={label}
               >
-                <Icon className="w-4 h-4" />
-                <span className="hidden xl:inline">{label}</span>
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="leading-none">{label}</span>
               </button>
             ))}
           </div>

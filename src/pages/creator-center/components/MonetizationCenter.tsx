@@ -42,24 +42,72 @@ import {
 } from 'recharts';
 
 // 格式化金额
-const formatCurrency = (amount: number): string => {
+const formatCurrency = (amount: number | string | undefined): string => {
+  // 处理各种异常情况
+  if (amount === undefined || amount === null) return '¥0';
+  
+  // 如果是数组或其他对象类型，返回 '¥0'
+  if (typeof amount === 'object') {
+    console.warn('formatCurrency received object:', amount);
+    return '¥0';
+  }
+  
+  // 确保转换为数字
+  let n: number;
+  if (typeof amount === 'string') {
+    // 清理字符串，只保留数字和小数点
+    const cleaned = amount.replace(/[^\d.]/g, '');
+    n = parseFloat(cleaned);
+  } else if (typeof amount === 'number') {
+    n = amount;
+  } else {
+    return '¥0';
+  }
+  
+  // 检查是否为有效数字
+  if (isNaN(n) || !isFinite(n)) return '¥0';
+  
   return new Intl.NumberFormat('zh-CN', {
     style: 'currency',
     currency: 'CNY',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(n);
 };
 
 // 格式化数字
-const formatNumber = (num: number): string => {
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + '万';
+const formatNumber = (num: number | string | undefined): string => {
+  // 处理各种异常情况
+  if (num === undefined || num === null) return '0';
+  
+  // 如果是数组或其他对象类型，返回 '0'
+  if (typeof num === 'object') {
+    console.warn('formatNumber received object:', num);
+    return '0';
   }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K';
+  
+  // 确保转换为数字
+  let n: number;
+  if (typeof num === 'string') {
+    // 清理字符串，只保留数字和小数点
+    const cleaned = num.replace(/[^\d.]/g, '');
+    n = parseFloat(cleaned);
+  } else if (typeof num === 'number') {
+    n = num;
+  } else {
+    return '0';
   }
-  return num.toString();
+  
+  // 检查是否为有效数字
+  if (isNaN(n) || !isFinite(n)) return '0';
+  
+  if (n >= 10000) {
+    return (n / 10000).toFixed(1) + '万';
+  }
+  if (n >= 1000) {
+    return (n / 1000).toFixed(1) + 'K';
+  }
+  return Math.floor(n).toString();
 };
 
 const monetizationChannels = [
@@ -496,15 +544,15 @@ const MonetizationCenter: React.FC = () => {
         {[
           { 
             label: '累计收入', 
-            value: revenue?.totalRevenue || 0, 
-            change: revenue?.revenueChange || 0,
+            value: revenue?.totalRevenue, 
+            change: revenue?.revenueChange,
             icon: PiggyBank, 
             color: 'emerald',
             gradient: 'from-emerald-500 to-teal-600'
           },
           { 
             label: '本月收入', 
-            value: revenue?.monthlyRevenue || 0, 
+            value: revenue?.monthlyRevenue, 
             change: 0,
             icon: DollarSign, 
             color: 'blue',
@@ -512,7 +560,7 @@ const MonetizationCenter: React.FC = () => {
           },
           { 
             label: '待结算', 
-            value: revenue?.pendingRevenue || 0, 
+            value: revenue?.pendingRevenue, 
             change: null,
             icon: Clock, 
             color: 'amber',
@@ -520,7 +568,7 @@ const MonetizationCenter: React.FC = () => {
           },
           { 
             label: '可提现', 
-            value: revenue?.withdrawableRevenue || 0, 
+            value: revenue?.withdrawableRevenue, 
             change: null,
             icon: CreditCard, 
             color: 'violet',
@@ -529,6 +577,7 @@ const MonetizationCenter: React.FC = () => {
         ].map((stat, index) => {
           const Icon = stat.icon;
           const isPositive = stat.change && stat.change > 0;
+          const safeValue = typeof stat.value === 'number' && !isNaN(stat.value) ? stat.value : 0;
           return (
             <motion.div
               key={stat.label}
@@ -557,7 +606,7 @@ const MonetizationCenter: React.FC = () => {
               </div>
               <div>
                 <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {showAmount ? formatCurrency(stat.value) : '****'}
+                  {showAmount ? formatCurrency(safeValue) : '****'}
                 </p>
                 <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {stat.label}

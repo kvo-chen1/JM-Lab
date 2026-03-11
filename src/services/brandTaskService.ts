@@ -1186,7 +1186,7 @@ class BrandTaskService {
         .from('creator_revenue')
         .select('*')
         .eq('user_id', creatorId)
-        .single();
+        .maybeSingle();
 
       if (existingRevenue) {
         // 更新现有记录

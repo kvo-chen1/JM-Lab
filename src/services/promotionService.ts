@@ -400,37 +400,56 @@ class PromotionService {
    */
   async getUserCoupons(userId: string): Promise<PromotionCoupon[]> {
     try {
-      const { data, error } = await supabase
+      // 首先获取用户已使用的优惠券ID列表
+      const { data: usedCoupons, error: usageError } = await supabase
+        .from('promotion_coupon_usage')
+        .select('coupon_id')
+        .eq('user_id', userId);
+
+      if (usageError) {
+        console.warn('获取优惠券使用记录失败:', usageError);
+      }
+
+      const usedCouponIds = (usedCoupons || []).map(u => u.coupon_id);
+
+      // 获取有效的全局优惠券（排除用户已使用的）
+      let query = supabase
         .from('promotion_coupons')
         .select('*')
-        .eq('user_id', userId)
-        .eq('used', false)
-        .gte('valid_until', new Date().toISOString())
-        .order('valid_until', { ascending: true });
+        .eq('is_active', true)
+        .gte('end_time', new Date().toISOString())
+        .order('end_time', { ascending: true });
+
+      // 如果用户有使用记录，排除已使用的优惠券
+      if (usedCouponIds.length > 0) {
+        query = query.not('id', 'in', `(${usedCouponIds.join(',')})`);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.warn('获取优惠券失败:', error);
-        return this.getDefaultCoupons();
+        return this.getDefaultCoupons(userId);
       }
 
       if (!data || data.length === 0) {
-        return this.getDefaultCoupons();
+        return this.getDefaultCoupons(userId);
       }
 
       return data.map(coupon => ({
         id: coupon.id,
-        userId: coupon.user_id,
-        discount: coupon.discount,
-        maxDeduction: coupon.max_deduction,
-        minOrderAmount: coupon.min_order_amount,
-        validUntil: coupon.valid_until,
-        used: coupon.used,
-        usedAt: coupon.used_at,
-        description: coupon.description,
+        userId: userId,
+        discount: coupon.discount_type === 'percentage' ? (coupon.discount_value / 100) : coupon.discount_value,
+        maxDeduction: coupon.max_discount || 200,
+        minOrderAmount: coupon.min_order_amount || 50,
+        validUntil: coupon.end_time,
+        used: false,
+        usedAt: undefined,
+        description: coupon.description || coupon.name,
       }));
     } catch (err) {
       console.error('获取优惠券失败:', err);
-      return this.getDefaultCoupons();
+      return this.getDefaultCoupons(userId);
     }
   }
 
@@ -600,46 +619,70 @@ class PromotionService {
    */
   async getUserPromotedWorks(userId: string): Promise<PromotedWork[]> {
     try {
-      const { data, error } = await supabase
+      // 首先获取推广作品列表
+      const { data: promotedWorks, error: pwError } = await supabase
         .from('promoted_works')
-        .select(`
-          *,
-          promotion_orders!inner(work_title, work_thumbnail, final_price, order_no)
-        `)
+        .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.warn('获取推广作品失败:', error);
+      if (pwError) {
+        console.warn('获取推广作品失败:', pwError);
         return [];
       }
 
-      return (data || []).map(pw => ({
-        id: pw.id,
-        orderId: pw.order_id,
-        workId: pw.work_id,
-        userId: pw.user_id,
-        packageType: pw.package_type,
-        targetType: pw.target_type,
-        metricType: pw.metric_type,
-        startTime: pw.start_time,
-        endTime: pw.end_time,
-        targetViews: pw.target_views,
-        actualViews: pw.actual_views,
-        targetClicks: pw.target_clicks,
-        actualClicks: pw.actual_clicks,
-        promotionWeight: pw.promotion_weight,
-        priorityScore: pw.priority_score,
-        displayPosition: pw.display_position,
-        isFeatured: pw.is_featured,
-        status: pw.status,
-        dailyViews: pw.daily_views,
-        dailyClicks: pw.daily_clicks,
-        workTitle: pw.promotion_orders?.work_title || '',
-        workThumbnail: pw.promotion_orders?.work_thumbnail || '',
-        finalPrice: pw.promotion_orders?.final_price || 0,
-        orderNo: pw.promotion_orders?.order_no || '',
-      }));
+      if (!promotedWorks || promotedWorks.length === 0) {
+        return [];
+      }
+
+      // 获取关联的订单信息
+      const orderIds = promotedWorks.map(pw => pw.order_id).filter(Boolean);
+      let orderMap = new Map();
+
+      if (orderIds.length > 0) {
+        const { data: orders, error: orderError } = await supabase
+          .from('promotion_orders')
+          .select('id, work_title, work_thumbnail, final_price, order_no')
+          .in('id', orderIds);
+
+        if (orderError) {
+          console.warn('获取订单信息失败:', orderError);
+        } else {
+          (orders || []).forEach(order => {
+            orderMap.set(order.id, order);
+          });
+        }
+      }
+
+      return promotedWorks.map(pw => {
+        const order = orderMap.get(pw.order_id) || {};
+        return {
+          id: pw.id,
+          orderId: pw.order_id,
+          workId: pw.work_id,
+          userId: pw.user_id,
+          packageType: pw.package_type,
+          targetType: pw.target_type,
+          metricType: pw.metric_type,
+          startTime: pw.start_time,
+          endTime: pw.end_time,
+          targetViews: pw.target_views,
+          actualViews: pw.actual_views,
+          targetClicks: pw.target_clicks,
+          actualClicks: pw.actual_clicks,
+          promotionWeight: pw.promotion_weight,
+          priorityScore: pw.priority_score,
+          displayPosition: pw.display_position,
+          isFeatured: pw.is_featured,
+          status: pw.status,
+          dailyViews: pw.daily_views,
+          dailyClicks: pw.daily_clicks,
+          workTitle: order.work_title || '',
+          workThumbnail: order.work_thumbnail || '',
+          finalPrice: order.final_price || 0,
+          orderNo: order.order_no || '',
+        };
+      });
     } catch (err) {
       console.error('获取推广作品失败:', err);
       return [];
@@ -651,17 +694,63 @@ class PromotionService {
    */
   async getPromotionSummary(userId: string): Promise<PromotionSummary | null> {
     try {
-      const { data, error } = await supabase
-        .rpc('get_promotion_summary', {
-          p_user_id: userId,
-        });
+      // 获取用户的所有推广订单
+      const { data: orders, error: ordersError } = await supabase
+        .from('promotion_orders')
+        .select('final_price, actual_views, actual_clicks, status, created_at')
+        .eq('user_id', userId);
 
-      if (error) {
-        console.warn('获取推广摘要失败:', error);
+      if (ordersError) {
+        console.warn('获取推广订单失败:', ordersError);
         return null;
       }
 
-      return data;
+      // 获取正在运行的推广数量
+      const { count: activeCount, error: activeError } = await supabase
+        .from('promoted_works')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'active');
+
+      if (activeError) {
+        console.warn('获取活跃推广失败:', activeError);
+      }
+
+      // 计算统计数据
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      let totalSpent = 0;
+      let totalImpressions = 0;
+      let totalClicks = 0;
+      let todayImpressions = 0;
+      let todayClicks = 0;
+
+      (orders || []).forEach(order => {
+        totalSpent += order.final_price || 0;
+        totalImpressions += order.actual_views || 0;
+        totalClicks += order.actual_clicks || 0;
+
+        // 统计今日数据
+        const orderDate = new Date(order.created_at);
+        if (orderDate >= today) {
+          todayImpressions += order.actual_views || 0;
+          todayClicks += order.actual_clicks || 0;
+        }
+      });
+
+      // 计算平均点击率
+      const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+
+      return {
+        active_promotions: activeCount || 0,
+        total_impressions: totalImpressions,
+        total_clicks: totalClicks,
+        avg_ctr: parseFloat(avgCtr.toFixed(2)),
+        total_spent: totalSpent,
+        today_impressions: todayImpressions,
+        today_clicks: todayClicks,
+      };
     } catch (err) {
       console.error('获取推广摘要失败:', err);
       return null;
@@ -734,11 +823,11 @@ class PromotionService {
   }
 
   // 默认优惠券（新人券）
-  private getDefaultCoupons(): PromotionCoupon[] {
+  private getDefaultCoupons(userId: string = ''): PromotionCoupon[] {
     return [
       {
         id: 'new_user_7',
-        userId: '',
+        userId: userId,
         discount: 0.7,
         maxDeduction: 200,
         minOrderAmount: 50,
@@ -748,7 +837,7 @@ class PromotionService {
       },
       {
         id: 'new_user_8_1',
-        userId: '',
+        userId: userId,
         discount: 0.8,
         maxDeduction: 200,
         minOrderAmount: 50,
@@ -758,7 +847,7 @@ class PromotionService {
       },
       {
         id: 'new_user_8_2',
-        userId: '',
+        userId: userId,
         discount: 0.8,
         maxDeduction: 200,
         minOrderAmount: 50,
@@ -979,7 +1068,7 @@ class PromotionService {
         .from('promoted_works')
         .select('count')
         .limit(1);
-      
+
       if (testError) {
         console.warn('promoted_works 表可能不存在:', testError);
         return [];
@@ -987,49 +1076,72 @@ class PromotionService {
 
       let query = supabase
         .from('promoted_works')
-        .select(`
-          *,
-          promotion_orders(work_title, work_thumbnail, final_price, order_no, user_id)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (status) {
         query = query.eq('status', status);
       }
 
-      const { data, error } = await query;
+      const { data: promotedWorks, error } = await query;
 
       if (error) {
         console.warn('获取所有推广作品失败:', error);
         return [];
       }
 
-      return (data || []).map(pw => ({
-        id: pw.id,
-        orderId: pw.order_id,
-        workId: pw.work_id,
-        userId: pw.user_id,
-        packageType: pw.package_type,
-        targetType: pw.target_type,
-        metricType: pw.metric_type,
-        startTime: pw.start_time,
-        endTime: pw.end_time,
-        targetViews: pw.target_views,
-        actualViews: pw.actual_views,
-        targetClicks: pw.target_clicks,
-        actualClicks: pw.actual_clicks,
-        promotionWeight: pw.promotion_weight,
-        priorityScore: pw.priority_score,
-        displayPosition: pw.display_position,
-        isFeatured: pw.is_featured,
-        status: pw.status,
-        dailyViews: pw.daily_views,
-        dailyClicks: pw.daily_clicks,
-        workTitle: pw.promotion_orders?.work_title || '',
-        workThumbnail: pw.promotion_orders?.work_thumbnail || '',
-        finalPrice: pw.promotion_orders?.final_price || 0,
-        orderNo: pw.promotion_orders?.order_no || '',
-      }));
+      if (!promotedWorks || promotedWorks.length === 0) {
+        return [];
+      }
+
+      // 获取关联的订单信息
+      const orderIds = promotedWorks.map(pw => pw.order_id).filter(Boolean);
+      let orderMap = new Map();
+
+      if (orderIds.length > 0) {
+        const { data: orders, error: orderError } = await supabase
+          .from('promotion_orders')
+          .select('id, work_title, work_thumbnail, final_price, order_no, user_id')
+          .in('id', orderIds);
+
+        if (orderError) {
+          console.warn('获取订单信息失败:', orderError);
+        } else {
+          (orders || []).forEach(order => {
+            orderMap.set(order.id, order);
+          });
+        }
+      }
+
+      return promotedWorks.map(pw => {
+        const order = orderMap.get(pw.order_id) || {};
+        return {
+          id: pw.id,
+          orderId: pw.order_id,
+          workId: pw.work_id,
+          userId: pw.user_id,
+          packageType: pw.package_type,
+          targetType: pw.target_type,
+          metricType: pw.metric_type,
+          startTime: pw.start_time,
+          endTime: pw.end_time,
+          targetViews: pw.target_views,
+          actualViews: pw.actual_views,
+          targetClicks: pw.target_clicks,
+          actualClicks: pw.actual_clicks,
+          promotionWeight: pw.promotion_weight,
+          priorityScore: pw.priority_score,
+          displayPosition: pw.display_position,
+          isFeatured: pw.is_featured,
+          status: pw.status,
+          dailyViews: pw.daily_views,
+          dailyClicks: pw.daily_clicks,
+          workTitle: order.work_title || '',
+          workThumbnail: order.work_thumbnail || '',
+          finalPrice: order.final_price || 0,
+          orderNo: order.order_no || '',
+        };
+      });
     } catch (err) {
       console.error('获取所有推广作品失败:', err);
       return [];

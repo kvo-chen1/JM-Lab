@@ -180,6 +180,9 @@ export default function Dashboard() {
                       workDate = new Date().toLocaleDateString('zh-CN');
                     }
 
+                    // 使用 view_count 字段（API 返回的字段）
+                    const viewCount = w.view_count ?? w.views ?? 0;
+
                     return {
                       id: w.id?.toString() || '',
                       title: w.title || 'Untitled',
@@ -188,10 +191,10 @@ export default function Dashboard() {
                       type: w.type || 'image',
                       status: w.status === 'published' ? '已发布' : '草稿',
                       date: workDate,
-                      views: w.view_count || 0,
+                      views: viewCount,
                       likes: w.likes || 0,
                       metrics: {
-                        views: w.view_count || 0,
+                        views: viewCount,
                         likes: w.likes || 0,
                         comments: w.comments || 0,
                         shares: 0,
@@ -207,7 +210,8 @@ export default function Dashboard() {
                   setRealUserWorks(formattedWorks);
                   worksLoaded = true;
 
-                  const totalViews = works.reduce((sum: number, w: any) => sum + (w.view_count || 0), 0);
+                  // API 返回的是 view_count 字段
+                  const totalViews = works.reduce((sum: number, w: any) => sum + (w.view_count ?? w.views ?? 0), 0);
                   const totalLikes = works.reduce((sum: number, w: any) => sum + (w.likes || 0), 0);
 
                   setRealUserStats({
@@ -254,6 +258,9 @@ export default function Dashboard() {
                   workDate = new Date().toLocaleDateString('zh-CN');
                 }
 
+                // 使用 views 字段（数据库实际字段），而不是 view_count
+                const viewCount = w.views ?? w.view_count ?? 0;
+
                 return {
                   id: w.id,
                   title: w.title,
@@ -262,10 +269,10 @@ export default function Dashboard() {
                   type: w.type || 'image',
                   status: w.status === 'published' ? '已发布' : '草稿',
                   date: workDate,
-                  views: w.view_count || 0,
+                  views: viewCount,
                   likes: w.likes || 0,
                   metrics: {
-                    views: w.view_count || 0,
+                    views: viewCount,
                     likes: w.likes || 0,
                     comments: w.comments || 0,
                     shares: 0,
@@ -275,7 +282,8 @@ export default function Dashboard() {
               });
               setRealUserWorks(formattedWorks);
 
-              const totalViews = works.reduce((sum, w) => sum + (w.view_count || 0), 0);
+              // 使用 views 字段（数据库实际字段）
+              const totalViews = works.reduce((sum, w) => sum + (w.views ?? w.view_count ?? 0), 0);
               const totalLikes = works.reduce((sum, w) => sum + (w.likes || 0), 0);
 
               setRealUserStats({

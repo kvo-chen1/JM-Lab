@@ -938,8 +938,8 @@ export const PostCard: React.FC<PostCardProps> = ({
           title: thread.title,
           content: thread.content,
           media: [
-            ...(thread.images?.map(img => ({ url: img, type: 'image' as const })) || []),
-            ...(thread.videos?.map(video => ({ url: video, type: 'video' as const, thumbnailUrl: video.replace(/\.[^/.]+$/, '_thumb.jpg') })) || [])
+            ...(Array.isArray(thread.images) ? thread.images.map(img => ({ url: img, type: 'image' as const })) : []),
+            ...(Array.isArray(thread.videos) ? thread.videos.map(video => ({ url: video, type: 'video' as const, thumbnailUrl: video.replace(/\.[^/.]+$/, '_thumb.jpg') })) : [])
           ],
           author: {
             id: thread.authorId || '',

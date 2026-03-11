@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
+import { useJinbi } from '@/hooks/useJinbi';
 import { useCreateStore } from '../hooks/useCreateStore';
 import { traditionalPatterns } from '../data';
 import { toast } from 'sonner';
@@ -10,6 +11,7 @@ import DraggableCanvas from './DraggableCanvas';
 import { SmartLayoutCanvas } from './SmartLayoutCanvas';
 import { SmartLayoutPreview } from './SmartLayoutPreview';
 import { LayoutGrid, GalleryHorizontal } from 'lucide-react';
+import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 
 interface CanvasAreaProps {
   isSidebarCollapsed: boolean;
@@ -61,6 +63,15 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
   const smartLayoutConfig = useCreateStore((state) => state.smartLayoutConfig);
   const layoutRecommendation = useCreateStore((state) => state.layoutRecommendation);
 
+  // 津币相关状态
+  const {
+    balance: jinbiBalance,
+    consumeJinbi,
+    checkBalance,
+  } = useJinbi();
+  const [showJinbiModal, setShowJinbiModal] = useState(false);
+  const EXPORT_COST = 50; // 导出图片消耗50津币
+
   // 仅在初始加载且没有选中任何作品时，自动选择第一张图片
   useEffect(() => {
     // 只在 generatedResults 从空变为有数据时执行，避免覆盖用户手动选择
@@ -99,11 +110,33 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
     try {
       if (!selectedResult) return;
 
+      // 检查津币余额
+      const balanceCheck = await checkBalance(EXPORT_COST);
+      if (!balanceCheck.sufficient) {
+        setShowJinbiModal(true);
+        return;
+      }
+
       const selectedImage = generatedResults.find(r => r.id === selectedResult);
       if (!selectedImage) return;
 
       const patternImage = selectedPatternId ? traditionalPatterns.find(p => p.id === selectedPatternId) : null;
       if (!patternImage) return;
+
+      // 消费津币
+      const consumeResult = await consumeJinbi(
+        EXPORT_COST,
+        'export',
+        '导出纹样图片',
+        { serviceParams: { type: 'pattern_export' } }
+      );
+
+      if (!consumeResult.success) {
+        toast.error('津币扣除失败：' + consumeResult.error);
+        return;
+      }
+
+      toast.success(`已消耗 ${EXPORT_COST} 津币`, { duration: 2000 });
 
       // 创建临时图像元素
       const originalImg = new Image();
@@ -904,6 +937,15 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
       <AnimatePresence>
         {showHistory && <HistoryPanel onClose={() => setShowHistory(false)} />}
       </AnimatePresence>
+
+      {/* 津币不足弹窗 */}
+      <JinbiInsufficientModal
+        isOpen={showJinbiModal}
+        onClose={() => setShowJinbiModal(false)}
+        requiredAmount={EXPORT_COST}
+        currentBalance={jinbiBalance?.availableBalance || 0}
+        serviceName="导出纹样图片"
+      />
     </div>
   );
 }

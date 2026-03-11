@@ -26,7 +26,7 @@ export interface WorkCardData {
 interface WorkCardProps {
   data: WorkCardData;
   isSelected?: boolean;
-  onSelect?: () => void;
+  onSelect?: (e?: React.MouseEvent) => void;
   onUpdate?: (id: string, updates: Partial<WorkCardData>) => void;
   onDelete?: (id: string) => void;
   onRefresh?: (id: string) => void;
@@ -232,7 +232,7 @@ function ImageWithLoading({
   }
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full">
       {loading && (
         <div className={`absolute inset-0 flex items-center justify-center ${isDark ? 'bg-gray-800/50' : 'bg-gray-100/50'} ${className}`}>
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -378,12 +378,12 @@ export default function WorkCard({
     <motion.div
       ref={cardRef}
       layoutId={data.id}
-      onClick={onSelect}
+      onClick={(e) => onSelect?.(e)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className={`
         relative rounded-2xl overflow-hidden cursor-pointer
-        transition-all duration-300
+        transition-all duration-300 max-w-md
         ${isDark 
           ? 'bg-gray-800/80 shadow-xl shadow-black/20' 
           : 'bg-white shadow-xl shadow-gray-200/50'
@@ -407,15 +407,15 @@ export default function WorkCard({
       />
 
       {/* 图片区域（在下） */}
-      <div 
-        className="relative aspect-[4/3] overflow-hidden"
+      <div
+        className="relative overflow-hidden min-h-[200px]"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
         <ImageWithLoading
           src={data.imageUrl}
           alt={data.title}
-          className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+          className="w-full h-auto object-contain transition-transform duration-500 hover:scale-105"
           isGenerating={!data.imageUrl}
           title={data.title}
           description={data.description}

@@ -115,7 +115,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
         </AnimatePresence>
 
         {/* 内容区域 */}
-        <div className="relative z-10 h-full flex flex-col justify-center px-8 md:px-12 lg:px-16">
+        <div className="relative z-10 h-full flex flex-col justify-center px-8 md:px-12 lg:px-16 pb-20">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentSlide}
@@ -132,8 +132,8 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                 transition={{ delay: 0.1 }}
                 className="flex items-center gap-2 mb-4"
               >
-                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-5 h-5 text-white flex-shrink-0" strokeWidth={2} />
                 </div>
                 <span className="text-white/80 text-sm font-medium">津门文创</span>
               </motion.div>
@@ -167,7 +167,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                 className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[var(--haihe-600)] font-semibold rounded-xl hover:bg-white/90 transition-colors shadow-lg"
               >
                 {slides[currentSlide].ctaText}
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5 flex-shrink-0" strokeWidth={2.5} />
               </motion.a>
             </motion.div>
           </AnimatePresence>
@@ -180,18 +180,20 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
             onSubmit={handleSearch}
             className="mt-8 max-w-md"
           >
-            <div className="relative flex items-center">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索文创商品..."
-                className="w-full h-12 pl-12 pr-4 bg-white/95 backdrop-blur-sm rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg"
-              />
-              <Search className="absolute left-4 w-5 h-5 text-gray-400" />
+            <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-1.5">
+              <div className="flex items-center flex-1 min-w-0 px-3">
+                <Search className="w-5 h-5 text-gray-400 flex-shrink-0 mr-3" strokeWidth={2} />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="搜索文创商品..."
+                  className="flex-1 h-10 bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none text-sm"
+                />
+              </div>
               <button
                 type="submit"
-                className="absolute right-2 h-8 px-4 bg-[var(--haihe-500)] text-white text-sm font-medium rounded-lg hover:bg-[var(--haihe-600)] transition-colors"
+                className="h-10 px-4 bg-[var(--haihe-500)] text-white text-sm font-medium rounded-lg hover:bg-[var(--haihe-600)] transition-colors whitespace-nowrap flex-shrink-0"
               >
                 搜索
               </button>
@@ -199,35 +201,45 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
           </motion.form>
         </div>
 
-        {/* 导航按钮 */}
-        <div className="absolute bottom-6 right-8 flex items-center gap-3 z-20">
-          <button
-            onClick={prevSlide}
-            className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <button
-            onClick={nextSlide}
-            className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
+        {/* 底部控制区域 - 导航按钮和指示器 */}
+        <div className="absolute bottom-6 left-0 right-0 px-8 flex items-center justify-between z-20">
+          {/* 指示器 - 左侧 */}
+          <div className="flex items-center gap-2">
+            {slides.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentSlide(index)}
+                style={{ 
+                  width: index === currentSlide ? '32px' : '8px',
+                  height: '8px',
+                  borderRadius: '9999px',
+                  backgroundColor: index === currentSlide ? 'white' : 'rgba(255,255,255,0.5)',
+                  flexShrink: 0,
+                  transition: 'all 0.3s ease'
+                }}
+                className="hover:opacity-80"
+                aria-label={`切换到第 ${index + 1} 张幻灯片`}
+              />
+            ))}
+          </div>
 
-        {/* 指示器 */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20">
-          {slides.map((_, index) => (
+          {/* 导航按钮 - 右侧 */}
+          <div className="flex items-center gap-2">
             <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                index === currentSlide
-                  ? 'w-8 bg-white'
-                  : 'w-1.5 bg-white/40 hover:bg-white/60'
-              }`}
-            />
-          ))}
+              onClick={prevSlide}
+              className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-gray-700 hover:bg-white transition-all flex-shrink-0 shadow-lg"
+              aria-label="上一张"
+            >
+              <ChevronLeft className="w-6 h-6 flex-shrink-0" strokeWidth={2} />
+            </button>
+            <button
+              onClick={nextSlide}
+              className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-gray-700 hover:bg-white transition-all flex-shrink-0 shadow-lg"
+              aria-label="下一张"
+            >
+              <ChevronRight className="w-6 h-6 flex-shrink-0" strokeWidth={2} />
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>

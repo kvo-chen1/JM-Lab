@@ -681,16 +681,23 @@ class AIAssistantService {
   ): Promise<void> {
     console.log('[aiAssistantService.saveMessage] 开始保存消息:', { role, conversationId: this.currentConversationId });
     
-    if (!this.currentConversationId) {
-      console.log('[aiAssistantService.saveMessage] 当前会话ID为空，尝试获取活跃对话');
+    // 验证 currentConversationId 是否有效
+    if (!this.currentConversationId || typeof this.currentConversationId !== 'string') {
+      console.log('[aiAssistantService.saveMessage] 当前会话ID无效，尝试获取活跃对话');
       const conversation = await aiMemoryService.getActiveConversation();
-      if (conversation) {
+      if (conversation?.id) {
         this.currentConversationId = conversation.id;
         console.log('[aiAssistantService.saveMessage] 获取到活跃对话:', conversation.id);
       } else {
         console.error('[aiAssistantService.saveMessage] 无法获取活跃对话，取消保存');
         return;
       }
+    }
+
+    // 再次验证 currentConversationId
+    if (!this.currentConversationId || typeof this.currentConversationId !== 'string') {
+      console.error('[aiAssistantService.saveMessage] 会话ID仍然无效，无法保存消息');
+      return;
     }
 
     try {
@@ -706,7 +713,10 @@ class AIAssistantService {
    * 从对话中提取记忆
    */
   private async extractMemoriesFromConversation(): Promise<void> {
-    if (!this.currentConversationId) return;
+    if (!this.currentConversationId || typeof this.currentConversationId !== 'string') {
+      console.warn('[aiAssistantService.extractMemoriesFromConversation] 没有有效的对话ID');
+      return;
+    }
 
     const messages = await aiMemoryService.getConversationMessages(this.currentConversationId, 10);
     await aiMemoryService.extractAndSaveMemories(this.currentConversationId, messages);
@@ -716,13 +726,21 @@ class AIAssistantService {
    * 获取对话历史
    */
   async getConversationHistory(): Promise<ChatMessage[]> {
+    // 如果没有当前对话ID，尝试获取活跃对话
     if (!this.currentConversationId) {
       const conversation = await aiMemoryService.getActiveConversation();
-      if (conversation) {
+      if (conversation?.id) {
         this.currentConversationId = conversation.id;
       } else {
+        console.warn('[aiAssistantService.getConversationHistory] 没有可用的对话ID');
         return [];
       }
+    }
+
+    // 确保 currentConversationId 是有效的字符串
+    if (typeof this.currentConversationId !== 'string' || this.currentConversationId.trim() === '') {
+      console.warn('[aiAssistantService.getConversationHistory] 对话ID无效:', this.currentConversationId);
+      return [];
     }
 
     const messages = await aiMemoryService.getConversationMessages(this.currentConversationId, 50);

@@ -105,6 +105,8 @@ export const CommunitySidebar: React.FC<CommunitySidebarProps> = React.memo(({
     onCreateCommunity,
     loading = false,
 }) => {
+    console.log('[CommunitySidebar] Render - joinedCommunities:', joinedCommunities?.length, joinedCommunities?.map(c => ({ id: c.id, name: c.name, avatar: c.avatar })), 'loading:', loading);
+    
     // 如果正在加载，显示骨架屏
     if (loading) {
         return <CommunitySidebarSkeleton isDark={isDark} />;

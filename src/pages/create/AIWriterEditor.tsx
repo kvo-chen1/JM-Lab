@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
+import { useJinbi } from '@/hooks/useJinbi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
@@ -11,12 +12,13 @@ import {
   Type, Heading1, Heading2, Heading3,
   MoreHorizontal, ChevronDown, History, Share2, Download,
   Sparkles, Wand2, Languages, FileText, LayoutTemplate,
-  Save, RotateCcw
+  Save, RotateCcw, Coins
 } from 'lucide-react';
 import { llmService, AVAILABLE_MODELS } from '@/services/llmService';
 import { useAIWriterHistory } from './hooks/useAIWriterHistory';
 import ModelSelector from '@/components/ModelSelector';
 import SubmitToEventButton from '@/components/ai-writer/SubmitToEventButton';
+import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 
 // 节流函数 - 用于优化流式显示性能
 function throttle<T extends (...args: any[]) => void>(func: T, limit: number): T {
@@ -126,6 +128,15 @@ export default function AIWriterEditor() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
 
+  // 津币相关状态
+  const {
+    balance: jinbiBalance,
+    consumeJinbi,
+    checkBalance,
+  } = useJinbi();
+  const [showJinbiModal, setShowJinbiModal] = useState(false);
+  const JINBI_COST_PER_GENERATION = 20; // 文案生成消耗20津币
+
   // 从location state获取模板信息
   useEffect(() => {
     const state = location.state as {
@@ -190,10 +201,33 @@ export default function AIWriterEditor() {
 
   // 生成初始内容 - 调用真实AI服务（流式生成，带节流优化）
   const generateInitialContent = async (formData: Record<string, string>, templateName?: string) => {
+    // 检查津币余额
+    const balanceCheck = await checkBalance(JINBI_COST_PER_GENERATION);
+    if (!balanceCheck.sufficient) {
+      setShowJinbiModal(true);
+      return;
+    }
+
     setIsGenerating(true);
     setContent(''); // 清空内容
     
     try {
+      // 消费津币
+      const consumeResult = await consumeJinbi(
+        JINBI_COST_PER_GENERATION,
+        'text_gen',
+        '文案生成消费',
+        { serviceParams: { templateName } }
+      );
+
+      if (!consumeResult.success) {
+        toast.error('津币扣除失败：' + consumeResult.error);
+        setIsGenerating(false);
+        return;
+      }
+
+      toast.success(`已消耗 ${JINBI_COST_PER_GENERATION} 津币`, { duration: 2000 });
+
       // 构建提示词
       const prompt = buildPrompt(formData, templateName);
       
@@ -339,10 +373,33 @@ ${outlineText}
 
   // 从大纲生成初始内容
   const generateInitialContentFromOutline = async (formData: Record<string, string>, outline: any) => {
+    // 检查津币余额
+    const balanceCheck = await checkBalance(JINBI_COST_PER_GENERATION);
+    if (!balanceCheck.sufficient) {
+      setShowJinbiModal(true);
+      return;
+    }
+
     setIsGenerating(true);
     setContent('');
 
     try {
+      // 消费津币
+      const consumeResult = await consumeJinbi(
+        JINBI_COST_PER_GENERATION,
+        'text_gen',
+        '文案生成消费（大纲模式）',
+        { serviceParams: { outlineId: outline.id } }
+      );
+
+      if (!consumeResult.success) {
+        toast.error('津币扣除失败：' + consumeResult.error);
+        setIsGenerating(false);
+        return;
+      }
+
+      toast.success(`已消耗 ${JINBI_COST_PER_GENERATION} 津币`, { duration: 2000 });
+
       const prompt = buildPromptFromOutline(formData, outline);
 
       let accumulatedContent = '';
@@ -575,11 +632,33 @@ ${outlineText}
   // 发送消息给AI助手 - 支持聊天对话（带节流优化）
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
-    
+
+    // 检查津币余额（AI助手对话消耗10津币）
+    const CHAT_COST = 10;
+    const balanceCheck = await checkBalance(CHAT_COST);
+    if (!balanceCheck.sufficient) {
+      setShowJinbiModal(true);
+      return;
+    }
+
     const userMessage = inputMessage.trim();
     setInputMessage('');
     setIsGenerating(true);
-    
+
+    // 消费津币
+    const consumeResult = await consumeJinbi(
+      CHAT_COST,
+      'agent_chat',
+      'AI写作助手对话',
+      { serviceParams: { messageType: 'ai_writer_chat' } }
+    );
+
+    if (!consumeResult.success) {
+      toast.error('津币扣除失败：' + consumeResult.error);
+      setIsGenerating(false);
+      return;
+    }
+
     // 添加用户消息到聊天
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -588,7 +667,7 @@ ${outlineText}
       timestamp: new Date()
     };
     setChatMessages(prev => [...prev, userMsg]);
-    
+
     try {
       let accumulatedContent = '';
       let aiResponse = '';
@@ -1344,6 +1423,10 @@ ${outlineText}
           <span>字数 {wordCount}</span>
           <span>字符 {charCount.toLocaleString()}</span>
           <span>预计阅读 {readTime} 分钟</span>
+          <span className="flex items-center gap-1">
+            <Coins className="w-3 h-3 text-amber-500" />
+            津币 {jinbiBalance?.availableBalance?.toLocaleString() || 0}
+          </span>
           <span>分类</span>
           <div className="flex items-center gap-1">
             {documentTags.slice(0, 3).map((tag, index) => (
@@ -1367,8 +1450,8 @@ ${outlineText}
       </div>
 
       {/* 模型选择器弹窗 */}
-      <ModelSelector 
-        isOpen={showModelSelector} 
+      <ModelSelector
+        isOpen={showModelSelector}
         onClose={() => {
           setShowModelSelector(false);
           // 更新显示的模型名称
@@ -1376,7 +1459,16 @@ ${outlineText}
           if (currentModel) {
             setSelectedModel(currentModel.name);
           }
-        }} 
+        }}
+      />
+
+      {/* 津币不足弹窗 */}
+      <JinbiInsufficientModal
+        isOpen={showJinbiModal}
+        onClose={() => setShowJinbiModal(false)}
+        requiredAmount={JINBI_COST_PER_GENERATION}
+        currentBalance={jinbiBalance?.availableBalance || 0}
+        serviceName="文案生成"
       />
     </div>
   );

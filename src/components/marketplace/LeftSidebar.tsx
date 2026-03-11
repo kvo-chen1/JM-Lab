@@ -54,8 +54,8 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         className="mp-sidebar-card"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--haihe-500)] to-[var(--haihe-600)] flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--haihe-500)] to-[var(--haihe-600)] flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-5 h-5 text-white flex-shrink-0" strokeWidth={2} />
           </div>
           <div>
             <h1 className="font-bold text-lg text-[var(--text-primary)]">津门文创</h1>
@@ -81,12 +81,12 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                   className="w-12 h-12 rounded-full object-cover border-2 border-[var(--haihe-200)]"
                 />
               ) : (
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--haihe-400)] to-[var(--haihe-600)] flex items-center justify-center">
-                  <User className="w-6 h-6 text-white" />
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--haihe-400)] to-[var(--haihe-600)] flex items-center justify-center flex-shrink-0">
+                  <User className="w-6 h-6 text-white flex-shrink-0" strokeWidth={2} />
                 </div>
               )}
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[var(--jinmen-500)] rounded-full flex items-center justify-center">
-                <Award className="w-3 h-3 text-white" />
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[var(--jinmen-500)] rounded-full flex items-center justify-center flex-shrink-0">
+                <Award className="w-3 h-3 text-white flex-shrink-0" strokeWidth={2.5} />
               </div>
             </div>
             <div className="flex-1 min-w-0">
@@ -119,7 +119,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 onClick={() => handleMenuClick(item.href)}
                 className="mp-sidebar-nav-item w-full text-left"
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
                 <span>{item.label}</span>
               </motion.button>
             );
@@ -143,7 +143,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               onClick={() => onCategorySelect?.('')}
               className={`mp-sidebar-nav-item w-full text-left ${selectedCategory === '' ? 'active' : ''}`}
             >
-              <ShoppingBag className="w-5 h-5" />
+              <ShoppingBag className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
               <span>全部商品</span>
             </motion.button>
             {categories.map((category, index) => (
@@ -177,7 +177,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
             onClick={() => navigate('/settings')}
             className="mp-sidebar-nav-item w-full text-left"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
             <span>设置</span>
           </button>
           {user && (
@@ -185,7 +185,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
               onClick={logout}
               className="mp-sidebar-nav-item w-full text-left text-red-500 hover:text-red-600 hover:bg-red-50"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
               <span>退出登录</span>
             </button>
           )}

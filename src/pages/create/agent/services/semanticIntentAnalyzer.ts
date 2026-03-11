@@ -3,7 +3,7 @@
  * 使用Embedding和向量相似度实现更精准的意图识别
  */
 
-import { callQwenChat } from '@/services/llm/chatProviders';
+import { callCurrentModel } from './modelCaller';
 import { IntentType, IntentRecognitionResult } from './intentRecognition';
 
 // 意图示例库 - 用于语义匹配
@@ -409,12 +409,10 @@ export class SemanticIntentAnalyzer {
 
 请仔细分析用户的真实意图，考虑上下文和隐含意思。`;
 
-      const response = await callQwenChat({
-        model: 'qwen-plus',
-        messages: [
-          { role: 'system', content: '你是一个专业的意图分析助手。' },
-          { role: 'user', content: prompt }
-        ],
+      const response = await callCurrentModel([
+        { role: 'system', content: '你是一个专业的意图分析助手。' },
+        { role: 'user', content: prompt }
+      ], {
         temperature: 0.3,
         max_tokens: 800
       });

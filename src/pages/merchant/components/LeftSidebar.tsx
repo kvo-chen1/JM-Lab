@@ -1,7 +1,8 @@
 /**
  * 商家工作平台 - 左侧功能导航
+ * 使用真实数据库数据
  */
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Package, 
@@ -10,8 +11,10 @@ import {
   MessageSquare, 
   BarChart3,
   Store,
-  HelpCircle
+  HelpCircle,
+  Loader2
 } from 'lucide-react';
+import { merchantService } from '@/services/merchantService';
 
 interface Module {
   id: string;
@@ -39,6 +42,70 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   activeModule, 
   onModuleChange 
 }) => {
+  const [badgeCounts, setBadgeCounts] = useState({
+    orders: 0,
+    aftersales: 0,
+    reviews: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBadgeCounts = async () => {
+      try {
+        setLoading(true);
+        const merchant = await merchantService.getCurrentMerchant();
+        if (merchant) {
+          // 获取待处理订单数
+          const orders = await merchantService.getOrders(merchant.id, { status: 'paid' });
+          
+          // 获取待处理售后数
+          const afterSales = await merchantService.getAfterSalesRequests(merchant.id, { status: 'pending' });
+          
+          // 获取待回复评价数
+          const reviews = await merchantService.getReviews(merchant.id, { hasReply: false });
+
+          setBadgeCounts({
+            orders: orders.length,
+            aftersales: afterSales.length,
+            reviews: reviews.length,
+          });
+        }
+      } catch (error) {
+        console.error('获取徽章计数失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBadgeCounts();
+  }, []);
+
+  const getBadgeCount = (moduleId: string): number => {
+    switch (moduleId) {
+      case 'orders':
+        return badgeCounts.orders;
+      case 'aftersales':
+        return badgeCounts.aftersales;
+      case 'reviews':
+        return badgeCounts.reviews;
+      default:
+        return 0;
+    }
+  };
+
+  const getBadgeColor = (moduleId: string): string => {
+    switch (moduleId) {
+      case 'orders':
+        return 'bg-red-500';
+      case 'aftersales':
+        return 'bg-amber-500';
+      case 'reviews':
+        return 'bg-blue-500';
+      default:
+        return 'bg-slate-500';
+    }
+  };
+
   return (
     <div className="space-y-4 sticky top-6">
       {/* 功能导航卡片 */}
@@ -53,40 +120,42 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         
         {/* 导航菜单 */}
         <nav className="p-2">
-          {modules.map((module, index) => {
-            const Icon = iconMap[module.icon] || Package;
-            const isActive = activeModule === module.id;
-            
-            return (
-              <motion.button
-                key={module.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => onModuleChange(module.id)}
-                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all mb-1 ${
-                  isActive 
-                    ? 'bg-[#5ba3d4] text-white shadow-lg shadow-[#5ba3d4]/20' 
-                    : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span>{module.label}</span>
-                
-                {/* 未读标记（示例） */}
-                {module.id === 'orders' && (
-                  <span className="ml-auto w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center text-white">
-                    3
-                  </span>
-                )}
-                {module.id === 'aftersales' && (
-                  <span className="ml-auto w-5 h-5 bg-amber-500 rounded-full text-xs flex items-center justify-center text-white">
-                    2
-                  </span>
-                )}
-              </motion.button>
-            );
-          })}
+          {loading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-[#5ba3d4]" />
+            </div>
+          ) : (
+            modules.map((module, index) => {
+              const Icon = iconMap[module.icon] || Package;
+              const isActive = activeModule === module.id;
+              const badgeCount = getBadgeCount(module.id);
+              
+              return (
+                <motion.button
+                  key={module.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  onClick={() => onModuleChange(module.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all mb-1 ${
+                    isActive 
+                      ? 'bg-[#5ba3d4] text-white shadow-lg shadow-[#5ba3d4]/20' 
+                      : 'text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{module.label}</span>
+                  
+                  {/* 未读标记（真实数据） */}
+                  {badgeCount > 0 && (
+                    <span className={`ml-auto min-w-[20px] h-5 ${getBadgeColor(module.id)} rounded-full text-xs flex items-center justify-center text-white px-1`}>
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                  )}
+                </motion.button>
+              );
+            })
+          )}
         </nav>
       </div>
 

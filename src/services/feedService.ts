@@ -2105,7 +2105,7 @@ class FeedService {
   /**
    * 加入社群
    */
-  async joinCommunity(communityId: string): Promise<{ success: boolean }> {
+  async joinCommunity(communityId: string): Promise<{ success: boolean; alreadyMember?: boolean }> {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       if (!token) {
@@ -2132,6 +2132,17 @@ class FeedService {
           }
           return { success: true };
         }
+      }
+
+      // 检查是否是已经是成员的错误
+      const errorData = await response.json().catch(() => ({}));
+      if (errorData.error === 'ALREADY_MEMBER' || errorData.message?.includes('已经是该社群成员')) {
+        // 更新本地缓存
+        const community = this.mockRecommendedCommunities.find(c => c.id === communityId);
+        if (community) {
+          community.isJoined = true;
+        }
+        return { success: true, alreadyMember: true };
       }
 
       console.warn('[joinCommunity] API call failed:', response.status);

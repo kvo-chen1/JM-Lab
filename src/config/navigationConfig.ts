@@ -57,18 +57,23 @@ export const cultureNavItems: NavItem[] = [
 
 // 5. 🎁 福利中心 (Rewards)
 export const rewardsNavItems: NavItem[] = [
+  { id: 'membership', path: '/membership', label: '会员中心', icon: 'fas fa-crown', priority: 'high', badge: 'VIP', description: '会员权益与升级' },
   { id: 'points-mall', path: '/points-mall', label: '积分商城', icon: 'fas fa-gift', priority: 'high' },
   { id: 'points-lottery', path: '/points-lottery', label: '幸运抽奖', icon: 'fas fa-dharmachakra', priority: 'high', badge: '新' },
   { id: 'achievements', path: '/achievement-museum', label: '成就博物馆', icon: 'fas fa-trophy', priority: 'medium' },
-  { id: 'daily-checkin', path: '/checkin', label: '每日签到', icon: 'fas fa-calendar-check', priority: 'low' }
+  { id: 'daily-checkin', path: '/checkin', label: '每日签到', icon: 'fas fa-calendar-check', priority: 'low' },
+  { id: 'games', path: '/games', label: '趣味游戏', icon: 'fas fa-gamepad', priority: 'low', description: '休闲娱乐小游戏' }
 ];
 
 // 6. 🛒 商业服务 (Business)
 export const businessNavItems: NavItem[] = [
-  { id: 'marketplace', path: '/marketplace', label: '文创商城', icon: 'fas fa-store', priority: 'high', badge: '新', description: '津门老字号文创产品' },
+  { id: 'marketplace', path: '/marketplace', label: '津脉文创商城', icon: 'fas fa-store', priority: 'high', badge: '新', description: '津门老字号文创产品' },
   { id: 'creator-center', path: '/creator-center', label: '创作者中心', icon: 'fas fa-star', priority: 'high', badge: '新' },
   { id: 'merchant', path: '/merchant', label: '商家工作台', icon: 'fas fa-briefcase', priority: 'medium' },
-  { id: 'organizer', path: '/organizer', label: '主办方中心', icon: 'fas fa-building', priority: 'medium' }
+  { id: 'organizer', path: '/organizer', label: '主办方中心', icon: 'fas fa-building', priority: 'medium' },
+  { id: 'business', path: '/business', label: '品牌合作', icon: 'fas fa-handshake', priority: 'medium', description: '品牌合作与商业机会' },
+  { id: 'ip-incubation', path: '/ip-incubation', label: 'IP孵化中心', icon: 'fas fa-lightbulb', priority: 'low', description: 'IP孵化与培育平台' },
+  { id: 'help', path: '/help', label: '帮助中心', icon: 'fas fa-info-circle', priority: 'low', description: '使用帮助与文档' }
 ];
 
 // ==================== 完整导航分组列表 (新结构) ====================
@@ -156,7 +161,7 @@ export const entertainmentNavItems: NavItem[] = [];
 
 /** @deprecated 使用新的 navigationGroups */
 export const oldBusinessNavItems: NavItem[] = [
-  { id: 'marketplace', path: '/marketplace', label: '文创商城', icon: 'fas fa-store', priority: 'high', badge: '新', description: '津门老字号文创产品交易平台' },
+  { id: 'marketplace', path: '/marketplace', label: '津脉文创商城', icon: 'fas fa-store', priority: 'high', badge: '新', description: '津门老字号文创产品交易平台' },
   { id: 'merchant', path: '/merchant', label: '商家工作台', icon: 'fas fa-briefcase', priority: 'high', badge: '新', description: '商家日常运营管理平台' },
   { id: 'business', path: '/business', label: '商业合作', icon: 'fas fa-handshake', priority: 'medium' },
   { id: 'organizer', path: '/organizer', label: '主办方中心', icon: 'fas fa-building', priority: 'medium' },
@@ -193,7 +198,7 @@ export const keyboardShortcuts = {
   '?': '显示快捷键',
   '1': '首页',
   '2': '创作中心',
-  '3': '文创商城',
+  '3': '津脉文创商城',
   '4': '津脉广场',
   '5': '津脉社区',
   '6': '文化知识',

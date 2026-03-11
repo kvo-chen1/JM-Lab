@@ -120,12 +120,6 @@ const AIWriterV2 = createLazyComponent(() => import(/* webpackChunkName: "pages-
   name: 'ai-writer-v2'
 });
 
-// 津小脉Agent - 独立页面
-const AgentPage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent" */ "@/pages/create/agent"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'agent'
-});
-
 // 其他次要页面保持懒加载
 const About = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/About"), {
   priority: ROUTE_PRIORITIES.LOW,
@@ -297,6 +291,11 @@ const PointsLottery = createLazyComponent(() => import(/* webpackChunkName: "pag
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 
+// 津币管理页面 - 懒加载
+const JinbiManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/JinbiManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM
+});
+
 // 创作者中心 - 懒加载
 const CreatorCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-creator" */ "@/pages/creator-center"), {
   priority: ROUTE_PRIORITIES.HIGH,
@@ -339,7 +338,207 @@ const OrderAudit = createLazyComponent(() => import(/* webpackChunkName: "pages-
   name: 'order-audit'
 });
 
-// 社区和互动相关 - 懒加载
+// ============================================
+// P0 核心Admin功能页面 - 懒加载
+// ============================================
+const UserAudit = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-core" */ "@/pages/admin/UserAudit"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'user-audit'
+});
+const ContentAudit = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-core" */ "@/pages/admin/ContentAudit"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'content-audit'
+});
+const ReportManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-core" */ "@/pages/admin/ReportManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'report-management'
+});
+const EventManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-core" */ "@/pages/admin/EventManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'event-management'
+});
+const PermissionManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-core" */ "@/pages/admin/PermissionManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'permission-management'
+});
+
+// ============================================
+// P1 重要Admin功能页面 - 懒加载
+// ============================================
+const FeedbackManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-important" */ "@/pages/admin/FeedbackManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'feedback-management'
+});
+const ContentManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-important" */ "@/pages/admin/ContentManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'content-management'
+});
+const CommunityManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-important" */ "@/pages/admin/CommunityManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'community-management'
+});
+const PaymentAudit = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-important" */ "@/pages/admin/PaymentAudit"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'payment-audit'
+});
+const AuditLog = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-important" */ "@/pages/admin/AuditLog"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'audit-log'
+});
+
+// ============================================
+// 商城管理Admin页面 - 懒加载
+// ============================================
+const MarketplaceProductManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-marketplace" */ "@/pages/admin/MarketplaceProductManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'marketplace-product-management'
+});
+const OrderManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-marketplace" */ "@/pages/admin/OrderManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'order-management'
+});
+const BrandManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-marketplace" */ "@/pages/admin/BrandManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'brand-management'
+});
+
+// ============================================
+// 推广与营销Admin页面 - 懒加载
+// ============================================
+const PromotionUserManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-promotion" */ "@/pages/admin/PromotionUserManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'promotion-user-management'
+});
+const PromotionOrderManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-promotion" */ "@/pages/admin/PromotionOrderManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'promotion-order-management'
+});
+const PromotionAnalytics = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-promotion" */ "@/pages/admin/PromotionAnalytics"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'promotion-analytics'
+});
+const HomeRecommendationManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-promotion" */ "@/pages/admin/HomeRecommendationManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'home-recommendation-management'
+});
+
+// ============================================
+// 数据分析与监控Admin页面 - 懒加载
+// ============================================
+const DataAnalytics = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-analytics" */ "@/pages/admin/DataAnalytics"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'data-analytics'
+});
+const AdvancedAnalytics = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-analytics" */ "@/pages/admin/AdvancedAnalytics"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'advanced-analytics'
+});
+const SystemMonitor = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-analytics" */ "@/pages/admin/SystemMonitor"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'system-monitor'
+});
+
+// ============================================
+// 其他Admin功能页面 - 懒加载
+// ============================================
+const AIFeedbackManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/AIFeedbackManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'ai-feedback-management'
+});
+const TemplateManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/TemplateManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'template-management'
+});
+const KnowledgeBaseManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/KnowledgeBaseManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'knowledge-base-management'
+});
+const WorkSubmissionAudit = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/WorkSubmissionAudit"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'work-submission-audit'
+});
+const AchievementManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/AchievementManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'achievement-management'
+});
+const JinmaiCommunityManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/JinmaiCommunityManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'jinmai-community-management'
+});
+const NotificationManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/NotificationManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'notification-management'
+});
+const AdminSettings = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/Settings"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'admin-settings'
+});
+const AuthorizationManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/AuthorizationManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'authorization-management'
+});
+const ProductManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/ProductManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'product-management'
+});
+const PromotionOrderImplementation = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/PromotionOrderImplementation"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'promotion-order-implementation'
+});
+const LotteryPrizeManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/LotteryPrizeManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'lottery-prize-management'
+});
+const EnhancedDashboard = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/EnhancedDashboard"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'enhanced-dashboard'
+});
+const BrandOrderExecution = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/BrandOrderExecution"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'brand-order-execution'
+});
+const BrandTaskAudit = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/BrandTaskAudit"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'brand-task-audit'
+});
+const SearchRecordManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/SearchRecordManagement"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'search-record-management'
+});
+const StrategicAdoption = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-other" */ "@/pages/admin/StrategicAdoption"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'strategic-adoption'
+});
+
+// ============================================
+// 组织者模块页面 - 懒加载
+// ============================================
+const OrganizerBrandTaskManager = createLazyComponent(() => import(/* webpackChunkName: "pages-organizer" */ "@/pages/organizer/BrandTaskManager"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'organizer-brand-tasks'
+});
+const OrganizerFundManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-organizer" */ "@/pages/organizer/FundManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'organizer-funds'
+});
+const OrganizerWorkScoring = createLazyComponent(() => import(/* webpackChunkName: "pages-organizer" */ "@/pages/organizer/WorkScoring"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'organizer-scoring'
+});
+const OrganizerAnalyticsDashboard = createLazyComponent(() => import(/* webpackChunkName: "pages-organizer" */ "@/pages/organizer/AnalyticsDashboard"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'organizer-analytics'
+});
+const OrganizerSettingsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-organizer" */ "@/pages/organizer/OrganizerSettings"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'organizer-settings'
+});
+const MobileOrganizerCenterPage = createLazyComponent(() => import(/* webpackChunkName: "pages-organizer" */ "@/pages/organizer/MobileOrganizerCenter"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'mobile-organizer-center'
+});
+     
+      // 社区和互动相关 - 懒加载
 const Leaderboard = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Leaderboard"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'leaderboard'
@@ -489,6 +688,14 @@ const MerchantWorkbench = createLazyComponent(() => import(/* webpackChunkName: 
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'merchant-workbench'
 });
+const MerchantApplyPage = createLazyComponent(() => import(/* webpackChunkName: "pages-merchant" */ "@/pages/business/MerchantApplyPage"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'merchant-apply'
+});
+const CreateStorePage = createLazyComponent(() => import(/* webpackChunkName: "pages-merchant" */ "@/pages/merchant/CreateStorePage"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'create-store'
+});
 const ProductDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/ProductDetail"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'product-detail'
@@ -549,6 +756,7 @@ import MobileLayout from '@/components/MobileLayout';
 // 路由守卫组件
 import PrivateRoute from '@/components/PrivateRoute';
 import AdminRoute from '@/components/AdminRoute';
+import DesignPlatformGuard from '@/components/DesignPlatformGuard';
 
 // 社群管理面板组件 - 懒加载
 const CommunityAdminPanel = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ '@/components/Community/Admin/CommunityAdminPanel'), {
@@ -603,9 +811,15 @@ const PWAInstallButton = createLazyComponent(() => import(/* webpackChunkName: "
 const FirstLaunchGuide = createLazyComponent(() => import(/* webpackChunkName: "components-auxiliary" */ '@/components/FirstLaunchGuide'), {
   priority: ROUTE_PRIORITIES.LOW
 });
-// 悬浮AI助手组件 - 懒加载
-const FloatingAIAssistant = createLazyComponent(() => import(/* webpackChunkName: "components-ai" */ '@/components/FloatingAIAssistantV2'), {
-  priority: ROUTE_PRIORITIES.MEDIUM
+// 悬浮AI助手组件 - 懒加载（带错误处理）
+const FloatingAIAssistant = createLazyComponent(() => import(/* webpackChunkName: "components-ai" */ '@/components/FloatingAIAssistantV2').catch(err => {
+  console.warn('[App] Failed to load FloatingAIAssistantV2:', err);
+  // 返回一个空的默认组件作为降级方案
+  return { default: () => null };
+}), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  retryCount: 1, // 减少重试次数，避免长时间等待
+  timeout: 10000 // 减少超时时间
 });
 // 用户反馈组件 - 懒加载
 const UserFeedback = createLazyComponent(() => import(/* webpackChunkName: "components-auxiliary" */ '@/components/UserFeedback'), {
@@ -941,11 +1155,12 @@ export default function App() {
           <Route path="/creator-community" element={<Navigate to="/community" replace />} />
           <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />
           <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/create/*" element={<LazyComponent><PrivateRoute><Create /></PrivateRoute></LazyComponent>} />
+          {/* 设计平台路由 - 使用 DesignPlatformGuard 进行严格保护 */}
+          <Route path="/create/*" element={<LazyComponent><DesignPlatformGuard><Create /></DesignPlatformGuard></LazyComponent>} />
           <Route path="/create-activity" element={<Navigate to="/organizer" replace />} />
           <Route path="/creates" element={<Navigate to="/create" replace />} />
-          <Route path="/wizard" element={<LazyComponent><PrivateRoute><Wizard /></PrivateRoute></LazyComponent>} />
-          <Route path="/ai-writer" element={<LazyComponent><PrivateRoute><AIWriterV2 /></PrivateRoute></LazyComponent>} />
+          <Route path="/wizard" element={<LazyComponent><DesignPlatformGuard><Wizard /></DesignPlatformGuard></LazyComponent>} />
+          <Route path="/ai-writer" element={<LazyComponent><DesignPlatformGuard><AIWriterV2 /></DesignPlatformGuard></LazyComponent>} />
           
           {/* 津小脉AI助手移动端页面 */}
           <Route path="/ai-assistant" element={<LazyComponent><PrivateRoute><AIAssistantMobile /></PrivateRoute></LazyComponent>} />
@@ -969,13 +1184,14 @@ export default function App() {
           <Route path="/business-cooperation" element={<LazyComponent><BusinessCooperation /></LazyComponent>} />
           <Route path="/brand-showcase" element={<LazyComponent><BrandShowcase /></LazyComponent>} />
           <Route path="/brand-service-agreement" element={<LazyComponent><BrandServiceAgreement isDark={isDark} /></LazyComponent>} />
-          <Route path="/input" element={<LazyComponent><PrivateRoute><InputHub /></PrivateRoute></LazyComponent>} />
-          <Route path="/generate" element={<LazyComponent><PrivateRoute><Generation /></PrivateRoute></LazyComponent>} />
-          <Route path="/authenticity" element={<LazyComponent><PrivateRoute><Authenticity /></PrivateRoute></LazyComponent>} />
+          {/* 设计平台相关路由 - 使用 DesignPlatformGuard 保护 */}
+          <Route path="/input" element={<LazyComponent><DesignPlatformGuard><InputHub /></DesignPlatformGuard></LazyComponent>} />
+          <Route path="/generate" element={<LazyComponent><DesignPlatformGuard><Generation /></DesignPlatformGuard></LazyComponent>} />
+          <Route path="/authenticity" element={<LazyComponent><DesignPlatformGuard><Authenticity /></DesignPlatformGuard></LazyComponent>} />
 
-          <Route path="/drafts" element={<LazyComponent><PrivateRoute><Drafts /></PrivateRoute></LazyComponent>} />
+          <Route path="/drafts" element={<LazyComponent><DesignPlatformGuard><Drafts /></DesignPlatformGuard></LazyComponent>} />
           <Route path="/history" element={<LazyComponent><PrivateRoute><HistoryPage /></PrivateRoute></LazyComponent>} />
-          <Route path="/my-works" element={<LazyComponent><PrivateRoute><MyWorks /></PrivateRoute></LazyComponent>} />
+          <Route path="/my-works" element={<LazyComponent><DesignPlatformGuard><MyWorks /></DesignPlatformGuard></LazyComponent>} />
           <Route path="/settings" element={<LazyComponent><PrivateRoute><Settings /></PrivateRoute></LazyComponent>} />
           {/* 账户设置相关路由 */}
           <Route path="/profile/edit" element={<ErrorBoundary><AnimatedPage><PrivateRoute><ProfileEdit /></PrivateRoute></AnimatedPage></ErrorBoundary>} />
@@ -1010,6 +1226,12 @@ export default function App() {
           <Route path="/organizer/events/:id" element={<LazyComponent><PrivateRoute><OrganizerEventDetail /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer/brand-showcase" element={<LazyComponent><PrivateRoute><BrandShowcaseManager /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer/copyright-license" element={<LazyComponent><PrivateRoute><CopyrightLicenseManager /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/brand-tasks" element={<LazyComponent><PrivateRoute><OrganizerBrandTaskManager /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/funds" element={<LazyComponent><PrivateRoute><OrganizerFundManagement /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/scoring" element={<LazyComponent><PrivateRoute><OrganizerWorkScoring /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/analytics" element={<LazyComponent><PrivateRoute><OrganizerAnalyticsDashboard /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/settings" element={<LazyComponent><PrivateRoute><OrganizerSettingsPage /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/mobile-center" element={<LazyComponent><PrivateRoute><MobileOrganizerCenterPage /></PrivateRoute></LazyComponent>} />
           <Route path="/ranking/:eventId" element={<LazyComponent><PrivateRoute><EventRanking /></PrivateRoute></LazyComponent>} />
           
           {/* 创新功能路由 - 懒加载 */}
@@ -1028,9 +1250,12 @@ export default function App() {
           {/* 会员相关路由 - 懒加载 */}
           <Route path="/membership" element={<LazyComponent><Membership /></LazyComponent>} />
           <Route path="/membership/payment" element={<LazyComponent><PrivateRoute><MembershipPayment /></PrivateRoute></LazyComponent>} />
-<Route path="/membership/payment/personal" element={<LazyComponent><PrivateRoute><PersonalPayment /></PrivateRoute></LazyComponent>} />
+          <Route path="/membership/payment/personal" element={<LazyComponent><PrivateRoute><PersonalPayment /></PrivateRoute></LazyComponent>} />
           <Route path="/membership/benefits" element={<LazyComponent><MembershipBenefits /></LazyComponent>} />
           <Route path="/membership/upgrade" element={<LazyComponent><PrivateRoute><Membership /></PrivateRoute></LazyComponent>} />
+
+          {/* 津币管理路由 */}
+          <Route path="/jinbi" element={<LazyComponent><PrivateRoute><JinbiManagement /></PrivateRoute></LazyComponent>} />
           
           {/* 移动端瀑布流作品展示页面 */}
           <Route path="/mobile-works" element={<LazyComponent><MobileWorksGalleryDemo /></LazyComponent>} />
@@ -1071,6 +1296,8 @@ export default function App() {
           {/* ============================================ */}
           <Route path="/merchant" element={<LazyComponent><PrivateRoute><MerchantWorkbench /></PrivateRoute></LazyComponent>} />
           <Route path="/merchant/:module" element={<LazyComponent><PrivateRoute><MerchantWorkbench /></PrivateRoute></LazyComponent>} />
+          <Route path="/merchant/apply" element={<LazyComponent><PrivateRoute><MerchantApplyPage /></PrivateRoute></LazyComponent>} />
+          <Route path="/merchant/create-store" element={<LazyComponent><PrivateRoute><CreateStorePage /></PrivateRoute></LazyComponent>} />
           
           {/* 管理员路由 - 懒加载 */}
         </Route>
@@ -1087,6 +1314,67 @@ export default function App() {
         {/* 商城管理后台路由 */}
         <Route path="/admin/marketplace" element={<LazyComponent><AdminRoute component={MarketplaceAdmin} /></LazyComponent>} />
         
+        {/* ============================================ */}
+        {/* P0 核心Admin功能路由 */}
+        {/* ============================================ */}
+        <Route path="/admin/user-audit" element={<LazyComponent><AdminRoute component={UserAudit} /></LazyComponent>} />
+        <Route path="/admin/content-audit" element={<LazyComponent><AdminRoute component={ContentAudit} /></LazyComponent>} />
+        <Route path="/admin/reports" element={<LazyComponent><AdminRoute component={ReportManagement} /></LazyComponent>} />
+        <Route path="/admin/events" element={<LazyComponent><AdminRoute component={EventManagement} /></LazyComponent>} />
+        <Route path="/admin/permissions" element={<LazyComponent><AdminRoute component={PermissionManagement} /></LazyComponent>} />
+        
+        {/* ============================================ */}
+        {/* P1 重要Admin功能路由 */}
+        {/* ============================================ */}
+        <Route path="/admin/feedback" element={<LazyComponent><AdminRoute component={FeedbackManagement} /></LazyComponent>} />
+        <Route path="/admin/content" element={<LazyComponent><AdminRoute component={ContentManagement} /></LazyComponent>} />
+        <Route path="/admin/community" element={<LazyComponent><AdminRoute component={CommunityManagement} /></LazyComponent>} />
+        <Route path="/admin/payment-audit" element={<LazyComponent><AdminRoute component={PaymentAudit} /></LazyComponent>} />
+        <Route path="/admin/audit-logs" element={<LazyComponent><AdminRoute component={AuditLog} /></LazyComponent>} />
+        
+        {/* ============================================ */}
+        {/* 商城管理路由 */}
+        {/* ============================================ */}
+        <Route path="/admin/marketplace/products" element={<LazyComponent><AdminRoute component={MarketplaceProductManagement} /></LazyComponent>} />
+        <Route path="/admin/orders" element={<LazyComponent><AdminRoute component={OrderManagement} /></LazyComponent>} />
+        <Route path="/admin/brands" element={<LazyComponent><AdminRoute component={BrandManagement} /></LazyComponent>} />
+        
+        {/* ============================================ */}
+        {/* 推广与营销路由 */}
+        {/* ============================================ */}
+        <Route path="/admin/promotion/users" element={<LazyComponent><AdminRoute component={PromotionUserManagement} /></LazyComponent>} />
+        <Route path="/admin/promotion/orders" element={<LazyComponent><AdminRoute component={PromotionOrderManagement} /></LazyComponent>} />
+        <Route path="/admin/promotion/analytics" element={<LazyComponent><AdminRoute component={PromotionAnalytics} /></LazyComponent>} />
+        <Route path="/admin/home-recommendations" element={<LazyComponent><AdminRoute component={HomeRecommendationManagement} /></LazyComponent>} />
+        
+        {/* ============================================ */}
+        {/* 数据分析与监控路由 */}
+        {/* ============================================ */}
+        <Route path="/admin/data-analytics" element={<LazyComponent><AdminRoute component={DataAnalytics} /></LazyComponent>} />
+        <Route path="/admin/advanced-analytics" element={<LazyComponent><AdminRoute component={AdvancedAnalytics} /></LazyComponent>} />
+        <Route path="/admin/system-monitor" element={<LazyComponent><AdminRoute component={SystemMonitor} /></LazyComponent>} />
+        
+        {/* ============================================ */}
+        {/* 其他Admin功能路由 */}
+        {/* ============================================ */}
+        <Route path="/admin/ai-feedback" element={<LazyComponent><AdminRoute component={AIFeedbackManagement} /></LazyComponent>} />
+        <Route path="/admin/templates" element={<LazyComponent><AdminRoute component={TemplateManagement} /></LazyComponent>} />
+        <Route path="/admin/knowledge-base" element={<LazyComponent><AdminRoute component={KnowledgeBaseManagement} /></LazyComponent>} />
+        <Route path="/admin/work-submissions" element={<LazyComponent><AdminRoute component={WorkSubmissionAudit} /></LazyComponent>} />
+        <Route path="/admin/achievements" element={<LazyComponent><AdminRoute component={AchievementManagement} /></LazyComponent>} />
+        <Route path="/admin/jinmai-community" element={<LazyComponent><AdminRoute component={JinmaiCommunityManagement} /></LazyComponent>} />
+        <Route path="/admin/notifications" element={<LazyComponent><AdminRoute component={NotificationManagement} /></LazyComponent>} />
+        <Route path="/admin/settings" element={<LazyComponent><AdminRoute component={AdminSettings} /></LazyComponent>} />
+        <Route path="/admin/authorization" element={<LazyComponent><AdminRoute component={AuthorizationManagement} /></LazyComponent>} />
+        <Route path="/admin/products" element={<LazyComponent><AdminRoute component={ProductManagement} /></LazyComponent>} />
+        <Route path="/admin/promotion/implementation" element={<LazyComponent><AdminRoute component={PromotionOrderImplementation} /></LazyComponent>} />
+        <Route path="/admin/lottery/prizes" element={<LazyComponent><AdminRoute component={LotteryPrizeManagement} /></LazyComponent>} />
+        <Route path="/admin/enhanced-dashboard" element={<LazyComponent><AdminRoute component={EnhancedDashboard} /></LazyComponent>} />
+        <Route path="/admin/brand-order-execution" element={<LazyComponent><AdminRoute component={BrandOrderExecution} /></LazyComponent>} />
+        <Route path="/admin/brand-task-audit" element={<LazyComponent><AdminRoute component={BrandTaskAudit} /></LazyComponent>} />
+        <Route path="/admin/search-records" element={<LazyComponent><AdminRoute component={SearchRecordManagement} /></LazyComponent>} />
+        <Route path="/admin/strategic-adoption" element={<LazyComponent><AdminRoute component={StrategicAdoption} /></LazyComponent>} />
+        
         {/* 推广用户申请页面 */}
         <Route path="/promotion/apply" element={<LazyComponent><PromotionApplication /></LazyComponent>} />
       </Routes>
@@ -1102,11 +1390,9 @@ export default function App() {
       
       {/* 悬浮AI助手按钮 - 用于打开侧边栏AI助手，登录页面和落地页不显示，移动端不显示（已在底部导航栏集成） */}
       {!isMobile && location.pathname !== '/login' && location.pathname !== '/landing.html' && location.pathname !== '/landing' && (
-        <ErrorBoundary fallback={null}>
-          <LazyComponent>
-            <FloatingAIAssistant />
-          </LazyComponent>
-        </ErrorBoundary>
+        <Suspense fallback={null}>
+          <FloatingAIAssistant />
+        </Suspense>
       )}
       
       {/* 用户反馈组件 - 懒加载 */}

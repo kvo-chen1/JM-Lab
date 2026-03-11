@@ -18,7 +18,7 @@ import ShareDialog from './ShareDialog'
 import VoiceOutputButton from './VoiceOutputButton'
 import SmartInput from './SmartInput'
 import InspirationCard from './InspirationCard'
-import MessageSearch from './MessageSearch'
+import { MessageSearch } from './MessageSearch'
 import AISettingsPanel from './AISettingsPanel'
 import { useCreateStore } from '@/pages/create/hooks/useCreateStore'
 import { downloadAndUploadImage, downloadAndUploadVideo } from '@/services/imageService'
@@ -1125,6 +1125,9 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       return
     }
     
+    // 用于保存消息的会话ID
+    let sessionIdForSaving: string | null = currentSession?.id || null
+    
     if (!currentSession) {
       console.log('[sendMessage] 没有当前会话，尝试创建新会话')
       // 尝试创建新会话
@@ -1151,6 +1154,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
         const activeSession = formattedSessions.find(session => session.isActive) || formattedSessions[0]
         if (activeSession) {
           setCurrentSession(activeSession)
+          sessionIdForSaving = activeSession.id
           console.log('[sendMessage] 新会话已创建:', activeSession)
         }
       } catch (error) {
@@ -1179,17 +1183,19 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
 
     setMessages(prev => [...prev, userMessage])
 
-    // 如果用户已登录，保存用户消息到数据库
-    if (user && currentSession) {
+    // 如果用户已登录且有会话ID，保存用户消息到数据库
+    if (user && sessionIdForSaving) {
       try {
         await aiAssistantService.initialize(user)
         // 确保设置当前会话ID
-        aiAssistantService.setCurrentConversationId(currentSession.id)
-        console.log('[sendMessage] 保存用户消息到数据库, sessionId:', currentSession.id)
+        aiAssistantService.setCurrentConversationId(sessionIdForSaving)
+        console.log('[sendMessage] 保存用户消息到数据库, sessionId:', sessionIdForSaving)
         await aiAssistantService.saveMessage('user', userInput)
       } catch (error) {
         console.error('[sendMessage] 保存用户消息失败:', error)
       }
+    } else {
+      console.log('[sendMessage] 跳过保存消息:', { hasUser: !!user, hasSessionId: !!sessionIdForSaving })
     }
     
     try {
@@ -1288,15 +1294,15 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
           setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }]);
           
           // 保存AI回复到数据库
-          if (user && currentSession) {
+          if (user && sessionIdForSaving) {
             try {
-              aiAssistantService.setCurrentConversationId(currentSession.id);
+              aiAssistantService.setCurrentConversationId(sessionIdForSaving);
               await aiAssistantService.saveMessage('assistant', response);
             } catch (error) {
               console.error('[sendMessage] 保存AI回复失败:', error);
             }
           }
-          
+
           // 开始生成 - 先调用服务创建任务，确保使用服务返回的任务对象
           try {
             const task = type === 'image' 
@@ -1362,9 +1368,9 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
             response = `为你查询到从「${origin}」到「${destination}」的${mode === 'transit' ? '公共交通' : mode === 'walk' ? '步行' : '驾车'}路线：\n\n预计距离：${(route.distance / 1000).toFixed(1)} km\n预计耗时：${Math.round(route.duration / 60)} 分钟\n提供方：${route.provider === 'amap' ? '高德地图' : '本地快速查询'}\n\n步骤：\n${route.steps.map((s, i) => `${i + 1}. ${s.instruction}`).join('\n')}`
             setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }])
             // 保存AI回复到数据库
-            if (user && currentSession) {
+            if (user && sessionIdForSaving) {
               try {
-                aiAssistantService.setCurrentConversationId(currentSession.id)
+                aiAssistantService.setCurrentConversationId(sessionIdForSaving)
                 await aiAssistantService.saveMessage('assistant', response)
               } catch (error) {
                 console.error('[sendMessage] 保存AI回复失败:', error)
@@ -1375,9 +1381,9 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
             response = '请提供完整的出发地与目的地，例如："从天津站到鼓楼怎么去"。'
             setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }])
             // 保存AI回复到数据库
-            if (user && currentSession) {
+            if (user && sessionIdForSaving) {
               try {
-                aiAssistantService.setCurrentConversationId(currentSession.id)
+                aiAssistantService.setCurrentConversationId(sessionIdForSaving)
                 await aiAssistantService.saveMessage('assistant', response)
               } catch (error) {
                 console.error('[sendMessage] 保存AI回复失败:', error)
@@ -1399,9 +1405,9 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
           response = `为你整理了「${guide.service}」的办理指引：\n\n步骤：\n${guide.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n网上办事大厅：${guide.onlinePortal || '—'}\n咨询热线：${guide.hotline || '—'}\n提供方：${guide.provider === 'local' ? '天津政务服务' : '本地指南'}`
           setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: Date.now() }])
           // 保存AI回复到数据库
-          if (user && currentSession) {
+          if (user && sessionIdForSaving) {
             try {
-              aiAssistantService.setCurrentConversationId(currentSession.id)
+              aiAssistantService.setCurrentConversationId(sessionIdForSaving)
               await aiAssistantService.saveMessage('assistant', response)
             } catch (error) {
               console.error('[sendMessage] 保存AI回复失败:', error)
@@ -1518,9 +1524,9 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
       });
 
       // 如果用户已登录，保存AI回复到数据库
-      if (user && currentSession) {
+      if (user && sessionIdForSaving) {
         try {
-          aiAssistantService.setCurrentConversationId(currentSession.id)
+          aiAssistantService.setCurrentConversationId(sessionIdForSaving)
           await aiAssistantService.saveMessage('assistant', response)
         } catch (error) {
           console.error('[sendMessage] 保存AI回复失败:', error)
@@ -2189,7 +2195,23 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                 </div>
                 
                 {/* 会话列表 - 优化卡片样式 */}
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div
+                  className="flex-1 overflow-y-auto p-3 space-y-2"
+                  onWheel={(e) => {
+                    const target = e.currentTarget;
+                    const isAtTop = target.scrollTop === 0;
+                    const isAtBottom = target.scrollHeight - target.scrollTop === target.clientHeight;
+
+                    // 如果在顶部继续向上滚动，阻止默认行为
+                    if (isAtTop && e.deltaY < 0) {
+                      e.preventDefault();
+                    }
+                    // 如果在底部继续向下滚动，阻止默认行为
+                    if (isAtBottom && e.deltaY > 0) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
                   {sessions.length === 0 && (
                     <div className="text-center py-8 text-gray-400">
                       <i className="fas fa-inbox text-3xl mb-2"></i>
@@ -2430,7 +2452,23 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
                 </div>
                 
                 {/* 消息列表 */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div
+                  className="flex-1 overflow-y-auto p-4 space-y-4"
+                  onWheel={(e) => {
+                    const target = e.currentTarget;
+                    const isAtTop = target.scrollTop === 0;
+                    const isAtBottom = target.scrollHeight - target.scrollTop === target.clientHeight;
+
+                    // 如果在顶部继续向上滚动，阻止默认行为
+                    if (isAtTop && e.deltaY < 0) {
+                      e.preventDefault();
+                    }
+                    // 如果在底部继续向下滚动，阻止默认行为
+                    if (isAtBottom && e.deltaY > 0) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
                   {/* 对话模板弹窗 */}
                   <AnimatePresence>
                     {showTemplates && (

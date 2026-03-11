@@ -11,8 +11,10 @@ import {
   DERIVATIVE_OPTIONS,
   AgentType,
   DelegationTask,
-  AGENT_CONFIG
+  AGENT_CONFIG,
+  LLMModelType
 } from '../types/agent';
+import { setCurrentModelInStorage } from '../services/modelCaller';
 // import { getMemoryService } from '../services/memoryService';
 
 // 欢迎消息配置选项
@@ -108,6 +110,9 @@ interface AgentActions {
   setCurrentAgent: (agent: AgentType) => void;
   setIsTyping: (isTyping: boolean) => void;
 
+  // LLM模型切换
+  setCurrentModel: (model: LLMModelType) => void;
+
   // 任务管理
   createTask: (type: DesignTask['type'], title: string, description: string) => void;
   updateTask: (updates: Partial<DesignTask>) => void;
@@ -177,6 +182,7 @@ const initialState: AgentState = {
   messages: [],
   currentAgent: 'director',
   isTyping: false,
+  currentModel: 'qwen',
   currentTask: null,
   taskStage: 'requirement',
   generatedOutputs: [],
@@ -218,6 +224,12 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         ...userInfo,
         previousTaskType: undefined
       });
+
+      // 从持久化状态恢复时，同步模型到 storage
+      const state = get();
+      if (state?.currentModel) {
+        setCurrentModelInStorage(state.currentModel);
+      }
 
       return {
         ...initialState,
@@ -264,6 +276,14 @@ export const useAgentStore = create<AgentState & AgentActions>()(
       // Agent切换
       setCurrentAgent: (agent) => set({ currentAgent: agent }),
       setIsTyping: (isTyping) => set({ isTyping }),
+
+      // LLM模型切换
+      setCurrentModel: (model) => {
+        set({ currentModel: model });
+        // 同步到 modelCaller 的 storage
+        setCurrentModelInStorage(model);
+        console.log('[AgentStore] LLM模型已切换为:', model);
+      },
 
       // 任务管理
       createTask: (type, title, description) => set({

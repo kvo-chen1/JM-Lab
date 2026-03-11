@@ -52,6 +52,14 @@ console.log('[Config] OAuth 配置:', {
   alipay: process.env.ALIPAY_APPID ? '已配置' : '未配置'
 })
 
+// 打印 AI API 配置（调试用）
+console.log('[Config] AI API 配置:', {
+  qwen: process.env.VITE_QWEN_API_KEY ? `已配置 (${process.env.VITE_QWEN_API_KEY.substring(0, 8)}...)` : '未配置',
+  kimi: process.env.VITE_KIMI_API_KEY ? `已配置 (${process.env.VITE_KIMI_API_KEY.substring(0, 8)}...)` : '未配置',
+  deepseek: process.env.VITE_DEEPSEEK_API_KEY ? `已配置 (${process.env.VITE_DEEPSEEK_API_KEY.substring(0, 8)}...)` : '未配置',
+  dashscope: process.env.DASHSCOPE_API_KEY ? `已配置 (${process.env.DASHSCOPE_API_KEY.substring(0, 8)}...)` : '未配置'
+})
+
 // 简单的内存缓存
 const cache = new Map()
 const CACHE_TTL = 5 * 60 * 1000 // 5 分钟缓存
@@ -112,7 +120,21 @@ class SupabaseQueryBuilder {
       this.query = `SELECT COUNT(*) as count FROM "${this.table}"`
       this.isCountQuery = true
     } else {
-      this.query = `SELECT ${columns} FROM "${this.table}"`
+      // 处理嵌套查询语法，如 "*, stages:ip_stages(*)"
+      // 本地数据库不支持这种语法，简化为只查询主表
+      let simplifiedColumns = columns
+      if (typeof columns === 'string' && columns.includes(':')) {
+        // 提取主表列（在冒号之前的部分）
+        simplifiedColumns = columns.split(',')[0].trim()
+        // 如果有嵌套关系，记录下来以便后续处理
+        const relationMatch = columns.match(/(\w+):(\w+)\(([^)]*)\)/)
+        if (relationMatch) {
+          this.relationName = relationMatch[1]
+          this.relationTable = relationMatch[2]
+          this.relationColumns = relationMatch[3] || '*'
+        }
+      }
+      this.query = `SELECT ${simplifiedColumns} FROM "${this.table}"`
       this.isCountQuery = false
     }
     return this
@@ -186,6 +208,34 @@ class SupabaseQueryBuilder {
     return this
   }
 
+  // 支持 OR 条件查询
+  or(conditions) {
+    // 解析 Supabase 风格的 OR 条件字符串
+    // 例如: "name.ilike.%test%,description.ilike.%test%"
+    if (typeof conditions === 'string') {
+      const orParts = conditions.split(',').map(part => {
+        const match = part.match(/^(\w+)\.(\w+)\.%(.+)%$/)
+        if (match) {
+          const [, column, operator, value] = match
+          if (operator === 'ilike') {
+            return `"${column}" ILIKE $${this.paramIndex++}`
+          } else if (operator === 'like') {
+            return `"${column}" LIKE $${this.paramIndex++}`
+          } else if (operator === 'eq') {
+            return `"${column}" = $${this.paramIndex++}`
+          }
+          this.values.push(`%${value}%`)
+        }
+        return null
+      }).filter(Boolean)
+      
+      if (orParts.length > 0) {
+        this.conditions.push(`(${orParts.join(' OR ')})`)
+      }
+    }
+    return this
+  }
+
   order(column, { ascending = true } = {}) {
     this.query += ` ORDER BY "${column}" ${ascending ? 'ASC' : 'DESC'}`
     return this
@@ -217,6 +267,25 @@ class SupabaseQueryBuilder {
       return { data: result.rows[0] || null, error: null }
     } catch (error) {
       return { data: null, error }
+    }
+  }
+
+  // 支持 .maybeSingle() 方法 - 返回单行或null，不会报错
+  async maybeSingle() {
+    let finalQuery = this.query
+    if (this.conditions.length > 0) {
+      finalQuery += ' WHERE ' + this.conditions.join(' AND ')
+    }
+    // 限制只返回一行
+    if (!finalQuery.includes('LIMIT')) {
+      finalQuery += ' LIMIT 1'
+    }
+    try {
+      const db = await this.getDb()
+      const result = await db.query(finalQuery, this.values)
+      return { data: result.rows[0] || null, error: null }
+    } catch (error) {
+      return { data: null, error: null }
     }
   }
 
@@ -252,7 +321,29 @@ const supabaseServer = {
     const builder = new SupabaseQueryBuilder(table)
     
     return {
-      select: (columns) => builder.select(columns),
+      select: (columns, options) => {
+        const queryBuilder = builder.select(columns, options)
+        // 返回一个支持链式调用的对象
+        return {
+          eq: (column, value) => queryBuilder.eq(column, value),
+          neq: (column, value) => queryBuilder.neq(column, value),
+          gt: (column, value) => queryBuilder.gt(column, value),
+          gte: (column, value) => queryBuilder.gte(column, value),
+          lt: (column, value) => queryBuilder.lt(column, value),
+          lte: (column, value) => queryBuilder.lte(column, value),
+          in: (column, values) => queryBuilder.in(column, values),
+          is: (column, value) => queryBuilder.is(column, value),
+          like: (column, pattern) => queryBuilder.like(column, pattern),
+          ilike: (column, pattern) => queryBuilder.ilike(column, pattern),
+          or: (conditions) => queryBuilder.or(conditions),
+          order: (column, options) => queryBuilder.order(column, options),
+          limit: (n) => queryBuilder.limit(n),
+          range: (start, end) => queryBuilder.range(start, end),
+          single: () => queryBuilder.single(),
+          maybeSingle: () => queryBuilder.maybeSingle(),
+          then: (onfulfilled, onrejected) => queryBuilder.execute().then(onfulfilled, onrejected)
+        }
+      },
       insert: (data) => ({
         select: () => ({
           single: async () => {
@@ -1733,6 +1824,7 @@ async function route(req, res, u, path) {
         // 如果指定了 creator_id，只返回该用户的作品
         console.log('[API] Get works by creator_id:', creatorId, 'limit:', limit, 'offset:', offset)
         works = await workDB.getWorksByUserId(creatorId, limit, offset)
+        // Debug: console.log('[API] Raw works count from DB:', works.length)
       } else {
         // 否则返回所有作品（使用分页）
         console.log('[API] Get works limit:', limit, 'offset:', offset)
@@ -1888,6 +1980,7 @@ async function route(req, res, u, path) {
         console.log('[API] Cached works list for', cacheKey)
       }
       
+      // Debug: console.log('[API] Returning', paginatedWorks.length, 'works')
       sendJson(res, 200, { code: 0, data: paginatedWorks })
     } catch (e) {
       console.error('[API] Get works failed:', e)
@@ -2032,7 +2125,7 @@ async function route(req, res, u, path) {
 
       // 更新作品
       const updatedWork = await workDB.updateWork(workId, body)
-      console.log('[API] Work updated:', updatedWork)
+      // Debug: console.log('[API] Work updated:', updatedWork?.id, 'hidden_in_square:', updatedWork?.hidden_in_square)
       sendJson(res, 200, { code: 0, data: updatedWork, message: '更新成功' })
     } catch (e) {
       console.error('[API] Update work failed:', e)
@@ -2733,7 +2826,9 @@ async function route(req, res, u, path) {
       sendJson(res, 200, { code: 0, data: achievements })
     } catch (e) {
       console.error('[API] Get achievements failed:', e)
-      sendJson(res, 500, { code: 1, message: '获取成就失败' })
+      console.error('[API] Error stack:', e.stack)
+      console.error('[API] UserId:', decoded.userId)
+      sendJson(res, 500, { code: 1, message: '获取成就失败: ' + (e.message || '未知错误') })
     }
     return
   }
@@ -5466,6 +5561,25 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 获取单个社群详情
+  if (req.method === 'GET' && path.startsWith('/api/communities/') && path.split('/').length === 4) {
+    const communityId = path.split('/')[3]
+    console.log('[API] Get community detail:', communityId)
+    
+    try {
+      const community = await communityDB.getCommunityById(communityId)
+      if (!community) {
+        sendJson(res, 404, { code: 1, message: '社群不存在' })
+        return
+      }
+      sendJson(res, 200, { code: 0, data: community })
+    } catch (e) {
+      console.error('[API] Get community detail failed:', e)
+      sendJson(res, 500, { code: 1, message: '获取社群详情失败' })
+    }
+    return
+  }
+
   // 获取用户加入的社群列表
   if (req.method === 'GET' && path === '/api/user/communities') {
     const decoded = verifyRequestToken(req)
@@ -5481,8 +5595,9 @@ async function route(req, res, u, path) {
       console.log('[API] getUserCommunities: found', communities?.length, 'communities')
       sendJson(res, 200, { code: 0, data: communities || [] })
     } catch (e) {
-      console.error('[API] Get user communities failed:', e)
-      sendJson(res, 500, { code: 1, message: '获取用户社群列表失败' })
+      console.error('[API] Get user communities failed:', e.message || e)
+      console.error('[API] Error stack:', e.stack || 'No stack')
+      sendJson(res, 500, { code: 1, message: '获取用户社群列表失败: ' + (e.message || String(e)) })
     }
     return
   }
@@ -7314,6 +7429,211 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 管理员获取商家申请列表
+  if (req.method === 'GET' && path === '/api/admin/merchant-applications') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+    
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+      
+      // 获取查询参数
+      const url = new URL(req.url, `http://${req.headers.host}`)
+      const status = url.searchParams.get('status')
+      const page = parseInt(url.searchParams.get('page') || '1')
+      const limit = parseInt(url.searchParams.get('limit') || '20')
+      
+      // 构建查询
+      let query = 'SELECT * FROM merchant_applications'
+      let countQuery = 'SELECT COUNT(*) as total FROM merchant_applications'
+      const params = []
+      
+      if (status && status !== 'all') {
+        query += ' WHERE status = $1'
+        countQuery += ' WHERE status = $1'
+        params.push(status)
+      }
+      
+      query += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2)
+      params.push(limit, (page - 1) * limit)
+      
+      // 获取总数
+      const countResult = await db.query(status && status !== 'all' ? countQuery : 'SELECT COUNT(*) as total FROM merchant_applications', 
+        status && status !== 'all' ? [status] : [])
+      const total = parseInt(countResult.rows[0].total)
+      
+      // 获取数据
+      const result = await db.query(query, params)
+      
+      sendJson(res, 200, {
+        code: 0,
+        data: result.rows,
+        total,
+        page,
+        limit,
+        message: '获取商家申请列表成功'
+      })
+    } catch (err) {
+      console.error('[API] 获取商家申请列表失败:', err)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取商家申请列表失败: ' + err.message })
+    }
+    return
+  }
+
+  // 管理员审核商家申请
+  if (req.method === 'PUT' && path.startsWith('/api/admin/merchant-applications/') && path.endsWith('/review')) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+    
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+      
+      // 解析请求体
+      const chunks = []
+      for await (const chunk of req) {
+        chunks.push(chunk)
+      }
+      const body = JSON.parse(Buffer.concat(chunks).toString())
+      const { status, rejection_reason } = body
+      
+      // 从路径中提取申请ID
+      const applicationId = path.split('/')[4]
+      
+      if (!applicationId || !status) {
+        sendJson(res, 400, { error: 'BAD_REQUEST', message: '缺少申请ID或状态' })
+        return
+      }
+      
+      // 验证状态值
+      if (!['approved', 'rejected'].includes(status)) {
+        sendJson(res, 400, { error: 'INVALID_STATUS', message: '无效的状态值' })
+        return
+      }
+      
+      console.log(`[API] 管理员 ${decoded.userId} 审核商家申请 ${applicationId}，状态: ${status}`)
+      
+      // 更新申请状态
+      const updateResult = await db.query(
+        `UPDATE merchant_applications 
+         SET status = $1, reviewed_by = $2, reviewed_at = NOW(), rejection_reason = $3, updated_at = NOW()
+         WHERE id = $4
+         RETURNING *`,
+        [status, decoded.userId, rejection_reason || null, applicationId]
+      )
+      
+      if (updateResult.rows.length === 0) {
+        sendJson(res, 404, { error: 'NOT_FOUND', message: '申请记录不存在' })
+        return
+      }
+      
+      const application = updateResult.rows[0]
+      
+      // 如果审核通过，创建商家记录
+      if (status === 'approved') {
+        // 检查是否已存在商家记录
+        const existingResult = await db.query(
+          'SELECT id FROM merchants WHERE user_id = $1',
+          [application.user_id]
+        )
+        
+        if (existingResult.rows.length === 0) {
+          // 创建商家记录
+          await db.query(
+            `INSERT INTO merchants (
+              user_id, application_id, store_name, store_description, store_logo,
+              contact_name, contact_phone, contact_email, business_license,
+              id_card_front, id_card_back, status, rating, total_sales, total_orders,
+              created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
+            [
+              application.user_id,
+              applicationId,
+              application.store_name,
+              application.store_description,
+              application.store_logo,
+              application.contact_name,
+              application.contact_phone,
+              application.contact_email,
+              application.business_license,
+              application.id_card_front,
+              application.id_card_back,
+              'approved',
+              5.0,
+              0,
+              0
+            ]
+          )
+          console.log(`[API] 商家记录创建成功，用户ID: ${application.user_id}`)
+        } else {
+          console.log(`[API] 商家记录已存在，跳过创建`)
+        }
+      }
+      
+      sendJson(res, 200, {
+        code: 0,
+        message: status === 'approved' ? '审核通过成功' : '已拒绝申请',
+        data: application
+      })
+    } catch (err) {
+      console.error('[API] 审核商家申请失败:', err)
+      sendJson(res, 500, { error: 'REVIEW_FAILED', message: '审核商家申请失败: ' + err.message })
+    }
+    return
+  }
+
+  // 管理员获取商家申请统计
+  if (req.method === 'GET' && path === '/api/admin/merchant-applications/stats') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '用户认证失败' })
+      return
+    }
+    
+    try {
+      const db = await getDB()
+      const { rows: adminRows } = await db.query('SELECT is_admin FROM users WHERE id = $1', [decoded.userId])
+      if (adminRows.length === 0 || !adminRows[0].is_admin) {
+        sendJson(res, 403, { error: 'FORBIDDEN', message: '需要管理员权限' })
+        return
+      }
+      
+      const result = await db.query(
+        `SELECT 
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'pending') as pending,
+          COUNT(*) FILTER (WHERE status = 'approved') as approved,
+          COUNT(*) FILTER (WHERE status = 'rejected') as rejected
+        FROM merchant_applications`
+      )
+      
+      sendJson(res, 200, {
+        code: 0,
+        data: result.rows[0],
+        message: '获取商家申请统计成功'
+      })
+    } catch (err) {
+      console.error('[API] 获取商家申请统计失败:', err)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取商家申请统计失败: ' + err.message })
+    }
+    return
+  }
+
   // 文件上传端点
   if (req.method === 'POST' && path === '/api/upload') {
     const decoded = verifyRequestToken(req)
@@ -8630,28 +8950,30 @@ async function route(req, res, u, path) {
     try {
       const limit = parseInt(u.searchParams.get('limit') || '5')
 
-      // 获取用户作品数据
-      const { data: works, error } = await supabaseServer
-        .from('works')
-        .select('id, title, thumbnail_url, video_url, type, view_count, likes, comments, shares, favorites, created_at')
-        .eq('creator_id', decoded.userId)
-        .order('view_count', { ascending: false })
-        .limit(limit)
+      // 使用本地数据库查询，字段名 views 而不是 view_count
+      const db = await getDB()
+      const { rows: works } = await db.query(`
+        SELECT 
+          w.id,
+          w.title,
+          w.thumbnail,
+          w.cover_url,
+          w.video_url,
+          w.type,
+          w.views as view_count,
+          w.likes,
+          w.comments,
+          w.created_at,
+          u.username
+        FROM works w
+        LEFT JOIN users u ON w.creator_id = u.id::text
+        WHERE w.creator_id = $1
+        ORDER BY w.views DESC
+        LIMIT $2
+      `, [decoded.userId, limit])
 
-      if (error) {
-        console.error('[API] 获取作品表现数据失败:', error)
-        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取作品表现数据失败' })
-        return
-      }
-
-      // 获取用户信息
-      const { data: userData } = await supabaseServer
-        .from('users')
-        .select('username')
-        .eq('id', decoded.userId)
-        .single()
-
-      const result = works?.map(work => {
+      // 获取作品点赞数（从 works_likes 表统计）
+      const result = await Promise.all(works.map(async (work) => {
         // 计算增长率（基于创建时间，越新增长越快）
         const daysSinceCreated = Math.max(1, Math.floor((Date.now() - new Date(work.created_at)) / (1000 * 60 * 60 * 24)))
         const growth = Math.round((work.view_count || 0) / daysSinceCreated * 10) / 10
@@ -8659,21 +8981,21 @@ async function route(req, res, u, path) {
         return {
           workId: work.id,
           title: work.title,
-          thumbnail: work.thumbnail_url,
+          thumbnail: work.thumbnail || work.cover_url,
           type: work.type || 'image',
           videoUrl: work.video_url,
-          author: userData?.username || '未知用户',
+          author: work.username || '未知用户',
           metrics: {
             views: work.view_count || 0,
             likes: work.likes || 0,
             comments: work.comments || 0,
-            shares: work.shares || 0,
-            favorites: work.favorites || 0
+            shares: 0,
+            favorites: 0
           },
           trend: growth > 10 ? 'up' : growth < 5 ? 'down' : 'stable',
           growth
         }
-      }) || []
+      }))
 
       sendJson(res, 200, {
         code: 0,

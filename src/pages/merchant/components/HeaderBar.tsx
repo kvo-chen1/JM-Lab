@@ -1,19 +1,76 @@
 /**
  * 商家工作平台 - 顶部商家信息栏
+ * 使用真实数据库数据
  */
-import React from 'react';
-import { Store, Settings, Bell, User, TrendingUp, DollarSign, Package } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Store, Settings, Bell, User, TrendingUp, DollarSign, Package, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { merchantService } from '@/services/merchantService';
+import { toast } from 'sonner';
 
 const HeaderBar: React.FC = () => {
-  // 模拟商家数据（后续从API获取）
-  const merchantInfo = {
+  const [merchantInfo, setMerchantInfo] = useState({
     name: '津门文创旗舰店',
-    logo: null,
+    logo: null as string | null,
     status: 'approved',
-    todaySales: 1280,
-    todayOrders: 15,
-    todayVisitors: 328,
+    todaySales: 0,
+    todayOrders: 0,
+    todayVisitors: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const merchant = await merchantService.getCurrentMerchant();
+        if (merchant) {
+          // 获取仪表盘统计数据
+          const stats = await merchantService.getDashboardStats(merchant.id);
+          setMerchantInfo({
+            name: merchant.store_name || '津门文创旗舰店',
+            logo: merchant.store_logo || null,
+            status: merchant.status,
+            todaySales: stats.today_sales || 0,
+            todayOrders: stats.today_orders || 0,
+            todayVisitors: stats.today_visitors || 0,
+          });
+        }
+      } catch (error) {
+        console.error('获取商家数据失败:', error);
+        toast.error('获取商家数据失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return '营业中';
+      case 'pending':
+        return '审核中';
+      case 'rejected':
+        return '已拒绝';
+      default:
+        return '未知';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      case 'pending':
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+      case 'rejected':
+        return 'bg-red-500/20 text-red-400 border-red-500/30';
+      default:
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+    }
   };
 
   return (
@@ -40,8 +97,8 @@ const HeaderBar: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold text-[var(--text-primary)]">{merchantInfo.name}</h1>
-                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full border border-emerald-500/30">
-                  营业中
+                <span className={`px-2 py-0.5 text-xs rounded-full border ${getStatusColor(merchantInfo.status)}`}>
+                  {getStatusLabel(merchantInfo.status)}
                 </span>
               </div>
               <p className="text-sm text-[var(--text-muted)]">店铺ID: SH20240308001</p>
@@ -50,35 +107,41 @@ const HeaderBar: React.FC = () => {
 
           {/* 中间：今日数据概览 */}
           <div className="hidden md:flex items-center gap-8">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <DollarSign className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-xs text-[var(--text-muted)]">今日销售额</p>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">¥{merchantInfo.todaySales.toLocaleString()}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <Package className="w-4 h-4 text-blue-400" />
-              </div>
-              <div>
-                <p className="text-xs text-[var(--text-muted)]">今日订单</p>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">{merchantInfo.todayOrders} 单</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4 text-purple-400" />
-              </div>
-              <div>
-                <p className="text-xs text-[var(--text-muted)]">今日访客</p>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">{merchantInfo.todayVisitors} 人</p>
-              </div>
-            </div>
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-[#5ba3d4]" />
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                    <DollarSign className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--text-muted)]">今日销售额</p>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">¥{merchantInfo.todaySales.toLocaleString()}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <Package className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--text-muted)]">今日订单</p>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">{merchantInfo.todayOrders} 单</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--text-muted)]">今日访客</p>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">{merchantInfo.todayVisitors} 人</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* 右侧：快捷操作 */}

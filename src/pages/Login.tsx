@@ -6,6 +6,7 @@ import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { usePersistentAuth } from '@/hooks/usePersistentAuth';
+import { getPreLoginPath, clearPreLoginPath } from '@/components/PrivateRoute';
 
 // OAuth 提供商配置
 interface OAuthProvider {
@@ -114,10 +115,17 @@ export default function Login() {
   
   useEffect(() => {
     if (isAuthenticated) {
-      // 登录成功后，如果有保存的路径则返回，否则到首页
-      redirectAfterLogin();
+      // 登录成功后，优先使用 PrivateRoute 保存的路径
+      const preLoginPath = getPreLoginPath();
+      if (preLoginPath && preLoginPath !== '/login') {
+        clearPreLoginPath();
+        navigate(preLoginPath, { replace: true });
+      } else {
+        // 如果没有保存的路径，使用 usePersistentAuth 的路径
+        redirectAfterLogin();
+      }
     }
-  }, [isAuthenticated, redirectAfterLogin])
+  }, [isAuthenticated, redirectAfterLogin, navigate])
   
   // 实时表单验证
   const validateEmail = (value: string) => {
@@ -175,8 +183,15 @@ export default function Login() {
         if (user.isNewUser) {
           navigate('/complete-profile');
         } else {
-          // 登录成功后，如果有保存的路径则返回，否则到首页
-          redirectAfterLogin();
+          // 登录成功后，优先使用 PrivateRoute 保存的路径
+          const preLoginPath = getPreLoginPath();
+          if (preLoginPath && preLoginPath !== '/login') {
+            clearPreLoginPath();
+            navigate(preLoginPath, { replace: true });
+          } else {
+            // 如果没有保存的路径，使用 usePersistentAuth 的路径
+            redirectAfterLogin();
+          }
         }
       } else {
         toast.error('邮箱或验证码错误，请重试');

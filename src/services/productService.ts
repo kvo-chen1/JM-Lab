@@ -243,6 +243,103 @@ export async function getProducts(
   }
 }
 
+// 获取商家商品列表（用于文创商城）
+export async function getMerchantProducts(
+  options: {
+    categoryId?: string;
+    merchantId?: string;
+    status?: string;
+    isFeatured?: boolean;
+    isHot?: boolean;
+    isNew?: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+    searchQuery?: string;
+    sortBy?: 'price_asc' | 'price_desc' | 'newest' | 'popular' | 'sales';
+    limit?: number;
+    offset?: number;
+  } = {}
+): Promise<{ data?: Product[]; count?: number; error?: string }> {
+  try {
+    let query = supabase.from('merchant_product_details').select('*', { count: 'exact' });
+
+    if (options.categoryId) {
+      query = query.eq('category_id', options.categoryId);
+    }
+
+    if (options.merchantId) {
+      query = query.eq('merchant_id', options.merchantId);
+    }
+
+    if (options.status) {
+      query = query.eq('status', options.status);
+    }
+
+    if (options.isFeatured) {
+      query = query.eq('is_featured', true);
+    }
+
+    if (options.isHot) {
+      query = query.eq('is_hot', true);
+    }
+
+    if (options.isNew) {
+      query = query.eq('is_new', true);
+    }
+
+    if (options.minPrice !== undefined) {
+      query = query.gte('price', options.minPrice);
+    }
+
+    if (options.maxPrice !== undefined) {
+      query = query.lte('price', options.maxPrice);
+    }
+
+    if (options.searchQuery) {
+      query = query.or(`name.ilike.%${options.searchQuery}%,description.ilike.%${options.searchQuery}%`);
+    }
+
+    // 排序
+    if (options.sortBy) {
+      switch (options.sortBy) {
+        case 'price_asc':
+          query = query.order('price', { ascending: true });
+          break;
+        case 'price_desc':
+          query = query.order('price', { ascending: false });
+          break;
+        case 'newest':
+          query = query.order('created_at', { ascending: false });
+          break;
+        case 'popular':
+          query = query.order('view_count', { ascending: false });
+          break;
+        case 'sales':
+          query = query.order('sold_count', { ascending: false });
+          break;
+      }
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
+
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+
+    if (options.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) throw error;
+    return { data: data || [], count: count || 0 };
+  } catch (err: any) {
+    console.error('获取商家商品列表失败:', err);
+    return { error: err.message || '获取商家商品列表失败' };
+  }
+}
+
 // 获取商品详情
 export async function getProductById(id: string): Promise<{ data?: Product; error?: string }> {
   try {

@@ -94,6 +94,66 @@ export function useProducts(
   return { products, count, loading, error, refetch: fetchProducts };
 }
 
+// 获取商家商品列表（用于文创商城）
+export function useMerchantProducts(
+  options: {
+    categoryId?: string;
+    merchantId?: string;
+    status?: string;
+    isFeatured?: boolean;
+    isHot?: boolean;
+    isNew?: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+    searchQuery?: string;
+    sortBy?: 'price_asc' | 'price_desc' | 'newest' | 'popular' | 'sales';
+    limit?: number;
+    offset?: number;
+  } = {}
+) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [count, setCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await productService.getMerchantProducts(options);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setProducts(result.data || []);
+        setCount(result.count || 0);
+      }
+    } catch (err: any) {
+      setError(err.message || '获取商家商品列表失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    options.categoryId,
+    options.merchantId,
+    options.status,
+    options.isFeatured,
+    options.isHot,
+    options.isNew,
+    options.minPrice,
+    options.maxPrice,
+    options.searchQuery,
+    options.sortBy,
+    options.limit,
+    options.offset,
+  ]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  return { products, count, loading, error, refetch: fetchProducts };
+}
+
 // 获取商品详情
 export function useProduct(productId: string | null) {
   const [product, setProduct] = useState<Product | null>(null);

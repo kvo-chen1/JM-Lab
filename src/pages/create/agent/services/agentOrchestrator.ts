@@ -11,7 +11,7 @@ import {
   RequirementCollection,
   CollectedRequirementInfo
 } from '../types/agent';
-import { callQwenChat } from '@/services/llm/chatProviders';
+import { callQwenChat, callKimiChat, callDeepseekChat } from '@/services/llm/chatProviders';
 import {
   ORCHESTRATOR_DECISION_PROMPT,
   getAgentSystemPrompt,
@@ -28,6 +28,22 @@ import {
 import { callAgent, AIResponse } from './agentService';
 import { callEnhancedAgent, EnhancedAIResponse } from './enhancedAgentIntegration';
 import { llmService } from '@/services/llmService';
+
+/**
+ * 根据当前模型调用对应的API
+ * 使用 modelCaller 中的统一调用函数
+ */
+async function callModelAPI(
+  messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
+  options?: {
+    temperature?: number;
+    max_tokens?: number;
+  }
+): Promise<string> {
+  // 使用 modelCaller 中的函数
+  const { callCurrentModel } = await import('./modelCaller');
+  return callCurrentModel(messages, options);
+}
 
 // 对话上下文
 export interface ConversationContext {
@@ -374,12 +390,10 @@ export class AgentOrchestrator {
 
     let priorityAnalysis: any = {};
     try {
-      const priorityResponse = await callQwenChat({
-        model: 'qwen-plus',
-        messages: [{ role: 'user', content: priorityPrompt }],
-        temperature: 0.3,
-        max_tokens: 1000
-      });
+      const priorityResponse = await callModelAPI(
+        [{ role: 'user', content: priorityPrompt }],
+        { temperature: 0.3, max_tokens: 1000 }
+      );
 
       // 解析优先级分析
       const jsonMatch = priorityResponse.match(/```json\s*([\s\S]*?)\s*```/) ||
@@ -456,12 +470,10 @@ export class AgentOrchestrator {
       .replace('{{collectedInfo}}', JSON.stringify(reqCollection.collectedInfo, null, 2));
 
     // 调用AI做分配决策
-    const response = await callQwenChat({
-      model: 'qwen-plus',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      max_tokens: 1000
-    });
+    const response = await callModelAPI(
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.3, max_tokens: 1000 }
+    );
 
     // 解析分配决策
     const decision = this.parseAssignmentDecision(response);
@@ -630,12 +642,10 @@ export class AgentOrchestrator {
     try {
       const prompt = this.buildDecisionPrompt(userMessage, context);
 
-      const response = await callQwenChat({
-        model: 'qwen-plus',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3, // 低温度以获得更确定的决策
-        max_tokens: 1000
-      });
+      const response = await callModelAPI(
+        [{ role: 'user', content: prompt }],
+        { temperature: 0.3, max_tokens: 1000 } // 低温度以获得更确定的决策
+      );
 
       // 解析决策结果
       return this.parseDecisionResponse(response);
@@ -855,7 +865,29 @@ export class AgentOrchestrator {
                          this.getStylePrompt(context.currentAgent);
 
     // 构建完整的提示词，包含用户的完整需求
-    const taskDescription = context.currentTask?.requirements?.description || userMessage;
+    // 智能提取用户当前输入中的实际内容（去除指令词如"直接生成"、"开始吧"等）
+    const generationKeywords = ['直接生成', '开始生成', '生成吧', '开始吧', '直接做', '就这样', '可以生成了', '可以开始了', '开始制作', '不用调整', '不用修改', '直接出图', '出图吧'];
+    let extractedUserNeed = userMessage;
+
+    // 如果用户消息包含生成指令，尝试提取实际内容
+    for (const keyword of generationKeywords) {
+      if (userMessage.includes(keyword)) {
+        // 移除指令词，保留前面的实际内容
+        const parts = userMessage.split(keyword);
+        if (parts[0] && parts[0].trim().length > 0) {
+          extractedUserNeed = parts[0].trim();
+          // 移除常见的连接词
+          extractedUserNeed = extractedUserNeed.replace(/[,，、]$/g, '').trim();
+        }
+        break;
+      }
+    }
+
+    // 如果提取的内容太短（只有指令），则使用任务描述
+    const hasMeaningfulContent = extractedUserNeed && extractedUserNeed.length >= 2 && !generationKeywords.some(k => extractedUserNeed === k);
+    const taskDescription = hasMeaningfulContent
+      ? extractedUserNeed
+      : (context.currentTask?.requirements?.description || userMessage);
     const targetAudience = context.currentTask?.requirements?.targetAudience;
     const usageScenario = context.currentTask?.requirements?.usageScenario;
 

@@ -3521,7 +3521,7 @@ export default function DataAnalytics() {
         .from('creator_revenue')
         .select('total_revenue')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
       const totalRevenue = revenueData?.total_revenue || 0;
 
       // 获取合作伙伴 - 使用 user_id 字段

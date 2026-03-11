@@ -30,7 +30,7 @@ import {
   ArrowRight, Loader2, RefreshCcw, ExternalLink
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import Card, { CardHeader, CardTitle, CardBody as CardContent } from '@/components/ui/Card';
+import Card, { CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';

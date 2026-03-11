@@ -3,7 +3,7 @@
  * 增强的NER（命名实体识别）功能，专门用于设计领域
  */
 
-import { callQwenChat } from '@/services/llm/chatProviders';
+import { callCurrentModel } from './modelCaller';
 
 // 实体类型定义
 export enum EntityType {
@@ -351,12 +351,10 @@ export class EntityExtractor {
 2. 置信度根据明确程度给出
 3. 标准化值应该是通用的、规范的表达`;
 
-      const response = await callQwenChat({
-        model: 'qwen-plus',
-        messages: [
-          { role: 'system', content: '你是一个专业的实体提取助手，擅长从设计需求中提取关键信息。' },
-          { role: 'user', content: prompt }
-        ],
+      const response = await callCurrentModel([
+        { role: 'system', content: '你是一个专业的实体提取助手，擅长从设计需求中提取关键信息。' },
+        { role: 'user', content: prompt }
+      ], {
         temperature: 0.3,
         max_tokens: 1000
       });

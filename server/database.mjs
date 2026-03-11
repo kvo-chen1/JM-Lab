@@ -464,23 +464,33 @@ async function createPostgreSQLTables(pool) {
         await alterColumnType('direct_messages', 'sender_id')
         await alterColumnType('direct_messages', 'receiver_id')
         await alterColumnType('user_status', 'user_id')
-        
-        // user_achievements 和 points_records 的 user_id 需要是 UUID 类型
+        await alterColumnType('user_activities', 'user_id')
+        await alterColumnType('activity_participations', 'user_id')
+
+        // 修改 user_achievements 和 points_records 的 user_id 列类型为 TEXT
+        // 需要先删除外键约束，修改列类型，然后重新创建外键约束
         try {
-          await client.query(`ALTER TABLE user_achievements ALTER COLUMN user_id TYPE UUID`)
-          console.log('[DB] Altered user_achievements.user_id to UUID')
+          // 删除外键约束
+          await client.query(`ALTER TABLE user_achievements DROP CONSTRAINT IF EXISTS user_achievements_user_id_fkey`)
+          // 修改列类型
+          await client.query(`ALTER TABLE user_achievements ALTER COLUMN user_id TYPE TEXT`)
+          // 重新创建外键约束
+          await client.query(`ALTER TABLE user_achievements ADD CONSTRAINT user_achievements_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`)
+          console.log('[DB] Altered user_achievements.user_id to TEXT')
         } catch (e) {
           console.log('[DB] user_achievements.user_id column type check:', e.message)
         }
         try {
-          await client.query(`ALTER TABLE points_records ALTER COLUMN user_id TYPE UUID`)
-          console.log('[DB] Altered points_records.user_id to UUID')
+          // 删除外键约束
+          await client.query(`ALTER TABLE points_records DROP CONSTRAINT IF EXISTS points_records_user_id_fkey`)
+          // 修改列类型
+          await client.query(`ALTER TABLE points_records ALTER COLUMN user_id TYPE TEXT`)
+          // 重新创建外键约束
+          await client.query(`ALTER TABLE points_records ADD CONSTRAINT points_records_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`)
+          console.log('[DB] Altered points_records.user_id to TEXT')
         } catch (e) {
           console.log('[DB] points_records.user_id column type check:', e.message)
         }
-        
-        await alterColumnType('user_activities', 'user_id')
-        await alterColumnType('activity_participations', 'user_id')
 
         // 修改 work_id 列类型为 TEXT 以支持 UUID
         await alterColumnType('comments', 'work_id')
@@ -521,6 +531,29 @@ async function createPostgreSQLTables(pool) {
 
         // 确保 comments 表有必要的列
         await ensureColumn('comments', 'work_id', 'TEXT')
+
+        // 创建 notifications 表（如果不存在）
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS notifications (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id TEXT NOT NULL,
+            type TEXT,
+            title TEXT,
+            content TEXT,
+            data JSONB,
+            is_read BOOLEAN DEFAULT false,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            comment_id TEXT,
+            post_id TEXT,
+            work_id TEXT,
+            sender_id TEXT,
+            sender_name TEXT,
+            community_id TEXT,
+            priority TEXT,
+            link TEXT
+          )
+        `)
+        console.log('[DB] notifications table created or already exists')
 
         // 确保 notifications 表有必要的列
         await ensureColumn('notifications', 'comment_id', 'TEXT')
@@ -965,7 +998,7 @@ async function createPostgreSQLTables(pool) {
       // 创建用户成就表
       await client.query(`
         CREATE TABLE IF NOT EXISTS user_achievements (
-          user_id UUID NOT NULL,
+          user_id TEXT NOT NULL,
           achievement_id INTEGER NOT NULL,
           progress INTEGER DEFAULT 0,
           is_unlocked BOOLEAN DEFAULT FALSE,
@@ -979,7 +1012,7 @@ async function createPostgreSQLTables(pool) {
       await client.query(`
         CREATE TABLE IF NOT EXISTS points_records (
           id SERIAL PRIMARY KEY,
-          user_id UUID NOT NULL,
+          user_id TEXT NOT NULL,
           source VARCHAR(50),
           type VARCHAR(20),
           points INTEGER NOT NULL,
@@ -1273,6 +1306,19 @@ async function createPostgreSQLTables(pool) {
       `)
       await createIndex('CREATE INDEX IF NOT EXISTS idx_works_bookmarks_user_id ON works_bookmarks(user_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_works_bookmarks_work_id ON works_bookmarks(work_id);')
+
+      // 创建帖子收藏表（用于社区帖子收藏）
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS bookmarks (
+          id SERIAL PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          post_id TEXT REFERENCES posts(id) ON DELETE CASCADE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          UNIQUE(user_id, post_id)
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_bookmarks_post_id ON bookmarks(post_id);')
 
       // 创建广场作品点赞表
       await client.query(`
@@ -2514,6 +2560,10 @@ export const userDB = {
     return this.findByEmail(email)
   },
 
+  async getByUsername(username) {
+    return this.findByUsername(username)
+  },
+
   async updateUser(id, updateData) {
     return this.updateById(id, updateData)
   }
@@ -3433,7 +3483,20 @@ export const workDB = {
       case DB_TYPE.POSTGRESQL:
         return (await db.query(`
           SELECT
-            w.*,
+            w.id,
+            w.title,
+            w.description,
+            w.thumbnail,
+            w.cover_url,
+            w.video_url,
+            w.creator_id,
+            w.category,
+            w.tags,
+            w.status,
+            w.source,
+            w.created_at,
+            w.updated_at,
+            w.views as view_count,
             u.username,
             u.avatar_url,
             COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes
@@ -3463,7 +3526,20 @@ export const workDB = {
           // 首先尝试从 works 表查询，使用子查询计算真实点赞数
           const { rows: worksRows } = await db.query(`
             SELECT 
-              w.*, 
+              w.id,
+              w.title,
+              w.description,
+              w.thumbnail,
+              w.cover_url,
+              w.video_url,
+              w.creator_id,
+              w.category,
+              w.tags,
+              w.status,
+              w.source,
+              w.created_at,
+              w.updated_at,
+              w.views as view_count,
               u.username, 
               u.avatar_url,
               COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes
@@ -3566,17 +3642,26 @@ export const workDB = {
       case DB_TYPE.POSTGRESQL:
         return (await db.query(`
           SELECT
-            w.*,
+            w.id,
+            w.title,
+            w.description,
+            w.thumbnail,
+            w.cover_url,
+            w.video_url,
+            w.creator_id,
+            w.category,
+            w.tags,
+            w.status,
+            w.source,
+            w.created_at,
+            w.updated_at,
+            w.views as view_count,
             u.username,
             u.avatar_url,
             COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes
           FROM works w
           LEFT JOIN users u ON w.creator_id = u.id::text
           WHERE w.creator_id = $1 AND (w.source = '津脉广场' OR w.source IS NULL)
-            AND LENGTH(COALESCE(w.title, '')) >= 3
-            AND COALESCE(w.thumbnail, w.cover_url, '') <> ''
-            AND COALESCE(w.thumbnail, w.cover_url, '') <> 'EMPTY'
-            AND LOWER(COALESCE(w.thumbnail, w.cover_url, '')) NOT LIKE '%empty%'
           ORDER BY w.created_at DESC
           LIMIT $2 OFFSET $3
         `, [userId, limit, offset])).rows
@@ -5131,50 +5216,110 @@ export const communityDB = {
     
     console.log('[DB] getUserCommunities: userId =', userId, 'dbType =', typeKey);
 
+    let communities = [];
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
-        const result = (await db.query(`
-          SELECT c.*
-          FROM communities c
-          INNER JOIN community_members m ON c.id = m.community_id
-          WHERE m.user_id = $1 AND c.is_active = true
-          ORDER BY m.joined_at DESC
-        `, [userId])).rows
-        console.log('[DB] getUserCommunities PostgreSQL: found', result.length, 'communities');
-        return result;
+        try {
+          // 首先尝试查询（兼容没有 is_active 列的情况）
+          let result;
+          try {
+            result = (await db.query(`
+              SELECT c.*, m.joined_at as member_joined_at
+              FROM communities c
+              INNER JOIN community_members m ON c.id = m.community_id
+              WHERE m.user_id = $1 AND (c.is_active IS NULL OR c.is_active = true)
+            `, [userId])).rows
+          } catch (columnError) {
+            // 如果 is_active 列不存在，使用简单查询
+            if (columnError.message.includes('is_active')) {
+              console.warn('[DB] getUserCommunities: is_active column not found, using fallback query');
+              result = (await db.query(`
+                SELECT c.*, m.joined_at as member_joined_at
+                FROM communities c
+                INNER JOIN community_members m ON c.id = m.community_id
+                WHERE m.user_id = $1
+              `, [userId])).rows
+            } else {
+              throw columnError;
+            }
+          }
+          console.log('[DB] getUserCommunities PostgreSQL: found', result.length, 'communities');
+          // 在 JavaScript 中排序，避免 SQL 类型问题
+          communities = result.sort((a, b) => {
+            const aTime = a.member_joined_at ? new Date(a.member_joined_at).getTime() : 0;
+            const bTime = b.member_joined_at ? new Date(b.member_joined_at).getTime() : 0;
+            return bTime - aTime;
+          });
+        } catch (error) {
+          console.error('[DB] getUserCommunities PostgreSQL error:', error.message);
+          throw error;
+        }
+        break;
       }
       case DB_TYPE.MEMORY: {
-        const memberships = (memoryStore.community_members || []).filter(m => m.user_id === userId)
-        console.log('[DB] getUserCommunities MEMORY: found', memberships.length, 'memberships');
-        const byJoinDesc = [...memberships].sort((a, b) => (b.joined_at || 0) - (a.joined_at || 0))
-        const communities = (memoryStore.communities || []).filter(c => c.is_active !== false)
-        const result = byJoinDesc
-          .map(m => communities.find(c => c.id === m.community_id))
-          .filter(Boolean)
-        console.log('[DB] getUserCommunities MEMORY: found', result.length, 'communities');
-        return result;
+        try {
+          const memberships = (memoryStore.community_members || []).filter(m => m.user_id === userId)
+          console.log('[DB] getUserCommunities MEMORY: found', memberships.length, 'memberships');
+          const byJoinDesc = [...memberships].sort((a, b) => {
+            const aTime = a.joined_at || 0;
+            const bTime = b.joined_at || 0;
+            return bTime - aTime;
+          })
+          const allCommunities = (memoryStore.communities || []).filter(c => c.is_active !== false)
+          communities = byJoinDesc
+            .map(m => allCommunities.find(c => c.id === m.community_id))
+            .filter(Boolean)
+          console.log('[DB] getUserCommunities MEMORY: found', communities.length, 'communities');
+        } catch (error) {
+          console.error('[DB] getUserCommunities MEMORY error:', error.message);
+          throw error;
+        }
+        break;
       }
       default:
         return []
     }
+    
+    // 确保 avatar 字段有默认值，并转换字段格式
+    return communities.map(community => ({
+      id: community.id,
+      name: community.name,
+      description: community.description,
+      avatar: community.avatar || community.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(community.name || 'community')}`,
+      member_count: community.member_count || 0,
+      members_count: community.member_count || 0,
+      topic: community.topic,
+      is_active: community.is_active,
+      is_special: community.is_special,
+      creator_id: community.creator_id,
+      created_at: community.created_at,
+      updated_at: community.updated_at,
+      tags: community.tags,
+      bookmarks: community.bookmarks,
+      theme: community.theme,
+      layout_type: community.layout_type,
+      cover: community.cover
+    }));
   },
 
   // 在社区中创建帖子
   async createCommunityPost({ communityId, userId, title, content, images = [], videos = [], audios = [] }) {
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
-    const nowTimestamp = Date.now() // 使用 bigint 时间戳
+    const nowISO = new Date().toISOString() // 使用 ISO 格式时间戳
+    const postId = randomUUID() // 生成帖子ID
 
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL: {
         // 插入帖子到 posts 表
         // 使用 user_id (not null) 而不是 author_id (nullable)
         // 注意：触发器需要 status = 'published' 才会记录活动
+        // images 是 text[] 数组类型，videos 和 audios 是 jsonb 类型
         const { rows } = await db.query(`
-          INSERT INTO posts (title, content, user_id, community_id, status, images, videos, audios, views, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, 'published', $5::text[], $6::text[], $7::text[], 0, $8, $8)
+          INSERT INTO posts (id, title, content, user_id, community_id, status, images, videos, audios, views, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, 'published', $6::text[], $7::jsonb, $8::jsonb, 0, $9, $9)
           RETURNING *
-        `, [title, content, userId, communityId, images || [], videos || [], audios || [], nowTimestamp])
+        `, [postId, title, content, userId, communityId, images || [], JSON.stringify(videos || []), JSON.stringify(audios || []), nowISO])
 
         const post = rows[0]
 
@@ -5184,7 +5329,7 @@ export const communityDB = {
           SET posts_count = COALESCE(posts_count, 0) + 1,
               updated_at = $1
           WHERE id = $2
-        `, [nowTimestamp, userId])
+        `, [nowISO, userId])
 
         return {
           id: post.id,

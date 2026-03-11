@@ -340,9 +340,11 @@ export const useCommunityLogic = () => {
 
         // 2. 加载用户已加入的社群（如果已登录）
         if (user?.id) {
+          console.log('[useCommunityLogic] Loading user communities for user:', user.id);
           fetchPromises.push(
             communityService.getUserCommunities(user.id)
               .then(userCommunities => {
+                console.log('[useCommunityLogic] Loaded user communities:', userCommunities?.length, userCommunities?.map(c => ({ id: c.id, name: c.name, avatar: c.avatar })));
                 if (userCommunities) {
                   setJoinedCommunities(userCommunities);
                 }
@@ -353,6 +355,7 @@ export const useCommunityLogic = () => {
               })
           );
         } else {
+          console.log('[useCommunityLogic] No user logged in, clearing joined communities');
           setJoinedCommunities([]);
         }
 
@@ -1493,7 +1496,13 @@ export const useCommunityLogic = () => {
               console.log('[handleJoinCommunity] New joinedCommunities:', newJoined.map(c => ({ id: c.id, name: c.name })));
               return newJoined;
             });
-            toast.success('已加入社群');
+            
+            // 如果已经是成员，显示不同的提示
+            if (result.alreadyMember) {
+              toast.success('您已经是该社群的成员');
+            } else {
+              toast.success('已加入社群');
+            }
           } else {
             toast.success('加入请求已提交，等待管理员审核');
           }

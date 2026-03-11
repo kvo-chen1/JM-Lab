@@ -6,6 +6,17 @@
 
 import { supabaseServer } from '../supabase-server.mjs';
 
+// 获取套餐名称
+function getPlanName(plan) {
+  const planNames = {
+    base: '基础会员',
+    pro: '专业会员',
+    star: '星耀会员',
+    vip: '至尊会员'
+  };
+  return planNames[plan] || plan;
+}
+
 // 从环境变量读取收款码配置
 const QR_CODE_CONFIG = {
   wechat: {
@@ -87,7 +98,7 @@ class PersonalQRCodePaymentService {
         id: orderId,
         user_id: userId,
         plan,
-        plan_name: plan === 'premium' ? '高级会员' : 'VIP会员',
+        plan_name: getPlanName(plan),
         period,
         amount,
         currency: 'CNY',

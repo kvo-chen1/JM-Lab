@@ -9,24 +9,36 @@ import { supabaseServer } from '../supabase-server.mjs';
 import { realPaymentService } from '../services/realPaymentService.mjs';
 import { personalQRCodePaymentService } from '../services/personalQRCodePayment.mjs';
 
-// 会员价格配置
+// 会员价格配置（五级会员体系）
 const MEMBERSHIP_PRICING = {
-  premium: {
+  base: {
+    monthly: { price: 29, period: '月', duration: 30 * 24 * 60 * 60 * 1000 },
+    quarterly: { price: 79, period: '季度', discount: '9折', originalPrice: 87, duration: 90 * 24 * 60 * 60 * 1000 },
+    yearly: { price: 279, period: '年', discount: '8折', originalPrice: 348, duration: 365 * 24 * 60 * 60 * 1000 }
+  },
+  pro: {
     monthly: { price: 99, period: '月', duration: 30 * 24 * 60 * 60 * 1000 },
     quarterly: { price: 269, period: '季度', discount: '9折', originalPrice: 297, duration: 90 * 24 * 60 * 60 * 1000 },
     yearly: { price: 899, period: '年', discount: '7.6折', originalPrice: 1188, duration: 365 * 24 * 60 * 60 * 1000 }
   },
-  vip: {
+  star: {
     monthly: { price: 199, period: '月', duration: 30 * 24 * 60 * 60 * 1000 },
     quarterly: { price: 539, period: '季度', discount: '9折', originalPrice: 597, duration: 90 * 24 * 60 * 60 * 1000 },
     yearly: { price: 1799, period: '年', discount: '7.5折', originalPrice: 2388, duration: 365 * 24 * 60 * 60 * 1000 }
+  },
+  vip: {
+    monthly: { price: 399, period: '月', duration: 30 * 24 * 60 * 60 * 1000 },
+    quarterly: { price: 1079, period: '季度', discount: '9折', originalPrice: 1197, duration: 90 * 24 * 60 * 60 * 1000 },
+    yearly: { price: 3599, period: '年', discount: '7.5折', originalPrice: 4788, duration: 365 * 24 * 60 * 60 * 1000 }
   }
 };
 
 // 会员权益配置
 const MEMBERSHIP_BENEFITS = {
-  premium: { name: '高级会员' },
-  vip: { name: 'VIP会员' }
+  base: { name: '基础会员' },
+  pro: { name: '专业会员' },
+  star: { name: '星耀会员' },
+  vip: { name: '至尊会员' }
 };
 
 /**

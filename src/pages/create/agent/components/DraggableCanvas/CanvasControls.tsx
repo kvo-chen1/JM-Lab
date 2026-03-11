@@ -60,7 +60,7 @@ export default function CanvasControls({
   }, []);
 
   const handleZoomIn = () => {
-    const newZoom = Math.min(zoom + 10, 200);
+    const newZoom = Math.min(zoom + 10, 300);
     onZoomChange(newZoom);
   };
 
@@ -75,7 +75,7 @@ export default function CanvasControls({
 
   const handleZoomInputBlur = () => {
     const newZoom = parseInt(zoomInput) || 100;
-    const clampedZoom = Math.max(10, Math.min(newZoom, 200));
+    const clampedZoom = Math.max(10, Math.min(newZoom, 300));
     onZoomChange(clampedZoom);
   };
 
@@ -104,13 +104,25 @@ export default function CanvasControls({
 
   // 开始拖拽
   const handleDragStart = useCallback((e: React.MouseEvent) => {
-    // 只有点击拖拽手柄时才允许拖拽
-    if ((e.target as HTMLElement).closest('.drag-handle')) {
+    // 点击拖拽手柄或工具栏空白处都可以拖拽
+    const target = e.target as HTMLElement;
+    if (target.closest('.drag-handle') || target.closest('.controls-container')) {
       setIsDragging(true);
+      
+      // 获取工具栏当前实际位置
+      const rect = controlsRef.current?.getBoundingClientRect();
+      const currentX = rect ? rect.left : position.x;
+      const currentY = rect ? rect.top : position.y;
+      
       setDragStart({
-        x: e.clientX - position.x,
-        y: e.clientY - position.y
+        x: e.clientX - currentX,
+        y: e.clientY - currentY
       });
+      
+      // 如果是第一次拖拽，初始化 position 为当前实际位置
+      if (position.x === 0 && position.y === 0 && rect) {
+        setPosition({ x: rect.left, y: rect.top });
+      }
     }
   }, [position]);
 
@@ -149,7 +161,7 @@ export default function CanvasControls({
   return (
     <div
       ref={controlsRef}
-      className={`fixed flex items-center gap-1 px-2 py-2 rounded-2xl backdrop-blur-md z-[9999] shadow-2xl cursor-default ${
+      className={`controls-container fixed flex items-center gap-1 px-2 py-2 rounded-2xl backdrop-blur-md z-[9999] shadow-2xl cursor-grab ${
         isDragging ? 'cursor-grabbing' : ''
       } ${
         isDark

@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
   FileCheck, 
@@ -10,7 +11,8 @@ import {
   Sparkles,
   Users,
   Palette,
-  Megaphone
+  Megaphone,
+  Store
 } from 'lucide-react';
 
 interface BrandOnboardingProps {
@@ -27,6 +29,7 @@ const BrandOnboarding: React.FC<BrandOnboardingProps> = ({
   onStartApplication,
   stats 
 }) => {
+  const navigate = useNavigate();
   const benefits = [
     {
       icon: Users,
@@ -128,18 +131,20 @@ const BrandOnboarding: React.FC<BrandOnboardingProps> = ({
             className="group px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 hover:scale-105 flex items-center gap-2"
           >
             <Building2 className="w-5 h-5" />
-            立即申请入驻
+            品牌方入驻
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
           <button
-            onClick={onStartApplication}
-            className={`px-8 py-4 rounded-xl font-semibold border transition-all duration-300 hover:scale-105 ${
+            onClick={() => navigate('/merchant/apply')}
+            className={`group px-8 py-4 rounded-xl font-semibold border transition-all duration-300 hover:scale-105 flex items-center gap-2 ${
               isDark 
-                ? 'border-gray-600 text-gray-300 hover:border-gray-500' 
-                : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                ? 'border-emerald-500/50 text-emerald-400 hover:border-emerald-500 hover:bg-emerald-500/10' 
+                : 'border-emerald-500 text-emerald-600 hover:bg-emerald-50'
             }`}
           >
-            了解更多
+            <Store className="w-5 h-5" />
+            商家入驻申请
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
         </motion.div>
 

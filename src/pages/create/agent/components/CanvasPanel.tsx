@@ -1,16 +1,16 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, DERIVATIVE_OPTIONS } from '../hooks/useAgentStore';
-import DraggableCanvas from './DraggableCanvas';
 import WorkCard, { WorkCardData } from './WorkCard';
 import CharacterDesignWorkflow from './CharacterDesignWorkflow';
-import { 
-  Maximize2, 
-  Download, 
-  Share2, 
-  Heart, 
-  Trash2, 
+import CanvasControls from './DraggableCanvas/CanvasControls';
+import {
+  Maximize2,
+  Download,
+  Share2,
+  Heart,
+  Trash2,
   Grid3X3,
   LayoutGrid,
   Wand2,
@@ -126,7 +126,193 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
   const [showDerivativeOptions, setShowDerivativeOptions] = useState(false);
   const [selectedDerivative, setSelectedDerivative] = useState<string | null>(null);
 
+  // 画布控制状态
+  const [canvasZoom, setCanvasZoom] = useState(100);
+  const [canvasPosition, setCanvasPosition] = useState({ x: 0, y: 0 });
+  const [selectedTool, setSelectedTool] = useState<'select' | 'move' | 'hand'>('select');
+  const [showGrid, setShowGrid] = useState(false);
+
   const selectedImage = generatedOutputs.find(out => out.id === selectedOutput);
+
+  // 空格键状态和拖拽状态
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+
+  // 重置画布
+  const handleResetCanvas = () => {
+    setCanvasZoom(100);
+    setCanvasPosition({ x: 0, y: 0 });
+    setSelectedTool('select');
+    setShowGrid(false);
+    toast.success('画布已重置');
+  };
+
+  // 处理作品选择 - 自动聚焦并放大
+  const handleSelectOutput = (id: string, event?: React.MouseEvent, index?: number, mode?: 'gallery' | 'grid') => {
+    selectOutput(id);
+
+    // 自动聚焦到作品并放大到合适大小
+    const targetZoom = 100; // 放大到100%
+    setCanvasZoom(targetZoom);
+
+    // 计算居中位置
+    if (canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const centerX = canvasRect.width / 2;
+      const centerY = canvasRect.height / 2;
+
+      // 估算卡片位置（基于索引）
+      const cardWidth = mode === 'grid' ? 320 : 448; // 更准确的卡片宽度
+      const cardHeight = 600; // 更准确的卡片高度（包含图片和文字）
+      const gap = mode === 'grid' ? 96 : 128; // gap-24 或 gap-32
+      const cols = mode === 'grid' ? 3 : 2;
+      const padding = 80; // p-20 = 80px
+      
+      const row = Math.floor((index || 0) / cols);
+      const col = (index || 0) % cols;
+      
+      // 计算卡片中心位置（相对于画布内容区域）
+      const cardCenterX = col * (cardWidth + gap) + cardWidth / 2 + padding;
+      const cardCenterY = row * (cardHeight + gap) + cardHeight / 2 + padding;
+
+      // 计算需要平移的距离，使卡片居中
+      setCanvasPosition({
+        x: centerX - cardCenterX,
+        y: centerY - cardCenterY
+      });
+    }
+
+    toast.success('已聚焦到选中作品');
+  };
+
+  // 拖拽处理
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // 只有在抓手工具、按住空格键、按住中键或Shift键时才允许拖拽
+    if (selectedTool === 'hand' || isSpacePressed || e.button === 1 || (e.button === 0 && e.shiftKey)) {
+      e.preventDefault();
+      setIsDragging(true);
+      dragStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        posX: canvasPosition.x,
+        posY: canvasPosition.y
+      };
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const deltaX = e.clientX - dragStartRef.current.x;
+    const deltaY = e.clientY - dragStartRef.current.y;
+    setCanvasPosition({
+      x: dragStartRef.current.posX + deltaX,
+      y: dragStartRef.current.posY + deltaY
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // 键盘事件处理 - 空格键
+  useEffect(() => {
+    console.log('[CanvasPanel] 键盘事件监听已添加');
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      console.log('[CanvasPanel] 键盘按下:', e.code, '目标:', (e.target as HTMLElement).tagName);
+
+      // 避免在输入框中触发
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        console.log('[CanvasPanel] 在输入框中，忽略');
+        return;
+      }
+
+      if (e.code === 'Space' && !e.repeat) {
+        console.log('[CanvasPanel] 空格键按下，切换到抓手工具');
+        e.preventDefault();
+        e.stopPropagation();
+        setIsSpacePressed(true);
+        setSelectedTool('hand');
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      console.log('[CanvasPanel] 键盘释放:', e.code);
+
+      if (e.code === 'Space') {
+        console.log('[CanvasPanel] 空格键释放，恢复选择工具');
+        e.preventDefault();
+        e.stopPropagation();
+        setIsSpacePressed(false);
+        setSelectedTool('select');
+      }
+    };
+
+    // 使用 capture 阶段确保事件被优先处理
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+
+    return () => {
+      console.log('[CanvasPanel] 键盘事件监听已移除');
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
+    };
+  }, []);
+
+  // 滚轮事件处理 - 滚轮平移画布，Ctrl+滚轮缩放
+  useEffect(() => {
+    console.log('[CanvasPanel] 滚轮事件监听已添加');
+
+    const handleWheel = (e: WheelEvent) => {
+      // 只有在鼠标在画布区域内时才处理
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      if (
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom
+      ) {
+        return;
+      }
+
+      // Ctrl+滚轮：缩放画布
+      if (e.ctrlKey || e.metaKey) {
+        console.log('[CanvasPanel] Ctrl+滚轮，缩放画布');
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = e.deltaY > 0 ? -10 : 10;
+        setCanvasZoom(prev => {
+          const newZoom = Math.max(10, Math.min(300, prev + delta));
+          console.log('[CanvasPanel] 缩放从', prev, '到', newZoom);
+          return newZoom;
+        });
+      } else {
+        // 普通滚轮：平移画布
+        console.log('[CanvasPanel] 滚轮平移画布');
+        e.preventDefault();
+        e.stopPropagation();
+        setCanvasPosition(prev => ({
+          x: prev.x - e.deltaX,
+          y: prev.y - e.deltaY
+        }));
+      }
+    };
+
+    // 使用 capture 阶段确保事件被优先处理
+    window.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+
+    return () => {
+      console.log('[CanvasPanel] 滚轮事件监听已移除');
+      window.removeEventListener('wheel', handleWheel, { capture: true });
+    };
+  }, []);
 
   // 调试日志
   console.log('[CanvasPanel] generatedOutputs:', generatedOutputs);
@@ -231,7 +417,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
   return (
     <div className={`flex flex-col h-full ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
       {/* Toolbar - 固定在顶部 */}
-      <div className={`sticky top-0 z-10 h-14 px-4 flex items-center justify-between border-b backdrop-blur-md ${
+      <div className={`flex-shrink-0 z-10 h-14 px-4 flex items-center justify-between border-b backdrop-blur-md ${
         isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 border-gray-200'
       }`}>
         <div className="flex items-center gap-2">
@@ -318,8 +504,18 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
         </div>
       </div>
 
-      {/* Main Canvas Area - 占据整个右半边区域 */}
-      <div className="relative flex-1 h-full overflow-hidden">
+      {/* Main Canvas Area - 无限画布模式 */}
+      <div
+        ref={canvasRef}
+        className="flex-1 relative overflow-hidden"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{
+          cursor: isDragging ? 'grabbing' : (selectedTool === 'hand' || isSpacePressed) ? 'grab' : 'default'
+        }}
+      >
         {/* 角色设计工作流 - 当任务是IP角色设计时显示 */}
         {currentTask?.type === 'ip-character' && (
           <CharacterDesignWorkflow
@@ -331,7 +527,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
 
         {generatedOutputs.length === 0 && currentTask?.type !== 'ip-character' ? (
           // Empty State
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center h-full min-h-[400px]">
             <div className="text-center">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -351,26 +547,34 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
             </div>
           </div>
         ) : (
-          // Canvas with Generated Content - 使用 DraggableCanvas 包裹以支持缩放
-          <DraggableCanvas onFeedbackClick={onFeedbackClick}>
-            <AnimatePresence mode="wait">
-              {viewMode === 'gallery' ? (
-                <motion.div
-                  key="gallery"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="w-full h-full p-8"
-                >
-                  <div className="max-w-4xl mx-auto">
-                    {/* Work Cards Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          // 无限画布内容层 - 支持自由平移和缩放
+          <div
+            className="absolute top-0 left-0 w-full h-full"
+            style={{
+              transform: `translate(${canvasPosition.x}px, ${canvasPosition.y}px) scale(${canvasZoom / 100})`,
+              transformOrigin: 'center center',
+              transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+            }}
+          >
+            <div className="p-20 min-w-max">
+              <AnimatePresence mode="wait">
+                {viewMode === 'gallery' ? (
+                  <motion.div
+                    key="gallery"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="inline-block"
+                  >
+                    {/* Work Cards - 自由排列 */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-32 max-w-5xl">
                       {generatedOutputs.map((output, index) => (
                         <motion.div
                           key={output.id}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.1 }}
+                          data-output-id={output.id}
                         >
                           <WorkCard
                             data={{
@@ -383,7 +587,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                               isFavorite: output.isFavorite
                             }}
                             isSelected={selectedOutput === output.id}
-                            onSelect={() => selectOutput(output.id)}
+                            onSelect={(e) => handleSelectOutput(output.id, e, index, viewMode)}
                             onUpdate={(id, updates) => {
                               updateOutput(id, updates);
                             }}
@@ -407,8 +611,8 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className={`fixed bottom-8 left-1/2 -translate-x-1/2 p-4 rounded-xl backdrop-blur-md z-50 ${
-                          isDark 
-                            ? 'bg-gray-900/90 border border-gray-700' 
+                          isDark
+                            ? 'bg-gray-900/90 border border-gray-700'
                             : 'bg-white/90 border border-gray-200'
                         }`}
                       >
@@ -426,8 +630,8 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                           <button
                             onClick={() => handleSatisfactionResponse(false)}
                             className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${
-                              isDark 
-                                ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                              isDark
+                                ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           >
@@ -437,55 +641,58 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                         </div>
                       </motion.div>
                     )}
-                  </div>
-                </motion.div>
-              ) : (
-                // Grid View - 使用WorkCard的紧凑模式
-                <motion.div
-                  key="grid"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 p-8 overflow-auto h-full"
-                >
-                  {generatedOutputs.map((output, index) => (
-                    <motion.div
-                      key={output.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                    >
-                      <WorkCard
-                        data={{
-                          id: output.id,
-                          title: output.title || '未命名作品',
-                          description: output.description || '暂无描述',
-                          imageUrl: output.url,
-                          thumbnailUrl: output.thumbnail || output.url,
-                          createdAt: output.createdAt,
-                          isFavorite: output.isFavorite
-                        }}
-                        isSelected={selectedOutput === output.id}
-                        onSelect={() => selectOutput(output.id)}
-                        onUpdate={(id, updates) => {
-                          updateOutput(id, updates);
-                        }}
-                        onDelete={(id) => {
-                          deleteOutput(id);
-                        }}
-                        onRefresh={(id) => {
-                          toast.info('重新生成功能开发中...');
-                        }}
-                        onDownload={(data) => {
-                          handleDownload();
-                        }}
-                      />
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </DraggableCanvas>
+                  </motion.div>
+                ) : (
+                  // Grid View - 使用WorkCard的紧凑模式
+                  <motion.div
+                    key="grid"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="inline-block"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-24 max-w-6xl p-16">
+                      {generatedOutputs.map((output, index) => (
+                        <motion.div
+                          key={output.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="max-w-sm"
+                        >
+                          <WorkCard
+                            data={{
+                              id: output.id,
+                              title: output.title || '未命名作品',
+                              description: output.description || '暂无描述',
+                              imageUrl: output.url,
+                              thumbnailUrl: output.thumbnail || output.url,
+                              createdAt: output.createdAt,
+                              isFavorite: output.isFavorite
+                            }}
+                            isSelected={selectedOutput === output.id}
+                            onSelect={(e) => handleSelectOutput(output.id, e, index, 'grid')}
+                            onUpdate={(id, updates) => {
+                              updateOutput(id, updates);
+                            }}
+                            onDelete={(id) => {
+                              deleteOutput(id);
+                            }}
+                            onRefresh={(id) => {
+                              toast.info('重新生成功能开发中...');
+                            }}
+                            onDownload={(data) => {
+                              handleDownload();
+                            }}
+                          />
+                        </motion.div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
         )}
       </div>
 
@@ -534,6 +741,18 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 底部画布控制工具栏 */}
+      <CanvasControls
+        zoom={canvasZoom}
+        onZoomChange={setCanvasZoom}
+        onReset={handleResetCanvas}
+        onToolChange={setSelectedTool}
+        selectedTool={selectedTool}
+        showGrid={showGrid}
+        onToggleGrid={() => setShowGrid(!showGrid)}
+        onFeedbackClick={onFeedbackClick}
+      />
     </div>
   );
 }

@@ -2,7 +2,8 @@
 
 import { AgentMessage, DesignTask, GeneratedOutput, AgentType, PRESET_STYLES } from '../types/agent';
 import { llmService } from '@/services/llmService';
-import { callQwenChat } from '@/services/llm/chatProviders';
+import { callQwenChat, callKimiChat, callDeepseekChat } from '@/services/llm/chatProviders';
+import { callCurrentModel } from './modelCaller';
 import { aiGenerationService } from '@/services/aiGenerationService';
 import {
   DIRECTOR_SYSTEM_PROMPT,
@@ -78,6 +79,22 @@ export async function* streamQwenResponse(
 }
 
 /**
+ * 根据当前模型调用对应的API
+ * 使用 modelCaller 中的统一调用函数
+ */
+async function callModelAPI(
+  messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
+  options?: {
+    temperature?: number;
+    max_tokens?: number;
+  }
+): Promise<string> {
+  // 使用 modelCaller 中的函数
+  const { callCurrentModel } = await import('./modelCaller');
+  return callCurrentModel(messages, options);
+}
+
+/**
  * 调用Agent获取完整响应 - 带增强错误处理
  */
 export async function callAgent(
@@ -104,9 +121,8 @@ export async function callAgent(
     async () => {
       console.log(`[Agent] Calling ${agent} agent...`);
 
-      const response = await callQwenChat({
-        model: 'qwen-plus',
-        messages,
+      // 使用统一的模型调用函数
+      const response = await callModelAPI(messages, {
         temperature: 0.7,
         max_tokens: 1500
       });
@@ -322,12 +338,10 @@ export async function analyzeDesignRequirements(
 }> {
   try {
     const prompt = REQUIREMENT_ANALYSIS_PROMPT(description);
-    const response = await callQwenChat({
-      model: 'qwen-plus',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1000
-    });
+    const response = await callCurrentModel(
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.7, max_tokens: 1000 }
+    );
 
     // 解析JSON响应
     const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -389,12 +403,10 @@ export async function recommendStyles(
     ).join('\n');
 
     const prompt = STYLE_RECOMMENDATION_PROMPT(requirements, availableStyles);
-    const response = await callQwenChat({
-      model: 'qwen-plus',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1000
-    });
+    const response = await callCurrentModel(
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.7, max_tokens: 1000 }
+    );
 
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {

@@ -529,21 +529,44 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   // 获取用户统计数据和积分数据
   useEffect(() => {
     if (user?.id) {
+      console.log('[SidebarLayout] Fetching user stats for user:', user.id, user.username);
+      
       // 并行获取关注列表、粉丝列表和作品数量
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       
       Promise.all([
-        getFollowingList().catch(() => []),
-        getFollowersList().catch(() => []),
+        getFollowingList().catch((err) => {
+          console.error('[SidebarLayout] getFollowingList error:', err);
+          return [];
+        }),
+        getFollowersList().catch((err) => {
+          console.error('[SidebarLayout] getFollowersList error:', err);
+          return [];
+        }),
         // 获取作品数量 - 使用较大的limit确保获取所有作品
         token ? fetch(`/api/works?creator_id=${user.id}&limit=100`, {
           headers: { 'Authorization': `Bearer ${token}` }
-        }).then(res => res.ok ? res.json() : { data: [] }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        }).then(res => {
+          if (!res.ok) {
+            console.error('[SidebarLayout] Works API error:', res.status, res.statusText);
+          }
+          return res.ok ? res.json() : { data: [] };
+        }).catch((err) => {
+          console.error('[SidebarLayout] Works fetch error:', err);
+          return { data: [] };
+        }) : Promise.resolve({ data: [] }),
         // 获取积分数据
         supabasePointsService.getUserBalance(user.id).catch(() => null)
       ]).then(([following, followers, worksResult, pointsBalance]) => {
         // API返回的是data数组，直接使用数组长度
         const worksCount = worksResult?.data?.length || 0;
+        
+        console.log('[SidebarLayout] User stats fetched:', {
+          followingCount: following.length,
+          followersCount: followers.length,
+          worksCount: worksCount,
+          userId: user.id
+        });
 
         setUserStats({
           worksCount: worksCount,

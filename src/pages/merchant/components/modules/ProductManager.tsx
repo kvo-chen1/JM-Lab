@@ -1,8 +1,9 @@
 /**
  * 商家工作平台 - 商品管理模块
+ * 使用真实数据库数据
  */
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Package, 
   Plus, 
@@ -15,21 +16,26 @@ import {
   Grid3X3,
   List,
   Tag,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
+import { merchantService } from '@/services/merchantService';
+import { toast } from 'sonner';
+import ProductPublishForm from '../ProductPublishForm';
 
-// 模拟商品数据
-const mockProducts = [
-  { id: 1, name: '津小脉文创 T 恤', price: 500, stock: 100, sales: 45, status: 'on_sale', category: '服饰配饰', image: null },
-  { id: 2, name: '津脉智坊定制笔记本', price: 300, stock: 200, sales: 128, status: 'on_sale', category: '文具用品', image: null },
-  { id: 3, name: '天津文化明信片套装', price: 200, stock: 500, sales: 256, status: 'on_sale', category: '文具用品', image: null },
-  { id: 4, name: '津小脉毛绒公仔', price: 800, stock: 50, sales: 32, status: 'on_sale', category: '毛绒玩具', image: null },
-  { id: 5, name: '智能保温杯', price: 600, stock: 150, sales: 89, status: 'on_sale', category: '数码配件', image: null },
-  { id: 6, name: '无线充电宝', price: 1200, stock: 80, sales: 67, status: 'on_sale', category: '数码配件', image: null },
-];
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  sales_count: number;
+  status: 'active' | 'inactive' | 'out_of_stock';
+  category: string;
+  images: string[];
+}
 
 const ProductManager: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -37,9 +43,57 @@ const ProductManager: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [merchantId, setMerchantId] = useState<string>('');
+  const [showPublishForm, setShowPublishForm] = useState(false);
+
+  // 获取商家信息和商品数据
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+
+      // 获取当前商家（如果不存在会自动创建）
+      console.log('[ProductManager] 开始获取商家信息...');
+      const merchant = await merchantService.getCurrentMerchant();
+      console.log('[ProductManager] 获取到的商家:', merchant);
+
+      if (merchant) {
+        setMerchantId(merchant.id);
+
+        // 获取商家商品
+        console.log('[ProductManager] 开始获取商品列表，商家ID:', merchant.id);
+        const merchantProducts = await merchantService.getProducts(merchant.id);
+        console.log('[ProductManager] 获取到的商品:', merchantProducts);
+
+        setProducts(merchantProducts.map(p => ({
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          stock: p.stock,
+          sales_count: p.sales_count,
+          status: p.status,
+          category: p.category,
+          images: p.images
+        })));
+      } else {
+        console.error('[ProductManager] 无法获取商家信息，merchant 为 null');
+        toast.error('无法获取商家信息，请确保已登录');
+      }
+    } catch (error) {
+      console.error('[ProductManager] 获取商品数据失败:', error);
+      toast.error('获取商品数据失败: ' + (error instanceof Error ? error.message : '未知错误'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   // 筛选商品
-  const filteredProducts = mockProducts.filter(product => {
+  const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
     const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
@@ -48,22 +102,41 @@ const ProductManager: React.FC = () => {
 
   // 统计数据
   const stats = {
-    total: mockProducts.length,
-    onSale: mockProducts.filter(p => p.status === 'on_sale').length,
-    offShelf: mockProducts.filter(p => p.status === 'off_shelf').length,
-    lowStock: mockProducts.filter(p => p.stock < 20).length,
+    total: products.length,
+    onSale: products.filter(p => p.status === 'active').length,
+    offShelf: products.filter(p => p.status === 'inactive').length,
+    lowStock: products.filter(p => p.stock < 20).length,
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'on_sale':
+      case 'active':
         return <Badge className="bg-emerald-500 border-0">销售中</Badge>;
-      case 'off_shelf':
+      case 'inactive':
         return <Badge className="bg-slate-500 border-0">已下架</Badge>;
+      case 'out_of_stock':
+        return <Badge className="bg-red-500 border-0">缺货</Badge>;
       default:
         return <Badge className="border-0">{status}</Badge>;
     }
   };
+
+  const handlePublishProduct = () => {
+    console.log('点击发布商品按钮, merchantId:', merchantId);
+    setShowPublishForm(true);
+  };
+
+  const handlePublishSuccess = () => {
+    fetchProducts();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-[#5ba3d4]" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -73,9 +146,12 @@ const ProductManager: React.FC = () => {
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">商品管理</h2>
           <p className="text-sm text-[var(--text-muted)] mt-0.5">管理您的商品，支持上架、下架、编辑等操作</p>
         </div>
-        <Button className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white">
-          <Plus className="w-4 h-4 mr-2" />
-          发布商品
+        <Button
+          className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white flex items-center gap-2"
+          onClick={handlePublishProduct}
+        >
+          <Plus className="w-4 h-4" />
+          <span>发布商品</span>
         </Button>
       </div>
 
@@ -150,8 +226,9 @@ const ProductManager: React.FC = () => {
             className="border border-[var(--border-primary)] rounded-lg px-3 py-2 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm"
           >
             <option value="all">全部状态</option>
-            <option value="on_sale">销售中</option>
-            <option value="off_shelf">已下架</option>
+            <option value="active">销售中</option>
+            <option value="inactive">已下架</option>
+            <option value="out_of_stock">缺货</option>
           </select>
 
           {/* 分类筛选 */}
@@ -161,10 +238,9 @@ const ProductManager: React.FC = () => {
             className="border border-[var(--border-primary)] rounded-lg px-3 py-2 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm"
           >
             <option value="all">全部分类</option>
-            <option value="服饰配饰">服饰配饰</option>
-            <option value="文具用品">文具用品</option>
-            <option value="毛绒玩具">毛绒玩具</option>
-            <option value="数码配件">数码配件</option>
+            <option value="virtual">虚拟商品</option>
+            <option value="physical">实物商品</option>
+            <option value="service">服务</option>
           </select>
 
           {/* 排序 */}
@@ -205,6 +281,15 @@ const ProductManager: React.FC = () => {
         </div>
       </div>
 
+      {/* 发布商品表单 */}
+      {showPublishForm && merchantId && (
+        <ProductPublishForm
+          merchantId={merchantId}
+          onClose={() => setShowPublishForm(false)}
+          onSuccess={handlePublishSuccess}
+        />
+      )}
+
       {/* 商品列表 */}
       <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] p-4">
         <div className="flex items-center justify-between mb-4">
@@ -224,7 +309,13 @@ const ProductManager: React.FC = () => {
           </div>
         </div>
 
-        {viewMode === 'grid' ? (
+        {filteredProducts.length === 0 ? (
+          <div className="text-center py-12">
+            <Package className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
+            <p className="text-[var(--text-muted)]">暂无商品</p>
+            <p className="text-sm text-[var(--text-muted)] mt-1">点击右上角"发布商品"按钮添加商品</p>
+          </div>
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredProducts.map((product, index) => (
               <motion.div
@@ -236,8 +327,8 @@ const ProductManager: React.FC = () => {
               >
                 {/* 商品图片 */}
                 <div className="aspect-[4/3] bg-[var(--bg-primary)] flex items-center justify-center relative">
-                  {product.image ? (
-                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  {product.images && product.images.length > 0 ? (
+                    <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
                   ) : (
                     <Package className="w-12 h-12 text-[var(--border-secondary)]" />
                   )}
@@ -260,7 +351,7 @@ const ProductManager: React.FC = () => {
                     <span className="text-sm text-[var(--text-muted)]">库存 {product.stock}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-[var(--text-muted)]">销量 {product.sales}</span>
+                    <span className="text-[var(--text-muted)]">销量 {product.sales_count}</span>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                         <Eye className="w-4 h-4" />
@@ -285,8 +376,8 @@ const ProductManager: React.FC = () => {
                 className="flex items-center gap-4 p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)] hover:border-[var(--border-secondary)] transition-all"
               >
                 <div className="w-16 h-16 rounded-lg bg-[var(--bg-primary)] flex items-center justify-center">
-                  {product.image ? (
-                    <img src={product.image} alt={product.name} className="w-full h-full object-cover rounded-lg" />
+                  {product.images && product.images.length > 0 ? (
+                    <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover rounded-lg" />
                   ) : (
                     <Package className="w-6 h-6 text-[var(--border-secondary)]" />
                   )}

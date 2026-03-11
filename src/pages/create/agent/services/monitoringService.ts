@@ -445,11 +445,20 @@ class MonitoringService {
     // 点击追踪
     document.addEventListener('click', (event) => {
       const target = event.target as HTMLElement;
+      // 处理 SVG 元素的 className（SVGAnimatedString）
+      let classNameStr = '';
+      if (target.className) {
+        if (typeof target.className === 'string') {
+          classNameStr = target.className;
+        } else if (target.className.baseVal) {
+          classNameStr = target.className.baseVal;
+        }
+      }
       this.trackUserBehavior({
         sessionId: this.sessionId,
         timestamp: Date.now(),
         action: 'click',
-        element: target.tagName + (target.id ? `#${target.id}` : '') + (target.className ? `.${target.className.split(' ').join('.')}` : ''),
+        element: target.tagName + (target.id ? `#${target.id}` : '') + (classNameStr ? `.${classNameStr.split(' ').join('.')}` : ''),
         path: window.location.pathname,
         metadata: {
           text: target.textContent?.substring(0, 100),

@@ -4,6 +4,38 @@
  */
 
 import { getDB } from '../database.mjs';
+import { verifyToken } from '../jwt.mjs';
+
+// 辅助函数：验证请求token
+function verifyRequestToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    console.log('[verifyRequestToken] No authorization header');
+    return null;
+  }
+  
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    console.log('[verifyRequestToken] No token in authorization header');
+    return null;
+  }
+  
+  try {
+    const decoded = verifyToken(token);
+    console.log('[verifyRequestToken] Token decoded:', decoded ? 'success' : 'failed');
+    if (decoded) {
+      console.log('[verifyRequestToken] Decoded token:', { userId: decoded.userId, sub: decoded.sub, id: decoded.id });
+      if (!decoded.userId && (decoded.sub || decoded.id)) {
+        decoded.userId = decoded.sub || decoded.id;
+        console.log('[verifyRequestToken] Set userId from sub/id:', decoded.userId);
+      }
+    }
+    return decoded;
+  } catch (error) {
+    console.error('[verifyRequestToken] Token verification error:', error.message);
+    return null;
+  }
+}
 
 // 辅助函数：转换数据库字段为驼峰命名
 function toCamelCase(obj) {
@@ -133,7 +165,13 @@ async function updateBrandRequest(req, res, id) {
       if (value !== undefined) {
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         setClause.push(`${snakeKey} = $${paramIndex}`);
-        values.push(value);
+        
+        // 处理对象和数组类型的值，转换为 JSON 字符串
+        if (typeof value === 'object' && value !== null) {
+          values.push(JSON.stringify(value));
+        } else {
+          values.push(value);
+        }
         paramIndex++;
       }
     }
@@ -160,7 +198,7 @@ async function updateBrandRequest(req, res, id) {
     sendJson(res, 200, toCamelCase(result.rows[0]));
   } catch (error) {
     console.error('更新授权需求失败:', error);
-    sendJson(res, 500, { error: '更新授权需求失败' });
+    sendJson(res, 500, { error: '更新授权需求失败: ' + error.message });
   }
 }
 
@@ -370,8 +408,8 @@ async function getBrandStats(req, res) {
     const applicationsResult = await db.query(
       `SELECT 
         COUNT(*) as total_applications,
-        COUNT(*) FILTER (WHERE status = 'pending') as pending_applications,
-        COUNT(*) FILTER (WHERE status = 'approved') as approved_applications
+        COUNT(*) FILTER (WHERE a.status = 'pending') as pending_applications,
+        COUNT(*) FILTER (WHERE a.status = 'approved') as approved_applications
        FROM copyright_applications a
        JOIN copyright_license_requests r ON a.request_id = r.id
        WHERE r.brand_id = $1`,
@@ -390,11 +428,26 @@ async function getBrandStats(req, res) {
       [brandId]
     );
 
-    sendJson(res, 200, toCamelCase({
+    const rawStats = {
       ...requestsResult.rows[0],
       ...applicationsResult.rows[0],
       ...productsResult.rows[0]
-    }));
+    };
+
+    // 映射字段名以匹配前端期望
+    const stats = {
+      totalRequests: parseInt(rawStats.total_requests) || 0,
+      activeRequests: parseInt(rawStats.open_requests) || 0,
+      totalApplications: parseInt(rawStats.total_applications) || 0,
+      pendingApplications: parseInt(rawStats.pending_applications) || 0,
+      approvedApplications: parseInt(rawStats.approved_applications) || 0,
+      totalProducts: parseInt(rawStats.total_products) || 0,
+      onSaleProducts: parseInt(rawStats.on_sale_products) || 0,
+      totalRevenue: parseFloat(rawStats.total_revenue) || 0,
+      totalLicenseFees: parseFloat(rawStats.total_brand_share) || 0
+    };
+
+    sendJson(res, 200, stats);
   } catch (error) {
     console.error('获取品牌统计失败:', error);
     sendJson(res, 500, { error: '获取品牌统计失败' });
@@ -495,27 +548,61 @@ async function getRequestById(req, res, id) {
 // 提交授权申请
 async function submitApplication(req, res) {
   try {
+    // 验证用户身份
+    const decoded = verifyRequestToken(req);
+    if (!decoded) {
+      return sendJson(res, 401, { error: '未授权访问', message: '请先登录' });
+    }
+    
+    const userId = decoded.userId || decoded.sub || decoded.id;
+    if (!userId) {
+      return sendJson(res, 401, { error: '未授权访问', message: '无法获取用户信息' });
+    }
+
     const body = await readBody(req);
     const {
       requestId,
       ipAssetId,
+      ipAssetName,
       message,
       proposedUsage,
-      expectedProducts
+      expectedProducts,
+      applicantName
     } = body;
 
     if (!requestId) {
       return sendJson(res, 400, { error: '缺少需求ID' });
     }
 
+    // 获取用户信息
     const db = await getDB();
+    const userResult = await db.query(
+      'SELECT username, nickname FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    const userName = applicantName || 
+                     (userResult.rows[0]?.nickname) || 
+                     (userResult.rows[0]?.username) || 
+                     '未知用户';
+
+    console.log('[submitApplication] 提交申请:', { 
+      userId, 
+      userName, 
+      requestId, 
+      ipAssetId, 
+      ipAssetName 
+    });
+
     const result = await db.query(
       `INSERT INTO copyright_applications (
         request_id, applicant_id, applicant_name, ip_asset_id, ip_asset_name,
         message, proposed_usage, expected_products
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *`,
-      [requestId, 'user-id', '用户名', ipAssetId, 'IP名称', message, proposedUsage, JSON.stringify(expectedProducts || [])]
+      [requestId, userId, userName, ipAssetId || null, ipAssetName || null, 
+       message || null, proposedUsage || null, 
+       JSON.stringify(expectedProducts || [])]
     );
 
     // 更新需求的申请计数
@@ -524,10 +611,11 @@ async function submitApplication(req, res) {
       [requestId]
     );
 
+    console.log('[submitApplication] 申请提交成功:', result.rows[0].id);
     sendJson(res, 201, toCamelCase(result.rows[0]));
   } catch (error) {
     console.error('提交申请失败:', error);
-    sendJson(res, 500, { error: '提交申请失败' });
+    sendJson(res, 500, { error: '提交申请失败', message: error.message });
   }
 }
 
@@ -805,7 +893,13 @@ async function updateLicensedProduct(req, res, id) {
       if (value !== undefined) {
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         setClause.push(`${snakeKey} = $${paramIndex}`);
-        values.push(value);
+        
+        // 处理对象和数组类型的值，转换为 JSON 字符串
+        if (typeof value === 'object' && value !== null) {
+          values.push(JSON.stringify(value));
+        } else {
+          values.push(value);
+        }
         paramIndex++;
       }
     }
@@ -832,7 +926,7 @@ async function updateLicensedProduct(req, res, id) {
     sendJson(res, 200, toCamelCase(result.rows[0]));
   } catch (error) {
     console.error('更新产品失败:', error);
-    sendJson(res, 500, { error: '更新产品失败' });
+    sendJson(res, 500, { error: '更新产品失败: ' + error.message });
   }
 }
 

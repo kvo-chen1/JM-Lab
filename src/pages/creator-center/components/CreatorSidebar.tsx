@@ -61,7 +61,7 @@ const navItems: NavItem[] = [
     children: [
       { id: 'orders', label: '商单广场', icon: Briefcase, path: '/order-square' },
       { id: 'publish-order', label: '发布商单', icon: PlusCircle, path: '/publish-order', badge: '新' },
-      { id: 'brand-order-management', label: '品牌方管理', icon: Package, path: '/brand-order-management', badge: '新' },
+      { id: 'brand-order-management', label: '商单管理', icon: Package, path: '/brand-order-management', badge: '新' },
       { id: 'order-center', label: '商单中心', icon: Package, path: '/order-center', badge: '新' },
     ]
   },

@@ -63,8 +63,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--haihe-500)] to-[var(--haihe-600)] flex items-center justify-center">
-              <ShoppingCart className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--haihe-500)] to-[var(--haihe-600)] flex items-center justify-center flex-shrink-0">
+              <ShoppingCart className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
             </div>
             <h3 className="font-semibold text-[var(--text-primary)]">购物车</h3>
           </div>
@@ -109,7 +109,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     onClick={() => onRemoveFromCart?.(item.id)}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-500"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3 h-3 flex-shrink-0" strokeWidth={2.5} />
                   </button>
                 </motion.div>
               ))}
@@ -133,14 +133,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 className="mp-btn mp-btn-primary w-full mp-btn-sm"
               >
                 去结算
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4 flex-shrink-0" strokeWidth={2.5} />
               </button>
             </div>
           </>
         ) : (
           <div className="text-center py-6">
             <div className="w-12 h-12 mx-auto rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center mb-2">
-              <ShoppingCart className="w-6 h-6 text-[var(--text-muted)]" />
+              <ShoppingCart className="w-6 h-6 text-[var(--text-muted)] flex-shrink-0" strokeWidth={2} />
             </div>
             <p className="text-sm text-[var(--text-muted)]">购物车是空的</p>
             <button
@@ -163,8 +163,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-400 to-pink-600 flex items-center justify-center">
-                <Heart className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-400 to-pink-600 flex items-center justify-center flex-shrink-0">
+                <Heart className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
               </div>
               <h3 className="font-semibold text-[var(--text-primary)]">我的收藏</h3>
             </div>
@@ -220,8 +220,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           className="mp-sidebar-card"
         >
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center flex-shrink-0">
+              <Clock className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
             </div>
             <h3 className="font-semibold text-[var(--text-primary)]">浏览历史</h3>
           </div>
@@ -272,8 +272,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           className="mp-sidebar-card bg-gradient-to-br from-[var(--jinmen-50)] to-[var(--jinmen-100)] border-[var(--jinmen-200)]"
         >
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--jinmen-500)] to-[var(--jinmen-600)] flex items-center justify-center">
-              <Gift className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--jinmen-500)] to-[var(--jinmen-600)] flex items-center justify-center flex-shrink-0">
+              <Gift className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
             </div>
             <h3 className="font-semibold text-[var(--text-primary)]">限时促销</h3>
           </div>
@@ -318,8 +318,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           className="mp-sidebar-card"
         >
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
             </div>
             <h3 className="font-semibold text-[var(--text-primary)]">为你推荐</h3>
           </div>
@@ -376,8 +376,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         className="mp-sidebar-card"
       >
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
-            <TrendingUp className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center flex-shrink-0">
+            <TrendingUp className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
           </div>
           <h3 className="font-semibold text-[var(--text-primary)]">平台动态</h3>
         </div>

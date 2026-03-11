@@ -145,7 +145,12 @@ export async function getBaseStats(forceRefresh = false) {
     { data: worksByHour },
     { data: userActivity },
     { data: commentsForSentiment },
-    { data: userHistoryData }
+    { data: userHistoryData },
+    // 真实的用户活跃度数据
+    { data: worksActivity },
+    { data: commentsActivity },
+    { data: likesActivity },
+    { data: postsActivity }
   ] = await Promise.all([
     // 基础数据
     supabaseAdmin.from('works').select('category, view_count'),
@@ -176,8 +181,13 @@ export async function getBaseStats(forceRefresh = false) {
     // 分类数据
     supabaseAdmin.from('works').select('category, created_at'),
 
-    // 会话数据
+    // 会话数据 - 使用真实的用户活动数据（works、comments、likes、posts）
     supabaseAdmin.from('user_sessions').select('session_start, last_active'),
+    // 真实的用户活跃度数据
+    supabaseAdmin.from('works').select('created_at, creator_id'),
+    supabaseAdmin.from('comments').select('created_at, user_id'),
+    supabaseAdmin.from('likes').select('created_at, user_id'),
+    supabaseAdmin.from('posts').select('created_at, user_id'),
 
     // 订单日期数据
     supabaseAdmin.from('membership_orders').select('created_at, amount, status').eq('status', 'completed'),
@@ -198,7 +208,7 @@ export async function getBaseStats(forceRefresh = false) {
     supabaseAdmin.from('user_history').select('*')
   ]);
 
-  return {
+  const result = {
     works,
     deviceData,
     usersByMonth,
@@ -222,8 +232,17 @@ export async function getBaseStats(forceRefresh = false) {
     worksByHour,
     userActivity,
     commentsForSentiment,
-    userHistoryData
+    userHistoryData,
+    // 真实的用户活跃度数据
+    worksActivity,
+    commentsActivity,
+    likesActivity,
+    postsActivity
   };
+
+  // 存入缓存
+  setCachedData('baseStats', result);
+  return result;
 
   // 存入缓存
   setCachedData('baseStats', result);
@@ -244,51 +263,91 @@ export async function getWeeklyComparisonData(forceRefresh = false) {
   const twoWeeksAgo = new Date(currentTime);
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
+  const oneWeekAgoStr = oneWeekAgo.toISOString();
+  const twoWeeksAgoStr = twoWeeksAgo.toISOString();
+
   const [
     { count: currentWeekUsers },
     { count: lastWeekUsers },
-    { count: currentWeekActive },
-    { count: lastWeekActive },
-    { count: currentWeekWorks },
-    { count: lastWeekWorks },
+    // 使用真实的用户活动数据计算活跃用户
+    { data: currentWeekWorks },
+    { data: lastWeekWorks },
+    { data: currentWeekComments },
+    { data: lastWeekComments },
+    { data: currentWeekLikes },
+    { data: lastWeekLikes },
+    { data: currentWeekPosts },
+    { data: lastWeekPosts },
     { count: currentWeekOrders },
     { count: lastWeekOrders },
     { data: currentWeekRevenueData },
     { data: lastWeekRevenueData },
-    { count: currentWeekComments },
-    { count: lastWeekComments }
   ] = await Promise.all([
-    // 本周数据
-    supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).gte('created_at', twoWeeksAgo.toISOString()).lt('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('user_history').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('user_history').select('*', { count: 'exact', head: true }).gte('created_at', twoWeeksAgo.toISOString()).lt('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('works').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('works').select('*', { count: 'exact', head: true }).gte('created_at', twoWeeksAgo.toISOString()).lt('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('membership_orders').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('membership_orders').select('*', { count: 'exact', head: true }).gte('created_at', twoWeeksAgo.toISOString()).lt('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('membership_orders').select('amount').eq('status', 'completed').gte('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('membership_orders').select('amount').eq('status', 'completed').gte('created_at', twoWeeksAgo.toISOString()).lt('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('comments').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo.toISOString()),
-    supabaseAdmin.from('comments').select('*', { count: 'exact', head: true }).gte('created_at', twoWeeksAgo.toISOString()).lt('created_at', oneWeekAgo.toISOString())
+    // 本周和上周新增用户
+    supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgoStr),
+    supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).gte('created_at', twoWeeksAgoStr).lt('created_at', oneWeekAgoStr),
+    // 本周和上周作品
+    supabaseAdmin.from('works').select('creator_id').gte('created_at', oneWeekAgoStr),
+    supabaseAdmin.from('works').select('creator_id').gte('created_at', twoWeeksAgoStr).lt('created_at', oneWeekAgoStr),
+    // 本周和上周评论
+    supabaseAdmin.from('comments').select('user_id').gte('created_at', oneWeekAgoStr),
+    supabaseAdmin.from('comments').select('user_id').gte('created_at', twoWeeksAgoStr).lt('created_at', oneWeekAgoStr),
+    // 本周和上周点赞
+    supabaseAdmin.from('likes').select('user_id').gte('created_at', oneWeekAgoStr),
+    supabaseAdmin.from('likes').select('user_id').gte('created_at', twoWeeksAgoStr).lt('created_at', oneWeekAgoStr),
+    // 本周和上周帖子
+    supabaseAdmin.from('posts').select('user_id').gte('created_at', oneWeekAgoStr),
+    supabaseAdmin.from('posts').select('user_id').gte('created_at', twoWeeksAgoStr).lt('created_at', oneWeekAgoStr),
+    // 本周和上周订单
+    supabaseAdmin.from('membership_orders').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgoStr),
+    supabaseAdmin.from('membership_orders').select('*', { count: 'exact', head: true }).gte('created_at', twoWeeksAgoStr).lt('created_at', oneWeekAgoStr),
+    // 本周和上周收入
+    supabaseAdmin.from('membership_orders').select('amount').eq('status', 'completed').gte('created_at', oneWeekAgoStr),
+    supabaseAdmin.from('membership_orders').select('amount').eq('status', 'completed').gte('created_at', twoWeeksAgoStr).lt('created_at', oneWeekAgoStr),
   ]);
 
-  const currentWeekRevenue = currentWeekRevenueData?.reduce((sum, order) => sum + (order.amount || 0), 0) || 0;
-  const lastWeekRevenue = lastWeekRevenueData?.reduce((sum, order) => sum + (order.amount || 0), 0) || 0;
+  // 计算活跃用户（去重）
+  const currentWeekActiveUsers = new Set([
+    ...(currentWeekWorks?.map(w => w.creator_id) || []),
+    ...(currentWeekComments?.map(c => c.user_id) || []),
+    ...(currentWeekLikes?.map(l => l.user_id) || []),
+    ...(currentWeekPosts?.map(p => p.user_id) || []),
+  ]).size;
+
+  const lastWeekActiveUsers = new Set([
+    ...(lastWeekWorks?.map(w => w.creator_id) || []),
+    ...(lastWeekComments?.map(c => c.user_id) || []),
+    ...(lastWeekLikes?.map(l => l.user_id) || []),
+    ...(lastWeekPosts?.map(p => p.user_id) || []),
+  ]).size;
+
+  // 计算各项数量
+  const currentWeekWorksCount = currentWeekWorks?.length || 0;
+  const lastWeekWorksCount = lastWeekWorks?.length || 0;
+  const currentWeekCommentsCount = currentWeekComments?.length || 0;
+  const lastWeekCommentsCount = lastWeekComments?.length || 0;
+
+  // 计算收入
+  const currentWeekRevenue = currentWeekRevenueData?.reduce((sum, order) => sum + (parseFloat(order.amount) || 0), 0) || 0;
+  const lastWeekRevenue = lastWeekRevenueData?.reduce((sum, order) => sum + (parseFloat(order.amount) || 0), 0) || 0;
 
   const calculateGrowth = (current: number, last: number) => {
     if (last === 0) return current > 0 ? 100 : 0;
     return Math.round(((current - last) / last) * 100 * 10) / 10;
   };
 
-  return [
+  const result = [
     { metric: '新增用户', current: currentWeekUsers || 0, last: lastWeekUsers || 0, growth: calculateGrowth(currentWeekUsers || 0, lastWeekUsers || 0) },
-    { metric: '活跃用户', current: currentWeekActive || 0, last: lastWeekActive || 0, growth: calculateGrowth(currentWeekActive || 0, lastWeekActive || 0) },
-    { metric: '作品发布', current: currentWeekWorks || 0, last: lastWeekWorks || 0, growth: calculateGrowth(currentWeekWorks || 0, lastWeekWorks || 0) },
+    { metric: '活跃用户', current: currentWeekActiveUsers, last: lastWeekActiveUsers, growth: calculateGrowth(currentWeekActiveUsers, lastWeekActiveUsers) },
+    { metric: '作品发布', current: currentWeekWorksCount, last: lastWeekWorksCount, growth: calculateGrowth(currentWeekWorksCount, lastWeekWorksCount) },
     { metric: '订单量', current: currentWeekOrders || 0, last: lastWeekOrders || 0, growth: calculateGrowth(currentWeekOrders || 0, lastWeekOrders || 0) },
     { metric: '收入', current: currentWeekRevenue, last: lastWeekRevenue, growth: calculateGrowth(currentWeekRevenue, lastWeekRevenue) },
-    { metric: '评论数', current: currentWeekComments || 0, last: lastWeekComments || 0, growth: calculateGrowth(currentWeekComments || 0, lastWeekComments || 0) },
+    { metric: '评论数', current: currentWeekCommentsCount, last: lastWeekCommentsCount, growth: calculateGrowth(currentWeekCommentsCount, lastWeekCommentsCount) },
   ];
+
+  // 存入缓存
+  setCachedData('weeklyComparison', result);
+  return result;
 
   // 存入缓存
   setCachedData('weeklyComparison', result);

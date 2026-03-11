@@ -1042,6 +1042,9 @@ class MembershipService {
         notes: `通过${paymentData.method}支付`,
       });
 
+      // 发放津币奖励
+      await this.grantMembershipJinbi(order.user_id, order.plan as MembershipLevel, order.period);
+
       // 清除缓存
       this.cache.lastUpdated.orders = 0;
       this.cache.lastUpdated.info = 0;
@@ -1478,6 +1481,76 @@ class MembershipService {
     }
 
     return { upgraded: false };
+  }
+
+  // ==================== 津币发放 ====================
+
+  /**
+   * 发放会员津币奖励
+   */
+  async grantMembershipJinbi(
+    userId: string,
+    level: MembershipLevel,
+    period: 'monthly' | 'quarterly' | 'yearly'
+  ): Promise<{ success: boolean; granted: number; error?: string }> {
+    try {
+      // 获取会员津币配置
+      const { data: config } = await supabase
+        .from('membership_jinbi_config')
+        .select('monthly_grant')
+        .eq('level', level)
+        .single();
+
+      if (!config || config.monthly_grant <= 0) {
+        return { success: true, granted: 0 };
+      }
+
+      // 根据周期计算津币数量
+      let multiplier = 1;
+      switch (period) {
+        case 'quarterly':
+          multiplier = 3;
+          break;
+        case 'yearly':
+          multiplier = 12;
+          break;
+      }
+
+      const grantAmount = config.monthly_grant * multiplier;
+
+      // 调用 jinbiService 发放津币
+      const { jinbiService } = await import('./jinbiService');
+      const result = await jinbiService.grantJinbi(
+        userId,
+        grantAmount,
+        'membership_grant',
+        `${level}会员${period === 'monthly' ? '月' : period === 'quarterly' ? '季度' : '年'}度津币奖励`,
+        {
+          relatedId: userId,
+          relatedType: 'membership',
+        }
+      );
+
+      if (!result.success) {
+        return { success: false, granted: 0, error: result.error };
+      }
+
+      // 更新订单的津币发放记录
+      await supabaseAdmin
+        .from('membership_orders')
+        .update({
+          jinbi_granted: grantAmount,
+        })
+        .eq('user_id', userId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      return { success: true, granted: grantAmount };
+    } catch (error: any) {
+      console.error('[MembershipService] 发放津币失败:', error);
+      return { success: false, granted: 0, error: error.message };
+    }
   }
 
   // ==================== 工具方法 ====================

@@ -27,7 +27,7 @@ import ProductGridV2 from '@/components/marketplace/ProductGridV2';
 
 // Hooks
 import { 
-  useProducts, 
+  useMerchantProducts, 
   useProductCategories, 
   useUserFavorites,
   useAddToCart,
@@ -53,12 +53,19 @@ const MarketplacePage: React.FC = () => {
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'sales'>('newest');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 数据获取
-  const { products, loading: productsLoading } = useProducts({
+  // 数据获取 - 使用商家商品 hook
+  const { products, loading: productsLoading, error: productsError } = useMerchantProducts({
     categoryId: selectedCategory || undefined,
-    brandId: selectedBrand || undefined,
     sortBy: sortBy,
     searchQuery: searchQuery || undefined,
+  });
+
+  // 调试日志
+  console.log('文创商城 - 商家商品数据:', {
+    productsCount: products?.length || 0,
+    loading: productsLoading,
+    error: productsError,
+    firstProduct: products?.[0]
   });
 
   const { categories } = useProductCategories();

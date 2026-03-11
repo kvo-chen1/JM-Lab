@@ -1,13 +1,15 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore } from '../hooks/useAgentStore';
+import { AuthContext } from '@/contexts/authContext';
 import { supabase } from '@/lib/supabase';
 import { useMonitoring } from '../hooks/useMonitoring';
 import { usePrediction } from '../hooks/usePrediction';
 import { useABTesting } from '../hooks/useABTesting';
 import { useDynamicWorkflow } from '../hooks/useDynamicWorkflow';
-import { Send, Image as ImageIcon, Mic, Sparkles, Trash2, Bot, X, ChevronDown, Wand2, Layers } from 'lucide-react';
+import { useJinbi } from '@/hooks/useJinbi';
+import { Send, Image as ImageIcon, Mic, Sparkles, Trash2, Bot, X, ChevronDown, Wand2, Layers, Store, Coins, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import ChatMessage from './ChatMessage';
 import AgentAvatar from './AgentAvatar';
@@ -22,7 +24,10 @@ import ResourceMonitor from './ResourceMonitor';
 import DataMigrationDialog from './DataMigrationDialog';
 import VoiceInputButton from './VoiceInputButton';
 import StyleLibrary from './StyleLibrary';
+import BrandLibrary from './BrandLibrary';
+import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 import type { InspirationHint, StyleOption } from '../types/agent';
+import type { Brand } from '@/lib/brands';
 import {
   agentOrchestrator,
   processWithOrchestrator,
@@ -35,9 +40,12 @@ import { agentScheduler, AgentResponse } from '../services/agentScheduler';
 import { getResourceManager } from '../services/resourceManager';
 import { errorHandler } from '../services/errorHandler';
 import { llmService } from '@/services/llmService';
-import type { DesignTask, AgentMessage, AgentType, OrchestratorResponse } from '../types/agent';
-import { AGENT_CONFIG, PRESET_STYLES } from '../types/agent';
+import type { DesignTask, AgentMessage, AgentType, OrchestratorResponse, LLMModelType } from '../types/agent';
+import { AGENT_CONFIG, PRESET_STYLES, LLM_MODELS, getLLMModelConfig } from '../types/agent';
 import { Suggestion } from '../services/suggestionEngine';
+
+// Agent对话消耗的津币数
+const AGENT_CHAT_COST = 10;
 
 // 生成标题和描述的辅助函数
 async function generateTitleAndDescription(
@@ -125,6 +133,7 @@ export default function ChatPanel() {
     agentQueue,
     selectedStyle,
     requirementCollection,
+    currentModel,
     addMessage,
     addOutput,
     setIsTyping,
@@ -139,7 +148,8 @@ export default function ChatPanel() {
     addToAgentQueue,
     processNextInQueue,
     setCollaborating,
-    selectStyle
+    selectStyle,
+    setCurrentModel
   } = useAgentStore();
 
   const [inputValue, setInputValue] = useState('');
@@ -154,8 +164,20 @@ export default function ChatPanel() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // 使用 AuthContext 获取用户信息
+  const { user: authUser } = useContext(AuthContext);
   const [userId, setUserId] = useState<string | undefined>(undefined);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+
+  // 津币相关状态
+  const {
+    balance: jinbiBalance,
+    consumeJinbi,
+    checkBalance,
+    loading: jinbiLoading,
+  } = useJinbi();
+  const [showJinbiModal, setShowJinbiModal] = useState(false);
+  const [jinbiCost] = useState(AGENT_CHAT_COST);
 
   // 启动监控
   try {
@@ -238,20 +260,26 @@ export default function ChatPanel() {
         }
         setSessionId(storedSessionId);
 
-        // 获取用户ID（如果已登录）
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setUserId(user.id);
-          console.log('[ChatPanel] 用户已登录:', user.id, '会话ID:', storedSessionId);
+        // 优先使用 AuthContext 中的用户（如果已登录）
+        if (authUser?.id) {
+          setUserId(authUser.id);
+          console.log('[ChatPanel] 用户已登录(AuthContext):', authUser.id, '会话ID:', storedSessionId);
         } else {
-          // 未登录用户使用匿名ID
-          let anonymousId = localStorage.getItem('agent_anonymous_id');
-          if (!anonymousId) {
-            anonymousId = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            localStorage.setItem('agent_anonymous_id', anonymousId);
+          // 备用：从 supabase 获取
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            setUserId(user.id);
+            console.log('[ChatPanel] 用户已登录(supabase):', user.id, '会话ID:', storedSessionId);
+          } else {
+            // 未登录用户使用匿名ID
+            let anonymousId = localStorage.getItem('agent_anonymous_id');
+            if (!anonymousId) {
+              anonymousId = `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              localStorage.setItem('agent_anonymous_id', anonymousId);
+            }
+            setUserId(anonymousId);
+            console.log('[ChatPanel] 匿名用户，会话ID:', storedSessionId, '匿名ID:', anonymousId);
           }
-          setUserId(anonymousId);
-          console.log('[ChatPanel] 匿名用户，会话ID:', storedSessionId, '匿名ID:', anonymousId);
         }
       } catch (error) {
         console.error('[ChatPanel] 获取用户信息失败:', error);
@@ -266,7 +294,7 @@ export default function ChatPanel() {
     };
 
     initUserSession();
-  }, []);
+  }, [authUser]);
 
   // 消息变化时自动滚动到底部
   useEffect(() => {
@@ -652,6 +680,16 @@ export default function ChatPanel() {
     if (!inputValue.trim() || isTyping) return;
 
     const userMessage = inputValue.trim();
+
+    // 检查津币余额（仅限登录用户）
+    if (userId && !userId.startsWith('anon_')) {
+      const balanceCheck = await checkBalance(jinbiCost);
+      if (!balanceCheck.sufficient) {
+        setShowJinbiModal(true);
+        return;
+      }
+    }
+
     setInputValue('');
 
     // 添加用户消息到store
@@ -678,6 +716,25 @@ export default function ChatPanel() {
 
     setIsTyping(true);
 
+    // 消费津币（仅限登录用户）
+    let jinbiConsumed = false;
+    if (userId && !userId.startsWith('anon_')) {
+      const consumeResult = await consumeJinbi(
+        jinbiCost,
+        'agent_chat',
+        'Agent对话消费',
+        { serviceParams: { agentType: currentAgent } }
+      );
+      if (consumeResult.success) {
+        jinbiConsumed = true;
+        toast.success(`已消耗 ${jinbiCost} 津币`, { duration: 2000 });
+      } else {
+        toast.error('津币扣除失败，请重试');
+        setIsTyping(false);
+        return;
+      }
+    }
+
     try {
       // 如果没有当前任务，先分析需求并创建任务
       if (!currentTask) {
@@ -690,16 +747,33 @@ export default function ChatPanel() {
         });
       } else {
         // 已有任务，累积更新需求描述
+        // 智能提取用户消息中的实际内容（去除指令词）
+        const generationKeywords = ['直接生成', '开始生成', '生成吧', '开始吧', '直接做', '就这样', '可以生成了', '可以开始了', '开始制作', '不用调整', '不用修改', '直接出图', '出图吧'];
+        let extractedContent = userMessage;
+
+        // 如果用户消息包含生成指令，尝试提取实际内容
+        for (const keyword of generationKeywords) {
+          if (userMessage.includes(keyword)) {
+            const parts = userMessage.split(keyword);
+            if (parts[0] && parts[0].trim().length > 0) {
+              extractedContent = parts[0].trim().replace(/[,，、]$/g, '');
+            }
+            break;
+          }
+        }
+
         const currentDescription = currentTask.requirements.description || '';
-        const updatedDescription = currentDescription
-          ? `${currentDescription}。${userMessage}`
-          : userMessage;
+        // 只有当提取的内容有意义时才追加
+        const hasMeaningfulContent = extractedContent && extractedContent.length >= 2 && !generationKeywords.some(k => extractedContent === k);
+        const updatedDescription = hasMeaningfulContent
+          ? (currentDescription ? `${currentDescription}。${extractedContent}` : extractedContent)
+          : currentDescription;
 
         updateTaskRequirements({
           description: updatedDescription
         });
 
-        console.log('[ChatPanel] 更新任务描述:', updatedDescription);
+        console.log('[ChatPanel] 更新任务描述:', updatedDescription, '提取内容:', extractedContent);
       }
 
       // 构建对话上下文（包含用户消息和完整任务信息）
@@ -831,6 +905,8 @@ export default function ChatPanel() {
   // 状态管理
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showInspirationPanel, setShowInspirationPanel] = useState(false);
+  const [showBrandLibrary, setShowBrandLibrary] = useState(false);
+  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
 
   const toggleInspirationPanel = () => setShowInspirationPanel(!showInspirationPanel);
 
@@ -883,13 +959,38 @@ export default function ChatPanel() {
     setShowStyleLibrary(false);
   };
 
+  // 处理品牌选择
+  const handleBrandSelect = (brand: Brand) => {
+    setSelectedBrand(brand);
+    toast.success(`已选择品牌：${brand.name}`);
+    
+    // 将品牌信息添加到对话中
+    addMessage({
+      role: 'user',
+      content: `我选择的品牌是：${brand.name}。${brand.story}`,
+      type: 'text'
+    });
+    
+    // 触发Agent响应
+    setTimeout(() => {
+      addMessage({
+        role: 'designer',
+        content: `好的！我来为${brand.name}进行设计创作。这个品牌${brand.story}我会将这些元素融入到设计中。`,
+        type: 'text'
+      });
+    }, 500);
+    
+    setShowBrandLibrary(false);
+  };
+
   // 快速操作
   const quickActions = [
     { icon: Trash2, label: '清空对话', onClick: handleClear },
     { icon: ImageIcon, label: '上传参考', onClick: () => setShowUploadDialog(true) },
     { icon: Sparkles, label: '灵感提示', onClick: toggleInspirationPanel },
     { icon: Wand2, label: 'AI优化', onClick: handleOptimizePrompt, loading: isOptimizingPrompt },
-    { icon: Layers, label: '风格库', onClick: () => setShowStyleLibrary(true) }
+    { icon: Layers, label: '风格库', onClick: () => setShowStyleLibrary(true) },
+    { icon: Store, label: '品牌库', onClick: () => setShowBrandLibrary(true) }
   ];
 
   // 获取当前 Agent 的颜色
@@ -1026,6 +1127,27 @@ export default function ChatPanel() {
         )}
       </AnimatePresence>
 
+      {/* 品牌库面板 */}
+      <AnimatePresence>
+        {showBrandLibrary && (
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`fixed right-0 top-0 h-full w-[720px] shadow-2xl z-40 ${
+              isDark ? 'bg-gray-900' : 'bg-white'
+            }`}
+          >
+            <BrandLibrary
+              onBrandSelect={handleBrandSelect}
+              onClose={() => setShowBrandLibrary(false)}
+              selectedBrand={selectedBrand?.id}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 图像分析弹窗 */}
       <AnimatePresence>
         {analyzingImage && (
@@ -1055,6 +1177,15 @@ export default function ChatPanel() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 津币不足弹窗 */}
+      <JinbiInsufficientModal
+        isOpen={showJinbiModal}
+        onClose={() => setShowJinbiModal(false)}
+        requiredAmount={jinbiCost}
+        currentBalance={jinbiBalance?.availableBalance || 0}
+        serviceName="Agent对话"
+      />
 
       {/* Messages Area */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
@@ -1117,31 +1248,141 @@ export default function ChatPanel() {
 
       {/* Input Area */}
       <div className={`p-4 border-t ${isDark ? 'border-gray-800 bg-gray-900/80' : 'border-gray-200 bg-white/80'}`}>
-        {/* Quick Actions */}
-        <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-2">
-          {quickActions.map((action, index) => (
-            <button
-              key={index}
-              onClick={action.onClick}
-              disabled={(action as any).loading}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
-                isDark
-                  ? 'bg-gray-800 hover:bg-gray-700 text-gray-400'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-              } ${(action as any).loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {(action as any).loading ? (
-                <motion.div
-                  className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                />
-              ) : (
-                <action.icon className="w-3 h-3" />
-              )}
-              {action.label}
-            </button>
-          ))}
+        {/* Model Selector */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>AI模型:</span>
+          <div className="flex items-center gap-1">
+            {LLM_MODELS.map((model) => {
+              const isActive = currentModel === model.id;
+              const modelConfig = getLLMModelConfig(model.id);
+              return (
+                <motion.button
+                  key={model.id}
+                  onClick={() => setCurrentModel(model.id)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all ${
+                    isActive
+                      ? isDark
+                        ? 'bg-gray-700 text-white ring-1 ring-gray-600'
+                        : 'bg-white text-gray-900 ring-1 ring-gray-300 shadow-sm'
+                      : isDark
+                        ? 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-300'
+                        : 'bg-gray-100/50 text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                  }`}
+                  title={model.description}
+                >
+                  <div className={`w-5 h-5 rounded-md bg-gradient-to-br ${modelConfig?.color} flex items-center justify-center`}>
+                    <span className="text-[10px] text-white font-bold">{modelConfig?.icon}</span>
+                  </div>
+                  <span className="hidden sm:inline">{model.name}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Quick Actions - 两行布局 */}
+        <div className="mb-3">
+          {/* 第一行：主要操作按钮 */}
+          <div className="flex items-center gap-2 mb-2">
+            {quickActions.slice(0, 4).map((action, index) => (
+              <motion.button
+                key={index}
+                onClick={action.onClick}
+                disabled={(action as any).loading}
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                  isDark
+                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 hover:from-gray-700 hover:to-gray-800 text-gray-300 border border-gray-700/50 hover:border-gray-600'
+                    : 'bg-gradient-to-br from-white to-gray-50 hover:from-gray-50 hover:to-gray-100 text-gray-700 border border-gray-200/50 hover:border-gray-300 shadow-sm'
+                } ${(action as any).loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {(action as any).loading ? (
+                  <motion.div
+                    className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                  />
+                ) : (
+                  <action.icon className="w-3.5 h-3.5" />
+                )}
+                <span>{action.label}</span>
+              </motion.button>
+            ))}
+          </div>
+
+          {/* 第二行：更多操作 + 津币余额 */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {quickActions.slice(4).map((action, index) => (
+                <motion.button
+                  key={index + 4}
+                  onClick={action.onClick}
+                  disabled={(action as any).loading}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                    isDark
+                      ? 'bg-gradient-to-br from-gray-800 to-gray-900 hover:from-gray-700 hover:to-gray-800 text-gray-300 border border-gray-700/50 hover:border-gray-600'
+                      : 'bg-gradient-to-br from-white to-gray-50 hover:from-gray-50 hover:to-gray-100 text-gray-700 border border-gray-200/50 hover:border-gray-300 shadow-sm'
+                  } ${(action as any).loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {(action as any).loading ? (
+                    <motion.div
+                      className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    />
+                  ) : (
+                    <action.icon className="w-3.5 h-3.5" />
+                  )}
+                  <span>{action.label}</span>
+                </motion.button>
+              ))}
+            </div>
+
+            {/* 津币余额显示 */}
+            {userId && !userId.startsWith('anon_') && (
+              <div className="flex-shrink-0">
+                {(jinbiBalance?.availableBalance || 0) < jinbiCost ? (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowJinbiModal(true)}
+                    className={`
+                      flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap
+                      ${isDark
+                        ? 'bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 hover:from-red-500/30 hover:to-red-600/20 border border-red-500/50'
+                        : 'bg-gradient-to-r from-red-100 to-red-50 text-red-700 hover:from-red-200 hover:to-red-100 border border-red-300'}
+                      animate-pulse
+                    `}
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>津币不足</span>
+                    <span className="opacity-60">({jinbiBalance?.availableBalance || 0}/{jinbiCost})</span>
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => window.location.href = '/jinbi'}
+                    className={`
+                      flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap
+                      ${isDark
+                        ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-amber-400 hover:from-amber-500/30 hover:to-amber-600/20 border border-amber-500/30'
+                        : 'bg-gradient-to-r from-amber-100 to-amber-50 text-amber-700 hover:from-amber-200 hover:to-amber-100 border border-amber-300'}
+                    `}
+                  >
+                    <Coins className="w-3.5 h-3.5" />
+                    <span>{jinbiBalance?.availableBalance?.toLocaleString() || 0} 津币</span>
+                    <span className="opacity-60">({jinbiCost}/轮)</span>
+                  </motion.button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Input Box */}
@@ -1202,6 +1443,31 @@ export default function ChatPanel() {
             </motion.button>
           </div>
         </div>
+
+        {/* 津币不足提示 */}
+        {userId && !userId.startsWith('anon_') && (jinbiBalance?.availableBalance || 0) < jinbiCost && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`
+              mt-2 p-2 rounded-lg text-xs text-center
+              ${isDark
+                ? 'bg-red-500/10 text-red-400 border border-red-500/30'
+                : 'bg-red-50 text-red-600 border border-red-200'
+              }
+            `}
+          >
+            <span className="font-medium">⚠️ 津币余额不足</span>
+            <span className="mx-1">|</span>
+            <span>当前余额 {(jinbiBalance?.availableBalance || 0)} 津币，需要 {jinbiCost} 津币</span>
+            <button
+              onClick={() => setShowJinbiModal(true)}
+              className="ml-2 underline hover:no-underline font-medium"
+            >
+              立即充值
+            </button>
+          </motion.div>
+        )}
 
         <p className={`text-xs mt-2 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
           按 Enter 发送，Shift + Enter 换行

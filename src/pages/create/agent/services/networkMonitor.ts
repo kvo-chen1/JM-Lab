@@ -1,301 +1,147 @@
 /**
- * 网络状态监控服务
- * 解决无网络感知问题，提供离线检测和网络质量监控
+ * 网络监控服务
+ * 监控网络状态并提供连接质量信息
  */
 
-// 网络状态类型
-export type NetworkStatus = 'online' | 'offline' | 'degraded' | 'checking';
-
-// 网络质量指标
-export interface NetworkQuality {
-  latency: number;      // 延迟(ms)
-  jitter: number;       // 抖动(ms)
-  packetLoss: number;   // 丢包率(%)
-  bandwidth: number;    // 带宽(Mbps)
+export enum NetworkStatus {
+  ONLINE = 'online',
+  OFFLINE = 'offline',
+  SLOW = 'slow',
+  UNSTABLE = 'unstable'
 }
 
-// 网络状态详情
-export interface NetworkState {
+export interface NetworkInfo {
   status: NetworkStatus;
-  lastChecked: number;
-  quality?: NetworkQuality;
-  errorCount: number;
-  consecutiveFailures: number;
+  downlink?: number;
+  rtt?: number;
+  effectiveType?: string;
 }
 
-// 事件回调类型
-type StatusChangeCallback = (data: { status: NetworkStatus; previousStatus: NetworkStatus }) => void;
-type QualityUpdateCallback = (data: { quality: NetworkQuality }) => void;
-type DegradedModeCallback = (data: { reason: string }) => void;
-type RecoveryCallback = (data: { previousStatus: NetworkStatus }) => void;
+type NetworkEventType = 'status-change' | 'online' | 'offline';
 
-/**
- * 网络状态监控服务
- */
-export class NetworkMonitor {
-  private state: NetworkState;
-  private checkInterval: NodeJS.Timeout | null = null;
-  private healthCheckUrl: string;
-  private checkIntervalMs: number;
-  private degradedThreshold: number;
-  private offlineThreshold: number;
-  private qualityHistory: number[] = [];
-  private readonly MAX_QUALITY_HISTORY = 10;
-  
-  // 回调函数存储
-  private statusChangeCallbacks: StatusChangeCallback[] = [];
-  private qualityUpdateCallbacks: QualityUpdateCallback[] = [];
-  private degradedModeCallbacks: DegradedModeCallback[] = [];
-  private recoveryCallbacks: RecoveryCallback[] = [];
+interface NetworkEventData {
+  status: NetworkStatus;
+  previousStatus?: NetworkStatus;
+  downlink?: number;
+  rtt?: number;
+  effectiveType?: string;
+}
 
-  constructor(options?: {
-    healthCheckUrl?: string;
-    checkIntervalMs?: number;
-    degradedThreshold?: number;
-    offlineThreshold?: number;
-  }) {
-    this.healthCheckUrl = options?.healthCheckUrl || '/api/health';
-    this.checkIntervalMs = options?.checkIntervalMs || 30000;
-    this.degradedThreshold = options?.degradedThreshold || 3000;
-    this.offlineThreshold = options?.offlineThreshold || 3;
-    
-    this.state = {
-      status: typeof navigator !== 'undefined' && navigator.onLine ? 'online' : 'offline',
-      lastChecked: Date.now(),
-      errorCount: 0,
-      consecutiveFailures: 0
-    };
+type NetworkEventListener = (data: NetworkEventData) => void;
 
-    this.init();
-  }
+class NetworkMonitor {
+  private status: NetworkStatus = NetworkStatus.ONLINE;
+  private previousStatus: NetworkStatus = NetworkStatus.ONLINE;
+  private listeners: Set<(info: NetworkInfo) => void> = new Set();
+  private eventListeners: Map<NetworkEventType, Set<NetworkEventListener>> = new Map();
 
-  private init(): void {
-    if (typeof window === 'undefined') return;
-    
-    window.addEventListener('online', () => this.handleBrowserOnline());
-    window.addEventListener('offline', () => this.handleBrowserOffline());
-    this.startMonitoring();
-    
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        this.checkNetworkStatus();
+  constructor() {
+    if (typeof window !== 'undefined') {
+      // 监听在线/离线状态
+      window.addEventListener('online', () => this.updateStatus(NetworkStatus.ONLINE));
+      window.addEventListener('offline', () => this.updateStatus(NetworkStatus.OFFLINE));
+
+      // 监听网络质量变化（如果支持）
+      const connection = (navigator as any).connection;
+      if (connection) {
+        connection.addEventListener('change', () => this.handleConnectionChange());
+        this.handleConnectionChange();
       }
-    });
-  }
-
-  private handleBrowserOnline(): void {
-    console.log('[NetworkMonitor] Browser reports online');
-    this.updateStatus('checking');
-    this.checkNetworkStatus();
-  }
-
-  private handleBrowserOffline(): void {
-    console.log('[NetworkMonitor] Browser reports offline');
-    this.updateStatus('offline');
-  }
-
-  startMonitoring(): void {
-    if (this.checkInterval) return;
-    
-    this.checkInterval = setInterval(() => {
-      this.checkNetworkStatus();
-    }, this.checkIntervalMs);
-
-    this.checkNetworkStatus();
-  }
-
-  stopMonitoring(): void {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = null;
     }
   }
 
-  async checkNetworkStatus(): Promise<void> {
-    const startTime = Date.now();
+  private handleConnectionChange() {
+    const connection = (navigator as any).connection;
+    if (!connection) return;
+
+    const { downlink, rtt, effectiveType } = connection;
     
-    try {
-      const response = await fetch(this.healthCheckUrl, {
-        method: 'HEAD',
-        cache: 'no-cache',
-        headers: { 'X-Network-Check': '1' }
+    let status = NetworkStatus.ONLINE;
+    if (effectiveType === '2g' || downlink < 0.5) {
+      status = NetworkStatus.SLOW;
+    } else if (rtt > 500) {
+      status = NetworkStatus.UNSTABLE;
+    }
+
+    this.updateStatus(status, { downlink, rtt, effectiveType });
+  }
+
+  private updateStatus(status: NetworkStatus, extra: Partial<NetworkInfo> = {}) {
+    if (this.status !== status) {
+      this.previousStatus = this.status;
+      this.status = status;
+      
+      const info: NetworkInfo = { status, ...extra };
+      this.listeners.forEach(listener => listener(info));
+      
+      // 触发事件
+      const eventData: NetworkEventData = {
+        status,
+        previousStatus: this.previousStatus,
+        ...extra
+      };
+      
+      this.emit('status-change', eventData);
+      
+      if (status === NetworkStatus.ONLINE) {
+        this.emit('online', eventData);
+      } else if (status === NetworkStatus.OFFLINE) {
+        this.emit('offline', eventData);
+      }
+    }
+  }
+
+  private emit(event: NetworkEventType, data: NetworkEventData) {
+    const listeners = this.eventListeners.get(event);
+    if (listeners) {
+      listeners.forEach(listener => listener(data));
+    }
+  }
+
+  // 事件监听方法
+  on(event: NetworkEventType, listener: NetworkEventListener): () => void {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, new Set());
+    }
+    this.eventListeners.get(event)!.add(listener);
+    
+    // 立即触发一次当前状态
+    if (event === 'status-change') {
+      listener({
+        status: this.status,
+        previousStatus: this.previousStatus
       });
-
-      const latency = Date.now() - startTime;
-      this.updateQualityHistory(latency);
-
-      if (response.ok) {
-        if (latency > this.degradedThreshold) {
-          this.updateStatus('degraded');
-          this.degradedModeCallbacks.forEach(cb => cb({ 
-            reason: `High latency: ${latency}ms > ${this.degradedThreshold}ms` 
-          }));
-        } else {
-          const previousStatus = this.state.status;
-          if (previousStatus === 'offline' || previousStatus === 'degraded') {
-            this.updateStatus('online');
-            this.recoveryCallbacks.forEach(cb => cb({ previousStatus }));
-          } else {
-            this.updateStatus('online');
-          }
-        }
-
-        this.state.consecutiveFailures = 0;
-        
-        this.state.quality = {
-          latency,
-          jitter: this.calculateJitter(),
-          packetLoss: 0,
-          bandwidth: 0
-        };
-
-        this.qualityUpdateCallbacks.forEach(cb => cb({ quality: this.state.quality! }));
-      } else {
-        this.handleCheckFailure(new Error(`HTTP ${response.status}`));
-      }
-    } catch (error) {
-      this.handleCheckFailure(error as Error);
-    }
-
-    this.state.lastChecked = Date.now();
-  }
-
-  private handleCheckFailure(error: Error): void {
-    console.warn('[NetworkMonitor] Health check failed:', error.message);
-    
-    this.state.consecutiveFailures++;
-    this.state.errorCount++;
-
-    if (this.state.consecutiveFailures >= this.offlineThreshold) {
-      this.updateStatus('offline');
-    } else if (this.state.status === 'online') {
-      this.updateStatus('degraded');
-    }
-  }
-
-  private updateStatus(newStatus: NetworkStatus): void {
-    const previousStatus = this.state.status;
-    
-    if (previousStatus === newStatus) return;
-
-    this.state.status = newStatus;
-    
-    console.log(`[NetworkMonitor] Status changed: ${previousStatus} -> ${newStatus}`);
-    
-    this.statusChangeCallbacks.forEach(cb => cb({ status: newStatus, previousStatus }));
-  }
-
-  private updateQualityHistory(latency: number): void {
-    this.qualityHistory.push(latency);
-    if (this.qualityHistory.length > this.MAX_QUALITY_HISTORY) {
-      this.qualityHistory.shift();
-    }
-  }
-
-  private calculateJitter(): number {
-    if (this.qualityHistory.length < 2) return 0;
-    
-    let totalJitter = 0;
-    for (let i = 1; i < this.qualityHistory.length; i++) {
-      totalJitter += Math.abs(this.qualityHistory[i] - this.qualityHistory[i - 1]);
     }
     
-    return Math.round(totalJitter / (this.qualityHistory.length - 1));
-  }
-
-  // 事件订阅方法
-  on(event: 'status-change', callback: StatusChangeCallback): () => void;
-  on(event: 'quality-update', callback: QualityUpdateCallback): () => void;
-  on(event: 'degraded-mode', callback: DegradedModeCallback): () => void;
-  on(event: 'recovery', callback: RecoveryCallback): () => void;
-  on(event: string, callback: any): () => void {
-    switch (event) {
-      case 'status-change':
-        this.statusChangeCallbacks.push(callback);
-        return () => {
-          const index = this.statusChangeCallbacks.indexOf(callback);
-          if (index > -1) this.statusChangeCallbacks.splice(index, 1);
-        };
-      case 'quality-update':
-        this.qualityUpdateCallbacks.push(callback);
-        return () => {
-          const index = this.qualityUpdateCallbacks.indexOf(callback);
-          if (index > -1) this.qualityUpdateCallbacks.splice(index, 1);
-        };
-      case 'degraded-mode':
-        this.degradedModeCallbacks.push(callback);
-        return () => {
-          const index = this.degradedModeCallbacks.indexOf(callback);
-          if (index > -1) this.degradedModeCallbacks.splice(index, 1);
-        };
-      case 'recovery':
-        this.recoveryCallbacks.push(callback);
-        return () => {
-          const index = this.recoveryCallbacks.indexOf(callback);
-          if (index > -1) this.recoveryCallbacks.splice(index, 1);
-        };
-      default:
-        return () => {};
-    }
+    return () => {
+      this.eventListeners.get(event)?.delete(listener);
+    };
   }
 
   getStatus(): NetworkStatus {
-    return this.state.status;
+    if (typeof navigator === 'undefined') return NetworkStatus.ONLINE;
+    return navigator.onLine ? this.status : NetworkStatus.OFFLINE;
+  }
+
+  getInfo(): NetworkInfo {
+    const connection = (navigator as any).connection;
+    return {
+      status: this.getStatus(),
+      downlink: connection?.downlink,
+      rtt: connection?.rtt,
+      effectiveType: connection?.effectiveType,
+    };
+  }
+
+  onChange(listener: (info: NetworkInfo) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   isOnline(): boolean {
-    return this.state.status === 'online' || this.state.status === 'degraded';
-  }
-
-  isOffline(): boolean {
-    return this.state.status === 'offline';
-  }
-
-  isDegraded(): boolean {
-    return this.state.status === 'degraded';
-  }
-
-  getQuality(): NetworkQuality | undefined {
-    return this.state.quality;
-  }
-
-  getState(): NetworkState {
-    return { ...this.state };
-  }
-
-  getRecommendedAction(): string {
-    switch (this.state.status) {
-      case 'offline':
-        return '请检查网络连接，恢复后将自动重试';
-      case 'degraded':
-        return '网络质量较差，部分功能可能受限';
-      case 'online':
-        return '网络正常';
-      default:
-        return '正在检查网络状态...';
-    }
-  }
-
-  destroy(): void {
-    this.stopMonitoring();
-    this.statusChangeCallbacks = [];
-    this.qualityUpdateCallbacks = [];
-    this.degradedModeCallbacks = [];
-    this.recoveryCallbacks = [];
+    return typeof navigator !== 'undefined' && navigator.onLine;
   }
 }
 
-// 导出单例
 export const networkMonitor = new NetworkMonitor();
-
-export function isOnline(): boolean {
-  return networkMonitor.isOnline();
-}
-
-export function isOffline(): boolean {
-  return networkMonitor.isOffline();
-}
-
-export function getNetworkStatus(): NetworkStatus {
-  return networkMonitor.getStatus();
-}
+export default networkMonitor;

@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 interface PanState {
   position: { x: number; y: number };
   isPanning: boolean;
+  isSpacePressed: boolean;
   setPosition: (pos: { x: number; y: number }) => void;
   startPan: (e: React.MouseEvent) => void;
   updatePan: (e: React.MouseEvent) => void;
@@ -14,9 +15,9 @@ interface PanState {
 export function useCanvasPan(initialX = 0, initialY = 0): PanState {
   const [position, setPositionState] = useState({ x: initialX, y: initialY });
   const [isPanning, setIsPanning] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const positionRef = useRef({ x: initialX, y: initialY });
-  const isSpacePressedRef = useRef(false);
 
   const setPosition = useCallback((newPos: { x: number; y: number }) => {
     positionRef.current = newPos;
@@ -25,7 +26,7 @@ export function useCanvasPan(initialX = 0, initialY = 0): PanState {
 
   const startPan = useCallback((e: React.MouseEvent) => {
     // 只有在按住空格键或者是中键点击时才开始平移
-    if (!isSpacePressedRef.current && e.button !== 1) return;
+    if (!isSpacePressed && e.button !== 1) return;
     
     e.preventDefault();
     setIsPanning(true);
@@ -33,7 +34,7 @@ export function useCanvasPan(initialX = 0, initialY = 0): PanState {
       x: e.clientX - positionRef.current.x,
       y: e.clientY - positionRef.current.y,
     };
-  }, []);
+  }, [isSpacePressed]);
 
   const updatePan = useCallback((e: React.MouseEvent) => {
     if (!isPanning) return;
@@ -61,27 +62,34 @@ export function useCanvasPan(initialX = 0, initialY = 0): PanState {
   // 监听空格键
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 检查是否在输入元素中
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
-        isSpacePressedRef.current = true;
+        setIsSpacePressed(true);
         document.body.style.cursor = 'grab';
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
-        isSpacePressedRef.current = false;
+        setIsSpacePressed(false);
         document.body.style.cursor = '';
         setIsPanning(false);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    // 使用 capture 阶段确保优先处理
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
       document.body.style.cursor = '';
     };
   }, []);
@@ -89,6 +97,7 @@ export function useCanvasPan(initialX = 0, initialY = 0): PanState {
   return {
     position,
     isPanning,
+    isSpacePressed,
     setPosition,
     startPan,
     updatePan,

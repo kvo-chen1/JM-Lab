@@ -14,6 +14,7 @@ import {
 import { copyrightLicenseService } from '@/services/copyrightLicenseService';
 import type { LicenseApplication } from '@/types/copyright-license';
 import { CreateLicensedProductModal } from './CreateLicensedProductModal';
+import { useTheme } from '@/hooks/useTheme';
 
 // 深色主题配色
 const DARK_THEME = {
@@ -31,6 +32,28 @@ const DARK_THEME = {
   glowPrimary: 'shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]',
   glass: 'backdrop-blur-xl bg-slate-900/90',
 };
+
+// 浅色主题配色
+const LIGHT_THEME = {
+  bgPrimary: 'bg-gray-50',
+  bgSecondary: 'bg-white',
+  bgCard: 'bg-white/80',
+  borderPrimary: 'border-gray-200',
+  borderSecondary: 'border-gray-300',
+  textPrimary: 'text-gray-900',
+  textSecondary: 'text-gray-700',
+  textMuted: 'text-gray-500',
+  accentPrimary: 'from-cyan-600 to-blue-700',
+  accentSecondary: 'from-violet-600 to-purple-700',
+  accentSuccess: 'from-emerald-500 to-teal-600',
+  glowPrimary: 'shadow-[0_0_30px_-5px_rgba(6,182,212,0.15)]',
+  glass: 'backdrop-blur-xl bg-white/90',
+};
+
+// 获取主题
+function useLicenseTheme(isDark: boolean) {
+  return isDark ? DARK_THEME : LIGHT_THEME;
+}
 
 // 状态配置
 const STATUS_CONFIG = {
@@ -55,6 +78,8 @@ interface MyLicensesProps {
 }
 
 export function MyLicenses({ onClose }: MyLicensesProps) {
+  const { isDark } = useTheme();
+  const theme = useLicenseTheme(isDark);
   const [applications, setApplications] = useState<LicenseApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
@@ -127,24 +152,24 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
   };
 
   return (
-    <div className={`min-h-screen ${DARK_THEME.bgPrimary} p-6`}>
+    <div className={`min-h-screen ${theme.bgPrimary} p-6`}>
       {/* 头部 */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className={`text-3xl font-bold ${DARK_THEME.textPrimary} mb-2`}>
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            <h1 className={`text-3xl font-bold mb-2 ${theme.textPrimary}`}>
+              <span className={`bg-gradient-to-r bg-clip-text text-transparent ${isDark ? 'from-cyan-400 to-blue-500' : 'from-cyan-600 to-blue-700'}`}>
                 我的授权
               </span>
             </h1>
-            <p className={DARK_THEME.textMuted}>
+            <p className={theme.textMuted}>
               管理您的授权申请和已获得的授权
             </p>
           </div>
           {onClose && (
             <button
               onClick={onClose}
-              className={`p-2 rounded-lg ${DARK_THEME.bgSecondary} ${DARK_THEME.textSecondary} hover:bg-slate-800 transition-colors`}
+              className={`p-2 rounded-lg transition-colors ${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
             >
               <X className="w-5 h-5" />
             </button>
@@ -155,24 +180,24 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
         <div className="flex flex-wrap gap-2">
           {TABS.map(tab => {
             const Icon = tab.icon;
-            const count = tab.id === 'all' 
-              ? applications.length 
+            const count = tab.id === 'all'
+              ? applications.length
               : applications.filter(a => a.status === tab.id).length;
-            
+
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white'
-                    : `${DARK_THEME.bgSecondary} ${DARK_THEME.textSecondary} hover:bg-slate-800`
+                    ? (isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white' : 'bg-gradient-to-r from-cyan-600 to-blue-700 text-white')
+                    : `${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`
                 }`}
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.name}</span>
                 <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${
-                  activeTab === tab.id ? 'bg-white/20' : 'bg-slate-700'
+                  activeTab === tab.id ? 'bg-white/20' : (isDark ? 'bg-slate-700' : 'bg-gray-200')
                 }`}>
                   {count}
                 </span>
@@ -185,10 +210,10 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
       {/* 申请列表 */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+          <Loader2 className={`w-8 h-8 animate-spin ${isDark ? 'text-cyan-500' : 'text-cyan-600'}`} />
         </div>
       ) : filteredApplications.length === 0 ? (
-        <div className={`flex flex-col items-center justify-center h-64 ${DARK_THEME.textMuted}`}>
+        <div className={`flex flex-col items-center justify-center h-64 ${theme.textMuted}`}>
           <Award className="w-16 h-16 mb-4 opacity-30" />
           <p>暂无{activeTab !== 'all' ? STATUS_CONFIG[activeTab as keyof typeof STATUS_CONFIG]?.label : ''}的授权申请</p>
         </div>
@@ -197,14 +222,14 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
           {filteredApplications.map((application, index) => {
             const status = STATUS_CONFIG[application.status as keyof typeof STATUS_CONFIG];
             const StatusIcon = status?.icon || Clock;
-            
+
             return (
               <motion.div
                 key={application.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className={`group rounded-2xl ${DARK_THEME.bgCard} ${DARK_THEME.borderPrimary} border overflow-hidden hover:border-cyan-500/30 transition-all`}
+                className={`group rounded-2xl border overflow-hidden hover:border-cyan-500/30 transition-all ${theme.bgCard} ${theme.borderPrimary}`}
               >
                 <div className="p-6">
                   <div className="flex items-start justify-between">
@@ -212,30 +237,30 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3">
                         {/* 品牌Logo */}
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-violet-500/20 to-purple-500/20' : 'bg-gradient-to-br from-violet-100 to-purple-100'}`}>
                           {application.request?.brandLogo ? (
-                            <img 
-                              src={application.request.brandLogo} 
+                            <img
+                              src={application.request.brandLogo}
                               alt={application.request.brandName}
                               className="w-8 h-8 object-contain"
                             />
                           ) : (
-                            <Building2 className="w-6 h-6 text-violet-400" />
+                            <Building2 className={`w-6 h-6 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
                           )}
                         </div>
-                        
+
                         {/* 品牌名称和需求标题 */}
                         <div>
-                          <h3 className={`font-semibold ${DARK_THEME.textPrimary}`}>
+                          <h3 className={`font-semibold ${theme.textPrimary}`}>
                             {application.request?.brandName || '品牌方'}
                           </h3>
-                          <p className={`text-sm ${DARK_THEME.textMuted}`}>
+                          <p className={`text-sm ${theme.textMuted}`}>
                             {application.request?.title || application.ipAssetName || '授权申请'}
                           </p>
                         </div>
 
                         {/* 状态标签 */}
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 ${status.bg} ${status.color} border ${status.border}`}>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 border ${isDark ? `${status.bg} ${status.color} ${status.border}` : status.color.replace('400', '600').replace('500/20', '100').replace('500/30', '200')}`}>
                           <StatusIcon className="w-3.5 h-3.5" />
                           {status.label}
                         </span>
@@ -243,44 +268,44 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
 
                       {/* 申请信息 */}
                       <div className="flex flex-wrap items-center gap-4 text-sm">
-                        <span className={DARK_THEME.textMuted}>
-                          申请时间: <span className={DARK_THEME.textSecondary}>{formatDate(application.createdAt)}</span>
+                        <span className={theme.textMuted}>
+                          申请时间: <span className={theme.textSecondary}>{formatDate(application.createdAt)}</span>
                         </span>
                         {application.ipAssetName && (
-                          <span className={DARK_THEME.textMuted}>
-                            IP资产: <span className={DARK_THEME.textSecondary}>{application.ipAssetName}</span>
+                          <span className={theme.textMuted}>
+                            IP资产: <span className={theme.textSecondary}>{application.ipAssetName}</span>
                           </span>
                         )}
                         {application.expectedProducts && application.expectedProducts.length > 0 && (
-                          <span className={DARK_THEME.textMuted}>
-                            预期产品: <span className={DARK_THEME.textSecondary}>{application.expectedProducts.length} 种</span>
+                          <span className={theme.textMuted}>
+                            预期产品: <span className={theme.textSecondary}>{application.expectedProducts.length} 种</span>
                           </span>
                         )}
                       </div>
 
                       {/* 授权信息（已通过/已完成状态） */}
                       {(application.status === 'approved' || application.status === 'completed') && (
-                        <div className={`mt-4 p-4 rounded-xl ${DARK_THEME.bgSecondary} ${DARK_THEME.borderPrimary} border`}>
+                        <div className={`mt-4 p-4 rounded-xl border ${theme.bgSecondary} ${theme.borderPrimary}`}>
                           <div className="flex flex-wrap items-center gap-6 text-sm">
                             {application.actualLicenseFee !== undefined && (
                               <div className="flex items-center gap-2">
-                                <DollarSign className="w-4 h-4 text-emerald-400" />
-                                <span className={DARK_THEME.textMuted}>授权费用:</span>
-                                <span className="text-emerald-400 font-medium">¥{application.actualLicenseFee.toLocaleString()}</span>
+                                <DollarSign className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                <span className={theme.textMuted}>授权费用:</span>
+                                <span className={`font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{application.actualLicenseFee.toLocaleString()}</span>
                               </div>
                             )}
                             {application.revenueShareRate !== undefined && (
                               <div className="flex items-center gap-2">
-                                <Package className="w-4 h-4 text-cyan-400" />
-                                <span className={DARK_THEME.textMuted}>分成比例:</span>
-                                <span className="text-cyan-400 font-medium">{application.revenueShareRate}%</span>
+                                <Package className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                                <span className={theme.textMuted}>分成比例:</span>
+                                <span className={`font-medium ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>{application.revenueShareRate}%</span>
                               </div>
                             )}
                             {application.licenseEndDate && (
                               <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-violet-400" />
-                                <span className={DARK_THEME.textMuted}>授权期限:</span>
-                                <span className={DARK_THEME.textSecondary}>
+                                <Calendar className={`w-4 h-4 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
+                                <span className={theme.textMuted}>授权期限:</span>
+                                <span className={theme.textSecondary}>
                                   {formatDate(application.licenseStartDate)} 至 {formatDate(application.licenseEndDate)}
                                 </span>
                               </div>
@@ -291,25 +316,25 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
 
                       {/* 联系方式（已联系/已完成状态） */}
                       {application.contactShared && (
-                        <div className={`mt-4 p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20`}>
-                          <h4 className={`text-sm font-medium text-cyan-400 mb-2`}>品牌方联系方式</h4>
+                        <div className={`mt-4 p-4 rounded-xl border ${isDark ? 'bg-cyan-500/10 border-cyan-500/20' : 'bg-cyan-50 border-cyan-200'}`}>
+                          <h4 className={`text-sm font-medium mb-2 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>品牌方联系方式</h4>
                           <div className="flex flex-wrap items-center gap-4 text-sm">
                             {application.brandContactEmail && (
                               <div className="flex items-center gap-2">
-                                <Mail className="w-4 h-4 text-cyan-400" />
-                                <span className={DARK_THEME.textSecondary}>{application.brandContactEmail}</span>
+                                <Mail className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                                <span className={theme.textSecondary}>{application.brandContactEmail}</span>
                               </div>
                             )}
                             {application.brandContactPhone && (
                               <div className="flex items-center gap-2">
-                                <Phone className="w-4 h-4 text-cyan-400" />
-                                <span className={DARK_THEME.textSecondary}>{application.brandContactPhone}</span>
+                                <Phone className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                                <span className={theme.textSecondary}>{application.brandContactPhone}</span>
                               </div>
                             )}
                             {application.brandContactWechat && (
                               <div className="flex items-center gap-2">
-                                <MessageSquare className="w-4 h-4 text-cyan-400" />
-                                <span className={DARK_THEME.textSecondary}>微信: {application.brandContactWechat}</span>
+                                <MessageSquare className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                                <span className={theme.textSecondary}>微信: {application.brandContactWechat}</span>
                               </div>
                             )}
                           </div>
@@ -321,7 +346,7 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
                     <div className="flex flex-col gap-2 ml-4">
                       <button
                         onClick={() => handleViewDetail(application)}
-                        className={`px-4 py-2 rounded-lg ${DARK_THEME.bgSecondary} ${DARK_THEME.textSecondary} hover:bg-slate-800 transition-colors text-sm flex items-center gap-2`}
+                        className={`px-4 py-2 rounded-lg transition-colors text-sm flex items-center gap-2 ${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
                       >
                         <Eye className="w-4 h-4" />
                         查看详情
@@ -331,7 +356,7 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
                       {application.status === 'pending' && (
                         <button
                           onClick={() => handleCancel(application.id)}
-                          className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm"
+                          className={`px-4 py-2 rounded-lg transition-colors text-sm ${isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
                         >
                           取消申请
                         </button>
@@ -340,7 +365,7 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
                       {(application.status === 'approved' || application.status === 'completed') && (
                         <button
                           onClick={() => handleCreateProduct(application)}
-                          className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:shadow-lg hover:shadow-emerald-500/25 transition-all text-sm flex items-center gap-2"
+                          className={`px-4 py-2 rounded-lg text-white transition-all text-sm flex items-center gap-2 ${isDark ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:shadow-lg hover:shadow-emerald-500/25' : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:shadow-lg hover:shadow-emerald-500/15'}`}
                         >
                           <ShoppingBag className="w-4 h-4" />
                           创建产品

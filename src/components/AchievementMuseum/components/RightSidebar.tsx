@@ -16,6 +16,7 @@ import {
   Target,
   Flame
 } from 'lucide-react';
+import { AchievementIcon } from './AchievementIcon';
 import type {
   Achievement,
   UserAchievementInfo,
@@ -172,7 +173,10 @@ export default function RightSidebar({
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                       isDark ? rarity.darkBgColor : rarity.bgColor
                     }`}>
-                      <i className={`fas fa-${achievement.icon || 'star'} ${rarity.textColor}`} />
+                      <AchievementIcon 
+                        icon={achievement.icon || 'star'} 
+                        className={`w-5 h-5 ${rarity.textColor}`}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium truncate ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>

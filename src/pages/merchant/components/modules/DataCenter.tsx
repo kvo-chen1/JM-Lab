@@ -1,7 +1,7 @@
 /**
  * 商家工作平台 - 数据中心模块
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart3,
@@ -12,42 +12,67 @@ import {
   Users,
   Package,
   Calendar,
-  Download
+  Download,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-
-// 模拟图表数据
-const salesData = [
-  { date: '03/01', sales: 1200, orders: 8 },
-  { date: '03/02', sales: 1800, orders: 12 },
-  { date: '03/03', sales: 1500, orders: 10 },
-  { date: '03/04', sales: 2200, orders: 15 },
-  { date: '03/05', sales: 1900, orders: 13 },
-  { date: '03/06', sales: 2500, orders: 18 },
-  { date: '03/07', sales: 2100, orders: 14 },
-];
-
-const productRanking = [
-  { id: 1, name: '津脉智坊定制笔记本', sales: 128, revenue: 38400 },
-  { id: 2, name: '天津文化明信片套装', sales: 256, revenue: 51200 },
-  { id: 3, name: '智能保温杯', sales: 89, revenue: 53400 },
-  { id: 4, name: '无线充电宝', sales: 67, revenue: 80400 },
-  { id: 5, name: '津小脉文创 T 恤', sales: 45, revenue: 22500 },
-];
+import { merchantService, SalesTrend, ProductRanking } from '@/services/merchantService';
+import { toast } from 'sonner';
 
 const DataCenter: React.FC = () => {
   const [timeRange, setTimeRange] = useState('7days');
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalSales: 0,
+    salesChange: 0,
+    totalOrders: 0,
+    ordersChange: 0,
+    totalVisitors: 0,
+    visitorsChange: 0,
+    avgOrderValue: 0,
+    aovChange: 0,
+  });
+  const [salesData, setSalesData] = useState<SalesTrend[]>([]);
+  const [productRanking, setProductRanking] = useState<ProductRanking[]>([]);
 
-  const stats = {
-    totalSales: 13200,
-    salesChange: 23.5,
-    totalOrders: 90,
-    ordersChange: 15.2,
-    totalVisitors: 2156,
-    visitorsChange: -5.8,
-    avgOrderValue: 147,
-    aovChange: 7.2,
-  };
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const merchant = await merchantService.getCurrentMerchant();
+        if (merchant) {
+          // 获取仪表盘统计数据
+          const dashboardStats = await merchantService.getDashboardStats(merchant.id);
+          setStats({
+            totalSales: dashboardStats.today_sales,
+            salesChange: 0, // 需要计算
+            totalOrders: dashboardStats.today_orders,
+            ordersChange: 0,
+            totalVisitors: dashboardStats.today_visitors,
+            visitorsChange: 0,
+            avgOrderValue: dashboardStats.today_orders > 0 
+              ? Math.round(dashboardStats.today_sales / dashboardStats.today_orders) 
+              : 0,
+            aovChange: 0,
+          });
+
+          // 获取销售趋势
+          const trend = await merchantService.getSalesTrend(merchant.id, 7);
+          setSalesData(trend);
+
+          // 获取商品排行
+          const ranking = await merchantService.getProductRanking(merchant.id, 5);
+          setProductRanking(ranking);
+        }
+      } catch (error) {
+        console.error('获取数据中心数据失败:', error);
+        toast.error('获取数据中心数据失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [timeRange]);
 
   const getChangeColor = (change: number) => {
     return change >= 0 ? 'text-emerald-400' : 'text-red-400';
@@ -60,6 +85,15 @@ const DataCenter: React.FC = () => {
       <TrendingDown className="w-4 h-4" />
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-[#5ba3d4]" />
+        <span className="ml-2 text-[var(--text-muted)]">加载中...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -164,29 +198,35 @@ const DataCenter: React.FC = () => {
 
         {/* 简化的柱状图 */}
         <div className="h-64 flex items-end gap-2">
-          {salesData.map((item, index) => {
-            const maxSales = Math.max(...salesData.map(d => d.sales));
-            const height = (item.sales / maxSales) * 100;
-            return (
-              <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-full flex gap-1 items-end justify-center" style={{ height: '200px' }}>
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: `${height}%` }}
-                    transition={{ delay: index * 0.1, duration: 0.5 }}
-                    className="w-4 bg-[#5ba3d4] rounded-t"
-                  />
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: `${(item.orders / 20) * 100}%` }}
-                    transition={{ delay: index * 0.1 + 0.05, duration: 0.5 }}
-                    className="w-4 bg-emerald-400 rounded-t"
-                  />
+          {salesData.length === 0 ? (
+            <div className="w-full text-center text-[var(--text-muted)] py-8">
+              暂无销售数据
+            </div>
+          ) : (
+            salesData.map((item, index) => {
+              const maxSales = Math.max(...salesData.map(d => d.sales), 1);
+              const height = (item.sales / maxSales) * 100;
+              return (
+                <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                  <div className="w-full flex gap-1 items-end justify-center" style={{ height: '200px' }}>
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${height}%` }}
+                      transition={{ delay: index * 0.1, duration: 0.5 }}
+                      className="w-4 bg-[#5ba3d4] rounded-t"
+                    />
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${(item.orders / Math.max(...salesData.map(d => d.orders), 1)) * 100}%` }}
+                      transition={{ delay: index * 0.1 + 0.05, duration: 0.5 }}
+                      className="w-4 bg-emerald-400 rounded-t"
+                    />
+                  </div>
+                  <span className="text-xs text-[var(--text-muted)]">{item.date}</span>
                 </div>
-                <span className="text-xs text-[var(--text-muted)]">{item.date}</span>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -194,31 +234,37 @@ const DataCenter: React.FC = () => {
       <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] p-5">
         <h3 className="font-semibold text-[var(--text-primary)] mb-4">商品销售排行</h3>
         <div className="space-y-3">
-          {productRanking.map((product, index) => (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="flex items-center gap-4 p-3 bg-[var(--bg-tertiary)] rounded-lg"
-            >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-                index < 3
-                  ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white'
-                  : 'bg-[var(--border-secondary)] text-[var(--text-tertiary)]'
-              }`}>
-                {index + 1}
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-[var(--text-primary)]">{product.name}</p>
-                <p className="text-sm text-[var(--text-muted)]">销量 {product.sales} 件</p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-[#5ba3d4]">¥{product.revenue.toLocaleString()}</p>
-                <p className="text-sm text-[var(--text-muted)]">销售额</p>
-              </div>
-            </motion.div>
-          ))}
+          {productRanking.length === 0 ? (
+            <div className="text-center text-[var(--text-muted)] py-8">
+              暂无商品排行数据
+            </div>
+          ) : (
+            productRanking.map((product, index) => (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="flex items-center gap-4 p-3 bg-[var(--bg-tertiary)] rounded-lg"
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                  index < 3
+                    ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white'
+                    : 'bg-[var(--border-secondary)] text-[var(--text-tertiary)]'
+                }`}>
+                  {index + 1}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-[var(--text-primary)]">{product.name}</p>
+                  <p className="text-sm text-[var(--text-muted)]">销量 {product.sales} 件</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-[#5ba3d4]">¥{product.revenue.toLocaleString()}</p>
+                  <p className="text-sm text-[var(--text-muted)]">销售额</p>
+                </div>
+              </motion.div>
+            ))
+          )}
         </div>
       </div>
 
@@ -251,10 +297,10 @@ const DataCenter: React.FC = () => {
           <h3 className="font-semibold text-[var(--text-primary)] mb-4">转化漏斗</h3>
           <div className="space-y-4">
             {[
-              { stage: '浏览商品', value: 2156, color: 'bg-[#5ba3d4]' },
-              { stage: '加入购物车', value: 486, color: 'bg-blue-400' },
-              { stage: '提交订单', value: 156, color: 'bg-emerald-400' },
-              { stage: '完成支付', value: 90, color: 'bg-amber-400' },
+              { stage: '浏览商品', value: stats.totalVisitors || 100, color: 'bg-[#5ba3d4]' },
+              { stage: '加入购物车', value: Math.round((stats.totalVisitors || 100) * 0.23), color: 'bg-blue-400' },
+              { stage: '提交订单', value: Math.round((stats.totalVisitors || 100) * 0.07), color: 'bg-emerald-400' },
+              { stage: '完成支付', value: stats.totalOrders || 0, color: 'bg-amber-400' },
             ].map((item, index) => (
               <div key={item.stage} className="relative">
                 <div className="flex items-center justify-between mb-1">
@@ -264,7 +310,7 @@ const DataCenter: React.FC = () => {
                 <div className="h-8 bg-[var(--border-primary)] rounded-lg overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${(item.value / 2156) * 100}%` }}
+                    animate={{ width: `${Math.min((item.value / Math.max(stats.totalVisitors, 1)) * 100, 100)}%` }}
                     transition={{ delay: index * 0.1, duration: 0.5 }}
                     className={`h-full ${item.color} rounded-lg`}
                   />

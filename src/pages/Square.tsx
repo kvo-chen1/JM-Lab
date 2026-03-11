@@ -245,8 +245,7 @@ export default function Square() {
     const loadInitialData = async () => {
       try {
         setIsLoading(true)
-        // 清除缓存，确保获取最新数据
-        await postsApi.clearAllCaches()
+        // 不清除缓存，利用缓存加速页面加载
 
         // 从数据库同步收藏列表到本地状态
         if (user?.id) {
@@ -263,27 +262,17 @@ export default function Square() {
         // 同时获取推广作品并混合展示
         let current: Post[] = [];
         let promotedPosts: PromotedPost[] = [];
-        console.log('========== 开始加载广场作品（含推广）==========');
         try {
-          // 尝试获取包含推广作品的数据
-          console.log('调用 getSquareWorksWithPromotion...');
-          promotedPosts = await postsApi.getSquareWorksWithPromotion(20, 0, user?.id);
-          console.log('getSquareWorksWithPromotion 返回:', promotedPosts?.length || 0, '条数据');
-
-          // 获取所有普通作品
-          console.log('调用 getPosts 获取所有作品...');
-          const allWorks = await postsApi.getPosts(undefined, user?.id, false, 'works');
-          console.log('getPosts 返回:', allWorks?.length || 0, '条数据');
+          // 并行获取推广作品和普通作品
+          const [promotedResult, allWorks] = await Promise.all([
+            postsApi.getSquareWorksWithPromotion(20, 0, user?.id),
+            postsApi.getPosts(undefined, user?.id, false, 'works')
+          ]);
+          promotedPosts = promotedResult;
 
           if (promotedPosts && promotedPosts.length > 0) {
             // 转换推广作品为Post格式
             const promotedAsPosts = promotedPosts.map(convertPromotedPostToPost);
-            const promotedCount = promotedPosts.filter(p => p.is_promoted).length;
-            console.log('Loaded posts with promotion:', promotedAsPosts.length, 'posts,', promotedCount, 'promoted');
-
-            if (promotedCount === 0) {
-              console.warn('警告: 没有加载到推广作品，请检查数据库中是否有活跃的推广');
-            }
 
             // 合并推广作品和普通作品：优先使用推广作品的数据，然后补充普通作品
             const promotedIds = new Set(promotedAsPosts.map(p => p.id));
@@ -291,29 +280,18 @@ export default function Square() {
 
             // 合并：推广作品在前，普通作品在后
             current = [...promotedAsPosts, ...normalWorks];
-            console.log('合并后作品总数:', current.length, '(推广:', promotedAsPosts.length, ', 普通:', normalWorks.length, ')');
 
-            // 记录推广作品曝光（使用异步等待确保记录成功）
+            // 记录推广作品曝光（异步并行，不阻塞页面加载）
             const promotedWorks = promotedPosts.filter(p => p.is_promoted && p.promoted_work_id);
-            console.log('筛选出的推广作品:', promotedWorks.length, '个');
-
             if (promotedWorks.length > 0) {
-              console.log('准备记录推广曝光:', promotedWorks.map(p => ({
-                id: p.promoted_work_id,
-                title: p.title
-              })));
-
-              for (const p of promotedWorks) {
-                try {
-                  console.log('正在记录曝光:', p.promoted_work_id);
-                  const result = await postsApi.recordPromotionView(p.promoted_work_id!, user?.id);
-                  console.log('✅ 推广曝光记录成功:', p.promoted_work_id, result);
-                } catch (err) {
-                  console.error('❌ 记录推广曝光失败:', p.promoted_work_id, err);
-                }
-              }
-            } else {
-              console.log('没有需要记录曝光的推广作品');
+              // 使用 Promise.all 并行记录曝光，不阻塞页面渲染
+              Promise.all(
+                promotedWorks.map(p =>
+                  postsApi.recordPromotionView(p.promoted_work_id!, user?.id).catch(err => {
+                    // 静默失败，不影响用户体验
+                  })
+                )
+              );
             }
           } else {
             console.warn('getSquareWorksWithPromotion 返回空数据，使用普通作品');
@@ -321,23 +299,11 @@ export default function Square() {
             current = allWorks;
           }
         } catch (promoError) {
-          console.error('❌ Failed to load promoted posts:', promoError);
           // 降级：只获取普通作品
           current = await postsApi.getPosts(undefined, user?.id, false, 'works');
         }
-        console.log('========== 广场作品加载完成 ==========');
 
         if (Array.isArray(current)) {
-          // 调试：检查视频帖子数据
-          const videoPosts = current.filter(p => p.category === 'video' || p.type === 'video');
-          console.log('Video posts loaded:', videoPosts.map(p => ({
-            id: p.id,
-            title: p.title,
-            videoUrl: p.videoUrl,
-            thumbnail: p.thumbnail?.substring(0, 50),
-            category: p.category,
-            type: p.type
-          })));
           setPosts(current)
         } else {
           setPosts([])

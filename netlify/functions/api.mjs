@@ -424,6 +424,11 @@ export default async (request, context) => {
       return handleAuthRequest(request, path, headers);
     }
 
+    // 处理社群帖子相关请求
+    if (path.match(/^\/communities\/[^\/]+\/posts$/)) {
+      return handleCommunityPostsRequest(request, path, headers);
+    }
+
     // 其他 API 路由 - 返回未实现
     return new Response(
       JSON.stringify({ 
@@ -645,6 +650,181 @@ async function handleAuthRequest(request, path, headers) {
       JSON.stringify({ 
         code: 1, 
         message: '认证服务错误',
+        error: error.message
+      }), 
+      { status: 500, headers }
+    );
+  }
+}
+
+// 处理社群帖子请求
+async function handleCommunityPostsRequest(request, path, headers) {
+  try {
+    // 从路径中提取社群ID
+    const pathParts = path.split('/');
+    const communityId = pathParts[2];
+    
+    console.log('[Netlify CommunityPosts] Community ID:', communityId, 'Method:', request.method);
+    
+    // 获取数据库连接
+    const client = await getDbClient();
+    if (!client) {
+      return new Response(
+        JSON.stringify({ 
+          code: 1, 
+          message: 'Database connection failed'
+        }), 
+        { status: 503, headers }
+      );
+    }
+    
+    // 处理 GET 请求 - 获取帖子列表
+    if (request.method === 'GET') {
+      try {
+        const result = await client.query(
+          `SELECT p.*, u.username as author_name, u.avatar_url as author_avatar 
+           FROM posts p 
+           LEFT JOIN users u ON p.user_id = u.id 
+           WHERE p.community_id = $1 
+           ORDER BY p.created_at DESC`,
+          [communityId]
+        );
+        
+        const posts = result.rows.map(post => ({
+          id: post.id,
+          title: post.title,
+          content: post.content,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          community_id: post.community_id,
+          user_id: post.user_id,
+          author: post.author_name,
+          author_avatar: post.author_avatar,
+          images: post.images || [],
+          videos: post.videos || [],
+          audios: post.audios || []
+        }));
+        
+        return new Response(
+          JSON.stringify({
+            code: 0,
+            message: 'Posts fetched successfully',
+            data: posts
+          }), 
+          { status: 200, headers }
+        );
+      } catch (dbError) {
+        console.error('[Netlify CommunityPosts] DB Error:', dbError);
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: 'Failed to fetch posts',
+            error: dbError.message
+          }), 
+          { status: 500, headers }
+        );
+      }
+    }
+    
+    // 处理 POST 请求 - 创建新帖子
+    if (request.method === 'POST') {
+      // 获取Authorization头
+      const authHeader = request.headers.get('Authorization');
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: 'Unauthorized'
+          }), 
+          { status: 401, headers }
+        );
+      }
+      
+      const token = authHeader.substring(7);
+      
+      // 解析请求体
+      const body = await request.json().catch(() => ({}));
+      const { title, content, images, videos, audios } = body;
+      
+      if (!title || !content) {
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: 'Title and content are required'
+          }), 
+          { status: 400, headers }
+        );
+      }
+      
+      try {
+        // 从token中获取用户信息（简化处理，实际应该验证token）
+        // 这里我们假设token中包含用户ID，或者从数据库查询
+        
+        // 插入帖子到数据库
+        // 使用 to_jsonb 确保数组正确转换为 jsonb 类型
+        const result = await client.query(
+          `INSERT INTO posts (title, content, community_id, user_id, images, videos, audios, created_at, updated_at) 
+           VALUES ($1, $2, $3, $4, to_jsonb($5::text[]), to_jsonb($6::text[]), to_jsonb($7::text[]), NOW(), NOW()) 
+           RETURNING *`,
+          [
+            title, 
+            content, 
+            communityId, 
+            token, // 暂时使用token作为user_id，实际应该解码token
+            images || [],
+            videos || [],
+            audios || []
+          ]
+        );
+        
+        const newPost = result.rows[0];
+        
+        return new Response(
+          JSON.stringify({
+            code: 0,
+            message: 'Post created successfully',
+            data: {
+              id: newPost.id,
+              title: newPost.title,
+              content: newPost.content,
+              created_at: newPost.created_at,
+              community_id: newPost.community_id,
+              user_id: newPost.user_id,
+              images: newPost.images || [],
+              videos: newPost.videos || [],
+              audios: newPost.audios || []
+            }
+          }), 
+          { status: 200, headers }
+        );
+      } catch (dbError) {
+        console.error('[Netlify CommunityPosts] DB Error:', dbError);
+        return new Response(
+          JSON.stringify({ 
+            code: 1, 
+            message: 'Failed to create post',
+            error: dbError.message
+          }), 
+          { status: 500, headers }
+        );
+      }
+    }
+    
+    // 其他方法不支持
+    return new Response(
+      JSON.stringify({ 
+        code: 1, 
+        message: 'Method not allowed: ' + request.method
+      }), 
+      { status: 405, headers }
+    );
+    
+  } catch (error) {
+    console.error('[Netlify CommunityPosts] Error:', error);
+    return new Response(
+      JSON.stringify({ 
+        code: 1, 
+        message: 'Internal Server Error',
         error: error.message
       }), 
       { status: 500, headers }

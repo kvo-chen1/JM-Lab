@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BrandPartnership } from '@/services/brandPartnershipService';
 import {
@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Search,
   CheckCircle2,
-  Store
+  Store,
+  ChevronDown
 } from 'lucide-react';
 
 interface LeftSidebarProps {
@@ -39,6 +40,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
 
   // 使用已入驻的品牌数据
   const displayBrands = approvedBrands.length > 0
@@ -59,12 +61,26 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const menuItems = [
     { icon: Building2, label: '品牌入驻', count: stats?.approvedPartnerships || 0, active: isBusinessPage, path: '/business' },
     { icon: Store, label: '品牌展示', count: null, active: isShowcasePage, path: '/brand-showcase' },
-    { icon: Handshake, label: '合作申请', count: partnershipCount, active: false, path: '/business' },
+    { icon: Handshake, label: '合作申请', count: partnershipCount, active: false, path: '/business', subMenu: [
+      { label: '品牌方合作', path: '/business' },
+      { label: '商家入驻申请', path: '/merchant/apply' },
+    ]},
     { icon: TrendingUp, label: '品牌活动', count: stats?.totalEvents || 0, active: false, path: '/business' },
     { icon: Sparkles, label: 'AI创意', count: null, active: false, path: '/business' },
   ];
 
-  const handleMenuClick = (path: string) => {
+  const handleMenuClick = (item: any) => {
+    if (item.subMenu) {
+      // 有子菜单，切换展开状态
+      setExpandedMenu(expandedMenu === item.label ? null : item.label);
+    } else {
+      // 没有子菜单，直接跳转
+      navigate(item.path);
+    }
+  };
+
+  const handleSubMenuClick = (path: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     navigate(path);
   };
 
@@ -91,33 +107,69 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           快速导航
         </h3>
         {menuItems.map((item, index) => (
-          <motion.button
-            key={item.label}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.05 }}
-            onClick={() => handleMenuClick(item.path)}
-            className={`
-              w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group
-              ${item.active
-                ? (isDark ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'bg-blue-50 text-blue-600 border border-blue-200')
-                : (isDark ? 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900')
-              }
-            `}
-          >
-            <div className="flex items-center gap-3">
-              <item.icon className="w-4 h-4" />
-              <span className="font-medium text-sm">{item.label}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {item.count !== null && (
-                <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'}`}>
-                  {item.count}
-                </span>
+          <div key={item.label}>
+            <motion.button
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.05 }}
+              onClick={() => handleMenuClick(item)}
+              className={`
+                w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group
+                ${item.active
+                  ? (isDark ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'bg-blue-50 text-blue-600 border border-blue-200')
+                  : (isDark ? 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900')
+                }
+              `}
+            >
+              <div className="flex items-center gap-3">
+                <item.icon className="w-4 h-4" />
+                <span className="font-medium text-sm">{item.label}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {item.count !== null && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'}`}>
+                    {item.count}
+                  </span>
+                )}
+                {item.subMenu ? (
+                  <ChevronDown className={`w-4 h-4 transition-transform ${expandedMenu === item.label ? 'rotate-180' : ''}`} />
+                ) : (
+                  <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
+              </div>
+            </motion.button>
+            
+            {/* 子菜单 */}
+            <AnimatePresence>
+              {item.subMenu && expandedMenu === item.label && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pl-11 pr-4 py-2 space-y-1">
+                    {item.subMenu.map((subItem: any) => (
+                      <button
+                        key={subItem.label}
+                        onClick={(e) => handleSubMenuClick(subItem.path, e)}
+                        className={`
+                          w-full text-left px-3 py-2 rounded-lg text-sm transition-colors
+                          ${isDark 
+                            ? 'text-gray-400 hover:text-white hover:bg-gray-700/50' 
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          }
+                        `}
+                      >
+                        {subItem.label}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
               )}
-              <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-          </motion.button>
+            </AnimatePresence>
+          </div>
         ))}
       </div>
 

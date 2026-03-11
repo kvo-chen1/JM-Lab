@@ -325,13 +325,14 @@ export function useCreatorCenter() {
       const client = supabaseAdmin;
 
       // 从 creator_revenue 表获取收入数据
+      // 使用 maybeSingle() 替代 single() 避免无数据时报错
       const { data: revenueData, error: revenueError } = await client
         .from('creator_revenue')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (revenueError && revenueError.code !== 'PGRST116') {
+      if (revenueError) {
         console.warn('获取收入数据失败:', revenueError);
       }
 

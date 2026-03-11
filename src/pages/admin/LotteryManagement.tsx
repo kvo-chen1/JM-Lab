@@ -157,6 +157,23 @@ export default function LotteryManagement() {
   const [editingPrize, setEditingPrize] = useState<LotteryPrize | null>(null);
   const [editingPrizeIndex, setEditingPrizeIndex] = useState<number | null>(null);
 
+  // 活动表单状态
+  const [activityFormData, setActivityFormData] = useState({
+    name: '',
+    description: '',
+    startTime: '',
+    endTime: '',
+    spinCost: 10,
+    maxSpinsPerUser: -1,
+    prizes: [
+      { id: '1', name: '谢谢参与', points: 0, probability: 0.3, stock: -1, isRare: false, sortOrder: 0, isEnabled: true },
+      { id: '2', name: '小奖', points: 10, probability: 0.4, stock: 1000, isRare: false, sortOrder: 1, isEnabled: true },
+      { id: '3', name: '大奖', points: 100, probability: 0.2, stock: 100, isRare: false, sortOrder: 2, isEnabled: true },
+      { id: '4', name: '特等奖', points: 1000, probability: 0.1, stock: 10, isRare: true, sortOrder: 3, isEnabled: true },
+    ] as LotteryPrize[],
+  });
+  const [savingActivity, setSavingActivity] = useState(false);
+
   // 加载活动列表
   const loadActivities = useCallback(async () => {
     setActivitiesLoading(true);
@@ -256,6 +273,115 @@ export default function LotteryManagement() {
     } catch (error) {
       console.error('更新状态失败:', error);
       toast.error('更新状态失败');
+    }
+  };
+
+  // ========== 活动表单方法 ==========
+
+  // 初始化活动表单数据
+  const initActivityFormData = useCallback(() => {
+    if (editingActivity) {
+      setActivityFormData({
+        name: editingActivity.name || '',
+        description: editingActivity.description || '',
+        startTime: editingActivity.startTime ? new Date(editingActivity.startTime).toISOString().slice(0, 16) : '',
+        endTime: editingActivity.endTime ? new Date(editingActivity.endTime).toISOString().slice(0, 16) : '',
+        spinCost: editingActivity.spinCost || 10,
+        maxSpinsPerUser: editingActivity.maxSpinsPerUser || -1,
+        prizes: editingActivity.prizes?.length ? editingActivity.prizes : [
+          { id: '1', name: '谢谢参与', points: 0, probability: 0.3, stock: -1, isRare: false, sortOrder: 0, isEnabled: true },
+          { id: '2', name: '小奖', points: 10, probability: 0.4, stock: 1000, isRare: false, sortOrder: 1, isEnabled: true },
+          { id: '3', name: '大奖', points: 100, probability: 0.2, stock: 100, isRare: false, sortOrder: 2, isEnabled: true },
+          { id: '4', name: '特等奖', points: 1000, probability: 0.1, stock: 10, isRare: true, sortOrder: 3, isEnabled: true },
+        ],
+      });
+    } else {
+      setActivityFormData({
+        name: '',
+        description: '',
+        startTime: '',
+        endTime: '',
+        spinCost: 10,
+        maxSpinsPerUser: -1,
+        prizes: [
+          { id: '1', name: '谢谢参与', points: 0, probability: 0.3, stock: -1, isRare: false, sortOrder: 0, isEnabled: true },
+          { id: '2', name: '小奖', points: 10, probability: 0.4, stock: 1000, isRare: false, sortOrder: 1, isEnabled: true },
+          { id: '3', name: '大奖', points: 100, probability: 0.2, stock: 100, isRare: false, sortOrder: 2, isEnabled: true },
+          { id: '4', name: '特等奖', points: 1000, probability: 0.1, stock: 10, isRare: true, sortOrder: 3, isEnabled: true },
+        ],
+      });
+    }
+  }, [editingActivity]);
+
+  // 当显示表单时初始化数据
+  useEffect(() => {
+    if (showActivityForm) {
+      initActivityFormData();
+    }
+  }, [showActivityForm, initActivityFormData]);
+
+  // 处理添加奖品到表单
+  const handleAddPrizeToForm = () => {
+    setActivityFormData({
+      ...activityFormData,
+      prizes: [
+        ...activityFormData.prizes,
+        { id: Date.now().toString(), name: '', points: 0, probability: 0, stock: -1, isRare: false, sortOrder: activityFormData.prizes.length, isEnabled: true },
+      ],
+    });
+  };
+
+  // 处理从表单移除奖品
+  const handleRemovePrizeFromForm = (index: number) => {
+    setActivityFormData({
+      ...activityFormData,
+      prizes: activityFormData.prizes.filter((_, i) => i !== index),
+    });
+  };
+
+  // 处理更新表单奖品
+  const handleUpdatePrizeInForm = (index: number, field: keyof LotteryPrize, value: any) => {
+    const newPrizes = [...activityFormData.prizes];
+    newPrizes[index] = { ...newPrizes[index], [field]: value };
+    setActivityFormData({ ...activityFormData, prizes: newPrizes });
+  };
+
+  // 处理保存活动
+  const handleSaveActivity = async () => {
+    if (!activityFormData.name.trim()) {
+      toast.error('请输入活动名称');
+      return;
+    }
+    if (!activityFormData.startTime || !activityFormData.endTime) {
+      toast.error('请选择活动时间');
+      return;
+    }
+    if (activityFormData.prizes.length < 2) {
+      toast.error('至少需要2个奖品');
+      return;
+    }
+    const totalProb = activityFormData.prizes.reduce((sum, p) => sum + p.probability, 0);
+    if (Math.abs(totalProb - 1) > 0.001) {
+      toast.error(`奖品总概率必须等于100%，当前为${(totalProb * 100).toFixed(1)}%`);
+      return;
+    }
+
+    setSavingActivity(true);
+    try {
+      if (editingActivity) {
+        await lotteryAdminService.updateActivity(editingActivity.id, activityFormData);
+        toast.success('活动更新成功');
+      } else {
+        await lotteryAdminService.createActivity(activityFormData, user?.id || '');
+        toast.success('活动创建成功');
+      }
+      setShowActivityForm(false);
+      loadActivities();
+    } catch (error) {
+      console.error('保存活动失败:', error);
+      toast.error('保存失败');
+    } finally {
+      setSavingActivity(false);
     }
   };
 
@@ -651,61 +777,61 @@ export default function LotteryManagement() {
     </div>
   );
 
+  // 计算抽奖记录图表数据 - 移到组件顶层
+  const prizeDistribution = useMemo(() => {
+    const distribution: Record<string, { name: string; count: number; totalValue: number }> = {};
+    spinRecords.forEach((record) => {
+      if (!distribution[record.prizeName]) {
+        distribution[record.prizeName] = { name: record.prizeName, count: 0, totalValue: 0 };
+      }
+      distribution[record.prizeName].count += 1;
+      distribution[record.prizeName].totalValue += record.prizePoints;
+    });
+    return Object.values(distribution).sort((a, b) => b.count - a.count).slice(0, 8);
+  }, [spinRecords]);
+
+  const hourlyDistribution = useMemo(() => {
+    const hours = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
+    spinRecords.forEach((record) => {
+      const hour = new Date(record.spinTime).getHours();
+      hours[hour].count += 1;
+    });
+    return hours;
+  }, [spinRecords]);
+
+  const userSpinFrequency = useMemo(() => {
+    const userCounts: Record<string, number> = {};
+    spinRecords.forEach((record) => {
+      userCounts[record.userId] = (userCounts[record.userId] || 0) + 1;
+    });
+    const frequency: Record<string, number> = { '1次': 0, '2-3次': 0, '4-5次': 0, '6-10次': 0, '10次以上': 0 };
+    Object.values(userCounts).forEach((count) => {
+      if (count === 1) frequency['1次'] += 1;
+      else if (count <= 3) frequency['2-3次'] += 1;
+      else if (count <= 5) frequency['4-5次'] += 1;
+      else if (count <= 10) frequency['6-10次'] += 1;
+      else frequency['10次以上'] += 1;
+    });
+    return Object.entries(frequency).map(([name, value]) => ({ name, value }));
+  }, [spinRecords]);
+
+  const valueDistribution = useMemo(() => {
+    const ranges = [
+      { name: '0-100', min: 0, max: 100, count: 0 },
+      { name: '101-500', min: 101, max: 500, count: 0 },
+      { name: '501-1000', min: 501, max: 1000, count: 0 },
+      { name: '1001-5000', min: 1001, max: 5000, count: 0 },
+      { name: '5000+', min: 5001, max: Infinity, count: 0 },
+    ];
+    spinRecords.forEach((record) => {
+      const range = ranges.find((r) => record.prizePoints >= r.min && record.prizePoints <= r.max);
+      if (range) range.count += 1;
+    });
+    return ranges.map((r) => ({ name: r.name, count: r.count }));
+  }, [spinRecords]);
+
   // 渲染抽奖记录
   const renderSpinRecords = () => {
-    // 计算图表数据
-    const prizeDistribution = useMemo(() => {
-      const distribution: Record<string, { name: string; count: number; totalValue: number }> = {};
-      spinRecords.forEach((record) => {
-        if (!distribution[record.prizeName]) {
-          distribution[record.prizeName] = { name: record.prizeName, count: 0, totalValue: 0 };
-        }
-        distribution[record.prizeName].count += 1;
-        distribution[record.prizeName].totalValue += record.prizePoints;
-      });
-      return Object.values(distribution).sort((a, b) => b.count - a.count).slice(0, 8);
-    }, [spinRecords]);
-
-    const hourlyDistribution = useMemo(() => {
-      const hours = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
-      spinRecords.forEach((record) => {
-        const hour = new Date(record.spinTime).getHours();
-        hours[hour].count += 1;
-      });
-      return hours;
-    }, [spinRecords]);
-
-    const userSpinFrequency = useMemo(() => {
-      const userCounts: Record<string, number> = {};
-      spinRecords.forEach((record) => {
-        userCounts[record.userId] = (userCounts[record.userId] || 0) + 1;
-      });
-      const frequency: Record<string, number> = { '1次': 0, '2-3次': 0, '4-5次': 0, '6-10次': 0, '10次以上': 0 };
-      Object.values(userCounts).forEach((count) => {
-        if (count === 1) frequency['1次'] += 1;
-        else if (count <= 3) frequency['2-3次'] += 1;
-        else if (count <= 5) frequency['4-5次'] += 1;
-        else if (count <= 10) frequency['6-10次'] += 1;
-        else frequency['10次以上'] += 1;
-      });
-      return Object.entries(frequency).map(([name, value]) => ({ name, value }));
-    }, [spinRecords]);
-
-    const valueDistribution = useMemo(() => {
-      const ranges = [
-        { name: '0-100', min: 0, max: 100, count: 0 },
-        { name: '101-500', min: 101, max: 500, count: 0 },
-        { name: '501-1000', min: 501, max: 1000, count: 0 },
-        { name: '1001-5000', min: 1001, max: 5000, count: 0 },
-        { name: '5000+', min: 5001, max: Infinity, count: 0 },
-      ];
-      spinRecords.forEach((record) => {
-        const range = ranges.find((r) => record.prizePoints >= r.min && record.prizePoints <= r.max);
-        if (range) range.count += 1;
-      });
-      return ranges.map((r) => ({ name: r.name, count: r.count }));
-    }, [spinRecords]);
-
     return (
     <div className="space-y-6">
       {/* 筛选栏 */}
@@ -1791,85 +1917,7 @@ export default function LotteryManagement() {
   const renderActivityFormModal = () => {
     if (!showActivityForm) return null;
 
-    const [formData, setFormData] = useState({
-      name: editingActivity?.name || '',
-      description: editingActivity?.description || '',
-      startTime: editingActivity?.startTime ? new Date(editingActivity.startTime).toISOString().slice(0, 16) : '',
-      endTime: editingActivity?.endTime ? new Date(editingActivity.endTime).toISOString().slice(0, 16) : '',
-      spinCost: editingActivity?.spinCost || 10,
-      maxSpinsPerUser: editingActivity?.maxSpinsPerUser || -1,
-      prizes: editingActivity?.prizes || [
-        { id: '1', name: '谢谢参与', points: 0, probability: 0.3, stock: -1, isRare: false, sortOrder: 0, isEnabled: true },
-        { id: '2', name: '小奖', points: 10, probability: 0.4, stock: 1000, isRare: false, sortOrder: 1, isEnabled: true },
-        { id: '3', name: '大奖', points: 100, probability: 0.2, stock: 100, isRare: false, sortOrder: 2, isEnabled: true },
-        { id: '4', name: '特等奖', points: 1000, probability: 0.1, stock: 10, isRare: true, sortOrder: 3, isEnabled: true },
-      ],
-    });
-
-    const [saving, setSaving] = useState(false);
-
-    const handleAddPrize = () => {
-      setFormData({
-        ...formData,
-        prizes: [
-          ...formData.prizes,
-          { id: Date.now().toString(), name: '', points: 0, probability: 0, stock: -1, isRare: false, sortOrder: formData.prizes.length, isEnabled: true },
-        ],
-      });
-    };
-
-    const handleRemovePrize = (index: number) => {
-      setFormData({
-        ...formData,
-        prizes: formData.prizes.filter((_, i) => i !== index),
-      });
-    };
-
-    const handleUpdatePrize = (index: number, field: keyof LotteryPrize, value: any) => {
-      const newPrizes = [...formData.prizes];
-      newPrizes[index] = { ...newPrizes[index], [field]: value };
-      setFormData({ ...formData, prizes: newPrizes });
-    };
-
-    const handleSave = async () => {
-      if (!formData.name.trim()) {
-        toast.error('请输入活动名称');
-        return;
-      }
-      if (!formData.startTime || !formData.endTime) {
-        toast.error('请选择活动时间');
-        return;
-      }
-      if (formData.prizes.length < 2) {
-        toast.error('至少需要2个奖品');
-        return;
-      }
-      const totalProb = formData.prizes.reduce((sum, p) => sum + p.probability, 0);
-      if (Math.abs(totalProb - 1) > 0.001) {
-        toast.error(`奖品总概率必须等于100%，当前为${(totalProb * 100).toFixed(1)}%`);
-        return;
-      }
-
-      setSaving(true);
-      try {
-        if (editingActivity) {
-          await lotteryAdminService.updateActivity(editingActivity.id, formData);
-          toast.success('活动更新成功');
-        } else {
-          await lotteryAdminService.createActivity(formData, user?.id || '');
-          toast.success('活动创建成功');
-        }
-        setShowActivityForm(false);
-        loadActivities();
-      } catch (error) {
-        console.error('保存活动失败:', error);
-        toast.error('保存失败');
-      } finally {
-        setSaving(false);
-      }
-    };
-
-    const totalProb = formData.prizes.reduce((sum, p) => sum + p.probability, 0);
+    const totalProb = activityFormData.prizes.reduce((sum, p) => sum + p.probability, 0);
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -1904,8 +1952,8 @@ export default function LotteryManagement() {
                   <label className="block text-sm font-medium mb-1">活动名称 *</label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={activityFormData.name}
+                    onChange={(e) => setActivityFormData({ ...activityFormData, name: e.target.value })}
                     placeholder="请输入活动名称"
                     className={`w-full px-4 py-2 rounded-lg border ${
                       isDark
@@ -1917,8 +1965,8 @@ export default function LotteryManagement() {
                 <div className="col-span-2">
                   <label className="block text-sm font-medium mb-1">活动描述</label>
                   <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    value={activityFormData.description}
+                    onChange={(e) => setActivityFormData({ ...activityFormData, description: e.target.value })}
                     placeholder="请输入活动描述"
                     rows={2}
                     className={`w-full px-4 py-2 rounded-lg border ${
@@ -1932,8 +1980,8 @@ export default function LotteryManagement() {
                   <label className="block text-sm font-medium mb-1">开始时间 *</label>
                   <input
                     type="datetime-local"
-                    value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                    value={activityFormData.startTime}
+                    onChange={(e) => setActivityFormData({ ...activityFormData, startTime: e.target.value })}
                     className={`w-full px-4 py-2 rounded-lg border ${
                       isDark
                         ? 'bg-gray-700 border-gray-600 text-white'
@@ -1945,8 +1993,8 @@ export default function LotteryManagement() {
                   <label className="block text-sm font-medium mb-1">结束时间 *</label>
                   <input
                     type="datetime-local"
-                    value={formData.endTime}
-                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                    value={activityFormData.endTime}
+                    onChange={(e) => setActivityFormData({ ...activityFormData, endTime: e.target.value })}
                     className={`w-full px-4 py-2 rounded-lg border ${
                       isDark
                         ? 'bg-gray-700 border-gray-600 text-white'
@@ -1959,8 +2007,8 @@ export default function LotteryManagement() {
                   <input
                     type="number"
                     min={1}
-                    value={formData.spinCost}
-                    onChange={(e) => setFormData({ ...formData, spinCost: parseInt(e.target.value) || 0 })}
+                    value={activityFormData.spinCost}
+                    onChange={(e) => setActivityFormData({ ...activityFormData, spinCost: parseInt(e.target.value) || 0 })}
                     className={`w-full px-4 py-2 rounded-lg border ${
                       isDark
                         ? 'bg-gray-700 border-gray-600 text-white'
@@ -1973,8 +2021,8 @@ export default function LotteryManagement() {
                   <input
                     type="number"
                     min={-1}
-                    value={formData.maxSpinsPerUser}
-                    onChange={(e) => setFormData({ ...formData, maxSpinsPerUser: parseInt(e.target.value) || -1 })}
+                    value={activityFormData.maxSpinsPerUser}
+                    onChange={(e) => setActivityFormData({ ...activityFormData, maxSpinsPerUser: parseInt(e.target.value) || -1 })}
                     className={`w-full px-4 py-2 rounded-lg border ${
                       isDark
                         ? 'bg-gray-700 border-gray-600 text-white'
@@ -1993,7 +2041,7 @@ export default function LotteryManagement() {
                   奖品配置
                 </h3>
                 <button
-                  onClick={handleAddPrize}
+                  onClick={handleAddPrizeToForm}
                   className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                 >
                   <Plus className="w-4 h-4" />
@@ -2002,7 +2050,7 @@ export default function LotteryManagement() {
               </div>
 
               <div className="space-y-3">
-                {formData.prizes.map((prize, index) => (
+                {activityFormData.prizes.map((prize, index) => (
                   <div
                     key={prize.id}
                     className={`p-4 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-50'} flex flex-wrap gap-3 items-center`}
@@ -2015,7 +2063,7 @@ export default function LotteryManagement() {
                       <input
                         type="text"
                         value={prize.name}
-                        onChange={(e) => handleUpdatePrize(index, 'name', e.target.value)}
+                        onChange={(e) => handleUpdatePrizeInForm(index, 'name', e.target.value)}
                         placeholder="奖品名称"
                         className={`w-full px-3 py-1.5 rounded border ${
                           isDark
@@ -2030,7 +2078,7 @@ export default function LotteryManagement() {
                         type="number"
                         min={0}
                         value={prize.points}
-                        onChange={(e) => handleUpdatePrize(index, 'points', parseInt(e.target.value) || 0)}
+                        onChange={(e) => handleUpdatePrizeInForm(index, 'points', parseInt(e.target.value) || 0)}
                         className={`w-full px-3 py-1.5 rounded border ${
                           isDark
                             ? 'bg-gray-600 border-gray-500 text-white'
@@ -2046,7 +2094,7 @@ export default function LotteryManagement() {
                         max={100}
                         step={0.1}
                         value={(prize.probability * 100).toFixed(1)}
-                        onChange={(e) => handleUpdatePrize(index, 'probability', parseFloat(e.target.value) / 100 || 0)}
+                        onChange={(e) => handleUpdatePrizeInForm(index, 'probability', parseFloat(e.target.value) / 100 || 0)}
                         className={`w-full px-3 py-1.5 rounded border ${
                           isDark
                             ? 'bg-gray-600 border-gray-500 text-white'
@@ -2060,7 +2108,7 @@ export default function LotteryManagement() {
                         type="number"
                         min={-1}
                         value={prize.stock}
-                        onChange={(e) => handleUpdatePrize(index, 'stock', parseInt(e.target.value) || -1)}
+                        onChange={(e) => handleUpdatePrizeInForm(index, 'stock', parseInt(e.target.value) || -1)}
                         placeholder="-1=无限"
                         className={`w-full px-3 py-1.5 rounded border ${
                           isDark
@@ -2074,13 +2122,13 @@ export default function LotteryManagement() {
                         <input
                           type="checkbox"
                           checked={prize.isRare}
-                          onChange={(e) => handleUpdatePrize(index, 'isRare', e.target.checked)}
+                          onChange={(e) => handleUpdatePrizeInForm(index, 'isRare', e.target.checked)}
                           className="rounded"
                         />
                         稀有
                       </label>
                       <button
-                        onClick={() => handleRemovePrize(index)}
+                        onClick={() => handleRemovePrizeFromForm(index)}
                         className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
                         title="删除"
                       >
@@ -2115,11 +2163,11 @@ export default function LotteryManagement() {
                 取消
               </button>
               <button
-                onClick={handleSave}
-                disabled={saving}
+                onClick={handleSaveActivity}
+                disabled={savingActivity}
                 className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                {saving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {savingActivity && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                 {editingActivity ? '保存修改' : '创建活动'}
               </button>
             </div>

@@ -104,7 +104,7 @@ class AIConversationService {
         updatedAt: new Date(data.updated_at).getTime(),
         isActive: data.is_active,
         contextSummary: data.context_summary,
-        messageCount: data.message_count
+        messageCount: data.message_count ?? 0
       };
     } catch (error) {
       console.error('[AIConversation] Error creating conversation:', error);
@@ -221,7 +221,7 @@ class AIConversationService {
         updatedAt: new Date(item.updated_at).getTime(),
         isActive: item.is_active,
         contextSummary: item.context_summary,
-        messageCount: item.message_count
+        messageCount: item.message_count ?? 0
       }));
     } catch (error) {
       console.error('[AIConversation] Error getting conversations:', error);
@@ -302,7 +302,7 @@ class AIConversationService {
         updatedAt: new Date(data.updated_at).getTime(),
         isActive: data.is_active,
         contextSummary: data.context_summary,
-        messageCount: data.message_count
+        messageCount: data.message_count ?? 0
       };
     } catch (error) {
       console.error('[AIConversation] Error getting active conversation:', error);

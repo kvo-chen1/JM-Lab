@@ -165,13 +165,21 @@ export const communityService = {
           'Authorization': `Bearer ${token}`
         }
       });
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.code === 0 && Array.isArray(result.data)) {
-          const communities = result.data;
-          
-          const joinedCommunities: Community[] = communities.map(community => ({
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[getUserCommunities] API error:', response.status, errorData);
+        throw new Error(errorData.message || `Failed to fetch user communities: ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (result.code === 0 && Array.isArray(result.data)) {
+        const communities = result.data;
+        console.log('[getUserCommunities] Raw data from API:', communities);
+
+        const joinedCommunities: Community[] = communities.map(community => {
+          console.log('[getUserCommunities] Processing community:', community.id, community.name, 'avatar:', community.avatar);
+          return {
             id: community.id,
             name: community.name,
             description: community.description,
@@ -199,13 +207,14 @@ export const communityService = {
             creatorId: community.creator_id || '',
             createdAt: community.created_at,
             updatedAt: community.updated_at
-          }));
-          
-          console.log('[getUserCommunities] Backend API success, joined communities:', joinedCommunities.length);
-          return joinedCommunities;
-        }
+          };
+        });
+
+        console.log('[getUserCommunities] Backend API success, joined communities:', joinedCommunities.length, joinedCommunities.map(c => ({ id: c.id, name: c.name, avatar: c.avatar })));
+        return joinedCommunities;
       }
-      throw new Error('Failed to fetch user communities from API');
+
+      throw new Error('Failed to fetch user communities from API: Invalid response format');
     } catch (error) {
       console.error('[getUserCommunities] Error:', error);
       return [];
@@ -312,7 +321,7 @@ export const communityService = {
     }
   },
 
-  async joinCommunity(communityId: string, userId: string): Promise<{ requiresApproval: boolean; status: string }> {
+  async joinCommunity(communityId: string, userId: string): Promise<{ requiresApproval: boolean; status: string; alreadyMember?: boolean }> {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!token) {
       throw new Error('请先登录后再加入社群');
@@ -341,9 +350,19 @@ export const communityService = {
           };
         }
       }
-      // 后端 API 失败，抛出错误
+      // 后端 API 失败，检查是否是已经是成员的错误
       const errorData = await response.json().catch(() => ({}));
       console.error('[joinCommunity] Backend API failed:', response.status, errorData);
+      
+      // 如果已经是社群成员，返回特殊标识
+      if (errorData.error === 'ALREADY_MEMBER' || errorData.message?.includes('已经是该社群成员')) {
+        return { 
+          requiresApproval: false, 
+          status: 'approved',
+          alreadyMember: true 
+        };
+      }
+      
       throw new Error(errorData.message || '加入社群失败，请稍后重试');
     } catch (error) {
       console.error('joinCommunity 整体错误:', error);
@@ -790,8 +809,8 @@ export const communityService = {
         };
       }
       
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || '创建帖子失败');
+      // 使用已解析的result作为错误数据
+      throw new Error(result.message || '创建帖子失败');
     } catch (error) {
       console.error('[createThread] Error:', error);
       throw error;

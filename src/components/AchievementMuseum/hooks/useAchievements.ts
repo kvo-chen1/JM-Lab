@@ -132,17 +132,14 @@ export function useAchievements(externalUserId?: string) {
       setError(null);
       try {
         console.log('[useAchievements] 开始加载数据...');
-        
-        // 从服务器获取用户成就数据
-        await achievementService.fetchUserAchievements();
 
         // 从服务器获取积分数据
         console.log('[useAchievements] 获取积分数据, userId:', userId);
         await achievementService.fetchPointsStats(userId);
         console.log('[useAchievements] 积分数据获取完成');
 
-        // 获取成就数据
-        const allAchievements = await achievementService.getAllAchievements();
+        // 从服务器获取用户成就数据
+        const allAchievements = await achievementService.fetchUserAchievements();
         setAchievements(allAchievements);
 
         // 获取统计数据

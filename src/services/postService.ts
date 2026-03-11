@@ -110,107 +110,97 @@ export interface Post {
  * @param useSupabase 是否从 Supabase 获取数据（默认 false，只从后端API获取）
  * @param source 数据来源：'all' | 'posts' | 'works'（默认 'all'）
  */
+// 用户点赞/收藏缓存，避免每次请求都查询数据库
+let userLikesCache: { userId: string; likedWorkIds: Set<string>; likedPostIds: Set<string>; timestamp: number } | null = null;
+let userBookmarksCache: { userId: string; bookmarkedWorkIds: Set<string>; bookmarkedPostIds: Set<string>; timestamp: number } | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
+
+// 获取用户点赞列表（带缓存）
+async function getUserLikesWithCache(currentUserId: string): Promise<{ likedWorkIds: Set<string>; likedPostIds: Set<string> }> {
+  // 检查缓存是否有效
+  if (userLikesCache && userLikesCache.userId === currentUserId && Date.now() - userLikesCache.timestamp < CACHE_TTL) {
+    return { likedWorkIds: userLikesCache.likedWorkIds, likedPostIds: userLikesCache.likedPostIds };
+  }
+  
+  const likedWorkIds = new Set<string>();
+  const likedPostIds = new Set<string>();
+  
+  try {
+    // 首先尝试从后端 API 获取
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      const response = await fetch('/api/user/likes', { headers: { 'Authorization': `Bearer ${token}` } });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.data && Array.isArray(result.data)) {
+          result.data.forEach((w: any) => {
+            if (w.id) likedWorkIds.add(w.id.toString());
+          });
+        }
+      }
+    }
+    
+    // 更新缓存
+    userLikesCache = { userId: currentUserId, likedWorkIds, likedPostIds, timestamp: Date.now() };
+  } catch (error) {
+    // 静默失败
+  }
+  
+  return { likedWorkIds, likedPostIds };
+}
+
+// 获取用户收藏列表（带缓存）
+async function getUserBookmarksWithCache(currentUserId: string): Promise<{ bookmarkedWorkIds: Set<string>; bookmarkedPostIds: Set<string> }> {
+  // 检查缓存是否有效
+  if (userBookmarksCache && userBookmarksCache.userId === currentUserId && Date.now() - userBookmarksCache.timestamp < CACHE_TTL) {
+    return { bookmarkedWorkIds: userBookmarksCache.bookmarkedWorkIds, bookmarkedPostIds: userBookmarksCache.bookmarkedPostIds };
+  }
+  
+  const bookmarkedWorkIds = new Set<string>();
+  const bookmarkedPostIds = new Set<string>();
+  
+  try {
+    // 首先尝试从后端 API 获取
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) {
+      const response = await fetch('/api/user/bookmarks', { headers: { 'Authorization': `Bearer ${token}` } });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.data && Array.isArray(result.data)) {
+          result.data.forEach((w: any) => {
+            if (w.id) bookmarkedWorkIds.add(w.id.toString());
+          });
+        }
+      }
+    }
+    
+    // 更新缓存
+    userBookmarksCache = { userId: currentUserId, bookmarkedWorkIds, bookmarkedPostIds, timestamp: Date.now() };
+  } catch (error) {
+    // 静默失败
+  }
+  
+  return { bookmarkedWorkIds, bookmarkedPostIds };
+}
+
 export async function getPosts(category?: string, currentUserId?: string, useSupabase: boolean = false, source: 'all' | 'posts' | 'works' = 'all'): Promise<Post[]> {
   try {
     let worksFromLocal: Post[] = [];
     let worksFromSupabase: Post[] = [];
 
-    // 获取当前用户的点赞列表（用于后端API的作品）
+    // 获取当前用户的点赞和收藏列表（使用缓存）
     let userLikedWorkIds: Set<string> = new Set();
-    let userLikedPostIds: Set<string> = new Set();
     let userBookmarkedWorkIds: Set<string> = new Set();
-    let userBookmarkedPostIds: Set<string> = new Set();
+    
     if (currentUserId && currentUserId !== 'anonymous' && currentUserId !== 'current-user') {
-      try {
-        // 首先尝试从后端 API 获取收藏和点赞列表
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-        if (token) {
-          try {
-            console.log('[getPosts] Fetching user likes/bookmarks from backend API...');
-            const [likesResponse, bookmarksResponse] = await Promise.all([
-              fetch('/api/user/likes', { headers: { 'Authorization': `Bearer ${token}` } }),
-              fetch('/api/user/bookmarks', { headers: { 'Authorization': `Bearer ${token}` } })
-            ]);
-
-            if (likesResponse.ok) {
-              const likesResult = await likesResponse.json();
-              if (likesResult.data && Array.isArray(likesResult.data)) {
-                const workIds = likesResult.data.map((w: any) => w.id?.toString()).filter(Boolean);
-                userLikedWorkIds = new Set(workIds);
-                console.log('[getPosts] User likes from backend:', workIds);
-              }
-            }
-
-            if (bookmarksResponse.ok) {
-              const bookmarksResult = await bookmarksResponse.json();
-              if (bookmarksResult.data && Array.isArray(bookmarksResult.data)) {
-                const workIds = bookmarksResult.data.map((w: any) => w.id?.toString()).filter(Boolean);
-                userBookmarkedWorkIds = new Set(workIds);
-                console.log('[getPosts] User bookmarks from backend:', workIds);
-              }
-            }
-          } catch (apiError) {
-            console.warn('[getPosts] Backend API error, falling back to Supabase:', apiError);
-          }
-        }
-
-        // 如果从后端 API 没有获取到数据，尝试从 Supabase 获取
-        // 获取 Supabase Auth 的用户ID（UUID格式）
-        let supabaseUserId = currentUserId;
-        try {
-          const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-          if (supabaseUser?.id) {
-            supabaseUserId = supabaseUser.id;
-            console.log('[getPosts] Using Supabase Auth userId for likes/bookmarks:', supabaseUserId);
-          }
-        } catch (e) {
-          console.log('[getPosts] Could not get Supabase user, using provided userId');
-        }
-
-        if (userLikedWorkIds.size === 0) {
-          const { data: likedWorks } = await supabase
-            .from('works_likes')
-            .select('work_id')
-            .eq('user_id', supabaseUserId);
-          if (likedWorks) {
-            userLikedWorkIds = new Set(likedWorks.map(l => l.work_id.toString()));
-            console.log('[getPosts] User likes from Supabase works_likes:', likedWorks.length);
-          }
-        }
-
-        // 获取 posts 表的点赞
-        const { data: likedPosts } = await supabase
-          .from('likes')
-          .select('post_id')
-          .eq('user_id', supabaseUserId);
-        if (likedPosts) {
-          userLikedPostIds = new Set(likedPosts.map(l => l.post_id.toString()));
-          console.log('[getPosts] User likes from Supabase likes:', likedPosts.length);
-        }
-
-        if (userBookmarkedWorkIds.size === 0) {
-          const { data: bookmarkedWorks } = await supabase
-            .from('works_bookmarks')
-            .select('work_id')
-            .eq('user_id', supabaseUserId);
-          if (bookmarkedWorks) {
-            userBookmarkedWorkIds = new Set(bookmarkedWorks.map(b => b.work_id.toString()));
-            console.log('[getPosts] User bookmarks from Supabase works_bookmarks:', bookmarkedWorks.length);
-          }
-        }
-
-        // 获取 posts 表的收藏
-        const { data: bookmarkedPosts } = await supabase
-          .from('bookmarks')
-          .select('post_id')
-          .eq('user_id', supabaseUserId);
-        if (bookmarkedPosts) {
-          userBookmarkedPostIds = new Set(bookmarkedPosts.map(b => b.post_id.toString()));
-          console.log('[getPosts] User bookmarks from Supabase bookmarks:', bookmarkedPosts.length);
-        }
-      } catch (error) {
-        console.warn('Error fetching user likes/bookmarks:', error);
-      }
+      // 并行获取点赞和收藏，减少等待时间
+      const [likesResult, bookmarksResult] = await Promise.all([
+        getUserLikesWithCache(currentUserId),
+        getUserBookmarksWithCache(currentUserId)
+      ]);
+      
+      userLikedWorkIds = likesResult.likedWorkIds;
+      userBookmarkedWorkIds = bookmarksResult.bookmarkedWorkIds;
     }
 
     // 从后端 API 获取作品数据（主要数据源）
@@ -238,32 +228,10 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             const isHiddenInSquare = w.hidden_in_square === true;
             return (hasValidThumbnail || hasVideo) && !isHiddenInSquare;
           });
-          console.log('Backend API returned:', result.data.length, 'items, filtered to:', validWorks.length, 'valid works');
-          
-          // 检查最新的作品（按 created_at 排序）
-          const sortedWorks = [...result.data].sort((a: any, b: any) => (b.created_at || 0) - (a.created_at || 0));
-          console.log('Latest 3 works (sorted by created_at):', sortedWorks.slice(0, 3).map((w: any) => ({
-            id: w.id,
-            title: w.title,
-            created_at: w.created_at,
-            thumbnail: w.thumbnail?.substring(0, 50),
-            hasValidThumbnail: w.thumbnail && w.thumbnail !== 'EMPTY' && !w.thumbnail.toLowerCase().includes('empty')
-          })));
-          // 调试：打印前5个作品的完整数据结构
-          console.log('First 5 works from API:', result.data.slice(0, 5).map((w: any) => ({
-            id: w.id,
-            title: w.title,
-            views: w.view_count,
-            likes: w.likes,
-            thumbnail: w.thumbnail,
-            thumbnail_length: w.thumbnail?.length,
-            cover_url: w.cover_url,
-            cover_url_length: w.cover_url?.length,
-            image_url: w.image_url,
-            thumbnail_url: w.thumbnail_url,
-            videoUrl: w.videoUrl,
-            video_url: w.video_url
-          })));
+          // 只在开发环境下输出简要日志
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Backend API returned:', result.data.length, 'items, filtered to:', validWorks.length, 'valid works');
+          }
           
           // 转换后端数据为 Post 类型
           worksFromLocal = validWorks.map((w: any) => {
@@ -274,24 +242,11 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             const category = (w.category as PostCategory) || 'other';
             const type = w.type || 'image';
             
-            // 调试日志
-            if (type === 'video') {
-              console.log('[getPosts] Video work:', { 
-                id: w.id, 
-                title: w.title, 
-                videoUrl: w.videoUrl, 
-                video_url: w.video_url,
-                finalVideoUrl: videoUrl,
-                thumbnail: thumbnail?.substring(0, 50)
-              });
-            }
-
             // 如果没有 videoUrl 但 category 是 video 或 type 是 video，尝试从其他字段推断
             if (!videoUrl && (category === 'video' || type === 'video')) {
               // 1. 尝试从 thumbnail 推断
               if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(thumbnail)) {
                 videoUrl = thumbnail;
-                console.log('Inferred videoUrl from thumbnail:', { id: w.id, videoUrl });
               }
               // 2. 尝试从 media 数组获取（可能是数组或 JSON 字符串）
               else if (w.media) {
@@ -309,7 +264,6 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
                   const mediaUrl = mediaArray[0];
                   if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(mediaUrl)) {
                     videoUrl = mediaUrl;
-                    console.log('Inferred videoUrl from media:', { id: w.id, videoUrl });
                   }
                 }
               }
@@ -329,31 +283,12 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
                   const attachmentUrl = typeof attachment === 'string' ? attachment : attachment.url;
                   if (attachmentUrl && /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(attachmentUrl)) {
                     videoUrl = attachmentUrl;
-                    console.log('Inferred videoUrl from attachments:', { id: w.id, videoUrl });
                   }
-                }
-              }
-              // 4. 如果是视频类型且缩略图包含 "video"，尝试构造视频 URL
-              else if (thumbnail && thumbnail.includes('video')) {
-                // 尝试从缩略图 URL 提取视频种子
-                const seedMatch = thumbnail.match(/seed\/video-([^/]+)/);
-                if (seedMatch) {
-                  // 这里可以构造一个默认的视频 URL，或者从其他地方获取
-                  console.log('Video type detected but no videoUrl found, thumbnail:', thumbnail);
                 }
               }
             }
 
             const workId = w.id?.toString() || Date.now().toString();
-
-            // 调试日志：返回前的最终 videoUrl
-            if (type === 'video') {
-              console.log('[getPosts] Returning video work:', { 
-                id: workId, 
-                title: w.title, 
-                finalVideoUrl: videoUrl 
-              });
-            }
 
             return {
             id: workId,
@@ -404,28 +339,20 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
             recommendedFor: []
           };
           });
-          console.log('Fetched works from backend API:', worksFromLocal.length);
-          // 调试：检查视频作品的 videoUrl
-          const videoWorks = worksFromLocal.filter(w => w.type === 'video');
-          console.log('[getPosts] Video works from backend API:', videoWorks.map(w => ({ 
-            id: w.id, 
-            title: w.title, 
-            videoUrl: w.videoUrl,
-            type: w.type
-          })));
+          // 只在开发环境输出简要日志
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Fetched works from backend API:', worksFromLocal.length);
+          }
         }
       } else {
-        console.error('Backend API returned error status:', response.status);
         backendApiFailed = true;
       }
     } catch (error) {
-      console.error('Error fetching works from backend API:', error);
       backendApiFailed = true;
     }
 
     // 如果后端 API 失败或没有数据，强制使用 Supabase
     if (backendApiFailed || worksFromLocal.length === 0) {
-      console.log('Backend API failed or returned no data, falling back to Supabase');
       useSupabase = true;
     }
 

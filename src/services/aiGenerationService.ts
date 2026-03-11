@@ -1,12 +1,35 @@
 /**
  * AI生成服务模块
  * 简化版本：直接调用后端代理API，不依赖 Supabase Edge Function
+ * 支持模拟模式：当API不可用时显示演示结果
  */
 
 import { llmService } from './llmService';
 import { eventSubmissionService } from './eventSubmissionService';
 import { aiGenerationSaveService } from './aiGenerationSaveService';
 import { toast } from 'sonner';
+
+// 模拟模式配置
+// 通过环境变量控制，默认使用真实API
+const FORCE_MOCK = import.meta.env.VITE_AI_MOCK_MODE === 'true';
+const MOCK_MODE = FORCE_MOCK;
+
+// 调试信息
+console.log('[AIGeneration] 模式检测:', {
+  FORCE_MOCK,
+  MOCK_MODE
+});
+
+// 模拟图片URL列表
+const MOCK_IMAGE_URLS = [
+  'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1024&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?q=80&w=1024&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1618556450994-a6a128ef0d9d?q=80&w=1024&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=1024&auto=format&fit=crop',
+];
+
+// 模拟视频URL
+const MOCK_VIDEO_URL = 'https://assets.mixkit.co/videos/preview/mixkit-abstract-technology-network-connections-animation-27612-large.mp4';
 
 // 生成任务类型
 export type GenerationType = 'image' | 'video' | 'text';
@@ -184,7 +207,7 @@ class AIGenerationService {
   private tasks: Map<string, GenerationTask> = new Map();
 
   /**
-   * 生成图片 - 简化版本，直接调用后端API
+   * 生成图片 - 支持真实API和模拟模式
    * 返回 GenerationTask 以兼容旧接口
    */
   async generateImage(params: ImageGenerationParams, submissionOptions?: ActivitySubmissionOptions): Promise<GenerationTask> {
@@ -215,7 +238,46 @@ class AIGenerationService {
       }
     }, 1000);
 
-    // 直接调用 llmService 的 generateImage 方法
+    // 模拟模式：使用示例图片
+    if (MOCK_MODE) {
+      console.log('[AIGeneration] 使用模拟模式生成图片');
+      
+      // 模拟延迟 3-5 秒
+      await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
+      
+      clearInterval(progressInterval);
+      
+      // 随机选择一张示例图片
+      const mockUrl = MOCK_IMAGE_URLS[Math.floor(Math.random() * MOCK_IMAGE_URLS.length)];
+      const urls = [mockUrl];
+      
+      // 更新任务为完成状态
+      task.status = 'completed';
+      task.progress = 100;
+      task.result = { urls };
+      task.updatedAt = Date.now();
+      task.completedAt = new Date().toISOString();
+
+      this.tasks.set(id, task);
+      this.notifyTaskUpdate(task);
+
+      // 添加到历史记录
+      this.addToHistory({
+        id,
+        type: 'image',
+        prompt: params.prompt,
+        thumbnail: urls[0],
+        createdAt: now,
+        isFavorite: false,
+        tags: []
+      });
+
+      toast.success('图片生成完成（演示模式）');
+      
+      return task;
+    }
+
+    // 真实API模式
     try {
       const result = await llmService.generateImage({
         prompt: params.prompt,
@@ -297,7 +359,7 @@ class AIGenerationService {
   }
 
   /**
-   * 生成视频
+   * 生成视频 - 支持真实API和模拟模式
    */
   async generateVideo(params: VideoGenerationParams, submissionOptions?: ActivitySubmissionOptions): Promise<GenerationTask> {
     const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -317,6 +379,53 @@ class AIGenerationService {
     this.tasks.set(id, task);
     this.notifyTaskUpdate(task);
 
+    // 启动进度模拟
+    const progressInterval = setInterval(() => {
+      if (task.progress < 90) {
+        task.progress += Math.random() * 10 + 2;
+        if (task.progress > 90) task.progress = 90;
+        task.updatedAt = Date.now();
+        this.notifyTaskUpdate(task);
+      }
+    }, 2000);
+
+    // 模拟模式：使用示例视频
+    if (MOCK_MODE) {
+      console.log('[AIGeneration] 使用模拟模式生成视频');
+      
+      // 模拟延迟 8-12 秒（视频生成需要更长时间）
+      await new Promise(resolve => setTimeout(resolve, 8000 + Math.random() * 4000));
+      
+      clearInterval(progressInterval);
+      
+      const videoUrl = MOCK_VIDEO_URL;
+      
+      // 更新任务为完成状态
+      task.status = 'completed';
+      task.progress = 100;
+      task.result = { urls: [videoUrl] };
+      task.updatedAt = Date.now();
+      task.completedAt = new Date().toISOString();
+
+      this.tasks.set(id, task);
+      this.notifyTaskUpdate(task);
+
+      this.addToHistory({
+        id,
+        type: 'video',
+        prompt: params.prompt,
+        thumbnail: videoUrl,
+        createdAt: now,
+        isFavorite: false,
+        tags: []
+      });
+
+      toast.success('视频生成完成（演示模式）');
+      
+      return task;
+    }
+
+    // 真实API模式
     try {
       const result = await llmService.generateVideo({
         prompt: params.prompt,
@@ -326,6 +435,8 @@ class AIGenerationService {
         aspectRatio: params.aspectRatio || '16:9',
         model: params.model || 'wan2.6-i2v-flash'
       });
+
+      clearInterval(progressInterval);
 
       if (!result.ok || !result.data) {
         throw new Error(result.error || '视频生成失败');
@@ -376,6 +487,8 @@ class AIGenerationService {
 
       return task;
     } catch (error) {
+      clearInterval(progressInterval);
+      
       // 更新任务为失败状态
       task.status = 'failed';
       task.error = error instanceof Error ? error.message : '生成失败';
@@ -657,3 +770,6 @@ class AIGenerationService {
 
 // 导出服务实例
 export const aiGenerationService = new AIGenerationService();
+
+// 导出模拟模式状态，供其他组件使用
+export const isMockMode = () => MOCK_MODE;

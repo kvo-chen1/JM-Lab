@@ -1,10 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { useTheme } from '@/hooks/useTheme';
+import { useJinbi } from '@/hooks/useJinbi';
 import { llmService } from '@/services/llmService';
 import { promptTemplates } from '@/data/promptTemplates';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
+import { Coins } from 'lucide-react';
 
 // 生成模式类型
 type GenerationMode = 'text-to-image' | 'image-to-image' | 'text-to-video' | 'image-to-video';
@@ -127,6 +130,42 @@ export default function SketchPanel() {
     setAutoGenerate
   } = useCreateStore();
 
+  // 津币相关状态
+  const {
+    balance: jinbiBalance,
+    consumeJinbi,
+    checkBalance,
+    getServiceCost,
+  } = useJinbi();
+  const [showJinbiModal, setShowJinbiModal] = useState(false);
+  const [jinbiCost, setJinbiCost] = useState(0);
+
+  // 计算当前模式的津币消耗
+  useEffect(() => {
+    const calculateCost = async () => {
+      let cost = 0;
+      switch (activeMode) {
+        case 'text-to-image':
+        case 'image-to-image':
+          cost = await getServiceCost('image_gen', 'standard');
+          break;
+        case 'text-to-video':
+        case 'image-to-video':
+          // 根据视频时长计算
+          if (videoDuration <= 5) {
+            cost = await getServiceCost('video_gen', '5s_720p');
+          } else if (videoDuration <= 10) {
+            cost = await getServiceCost('video_gen', '10s_1080p');
+          } else {
+            cost = await getServiceCost('video_gen', '30s_1080p');
+          }
+          break;
+      }
+      setJinbiCost(cost);
+    };
+    calculateCost();
+  }, [activeMode, videoDuration, getServiceCost]);
+
   // 处理模式切换
   const handleModeChange = (mode: GenerationMode) => {
     setActiveMode(mode);
@@ -234,6 +273,13 @@ export default function SketchPanel() {
       toast.error('请先上传图片');
       return;
     }
+
+    // 检查津币余额
+    const balanceCheck = await checkBalance(jinbiCost);
+    if (!balanceCheck.sufficient) {
+      setShowJinbiModal(true);
+      return;
+    }
     
     // 创建新的 AbortController
     abortControllerRef.current = new AbortController();
@@ -242,6 +288,23 @@ export default function SketchPanel() {
     updateState({ streamStatus: 'running' });
     
     try {
+      // 消费津币
+      const consumeResult = await consumeJinbi(
+        jinbiCost,
+        activeMode.includes('image') ? 'image_gen' : 'video_gen',
+        `${modeConfig[activeMode].label}消费`,
+        { serviceParams: { mode: activeMode, duration: videoDuration } }
+      );
+
+      if (!consumeResult.success) {
+        toast.error('津币扣除失败：' + consumeResult.error);
+        setIsGenerating(false);
+        updateState({ streamStatus: 'idle' });
+        return;
+      }
+
+      toast.success(`已消耗 ${jinbiCost} 津币`, { duration: 2000 });
+
       // 根据模式调用不同的生成接口
       switch (activeMode) {
         case 'text-to-image':
@@ -1510,13 +1573,28 @@ ${prompt}`;
           </motion.button>
         )}
         
-        {/* 算力提示 */}
-        <p className={`text-center text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          <i className="fas fa-bolt mr-1 text-yellow-500"></i>
-          每次生成消耗 {isVideoMode ? '10' : '2'} 点算力
-          {isVideoMode && <span className="ml-2 text-orange-500">视频生成时间较长，请耐心等待</span>}
-        </p>
+        {/* 津币提示 */}
+        <div className={`flex items-center justify-center gap-4 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          <span className="flex items-center gap-1">
+            <Coins className="w-3 h-3 text-amber-500" />
+            本次消耗 {jinbiCost} 津币
+          </span>
+          <span className="flex items-center gap-1">
+            <i className="fas fa-wallet mr-1 text-emerald-500"></i>
+            余额 {jinbiBalance?.availableBalance?.toLocaleString() || 0} 津币
+          </span>
+          {isVideoMode && <span className="text-orange-500">视频生成时间较长，请耐心等待</span>}
+        </div>
       </div>
+
+      {/* 津币不足弹窗 */}
+      <JinbiInsufficientModal
+        isOpen={showJinbiModal}
+        onClose={() => setShowJinbiModal(false)}
+        requiredAmount={jinbiCost}
+        currentBalance={jinbiBalance?.availableBalance || 0}
+        serviceName={modeConfig[activeMode].label}
+      />
 
       {/* 图片生成加载状态 - 全屏覆盖 */}
       <AnimatePresence>

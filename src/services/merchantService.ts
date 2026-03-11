@@ -414,7 +414,7 @@ const mockNotifications: Notification[] = [
 // ==================== 商家服务类 ====================
 
 class MerchantService {
-  private isMockMode = true; // 开发阶段使用Mock数据
+  private isMockMode = false; // 使用真实数据库数据
 
   // ==================== 商家信息 ====================
 
@@ -426,14 +426,53 @@ class MerchantService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const { data, error } = await supabase
+    // 先尝试获取现有商家记录
+    const { data: existingMerchant, error: fetchError } = await supabase
       .from('merchants')
       .select('*')
       .eq('user_id', user.id)
       .single();
 
-    if (error) throw error;
-    return data;
+    // 如果找到了商家记录，直接返回
+    if (existingMerchant) {
+      return existingMerchant;
+    }
+
+    // 如果没有找到商家记录（PGRST116 = 没有记录），自动创建一个新的
+    if (fetchError && fetchError.code === 'PGRST116') {
+      console.log('未找到商家记录，正在为用户创建新商家...', user.id);
+      
+      const newMerchant = {
+        user_id: user.id,
+        store_name: user.email?.split('@')[0] + '的店铺' || '新店铺',
+        store_description: '',
+        contact_name: user.user_metadata?.full_name || '店主',
+        contact_phone: '',
+        contact_email: user.email || '',
+        status: 'approved',
+        rating: 5.0,
+        total_sales: 0,
+        total_orders: 0,
+      };
+
+      const { data: createdMerchant, error: createError } = await supabase
+        .from('merchants')
+        .insert(newMerchant)
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('创建商家记录失败:', createError);
+        throw createError;
+      }
+
+      console.log('商家记录创建成功:', createdMerchant.id);
+      return createdMerchant;
+    }
+
+    // 其他错误直接抛出
+    if (fetchError) throw fetchError;
+    return null;
   }
 
   async updateMerchant(merchantId: string, updates: Partial<Merchant>): Promise<Merchant> {
@@ -469,8 +508,9 @@ class MerchantService {
       return products;
     }
 
+    // 从 merchant_products 表查询
     let query = supabase
-      .from('products')
+      .from('merchant_products')
       .select('*')
       .eq('merchant_id', merchantId);
 
@@ -495,8 +535,9 @@ class MerchantService {
       return newProduct;
     }
 
+    // 保存到 merchant_products 表（文创商城商品）
     const { data, error } = await supabase
-      .from('products')
+      .from('merchant_products')
       .insert(product)
       .select()
       .single();
@@ -513,8 +554,9 @@ class MerchantService {
       return mockProducts[index];
     }
 
+    // 更新 merchant_products 表
     const { data, error } = await supabase
-      .from('products')
+      .from('merchant_products')
       .update(updates)
       .eq('id', productId)
       .select()
@@ -531,8 +573,9 @@ class MerchantService {
       return;
     }
 
+    // 从 merchant_products 表删除
     const { error } = await supabase
-      .from('products')
+      .from('merchant_products')
       .delete()
       .eq('id', productId);
 

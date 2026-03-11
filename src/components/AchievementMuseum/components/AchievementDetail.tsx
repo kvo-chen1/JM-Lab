@@ -2,8 +2,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import {
   X,
-  Lock,
-  Unlock,
   Zap,
   Calendar,
   Target,
@@ -14,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { Achievement } from '../types';
 import { rarityConfig } from '../hooks/useAchievements';
+import { AchievementIcon } from './AchievementIcon';
 
 interface AchievementDetailProps {
   achievement: Achievement | null;
@@ -93,7 +92,7 @@ export default function AchievementDetail({
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: 'spring', damping: 15, delay: 0.1 }}
-                className={`absolute -bottom-10 left-1/2 -translate-x-1/2 w-24 h-24 rounded-3xl flex items-center justify-center text-4xl ${
+                className={`absolute -bottom-10 left-1/2 -translate-x-1/2 w-24 h-24 rounded-3xl ${
                   isUnlocked
                     ? isDark
                       ? 'bg-gradient-to-br from-white/20 to-white/5 border-2 border-white/20'
@@ -106,10 +105,16 @@ export default function AchievementDetail({
                   boxShadow: isUnlocked ? `0 8px 32px ${rarity.color}40` : 'none',
                 }}
               >
-                <i
-                  className={`fas fa-${achievement.icon || 'star'}`}
-                  style={{ color: isUnlocked ? rarity.color : isDark ? '#4B5563' : '#9CA3AF' }}
-                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <AchievementIcon
+                    icon={achievement.icon || 'star'}
+                    className="w-10 h-10"
+                    style={{ 
+                      color: isUnlocked ? rarity.color : isDark ? '#4B5563' : '#9CA3AF'
+                    }}
+                    fallbackClassName="text-4xl"
+                  />
+                </div>
               </motion.div>
             </div>
 

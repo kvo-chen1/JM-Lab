@@ -194,7 +194,7 @@ class AIMemoryService {
   async getConversations(limit: number = 20, offset: number = 0): Promise<Conversation[]> {
     const userId = this.getUserId();
     console.log('[aiMemoryService.getConversations] 开始获取, userId:', userId);
-    
+
     if (!userId) {
       console.error('[aiMemoryService.getConversations] 用户未登录，返回空数组');
       return [];
@@ -204,7 +204,7 @@ class AIMemoryService {
       // 获取正确的客户端
       const client = await this.getClient();
       console.log('[aiMemoryService.getConversations] 使用客户端:', client === supabase ? 'supabase' : 'supabaseAdmin');
-      
+
       // 直接查询表，而不是使用 RPC 函数
       const { data, error } = await client
         .from('ai_conversations')
@@ -221,7 +221,13 @@ class AIMemoryService {
       console.log('[aiMemoryService.getConversations] 原始数据:', data);
       console.log('[aiMemoryService.getConversations] 会话数量:', data?.length || 0);
 
-      return data || [];
+      // 为每个对话添加 message_count 默认值，以防数据库列不存在
+      const processedData = (data || []).map((conv: any) => ({
+        ...conv,
+        message_count: conv.message_count ?? 0
+      }));
+
+      return processedData;
     } catch (error) {
       console.error('[aiMemoryService.getConversations] 获取对话列表异常:', error);
       return [];
@@ -266,7 +272,15 @@ class AIMemoryService {
           console.log('[aiMemoryService.switchConversation] 第一条记录:', data[0]);
         }
       }
-      this.currentConversation = data && Array.isArray(data) && data.length > 0 ? data[0] : null;
+      const rawConversation = data && Array.isArray(data) && data.length > 0 ? data[0] : null;
+      if (rawConversation) {
+        this.currentConversation = {
+          ...rawConversation,
+          message_count: rawConversation.message_count ?? 0
+        };
+      } else {
+        this.currentConversation = null;
+      }
       return this.currentConversation;
     } catch (error) {
       console.error('[aiMemoryService.switchConversation] 切换对话异常:', error);
@@ -319,7 +333,16 @@ class AIMemoryService {
    */
   async getConversationMessages(conversationId: string, limit: number = 50): Promise<ConversationMessage[]> {
     const userId = this.getUserId();
-    if (!userId) return [];
+    if (!userId) {
+      console.warn('[aiMemoryService.getConversationMessages] 用户未登录，返回空数组');
+      return [];
+    }
+
+    // 严格验证 conversationId
+    if (!conversationId || typeof conversationId !== 'string' || conversationId.trim() === '') {
+      console.warn('[aiMemoryService.getConversationMessages] conversationId 无效:', conversationId);
+      return [];
+    }
 
     try {
       const client = await this.getClient();
@@ -360,9 +383,16 @@ class AIMemoryService {
         console.error('[aiMemoryService.saveMessage] 用户未登录，无法保存消息');
         return null;
       }
+
+      // 严格验证 conversationId
+      if (!conversationId || typeof conversationId !== 'string' || conversationId.trim() === '') {
+        console.error('[aiMemoryService.saveMessage] conversationId 无效:', conversationId);
+        return null;
+      }
       
       // 获取正确的客户端（使用 admin 客户端绕过 RLS）
       const client = await this.getClient();
+      console.log('[aiMemoryService.saveMessage] 使用客户端:', client === supabase ? 'supabase' : 'supabaseAdmin');
       
       const insertData: any = {
         conversation_id: conversationId,

@@ -13,13 +13,15 @@ const pool = new Pool({
     rejectUnauthorized: false,
     keepAlive: true,
   },
-  max: 10,
-  min: 2,
-  idleTimeoutMillis: 120000,
-  connectionTimeoutMillis: 30000,
-  statement_timeout: 60000,
-  query_timeout: 60000,
-  application_name: 'jinmai-agent-app'
+  max: 5,
+  min: 1,
+  idleTimeoutMillis: 300000,
+  connectionTimeoutMillis: 60000,
+  statement_timeout: 120000,
+  query_timeout: 120000,
+  application_name: 'jinmai-agent-app',
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
 })
 
 // 发送 JSON 响应的辅助函数
@@ -252,23 +254,24 @@ export default async function handleDbProxy(req, res, path) {
   
   console.log('[DB Proxy]', req.method, table, Object.keys(params))
   
+  // 标记是否是 HEAD 请求（用于 count 查询）
+  const isHeadRequest = req.method === 'HEAD'
+  
   try {
     // 处理 HEAD 请求 - 返回与 GET 相同的响应头，但不返回响应体
-    if (req.method === 'HEAD') {
+    if (isHeadRequest) {
       // 将 HEAD 请求转换为 GET 请求处理，但只返回响应头
       req.method = 'GET'
-      const originalEnd = res.end
-      res.end = function(data) {
-        // 不返回响应体，只返回响应头
-        res.setHeader('Content-Length', 0)
-        originalEnd.call(res)
-      }
     }
     
     switch (req.method) {
       case 'GET': {
         const select = params.select || '*'
-        let sql = `SELECT ${select} FROM "${table}"`
+        // 检查是否是 count 查询 (HEAD 请求)
+        const isCountQuery = isHeadRequest
+        let sql = isCountQuery 
+          ? `SELECT COUNT(*) as count FROM "${table}"`
+          : `SELECT ${select} FROM "${table}"`
         const values = []
         const conditions = []
         let paramIndex = 1
@@ -351,10 +354,21 @@ export default async function handleDbProxy(req, res, path) {
           sql += ` OFFSET ${parseInt(params.offset)}`
         }
         
-        console.log('[DB Proxy] SQL:', sql.replace(/\$\d+/g, '?'), 'Values:', values)
+        console.log('[DB Proxy] SQL:', sql.replace(/\$\d+/g, '?'), 'Values:', values, 'IsCount:', isCountQuery, 'IsHead:', isHeadRequest)
         
         try {
           const result = await pool.query(sql, values)
+          // 如果是 count 查询，返回 count 在响应头中
+          if (isCountQuery) {
+            const count = result.rows[0]?.count || 0
+            res.setHeader('Content-Range', `0-${count}/${count}`)
+            res.setHeader('X-Total-Count', count)
+            // HEAD 请求不返回响应体
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/json')
+            res.end()
+            return
+          }
           sendJson(res, 200, result.rows)
         } catch (queryError) {
           console.error('[DB Proxy] Query error, retrying:', queryError.message)

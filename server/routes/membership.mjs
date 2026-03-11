@@ -7,7 +7,7 @@ import { verifyToken } from '../jwt.mjs';
 import { userDB, getDB } from '../database.mjs';
 import { supabaseServer } from '../supabase-server.mjs';
 
-// 会员权益配置
+// 会员权益配置（五级会员体系）
 const MEMBERSHIP_BENEFITS = {
   free: {
     name: '免费会员',
@@ -34,11 +34,39 @@ const MEMBERSHIP_BENEFITS = {
       watermark: true
     }
   },
-  premium: {
-    name: '高级会员',
-    description: '解锁高级AI创作功能',
+  base: {
+    name: '基础会员',
+    description: '适合轻度使用者',
     features: [
-      { id: 'ai_generation', name: 'AI生成次数', value: '无限', icon: 'Wand2' },
+      { id: 'ai_generation', name: '每月津币', value: '1000津币', icon: 'Coins' },
+      { id: 'ai_model', name: 'AI模型访问', value: '基础模型', icon: 'Zap' },
+      { id: 'image_generation', name: '图像生成', value: true, icon: 'Image' },
+      { id: 'video_generation', name: '视频生成', value: true, icon: 'Video' },
+      { id: 'audio_generation', name: '音频生成', value: true, icon: 'Music' },
+      { id: 'text_generation', name: '文案生成', value: true, icon: 'FileText' },
+      { id: 'templates', name: '模板库', value: '基础模板', icon: 'Palette' },
+      { id: 'layers', name: '图层编辑', value: '基础功能', icon: 'Layers' },
+      { id: 'export', name: '导出功能', value: '高清无水印', icon: 'Download' },
+      { id: 'storage', name: '云存储空间', value: '10GB', icon: 'Cloud' },
+      { id: 'priority', name: '优先处理', value: false, icon: 'Clock' },
+      { id: 'commercial', name: '商业授权', value: false, icon: 'Shield' }
+    ],
+    limits: {
+      aiGenerationsPerDay: Infinity,
+      storageGB: 10,
+      exportsPerMonth: 20,
+      maxResolution: '1080p',
+      watermark: false,
+      jinbiPerMonth: 1000,
+      discountRate: 0.95,
+      concurrentLimit: 3
+    }
+  },
+  pro: {
+    name: '专业会员',
+    description: '性价比之选，最受欢迎',
+    features: [
+      { id: 'ai_generation', name: '每月津币', value: '3000津币', icon: 'Coins' },
       { id: 'ai_model', name: 'AI模型访问', value: '高级模型', icon: 'Zap' },
       { id: 'image_generation', name: '图像生成', value: true, icon: 'Image' },
       { id: 'video_generation', name: '视频生成', value: true, icon: 'Video' },
@@ -56,14 +84,45 @@ const MEMBERSHIP_BENEFITS = {
       storageGB: 50,
       exportsPerMonth: 100,
       maxResolution: '4K',
-      watermark: false
+      watermark: false,
+      jinbiPerMonth: 3000,
+      discountRate: 0.90,
+      concurrentLimit: 5
+    }
+  },
+  star: {
+    name: '星耀会员',
+    description: '专业创作者首选',
+    features: [
+      { id: 'ai_generation', name: '每月津币', value: '8000津币', icon: 'Coins' },
+      { id: 'ai_model', name: 'AI模型访问', value: '高级模型', icon: 'Zap' },
+      { id: 'image_generation', name: '图像生成', value: true, icon: 'Image' },
+      { id: 'video_generation', name: '视频生成', value: true, icon: 'Video' },
+      { id: 'audio_generation', name: '音频生成', value: true, icon: 'Music' },
+      { id: 'text_generation', name: '文案生成', value: true, icon: 'FileText' },
+      { id: 'templates', name: '模板库', value: '全部模板', icon: 'Palette' },
+      { id: 'layers', name: '图层编辑', value: '完整功能', icon: 'Layers' },
+      { id: 'export', name: '导出功能', value: '4K超清', icon: 'Download' },
+      { id: 'storage', name: '云存储空间', value: '200GB', icon: 'Cloud' },
+      { id: 'priority', name: '优先处理', value: '高优先级', icon: 'Clock' },
+      { id: 'commercial', name: '商业授权', value: true, icon: 'Shield' }
+    ],
+    limits: {
+      aiGenerationsPerDay: Infinity,
+      storageGB: 200,
+      exportsPerMonth: 500,
+      maxResolution: '4K',
+      watermark: false,
+      jinbiPerMonth: 8000,
+      discountRate: 0.85,
+      concurrentLimit: 10
     }
   },
   vip: {
-    name: 'VIP会员',
+    name: '至尊会员',
     description: '享受顶级AI创作体验',
     features: [
-      { id: 'ai_generation', name: 'AI生成次数', value: '无限', icon: 'Wand2' },
+      { id: 'ai_generation', name: '每月津币', value: '20000津币', icon: 'Coins' },
       { id: 'ai_model', name: 'AI模型访问', value: '专属模型', icon: 'Zap' },
       { id: 'image_generation', name: '图像生成', value: true, icon: 'Image' },
       { id: 'video_generation', name: '视频生成', value: true, icon: 'Video' },
@@ -71,7 +130,7 @@ const MEMBERSHIP_BENEFITS = {
       { id: 'text_generation', name: '文案生成', value: true, icon: 'FileText' },
       { id: 'templates', name: '模板库', value: '全部模板', icon: 'Palette' },
       { id: 'layers', name: '图层编辑', value: '完整功能', icon: 'Layers' },
-      { id: 'export', name: '导出功能', value: '超高清无水印', icon: 'Download' },
+      { id: 'export', name: '导出功能', value: '8K超高清', icon: 'Download' },
       { id: 'storage', name: '云存储空间', value: '无限', icon: 'Cloud' },
       { id: 'priority', name: '优先处理', value: '最高优先级', icon: 'Clock' },
       { id: 'commercial', name: '商业授权', value: true, icon: 'Shield' }
@@ -81,22 +140,35 @@ const MEMBERSHIP_BENEFITS = {
       storageGB: Infinity,
       exportsPerMonth: Infinity,
       maxResolution: '8K',
-      watermark: false
+      watermark: false,
+      jinbiPerMonth: 20000,
+      discountRate: 0.80,
+      concurrentLimit: 20
     }
   }
 };
 
-// 会员价格配置
+// 会员价格配置（五级会员体系）
 const MEMBERSHIP_PRICING = {
-  premium: {
+  base: {
+    monthly: { price: 29, period: '月' },
+    quarterly: { price: 79, period: '季度', discount: '9折', originalPrice: 87 },
+    yearly: { price: 279, period: '年', discount: '8折', originalPrice: 348 }
+  },
+  pro: {
     monthly: { price: 99, period: '月' },
     quarterly: { price: 269, period: '季度', discount: '9折', originalPrice: 297 },
     yearly: { price: 899, period: '年', discount: '7.6折', originalPrice: 1188 }
   },
-  vip: {
+  star: {
     monthly: { price: 199, period: '月' },
     quarterly: { price: 539, period: '季度', discount: '9折', originalPrice: 597 },
     yearly: { price: 1799, period: '年', discount: '7.5折', originalPrice: 2388 }
+  },
+  vip: {
+    monthly: { price: 399, period: '月' },
+    quarterly: { price: 1079, period: '季度', discount: '9折', originalPrice: 1197 },
+    yearly: { price: 3599, period: '年', discount: '7.5折', originalPrice: 4788 }
   }
 };
 

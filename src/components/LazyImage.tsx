@@ -135,102 +135,29 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
     return `data:image/svg+xml;base64,${btoa(svg)}`;
   };
   
-  // 使用useMemo确保currentSrc与src同步更新，避免异步更新问题
+  // 简化的图片URL处理逻辑
   const currentSrc = useMemo(() => {
-    // 首先检查src是否为空或无效
     if (!src || src.trim() === '') {
       return fallbackSrc || defaultFallbackSrc;
     }
 
-    // 检查URL是否是trae-api的文本生成图片API
-    if (src.includes('/api/proxy/trae-api/api/ide/v1/text_to_image') || src.includes('trae-api-sg.mchost.guru') || src.includes('trae-api-cn.mchost.guru')) {
-      // 对于AI生成图片API，返回原始URL，让后端处理
+    // 直接返回特殊格式的URL
+    if (src.startsWith('data:') || src.startsWith('/') || src.includes('trae-api')) {
       return src;
     }
 
-    // 如果disableFallback为true，直接使用原始URL，不经过处理
-    if (disableFallback) {
-      return src;
-    }
-
-    // 检查是否是占位图服务（这些服务可能不稳定，直接使用fallback）
-    const placeholderServices = [
-      'placehold.co',
-      'via.placeholder.com',
-      'picsum.photos'
-    ];
-    const isPlaceholder = placeholderServices.some(service => src.includes(service));
-    if (isPlaceholder) {
-      console.log('[LazyImage] Detected placeholder service, using fallback:', src);
-      return fallbackSrc || getFallbackImageUrl(alt) || defaultFallbackSrc;
-    }
-
-    // 检查是否是 data:image/svg+xml;base64,... 格式
-    // 如果是，检查 base64 部分是否有效（只包含 base64 字符）
-    if (src.startsWith('data:image/svg+xml;base64,')) {
-      const base64Part = src.split(',')[1];
-      if (base64Part) {
-        // 检查是否只包含有效的 base64 字符
-        const isValidBase64 = /^[A-Za-z0-9+/=]+$/.test(base64Part);
-        if (!isValidBase64) {
-          console.log('[LazyImage] Invalid base64 in data URL, using fallback:', src.substring(0, 50));
-          return fallbackSrc || getFallbackImageUrl(alt) || defaultFallbackSrc;
-        }
-      }
-    }
-
-    // 使用新的图片处理选项处理URL
-    try {
-      const processedSrc = processImageUrl(src, {
-        quality,
-        responsive,
-        autoFormat,
-        format,
-        ...processingOptions
-      });
-
-      // 确保返回有效的URL
-      if (processedSrc && typeof processedSrc === 'string' && processedSrc.trim() !== '') {
-        return processedSrc;
-      }
-
-      // 如果处理后的URL为空字符串（例如 Supabase URL 被过滤），使用 fallback
-      if (processedSrc === '') {
-        console.log('[LazyImage] Processed URL is empty, using fallback:', fallbackSrc || 'generated svg');
-        return fallbackSrc || getFallbackImageUrl(alt) || defaultFallbackSrc;
-      }
-
-      // 如果处理后的URL无效，返回原始URL
-      return src;
-    } catch (error) {
-      console.error('Error processing image URL:', error);
-      // 出错时返回原始URL或fallback
-      return src || fallbackSrc || defaultFallbackSrc;
-    }
-  }, [src, fallbackSrc, disableFallback, quality, responsive, autoFormat, format, processingOptions, alt, getFallbackImageUrl, defaultFallbackSrc]);
+    // 使用processImageUrl处理（现在带缓存）
+    const processedSrc = processImageUrl(src, processingOptions);
+    return processedSrc || fallbackSrc || defaultFallbackSrc;
+  }, [src, fallbackSrc, defaultFallbackSrc, processingOptions]);
   
   // 计算实际显示的图片URL，如果加载失败则使用fallback
   const displaySrc = useMemo(() => {
-    // 如果已经出错且传入了fallbackSrc，直接使用fallbackSrc
-    if (isError && fallbackSrc) {
-      console.log('[LazyImage] Using fallbackSrc due to error:', fallbackSrc);
-      return fallbackSrc;
-    }
-    
-    // 如果已经重试过，优先使用传入的fallbackSrc
-    if (retryCount >= 1) {
-      const result = fallbackSrc || getFallbackImageUrl(alt) || defaultFallbackSrc;
-      console.log('[LazyImage] Using fallback after retry:', { retryCount, result, fallbackSrc });
-      return result;
-    }
-    
-    // 确保currentSrc有效
-    if (!currentSrc || currentSrc.trim() === '') {
+    if (isError) {
       return fallbackSrc || defaultFallbackSrc;
     }
-    
-    return currentSrc;
-  }, [isError, currentSrc, fallbackSrc, defaultFallbackSrc, alt, getFallbackImageUrl, retryCount]);
+    return currentSrc || fallbackSrc || defaultFallbackSrc;
+  }, [isError, currentSrc, fallbackSrc, defaultFallbackSrc]);
   
   // 构建响应式图片srcset
   const srcSet = useMemo(() => {
@@ -486,13 +413,19 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
   
   // bare模式：直接输出<img>，不包裹额外div，避免任何额外的布局影响
   if (bare) {
-    console.log('[LazyImage] Bare mode render:', { alt, src, displaySrc, retryCount, isError });
+    // 只在开发环境且出错时打印日志，避免性能问题
+    if (process.env.NODE_ENV === 'development' && isError) {
+      console.log('[LazyImage] Bare mode error:', { alt, retryCount });
+    }
     
     // 确保 displaySrc 不为空
     const safeDisplaySrc = displaySrc || fallbackSrc || defaultFallbackSrc;
     
     // 如果已经处于错误状态（使用fallback图片），禁用onError防止无限循环
     const isUsingFallback = isError || retryCount >= 1;
+    
+    // 优先级高的图片使用 eager 加载
+    const loadingStrategy = priority ? 'eager' : loading;
     
     return (
       <img
@@ -503,7 +436,7 @@ const LazyImage: React.FC<LazyImageProps> = React.memo(({
         className={getImageClasses()}
         onLoad={handleLoad}
         onError={isUsingFallback ? undefined : handleError}
-        loading={loading}
+        loading={loadingStrategy}
         srcSet={srcSet}
         sizes={sizes}
         {...rest}

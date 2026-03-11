@@ -1,7 +1,7 @@
 /**
  * 商家工作平台 - 售后管理模块
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   RefreshCw, 
@@ -11,36 +11,54 @@ import {
   Eye,
   Clock,
   Package,
-  MessageSquare
+  MessageSquare,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-
-// 模拟售后数据
-const mockAfterSales = [
-  { id: 1, orderNo: 'ORD20240308001', buyer: '张三', type: 'refund', reason: '商品质量问题', amount: 500, status: 'pending', createTime: '2024-03-08 10:30:00' },
-  { id: 2, orderNo: 'ORD20240308002', buyer: '李四', type: 'return', reason: '尺寸不合适', amount: 600, status: 'processing', createTime: '2024-03-08 11:15:00' },
-  { id: 3, orderNo: 'ORD20240308003', buyer: '王五', type: 'exchange', reason: '颜色发错', amount: 300, status: 'completed', createTime: '2024-03-08 09:20:00' },
-  { id: 4, orderNo: 'ORD20240308004', buyer: '赵六', type: 'refund', reason: '未收到货', amount: 1200, status: 'rejected', createTime: '2024-03-07 16:45:00' },
-];
+import { merchantService, AfterSalesRequest } from '@/services/merchantService';
+import { toast } from 'sonner';
 
 const AfterSalesManager: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [afterSales, setAfterSales] = useState<AfterSalesRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [merchantId, setMerchantId] = useState<string>('');
 
-  const filteredAfterSales = mockAfterSales.filter(item => {
-    const matchesSearch = item.orderNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.buyer.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const merchant = await merchantService.getCurrentMerchant();
+        if (merchant) {
+          setMerchantId(merchant.id);
+          const requests = await merchantService.getAfterSalesRequests(merchant.id);
+          setAfterSales(requests);
+        }
+      } catch (error) {
+        console.error('获取售后数据失败:', error);
+        toast.error('获取售后数据失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const filteredAfterSales = afterSales.filter(item => {
+    const matchesSearch = item.order_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         item.customer_name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const stats = {
-    total: mockAfterSales.length,
-    pending: mockAfterSales.filter(a => a.status === 'pending').length,
-    processing: mockAfterSales.filter(a => a.status === 'processing').length,
-    completed: mockAfterSales.filter(a => a.status === 'completed').length,
+    total: afterSales.length,
+    pending: afterSales.filter(a => a.status === 'pending').length,
+    processing: afterSales.filter(a => a.status === 'approved').length,
+    completed: afterSales.filter(a => a.status === 'completed').length,
   };
 
   const getTypeLabel = (type: string) => {
@@ -56,6 +74,8 @@ const AfterSalesManager: React.FC = () => {
     switch (status) {
       case 'pending':
         return <Badge className="bg-amber-500 border-0">待处理</Badge>;
+      case 'approved':
+        return <Badge className="bg-blue-500 border-0">已同意</Badge>;
       case 'processing':
         return <Badge className="bg-blue-500 border-0">处理中</Badge>;
       case 'completed':
@@ -66,6 +86,27 @@ const AfterSalesManager: React.FC = () => {
         return <Badge className="border-0">{status}</Badge>;
     }
   };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-[#5ba3d4]" />
+        <span className="ml-2 text-[var(--text-muted)]">加载中...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -118,7 +159,7 @@ const AfterSalesManager: React.FC = () => {
           >
             <option value="all">全部状态</option>
             <option value="pending">待处理</option>
-            <option value="processing">处理中</option>
+            <option value="approved">已同意</option>
             <option value="completed">已完成</option>
             <option value="rejected">已拒绝</option>
           </select>
@@ -142,42 +183,50 @@ const AfterSalesManager: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-primary)]">
-              {filteredAfterSales.map((item, index) => (
-                <motion.tr
-                  key={item.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="hover:bg-[var(--bg-hover)] transition-colors"
-                >
-                  <td className="px-4 py-3 text-sm text-[var(--text-primary)]">{item.orderNo}</td>
-                  <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{item.buyer}</td>
-                  <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{getTypeLabel(item.type)}</td>
-                  <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{item.reason}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-[#5ba3d4]">¥{item.amount}</td>
-                  <td className="px-4 py-3">{getStatusBadge(item.status)}</td>
-                  <td className="px-4 py-3 text-sm text-[var(--text-muted)]">{item.createTime}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      {item.status === 'pending' && (
-                        <>
-                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            同意
-                          </Button>
-                          <Button size="sm" variant="outline" className="border-red-500 text-red-400 hover:bg-red-500/10">
-                            <XCircle className="w-4 h-4 mr-1" />
-                            拒绝
-                          </Button>
-                        </>
-                      )}
-                    </div>
+              {filteredAfterSales.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                    暂无售后数据
                   </td>
-                </motion.tr>
-              ))}
+                </tr>
+              ) : (
+                filteredAfterSales.map((item, index) => (
+                  <motion.tr
+                    key={item.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="hover:bg-[var(--bg-hover)] transition-colors"
+                  >
+                    <td className="px-4 py-3 text-sm text-[var(--text-primary)]">{item.order_no}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{item.customer_name}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{getTypeLabel(item.type)}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{item.reason}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-[#5ba3d4]">¥{item.amount}</td>
+                    <td className="px-4 py-3">{getStatusBadge(item.status)}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-muted)]">{formatDate(item.created_at)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]">
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        {item.status === 'pending' && (
+                          <>
+                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              同意
+                            </Button>
+                            <Button size="sm" variant="outline" className="border-red-500 text-red-400 hover:bg-red-500/10">
+                              <XCircle className="w-4 h-4 mr-1" />
+                              拒绝
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

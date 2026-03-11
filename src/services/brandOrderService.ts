@@ -286,6 +286,25 @@ export const closeBrandOrder = async (orderId: string): Promise<boolean> => {
 };
 
 // ============================================================================
+// 删除商单
+// ============================================================================
+
+export const deleteBrandOrder = async (orderId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabaseAdmin
+      .from('order_audits')
+      .delete()
+      .eq('id', orderId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('删除商单失败:', error);
+    return false;
+  }
+};
+
+// ============================================================================
 // 实时更新监听
 // ============================================================================
 

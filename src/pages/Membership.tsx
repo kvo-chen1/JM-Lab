@@ -5,6 +5,7 @@ import { AuthContext } from '@/contexts/authContext';
 import { apiClient } from '@/lib/apiClient';
 import { useTheme } from '@/hooks/useTheme';
 import { useMembership } from '@/hooks/useMembership';
+import { useJinbi } from '@/hooks/useJinbi';
 
 // 会员中心组件
 import LeftSidebar from '@/components/membership/LeftSidebar';
@@ -14,6 +15,7 @@ import BenefitsGrid from '@/components/membership/BenefitsGrid';
 import PricingCards from '@/components/membership/PricingCards';
 import FAQSection from '@/components/membership/FAQSection';
 import OrdersList from '@/components/membership/OrdersList';
+import JinbiBalance from '@/components/jinbi/JinbiBalance';
 
 // 图标
 import {
@@ -22,7 +24,8 @@ import {
   Sparkles,
   Crown,
   ChevronRight,
-  Loader2
+  Loader2,
+  Coins
 } from 'lucide-react';
 
 // 会员权益数据类型
@@ -137,6 +140,13 @@ const Membership: React.FC = () => {
     loading: membershipLoading,
     refreshOrders,
   } = useMembership();
+
+  // 使用 useJinbi hook 获取津币信息
+  const {
+    balance: jinbiBalance,
+    monthlyStats: jinbiMonthlyStats,
+    loading: jinbiLoading,
+  } = useJinbi();
 
   const [activeTab, setActiveTab] = useState('overview');
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
@@ -565,7 +575,10 @@ const Membership: React.FC = () => {
             membershipEnd={membershipInfo?.endDate}
             onRenew={handleRenew}
             onUpgrade={() => handleUpgrade()}
-            usageStats={membershipUsageStats}
+            usageStats={{
+              ...membershipUsageStats,
+              jinbi: jinbiMonthlyStats,
+            }}
           />
         </aside>
       </div>

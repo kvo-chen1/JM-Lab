@@ -6,6 +6,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { useTheme } from '@/hooks/useTheme';
 import {
   Search, Filter, Building2, Calendar, DollarSign, Percent,
   ChevronDown, Sparkles, Eye, ArrowRight, X, Loader2,
@@ -30,6 +31,27 @@ const DARK_THEME = {
   glowPrimary: 'shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]',
   glass: 'backdrop-blur-xl bg-slate-900/90',
 };
+
+// 浅色主题配色
+const LIGHT_THEME = {
+  bgPrimary: 'bg-gray-50',
+  bgSecondary: 'bg-white',
+  bgCard: 'bg-white/80',
+  borderPrimary: 'border-gray-200',
+  borderSecondary: 'border-gray-300',
+  textPrimary: 'text-gray-900',
+  textSecondary: 'text-gray-700',
+  textMuted: 'text-gray-500',
+  accentPrimary: 'from-cyan-600 to-blue-700',
+  accentSecondary: 'from-violet-600 to-purple-700',
+  glowPrimary: 'shadow-[0_0_30px_-5px_rgba(6,182,212,0.15)]',
+  glass: 'backdrop-blur-xl bg-white/90',
+};
+
+// 获取主题
+function useBrowserTheme(isDark: boolean) {
+  return isDark ? DARK_THEME : LIGHT_THEME;
+}
 
 // IP类别选项
 const IP_CATEGORIES = [
@@ -60,12 +82,14 @@ interface BrandLicenseBrowserProps {
 }
 
 export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
+  const { isDark } = useTheme();
+  const theme = useBrowserTheme(isDark);
   const [requests, setRequests] = useState<LicenseRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<LicenseRequest | null>(null);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // 筛选状态
   const [filters, setFilters] = useState<RequestFilters>({
     ipCategories: [],
@@ -137,24 +161,24 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
   };
 
   return (
-    <div className={`min-h-screen ${DARK_THEME.bgPrimary} p-6`}>
+    <div className={`min-h-screen ${theme.bgPrimary} p-6`}>
       {/* 头部 */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className={`text-3xl font-bold ${DARK_THEME.textPrimary} mb-2`}>
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            <h1 className={`text-3xl font-bold mb-2 ${theme.textPrimary}`}>
+              <span className={`bg-gradient-to-r bg-clip-text text-transparent ${isDark ? 'from-cyan-400 to-blue-500' : 'from-cyan-600 to-blue-700'}`}>
                 品牌授权
               </span>
             </h1>
-            <p className={DARK_THEME.textMuted}>
+            <p className={theme.textMuted}>
               发现优质品牌授权机会，让您的IP价值最大化
             </p>
           </div>
           {onClose && (
             <button
               onClick={onClose}
-              className={`p-2 rounded-lg ${DARK_THEME.bgSecondary} ${DARK_THEME.textSecondary} hover:bg-slate-800 transition-colors`}
+              className={`p-2 rounded-lg transition-colors ${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
             >
               <X className="w-5 h-5" />
             </button>
@@ -165,20 +189,20 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
         <div className="flex flex-wrap gap-4 items-center">
           {/* 搜索框 */}
           <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="搜索品牌或授权需求..."
-              className={`w-full pl-10 pr-4 py-3 rounded-xl ${DARK_THEME.bgSecondary} ${DARK_THEME.borderPrimary} border ${DARK_THEME.textPrimary} placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50`}
+              className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:outline-none focus:ring-1 ${theme.bgSecondary} ${theme.borderPrimary} ${theme.textPrimary} ${isDark ? 'placeholder-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/50' : 'placeholder-gray-400 focus:border-cyan-400/50 focus:ring-cyan-400/50'}`}
             />
           </div>
 
           {/* 筛选按钮 */}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl ${DARK_THEME.bgSecondary} ${DARK_THEME.borderPrimary} border ${DARK_THEME.textSecondary} hover:border-cyan-500/30 transition-all ${showFilters ? 'border-cyan-500/50 bg-cyan-500/10' : ''}`}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all ${theme.bgSecondary} ${theme.borderPrimary} ${theme.textSecondary} hover:border-cyan-500/30 ${showFilters ? (isDark ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-cyan-400/50 bg-cyan-50') : ''}`}
           >
             <Filter className="w-4 h-4" />
             <span>筛选</span>
@@ -190,13 +214,13 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
             <select
               value={filters.sortBy}
               onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
-              className={`appearance-none px-4 py-3 pr-10 rounded-xl ${DARK_THEME.bgSecondary} ${DARK_THEME.borderPrimary} border ${DARK_THEME.textPrimary} focus:outline-none focus:border-cyan-500/50 cursor-pointer`}
+              className={`appearance-none px-4 py-3 pr-10 rounded-xl border focus:outline-none cursor-pointer ${theme.bgSecondary} ${theme.borderPrimary} ${theme.textPrimary} ${isDark ? 'focus:border-cyan-500/50' : 'focus:border-cyan-400/50'}`}
             >
               {SORT_OPTIONS.map(option => (
                 <option key={option.id} value={option.id}>{option.name}</option>
               ))}
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+            <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
           </div>
         </div>
 
@@ -209,10 +233,10 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className={`mt-4 p-4 rounded-xl ${DARK_THEME.bgSecondary} ${DARK_THEME.borderPrimary} border`}>
+              <div className={`mt-4 p-4 rounded-xl border ${theme.bgSecondary} ${theme.borderPrimary}`}>
                 {/* IP类别筛选 */}
                 <div className="mb-4">
-                  <label className={`block text-sm font-medium ${DARK_THEME.textSecondary} mb-2`}>
+                  <label className={`block text-sm font-medium mb-2 ${theme.textSecondary}`}>
                     IP类别
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -222,8 +246,8 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
                         onClick={() => toggleCategory(category.id)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all ${
                           filters.ipCategories?.includes(category.id)
-                            ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white'
-                            : `${DARK_THEME.bgPrimary} ${DARK_THEME.textSecondary} hover:bg-slate-800`
+                            ? (isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white' : 'bg-gradient-to-r from-cyan-600 to-blue-700 text-white')
+                            : `${theme.bgPrimary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`
                         }`}
                       >
                         <span>{category.icon}</span>
@@ -235,21 +259,21 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
 
                 {/* 授权类型筛选 */}
                 <div className="mb-4">
-                  <label className={`block text-sm font-medium ${DARK_THEME.textSecondary} mb-2`}>
+                  <label className={`block text-sm font-medium mb-2 ${theme.textSecondary}`}>
                     授权类型
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {LICENSE_TYPES.map(type => (
                       <button
                         key={type.id}
-                        onClick={() => setFilters(prev => ({ 
-                          ...prev, 
-                          licenseType: prev.licenseType === type.id ? '' : type.id 
+                        onClick={() => setFilters(prev => ({
+                          ...prev,
+                          licenseType: prev.licenseType === type.id ? '' : type.id
                         }))}
                         className={`px-3 py-1.5 rounded-full text-sm transition-all ${
                           filters.licenseType === type.id
-                            ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white'
-                            : `${DARK_THEME.bgPrimary} ${DARK_THEME.textSecondary} hover:bg-slate-800`
+                            ? (isDark ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white' : 'bg-gradient-to-r from-violet-600 to-purple-700 text-white')
+                            : `${theme.bgPrimary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`
                         }`}
                       >
                         {type.name}
@@ -264,7 +288,7 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
                     setFilters({ sortBy: 'newest' });
                     setSearchQuery('');
                   }}
-                  className={`text-sm ${DARK_THEME.textMuted} hover:text-cyan-400 transition-colors`}
+                  className={`text-sm transition-colors ${theme.textMuted} ${isDark ? 'hover:text-cyan-400' : 'hover:text-cyan-600'}`}
                 >
                   清除所有筛选
                 </button>
@@ -277,10 +301,10 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
       {/* 授权需求列表 */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+          <Loader2 className={`w-8 h-8 animate-spin ${isDark ? 'text-cyan-500' : 'text-cyan-600'}`} />
         </div>
       ) : filteredRequests.length === 0 ? (
-        <div className={`flex flex-col items-center justify-center h-64 ${DARK_THEME.textMuted}`}>
+        <div className={`flex flex-col items-center justify-center h-64 ${theme.textMuted}`}>
           <Building2 className="w-16 h-16 mb-4 opacity-30" />
           <p>暂无符合条件的授权需求</p>
         </div>
@@ -292,16 +316,16 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className={`group relative rounded-2xl ${DARK_THEME.bgCard} ${DARK_THEME.borderPrimary} border overflow-hidden hover:border-cyan-500/30 transition-all ${DARK_THEME.glowPrimary}`}
+              className={`group relative rounded-2xl border overflow-hidden hover:border-cyan-500/30 transition-all ${theme.bgCard} ${theme.borderPrimary} ${theme.glowPrimary}`}
             >
               {/* 状态标签 */}
               <div className="absolute top-4 right-4 z-10">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  request.status === 'open' 
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                  request.status === 'open'
+                    ? (isDark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-100 text-emerald-600 border-emerald-200')
                     : request.status === 'paused'
-                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                    : 'bg-slate-500/20 text-slate-400 border border-slate-500/30'
+                    ? (isDark ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-amber-100 text-amber-600 border-amber-200')
+                    : (isDark ? 'bg-slate-500/20 text-slate-400 border-slate-500/30' : 'bg-gray-200 text-gray-500 border-gray-300')
                 }`}>
                   {request.status === 'open' ? '进行中' : request.status === 'paused' ? '已暂停' : '已结束'}
                 </span>
@@ -310,24 +334,24 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
               {/* 品牌信息 */}
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-cyan-500/20 to-blue-500/20' : 'bg-gradient-to-br from-cyan-100 to-blue-100'}`}>
                     {request.brandLogo ? (
                       <img src={request.brandLogo} alt={request.brandName} className="w-8 h-8 object-contain" />
                     ) : (
-                      <Building2 className="w-6 h-6 text-cyan-400" />
+                      <Building2 className={`w-6 h-6 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
                     )}
                   </div>
                   <div>
-                    <h3 className={`font-semibold ${DARK_THEME.textPrimary}`}>{request.brandName}</h3>
-                    <p className={`text-sm ${DARK_THEME.textMuted}`}>品牌方</p>
+                    <h3 className={`font-semibold ${theme.textPrimary}`}>{request.brandName}</h3>
+                    <p className={`text-sm ${theme.textMuted}`}>品牌方</p>
                   </div>
                 </div>
 
                 {/* 需求标题 */}
-                <h4 className={`text-lg font-bold ${DARK_THEME.textPrimary} mb-2 line-clamp-2`}>
+                <h4 className={`text-lg font-bold mb-2 line-clamp-2 ${theme.textPrimary}`}>
                   {request.title}
                 </h4>
-                <p className={`text-sm ${DARK_THEME.textMuted} mb-4 line-clamp-2`}>
+                <p className={`text-sm mb-4 line-clamp-2 ${theme.textMuted}`}>
                   {request.description}
                 </p>
 
@@ -338,14 +362,14 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
                     return (
                       <span
                         key={i}
-                        className={`px-2 py-0.5 rounded-md text-xs ${DARK_THEME.bgSecondary} ${DARK_THEME.textSecondary} border ${DARK_THEME.borderPrimary}`}
+                        className={`px-2 py-0.5 rounded-md text-xs border ${theme.bgSecondary} ${theme.textSecondary} ${theme.borderPrimary}`}
                       >
                         {category?.icon} {category?.name || cat}
                       </span>
                     );
                   })}
                   {request.ipCategories.length > 3 && (
-                    <span className={`px-2 py-0.5 rounded-md text-xs ${DARK_THEME.bgSecondary} ${DARK_THEME.textMuted}`}>
+                    <span className={`px-2 py-0.5 rounded-md text-xs ${theme.bgSecondary} ${theme.textMuted}`}>
                       +{request.ipCategories.length - 3}
                     </span>
                   )}
@@ -354,23 +378,23 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
                 {/* 授权信息 */}
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center justify-between text-sm">
-                    <span className={DARK_THEME.textMuted}>授权费用</span>
-                    <span className={`font-semibold ${DARK_THEME.textPrimary}`}>
+                    <span className={theme.textMuted}>授权费用</span>
+                    <span className={`font-semibold ${theme.textPrimary}`}>
                       {formatFee(request.licenseFeeMin, request.licenseFeeMax)}
                     </span>
                   </div>
                   {request.revenueShareRate && (
                     <div className="flex items-center justify-between text-sm">
-                      <span className={DARK_THEME.textMuted}>分成比例</span>
-                      <span className={`font-semibold text-emerald-400`}>
+                      <span className={theme.textMuted}>分成比例</span>
+                      <span className={`font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                         {request.revenueShareRate}%
                       </span>
                     </div>
                   )}
                   {request.validUntil && (
                     <div className="flex items-center justify-between text-sm">
-                      <span className={DARK_THEME.textMuted}>有效期至</span>
-                      <span className={DARK_THEME.textSecondary}>
+                      <span className={theme.textMuted}>有效期至</span>
+                      <span className={theme.textSecondary}>
                         {new Date(request.validUntil).toLocaleDateString('zh-CN')}
                       </span>
                     </div>
@@ -378,14 +402,14 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
                 </div>
 
                 {/* 统计信息 */}
-                <div className={`flex items-center gap-4 pt-4 border-t ${DARK_THEME.borderPrimary} text-sm`}>
+                <div className={`flex items-center gap-4 pt-4 border-t text-sm ${theme.borderPrimary}`}>
                   <div className="flex items-center gap-1">
-                    <Eye className="w-4 h-4 text-slate-500" />
-                    <span className={DARK_THEME.textMuted}>{request.viewCount} 浏览</span>
+                    <Eye className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
+                    <span className={theme.textMuted}>{request.viewCount} 浏览</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Sparkles className="w-4 h-4 text-slate-500" />
-                    <span className={DARK_THEME.textMuted}>{request.applicationCount} 申请</span>
+                    <Sparkles className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
+                    <span className={theme.textMuted}>{request.applicationCount} 申请</span>
                   </div>
                 </div>
 
@@ -395,8 +419,8 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
                   disabled={request.status !== 'open'}
                   className={`w-full mt-4 py-2.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
                     request.status === 'open'
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:shadow-lg hover:shadow-cyan-500/25'
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                      ? (isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:shadow-lg hover:shadow-cyan-500/25' : 'bg-gradient-to-r from-cyan-600 to-blue-700 text-white hover:shadow-lg hover:shadow-cyan-500/15')
+                      : (isDark ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed')
                   }`}
                 >
                   {request.status === 'open' ? (

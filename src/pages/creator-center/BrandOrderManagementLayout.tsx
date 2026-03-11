@@ -70,11 +70,7 @@ const BrandOrderManagementLayout: React.FC = () => {
         />
 
         {/* 主内容区 */}
-        <main 
-          className={`flex-1 transition-all duration-300 ${
-            isCollapsed ? 'ml-16' : 'ml-64'
-          }`}
-        >
+        <main className="flex-1">
           {/* 顶部导航栏 */}
           <header className={`sticky top-0 z-40 border-b ${
             isDark 
@@ -105,7 +101,7 @@ const BrandOrderManagementLayout: React.FC = () => {
           </header>
 
           {/* 页面内容 */}
-          <div className="p-6">
+          <div className="h-[calc(100vh-73px)]">
             <BrandOrderManagement />
           </div>
         </main>

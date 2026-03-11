@@ -3,6 +3,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { Lock, Unlock, Star, Zap, ChevronRight } from 'lucide-react';
 import type { Achievement, ViewMode } from '../types';
 import { rarityConfig } from '../hooks/useAchievements';
+import { AchievementIcon } from './AchievementIcon';
 
 interface AchievementCardProps {
   achievement: Achievement;
@@ -74,8 +75,9 @@ export default function AchievementCard({
                 boxShadow: isUnlocked ? `0 4px 20px ${rarity.color}40` : 'none',
               }}
             >
-              <i
-                className={`fas fa-${achievement.icon || 'star'}`}
+              <AchievementIcon
+                icon={achievement.icon || 'star'}
+                className="w-6 h-6"
                 style={{ color: isUnlocked ? rarity.color : isDark ? '#4B5563' : '#9CA3AF' }}
               />
             </motion.div>
@@ -192,8 +194,9 @@ export default function AchievementCard({
               : isDark ? 'bg-gray-700' : 'bg-gray-200'
           }`}
         >
-          <i
-            className={`fas fa-${achievement.icon || 'star'} text-lg`}
+          <AchievementIcon
+            icon={achievement.icon || 'star'}
+            className="w-5 h-5"
             style={{ color: isUnlocked ? rarity.color : isDark ? '#4B5563' : '#9CA3AF' }}
           />
         </motion.div>
@@ -267,8 +270,9 @@ export default function AchievementCard({
               : isDark ? 'bg-gray-800 border-2 border-gray-600' : 'bg-gray-100 border-2 border-gray-300'
           }`}
         >
-          <i
-            className={`fas fa-${achievement.icon || 'star'}`}
+          <AchievementIcon
+            icon={achievement.icon || 'star'}
+            className="w-5 h-5"
             style={{ color: isUnlocked ? '#C02C38' : isDark ? '#4B5563' : '#9CA3AF' }}
           />
         </motion.div>

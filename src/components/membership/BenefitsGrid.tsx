@@ -64,13 +64,14 @@ const BenefitsGrid: React.FC<BenefitsGridProps> = ({ isDark, user, membershipLev
   const currentLevel = membershipLevel || user?.membershipLevel || 'free';
   // 使用 API 数据或默认数据
   const getBenefitsData = () => {
-    if (benefits?.levels) {
+    // 安全检查：确保 benefits 和所有必要的层级都存在
+    if (benefits?.levels?.free?.features && Array.isArray(benefits.levels.free.features)) {
       // 转换 API 数据格式
       const allFeatures = benefits.levels.free.features.map(feature => {
         const freeValue = benefits.levels.free.features.find(f => f.id === feature.id)?.value;
-        const premiumValue = benefits.levels.premium.features.find(f => f.id === feature.id)?.value;
-        const vipValue = benefits.levels.vip.features.find(f => f.id === feature.id)?.value;
-        
+        const premiumValue = benefits.levels.premium?.features?.find(f => f.id === feature.id)?.value;
+        const vipValue = benefits.levels.vip?.features?.find(f => f.id === feature.id)?.value;
+
         return {
           id: feature.id,
           icon: iconMap[feature.icon] || Zap,

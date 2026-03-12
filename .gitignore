@@ -89,3 +89,29 @@ postgresql.zip
 
 .vercel
 .env*.local
+
+# Database migration and script files (not needed for deployment)
+*.sql
+scripts/
+data_by_table_split/
+supabase_import.sql
+backup.sql
+
+# Development/utility scripts (not needed for deployment)
+*.mjs
+!server/**/*.mjs
+apply-*.mjs
+check-*.mjs
+fix-*.mjs
+create-*.mjs
+verify-*.mjs
+execute-*.mjs
+cleanup-*.mjs
+init-*.mjs
+test_*.mjs
+diagnose-*.mjs
+
+# Other development files
+*.ps1
+*.cjs
+search-bar-component/

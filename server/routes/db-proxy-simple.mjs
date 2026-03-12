@@ -1,0 +1,564 @@
+/**
+ * 简化的数据库代理路由 - 处理 Supabase 风格的 REST API 请求
+ */
+
+import { Pool } from 'pg'
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 
+                    process.env.POSTGRES_URL_NON_POOLING ||
+                    process.env.POSTGRES_URL ||
+                    process.env.NEON_DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { 
+    rejectUnauthorized: false,
+    keepAlive: true,
+  },
+  max: 5,
+  min: 1,
+  idleTimeoutMillis: 300000,
+  connectionTimeoutMillis: 60000,
+  statement_timeout: 120000,
+  query_timeout: 120000,
+  application_name: 'jinmai-agent-app',
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
+})
+
+// 发送 JSON 响应的辅助函数
+function sendJson(res, status, data) {
+  res.statusCode = status
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify(data))
+}
+
+// 读取请求体的辅助函数
+async function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {})
+      } catch (e) {
+        resolve({})
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
+// 解析 Supabase 风格的过滤条件
+// 例如: user_id=eq.xxx, created_at=gte.2024-01-01, status=in.(active,pending)
+function parseFilter(key, value) {
+  const operators = {
+    'eq': '=',
+    'neq': '!=',
+    'gt': '>',
+    'gte': '>=',
+    'lt': '<',
+    'lte': '<=',
+    'like': 'LIKE',
+    'ilike': 'ILIKE',
+    'is': 'IS',
+    'in': 'IN'
+  }
+
+  // 检查 value 是否有效
+  if (value === undefined || value === null) {
+    console.warn(`[DB Proxy] Invalid value for key "${key}":`, value)
+    return { operator: '=', value: '', isArray: false }
+  }
+
+  // 确保 value 是字符串
+  const valueStr = String(value)
+
+  // 检查是否包含操作符前缀
+  for (const [op, sqlOp] of Object.entries(operators)) {
+    const prefix = `${op}.`
+    if (valueStr.startsWith(prefix)) {
+      const actualValue = valueStr.slice(prefix.length)
+
+      if (op === 'in') {
+        // 处理 IN 操作符: in.(value1,value2)
+        const values = actualValue.replace(/[()]/g, '').split(',').map(v => v.trim())
+        return { operator: sqlOp, value: values, isArray: true }
+      }
+
+      if (op === 'is' && actualValue === 'null') {
+        return { operator: 'IS', value: null, isNull: true }
+      }
+
+      return { operator: sqlOp, value: actualValue, isArray: false }
+    }
+  }
+
+  // 默认使用等于
+  return { operator: '=', value: valueStr, isArray: false }
+}
+
+// 验证 JWT token 的辅助函数
+function verifyToken(req) {
+  const authHeader = req.headers.authorization
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null
+  }
+  const token = authHeader.slice(7)
+  // 简单验证：检查 token 格式（实际应该使用 jwt.verify）
+  if (!token || token === 'null' || token === 'undefined') {
+    return null
+  }
+  // 解析 token payload（简化版）
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+    return payload
+  } catch {
+    return null
+  }
+}
+
+// 处理认证相关的请求
+async function handleAuthRequest(req, res, path) {
+  // 获取当前用户信息 /auth/v1/user
+  if (req.method === 'GET' && path === '/api/db/auth/v1/user') {
+    const user = verifyToken(req)
+    if (!user) {
+      sendJson(res, 401, { error: 'Unauthorized', message: '未授权访问' })
+      return true
+    }
+    
+    try {
+      // 从数据库获取用户详细信息
+      let result
+      try {
+        result = await pool.query(
+          'SELECT id, email, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1',
+          [user.sub || user.id]
+        )
+      } catch (queryError) {
+        if (queryError.message.includes('disconnected') || 
+            queryError.message.includes('terminated') ||
+            queryError.message.includes('ECONNRESET')) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          result = await pool.query(
+            'SELECT id, email, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1',
+            [user.sub || user.id]
+          )
+        } else {
+          throw queryError
+        }
+      }
+      
+      if (result.rows.length === 0) {
+        sendJson(res, 404, { error: 'User not found', message: '用户不存在' })
+        return true
+      }
+      
+      const userData = result.rows[0]
+      sendJson(res, 200, {
+        id: userData.id,
+        email: userData.email,
+        user_metadata: {
+          username: userData.username,
+          avatar_url: userData.avatar_url,
+          role: userData.role
+        },
+        created_at: userData.created_at,
+        updated_at: userData.updated_at
+      })
+      return true
+    } catch (error) {
+      console.error('[DB Proxy] Auth error:', error.message)
+      sendJson(res, 500, { error: 'Server error', message: error.message })
+      return true
+    }
+  }
+  
+  return false
+}
+
+// 处理 RPC 调用
+async function handleRpcRequest(req, res, path) {
+  const rpcMatch = path.match(/\/api\/db\/rest\/v1\/rpc\/(.+)/)
+  if (!rpcMatch) return false
+  
+  const funcName = rpcMatch[1]
+  const body = await readBody(req)
+  
+  console.log('[DB Proxy] RPC call:', funcName, body)
+  
+  try {
+    // 构建函数调用参数
+    const paramKeys = Object.keys(body)
+    const paramValues = Object.values(body)
+    const paramPlaceholders = paramKeys.length > 0 
+      ? paramKeys.map((_, i) => `$${i + 1}`).join(', ')
+      : ''
+    
+    // 使用 SELECT * FROM 来支持返回 TABLE 的函数
+    const sql = paramPlaceholders 
+      ? `SELECT * FROM ${funcName}(${paramPlaceholders})`
+      : `SELECT * FROM ${funcName}()`
+    
+    console.log('[DB Proxy] RPC SQL:', sql, paramValues)
+    
+    try {
+      const result = await pool.query(sql, paramValues)
+      sendJson(res, 200, result.rows)
+    } catch (queryError) {
+      console.error('[DB Proxy] RPC error, retrying:', queryError.message)
+      if (queryError.message.includes('disconnected') || 
+          queryError.message.includes('terminated') ||
+          queryError.message.includes('ECONNRESET')) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          const retryResult = await pool.query(sql, paramValues)
+          sendJson(res, 200, retryResult.rows)
+          return true
+        } catch (retryError) {
+          console.error('[DB Proxy] RPC Retry failed:', retryError.message)
+        }
+      }
+      sendJson(res, 500, { error: queryError.message })
+    }
+    return true
+  } catch (error) {
+    console.error('[DB Proxy] RPC error:', error.message)
+    sendJson(res, 500, { error: error.message })
+    return true
+  }
+}
+
+// 主处理函数
+export default async function handleDbProxy(req, res, path) {
+  // 首先处理认证相关的请求
+  if (path.startsWith('/api/db/auth/')) {
+    const handled = await handleAuthRequest(req, res, path)
+    if (handled) return
+  }
+  
+  // 处理 RPC 调用
+  if (path.includes('/rpc/')) {
+    const handled = await handleRpcRequest(req, res, path)
+    if (handled) return
+  }
+  
+  // 提取表名
+  let table = path.replace('/api/db/', '').split('?')[0]
+  if (table.startsWith('rest/v1/')) {
+    table = table.replace('rest/v1/', '')
+  }
+  table = table.replace(/^\//, '')
+  
+  const u = new URL(req.url, `http://${req.headers.host}`)
+  const params = Object.fromEntries(u.searchParams)
+  
+  console.log('[DB Proxy]', req.method, table, Object.keys(params))
+  
+  // 标记是否是 HEAD 请求（用于 count 查询）
+  const isHeadRequest = req.method === 'HEAD'
+  
+  try {
+    // 处理 HEAD 请求 - 返回与 GET 相同的响应头，但不返回响应体
+    if (isHeadRequest) {
+      // 将 HEAD 请求转换为 GET 请求处理，但只返回响应头
+      req.method = 'GET'
+    }
+    
+    switch (req.method) {
+      case 'GET': {
+        const select = params.select || '*'
+        // 检查是否是 count 查询 (HEAD 请求)
+        const isCountQuery = isHeadRequest
+        let sql = isCountQuery 
+          ? `SELECT COUNT(*) as count FROM "${table}"`
+          : `SELECT ${select} FROM "${table}"`
+        const values = []
+        const conditions = []
+        let paramIndex = 1
+        
+        // 处理过滤条件
+        for (const [key, rawValue] of Object.entries(params)) {
+          if (key === 'select' || key === 'order' || key === 'limit' || key === 'offset' || key === 'or') {
+            continue
+          }
+          
+          const filter = parseFilter(key, rawValue)
+          
+          if (filter.isNull) {
+            conditions.push(`"${key}" IS NULL`)
+          } else if (filter.isArray) {
+            const placeholders = filter.value.map((_, i) => `$${paramIndex + i}`).join(', ')
+            conditions.push(`"${key}" IN (${placeholders})`)
+            values.push(...filter.value)
+            paramIndex += filter.value.length
+          } else {
+            conditions.push(`"${key}" ${filter.operator} $${paramIndex}`)
+            values.push(filter.value)
+            paramIndex++
+          }
+        }
+        
+        // 处理 OR 条件
+        // Supabase 格式: or=(sender_id.eq.xxx,receiver_id.eq.xxx)
+        if (params.or) {
+          const orValue = params.or
+          // 解析 or 条件: (sender_id.eq.xxx,receiver_id.eq.xxx)
+          const orMatch = orValue.match(/^\((.+)\)$/)
+          if (orMatch) {
+            const orConditions = []
+            const orParts = orMatch[1].split(',')
+            
+            for (const part of orParts) {
+              // 解析每个条件: sender_id.eq.xxx
+              const match = part.match(/^(.+)\.([^.]+)\.(.*)$/)
+              if (match) {
+                const [, col, op, val] = match
+                const filter = parseFilter(op, val)
+                
+                if (filter.isNull) {
+                  orConditions.push(`"${col}" IS NULL`)
+                } else {
+                  orConditions.push(`"${col}" ${filter.operator} $${paramIndex}`)
+                  values.push(filter.value)
+                  paramIndex++
+                }
+              }
+            }
+            
+            if (orConditions.length > 0) {
+              conditions.push(`(${orConditions.join(' OR ')})`)
+            }
+          }
+        }
+        
+        if (conditions.length > 0) {
+          sql += ` WHERE ${conditions.join(' AND ')}`
+        }
+        
+        // 处理排序
+        if (params.order) {
+          // Supabase 格式: column.asc, column.desc
+          const orderParts = params.order.split(',')
+          const orderClauses = orderParts.map(part => {
+            const [col, dir] = part.trim().split('.')
+            return `"${col}" ${dir === 'desc' ? 'DESC' : 'ASC'}`
+          })
+          sql += ` ORDER BY ${orderClauses.join(', ')}`
+        }
+        
+        // 处理限制和偏移
+        if (params.limit) {
+          sql += ` LIMIT ${parseInt(params.limit)}`
+        }
+        if (params.offset) {
+          sql += ` OFFSET ${parseInt(params.offset)}`
+        }
+        
+        console.log('[DB Proxy] SQL:', sql.replace(/\$\d+/g, '?'), 'Values:', values, 'IsCount:', isCountQuery, 'IsHead:', isHeadRequest)
+        
+        try {
+          const result = await pool.query(sql, values)
+          // 如果是 count 查询，返回 count 在响应头中
+          if (isCountQuery) {
+            const count = result.rows[0]?.count || 0
+            res.setHeader('Content-Range', `0-${count}/${count}`)
+            res.setHeader('X-Total-Count', count)
+            // HEAD 请求不返回响应体
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/json')
+            res.end()
+            return
+          }
+          sendJson(res, 200, result.rows)
+        } catch (queryError) {
+          console.error('[DB Proxy] Query error, retrying:', queryError.message)
+          // 如果是连接断开错误，尝试重新查询
+          if (queryError.message.includes('disconnected') || 
+              queryError.message.includes('terminated') ||
+              queryError.message.includes('ECONNRESET')) {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              const retryResult = await pool.query(sql, values)
+              sendJson(res, 200, retryResult.rows)
+              return
+            } catch (retryError) {
+              console.error('[DB Proxy] Retry failed:', retryError.message)
+            }
+          }
+          sendJson(res, 500, { error: queryError.message })
+        }
+        break
+      }
+      
+      case 'POST': {
+        const body = await readBody(req)
+        const data = Array.isArray(body) ? body : [body]
+        
+        if (data.length === 0) {
+          sendJson(res, 400, { error: 'No data provided' })
+          return
+        }
+        
+        const columns = Object.keys(data[0])
+        const placeholders = data.map((_, rowIndex) => 
+          `(${columns.map((_, colIndex) => `$${rowIndex * columns.length + colIndex + 1}`).join(', ')})`
+        ).join(', ')
+        
+        const values = data.flatMap(row => columns.map(col => row[col]))
+        
+        // 为特定表添加 ON CONFLICT 处理，避免重复键错误
+        let sql = `INSERT INTO "${table}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES ${placeholders}`
+        
+        // 处理 user_status 表的冲突（user_id 是主键）
+        if (table === 'user_status') {
+          const updateSet = columns.map(col => `"${col}" = EXCLUDED."${col}"`).join(', ')
+          sql += ` ON CONFLICT (user_id) DO UPDATE SET ${updateSet}`
+        }
+        
+        sql += ' RETURNING *'
+        
+        try {
+          const result = await pool.query(sql, values)
+          sendJson(res, 201, result.rows)
+        } catch (queryError) {
+          console.error('[DB Proxy] Insert error:', queryError.message)
+          if (queryError.message.includes('disconnected') || 
+              queryError.message.includes('terminated') ||
+              queryError.message.includes('ECONNRESET')) {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              const retryResult = await pool.query(sql, values)
+              sendJson(res, 201, retryResult.rows)
+              return
+            } catch (retryError) {
+              console.error('[DB Proxy] Retry failed:', retryError.message)
+            }
+          }
+          sendJson(res, 500, { error: queryError.message })
+        }
+        break
+      }
+      
+      case 'PATCH': {
+        const body = await readBody(req)
+        
+        const setColumns = Object.keys(body)
+        const setValues = Object.values(body)
+        
+        let sql = `UPDATE "${table}" SET ${setColumns.map((col, i) => `"${col}" = $${i + 1}`).join(', ')}`
+        const values = [...setValues]
+        
+        // 处理 WHERE 条件
+        const conditions = []
+        let paramIndex = setValues.length + 1
+        
+        for (const [key, rawValue] of Object.entries(params)) {
+          if (key === 'select') continue
+          
+          const filter = parseFilter(key, rawValue)
+          
+          if (filter.isNull) {
+            conditions.push(`"${key}" IS NULL`)
+          } else if (filter.isArray) {
+            const placeholders = filter.value.map((_, i) => `$${paramIndex + i}`).join(', ')
+            conditions.push(`"${key}" IN (${placeholders})`)
+            values.push(...filter.value)
+            paramIndex += filter.value.length
+          } else {
+            conditions.push(`"${key}" ${filter.operator} $${paramIndex}`)
+            values.push(filter.value)
+            paramIndex++
+          }
+        }
+        
+        if (conditions.length > 0) {
+          sql += ` WHERE ${conditions.join(' AND ')}`
+        }
+        
+        sql += ` RETURNING *`
+        
+        try {
+          const result = await pool.query(sql, values)
+          sendJson(res, 200, result.rows)
+        } catch (queryError) {
+          console.error('[DB Proxy] Update error:', queryError.message)
+          if (queryError.message.includes('disconnected') || 
+              queryError.message.includes('terminated') ||
+              queryError.message.includes('ECONNRESET')) {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              const retryResult = await pool.query(sql, values)
+              sendJson(res, 200, retryResult.rows)
+              return
+            } catch (retryError) {
+              console.error('[DB Proxy] Retry failed:', retryError.message)
+            }
+          }
+          sendJson(res, 500, { error: queryError.message })
+        }
+        break
+      }
+      
+      case 'DELETE': {
+        let sql = `DELETE FROM "${table}"`
+        const values = []
+        const conditions = []
+        let paramIndex = 1
+        
+        // 处理 WHERE 条件
+        for (const [key, rawValue] of Object.entries(params)) {
+          if (key === 'select') continue
+          
+          const filter = parseFilter(key, rawValue)
+          
+          if (filter.isNull) {
+            conditions.push(`"${key}" IS NULL`)
+          } else if (filter.isArray) {
+            const placeholders = filter.value.map((_, i) => `$${paramIndex + i}`).join(', ')
+            conditions.push(`"${key}" IN (${placeholders})`)
+            values.push(...filter.value)
+            paramIndex += filter.value.length
+          } else {
+            conditions.push(`"${key}" ${filter.operator} $${paramIndex}`)
+            values.push(filter.value)
+            paramIndex++
+          }
+        }
+        
+        if (conditions.length > 0) {
+          sql += ` WHERE ${conditions.join(' AND ')}`
+        }
+        
+        sql += ` RETURNING *`
+        
+        try {
+          const result = await pool.query(sql, values)
+          sendJson(res, 200, result.rows)
+        } catch (queryError) {
+          console.error('[DB Proxy] Delete error:', queryError.message)
+          if (queryError.message.includes('disconnected') || 
+              queryError.message.includes('terminated') ||
+              queryError.message.includes('ECONNRESET')) {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              const retryResult = await pool.query(sql, values)
+              sendJson(res, 200, retryResult.rows)
+              return
+            } catch (retryError) {
+              console.error('[DB Proxy] Retry failed:', retryError.message)
+            }
+          }
+          sendJson(res, 500, { error: queryError.message })
+        }
+        break
+      }
+      
+      default:
+        sendJson(res, 405, { error: 'Method not allowed' })
+    }
+  } catch (error) {
+    console.error('[DB Proxy] Error:', error.message)
+    console.error('[DB Proxy] Stack:', error.stack)
+    sendJson(res, 500, { error: error.message, detail: error.detail })
+  }
+}

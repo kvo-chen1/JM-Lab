@@ -142,12 +142,12 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 60,
-      "memory": 3009,
+      "memory": 2048,
       "includeFiles": "dist/**"
     },
     "api/db/[...path].js": {
       "maxDuration": 60,
-      "memory": 3009
+      "memory": 2048
     },
     "api/health/ping.js": {
       "maxDuration": 10,

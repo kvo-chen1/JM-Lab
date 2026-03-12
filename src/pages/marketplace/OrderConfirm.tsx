@@ -1,10 +1,10 @@
 /**
  * 订单确认页面
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useCart } from '@/hooks/useProducts';
+import { useCart, useProduct } from '@/hooks/useProducts';
 import { useCreateOrder } from '@/hooks/useOrders';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -14,16 +14,34 @@ import { Separator } from '@/components/ui/Separator';
 import { ArrowLeft, MapPin, Truck, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 
+interface OrderItem {
+  product_id: string;
+  product_name: string;
+  product_image?: string;
+  price: number;
+  quantity: number;
+  product?: {
+    id: string;
+    name: string;
+    cover_image?: string;
+    price: number;
+    seller_id?: string;
+  };
+}
+
 const OrderConfirmPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { cartItems, cartStats, refetch } = useCart(user?.id || null);
+  const { cartItems, refetch } = useCart(user?.id || null);
   const { createOrder, loading } = useCreateOrder();
 
   // 获取直接购买参数
   const directProductId = searchParams.get('productId');
   const directQuantity = parseInt(searchParams.get('quantity') || '1');
+
+  // 获取直接购买的商品信息
+  const { product: directProduct } = useProduct(directProductId);
 
   // 收货地址表单
   const [shippingAddress, setShippingAddress] = useState({
@@ -37,12 +55,26 @@ const OrderConfirmPage: React.FC = () => {
   });
   const [remark, setRemark] = useState('');
 
-  // 获取要购买的商品
-  const selectedItems = cartItems.filter((item) => item.selected);
+  // 构建订单商品列表
+  const selectedItems: OrderItem[] = React.useMemo(() => {
+    // 如果是直接购买
+    if (directProductId && directProduct) {
+      return [{
+        product_id: directProduct.id,
+        product_name: directProduct.name,
+        product_image: directProduct.cover_image,
+        price: directProduct.price,
+        quantity: directQuantity,
+        product: directProduct,
+      }];
+    }
+    // 否则从购物车获取选中的商品
+    return cartItems.filter((item) => item.selected);
+  }, [directProductId, directProduct, directQuantity, cartItems]);
 
   // 计算总价
   const totalAmount = selectedItems.reduce(
-    (sum, item) => sum + (item.product?.price || 0) * item.quantity,
+    (sum, item) => sum + (item.product?.price || item.price || 0) * item.quantity,
     0
   );
 
@@ -64,7 +96,8 @@ const OrderConfirmPage: React.FC = () => {
     }
 
     // 获取卖家ID（假设所有商品来自同一个卖家，或者取第一个商品的卖家）
-    const sellerId = selectedItems[0]?.product?.seller_id;
+    // 如果商品没有 seller_id，使用一个默认的系统卖家ID
+    const sellerId = selectedItems[0]?.product?.seller_id || '00000000-0000-0000-0000-000000000001';
     if (!sellerId) {
       toast.error('商品信息有误');
       return;
@@ -79,7 +112,7 @@ const OrderConfirmPage: React.FC = () => {
     }));
 
     const order = await createOrder({
-      buyer_id: user.id,
+      customer_id: user.id,
       seller_id: sellerId,
       items: orderItems,
       shipping_address: {
@@ -121,14 +154,28 @@ const OrderConfirmPage: React.FC = () => {
     );
   }
 
+  // 显示加载状态
+  if (directProductId && !directProduct) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#C02C38] mx-auto"></div>
+          <p className="mt-4 text-gray-600">加载商品信息...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (selectedItems.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="bg-white rounded-2xl p-12 text-center">
-            <p className="text-gray-600">购物车中没有选中的商品</p>
-            <Button onClick={() => navigate('/marketplace/cart')} className="mt-4">
-              返回购物车
+            <p className="text-gray-600">
+              {directProductId ? '商品信息加载失败' : '购物车中没有选中的商品'}
+            </p>
+            <Button onClick={() => navigate(directProductId ? '/marketplace' : '/marketplace/cart')} className="mt-4">
+              {directProductId ? '返回商城' : '返回购物车'}
             </Button>
           </div>
         </div>
@@ -243,7 +290,7 @@ const OrderConfirmPage: React.FC = () => {
                     )}
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-[#C02C38] font-bold">
-                        ¥{item.product?.price?.toLocaleString()}
+                        ¥{(item.product?.price || 0).toLocaleString()}
                       </span>
                       <span className="text-gray-500">x{item.quantity}</span>
                     </div>
@@ -294,7 +341,7 @@ const OrderConfirmPage: React.FC = () => {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">商品总价</span>
-                <span>¥{totalAmount.toLocaleString()}</span>
+                <span>¥{(totalAmount || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">运费</span>
@@ -309,7 +356,7 @@ const OrderConfirmPage: React.FC = () => {
             <div className="flex justify-between items-center">
               <span className="font-semibold">应付总额</span>
               <span className="text-2xl font-bold text-[#C02C38]">
-                ¥{totalAmount.toLocaleString()}
+                ¥{(totalAmount || 0).toLocaleString()}
               </span>
             </div>
           </div>
@@ -320,7 +367,7 @@ const OrderConfirmPage: React.FC = () => {
             disabled={loading}
             className="w-full h-14 bg-[#C02C38] hover:bg-[#991b1b] text-lg"
           >
-            {loading ? '提交中...' : `提交订单 (¥${totalAmount.toLocaleString()})`}
+            {loading ? '提交中...' : `提交订单 (¥${(totalAmount || 0).toLocaleString()})`}
           </Button>
         </div>
       </div>

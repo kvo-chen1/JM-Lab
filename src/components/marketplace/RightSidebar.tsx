@@ -28,7 +28,6 @@ interface PlatformStats {
   totalProducts: number;
   totalBrands: number;
   totalOrders: number;
-  positiveRate: number;
 }
 
 interface RightSidebarProps {
@@ -91,11 +90,53 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     { id: 'products', label: '全部商品', icon: ShoppingBag, href: '/marketplace?sort=newest' },
     { id: 'favorites', label: '我的收藏', icon: Heart, href: '/favorites' },
     { id: 'cart', label: '购物车', icon: ShoppingCart, href: '/marketplace/cart' },
-    { id: 'orders', label: '我的订单', icon: Store, href: '/orders' },
+    { id: 'orders', label: '我的订单', icon: Store, href: '/marketplace/orders' },
   ];
+// 事件处理
+  // 预加载页面组件
+  const preloadComponent = (href: string) => {
+    // 根据路径预加载对应的组件
+    switch (href) {
+      case '/favorites':
+        import('@/pages/marketplace/Favorites');
+        break;
+      case '/marketplace/cart':
+        import('@/pages/marketplace/Cart');
+        break;
+      case '/marketplace/orders':
+        import('@/pages/marketplace/Orders');
+        break;
+    }
+  };
 
   const handleMenuClick = (href: string) => {
+    console.log('[RightSidebar] 导航到:', href);
     navigate(href);
+  };
+
+  const handleRemoveFromCartClick = (itemId: string) => {
+    console.log('[RightSidebar] 从购物车移除:', itemId);
+    onRemoveFromCart?.(itemId);
+  };
+
+  const handleCheckoutClick = () => {
+    console.log('[RightSidebar] 去结算');
+    navigate('/marketplace/cart');
+  };
+
+  const handleBrowseClick = () => {
+    console.log('[RightSidebar] 去逛逛');
+    navigate('/marketplace');
+  };
+
+  const handleViewAllFavorites = () => {
+    console.log('[RightSidebar] 查看全部收藏');
+    navigate('/favorites');
+  };
+
+  const handleProductClick = (productId: string) => {
+    console.log('[RightSidebar] 查看商品:', productId);
+    navigate(`/marketplace/product/${productId}`);
   };
 
   return (
@@ -122,6 +163,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.05 + index * 0.05 }}
                 onClick={() => handleMenuClick(item.href)}
+                onMouseEnter={() => preloadComponent(item.href)}
                 className={`mp-sidebar-nav-item ${active ? 'active' : ''}`}
               >
                 <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
@@ -194,8 +236,12 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                       </div>
                     </div>
                     <button
-                      onClick={() => onRemoveFromCart?.(item.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFromCartClick(item.id);
+                      }}
                       className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                      type="button"
                     >
                       <Trash2 className="w-4 h-4" strokeWidth={2} />
                     </button>
@@ -220,8 +266,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => navigate('/marketplace/cart')}
+                onClick={handleCheckoutClick}
                 className="w-full py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-medium rounded-xl shadow-lg shadow-sky-500/25 hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                type="button"
               >
                 去结算
                 <ArrowRight className="w-4 h-4" />
@@ -238,8 +285,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => navigate('/marketplace')}
+              onClick={handleBrowseClick}
               className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+              type="button"
             >
               去逛逛
             </motion.button>
@@ -264,8 +312,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             </div>
             <motion.button
               whileHover={{ x: 2 }}
-              onClick={() => navigate('/favorites')}
+              onClick={handleViewAllFavorites}
               className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-0.5"
+              type="button"
             >
               查看全部
               <ChevronRight className="w-3 h-3" />
@@ -279,8 +328,15 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2 + index * 0.05 }}
-                onClick={() => navigate(`/marketplace/product/${product.id}`)}
+                onClick={() => handleProductClick(product.id)}
                 className="cursor-pointer group"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    handleProductClick(product.id);
+                  }
+                }}
               >
                 <div className="aspect-square rounded-xl bg-gray-100 overflow-hidden mb-2">
                   {product?.cover_image ? (
@@ -376,8 +432,15 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 + index * 0.05 }}
-                onClick={() => navigate(`/marketplace/product/${product.id}`)}
+                onClick={() => handleProductClick(product.id)}
                 className="flex gap-3 p-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors group"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    handleProductClick(product.id);
+                  }
+                }}
               >
                 <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
                   {product?.cover_image ? (
@@ -427,7 +490,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           <h3 className="font-semibold text-gray-900">平台动态</h3>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div className="text-center p-3 rounded-xl bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-100">
             <p className="text-xl font-bold text-sky-600">{(platformStats?.totalProducts || 0).toLocaleString()}</p>
             <p className="text-xs text-gray-500 mt-0.5">在售商品</p>
@@ -439,10 +502,6 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           <div className="text-center p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
             <p className="text-xl font-bold text-emerald-600">{(platformStats?.totalOrders || 0).toLocaleString()}</p>
             <p className="text-xs text-gray-500 mt-0.5">累计订单</p>
-          </div>
-          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100">
-            <p className="text-xl font-bold text-purple-600">{platformStats?.positiveRate || 99}%</p>
-            <p className="text-xs text-gray-500 mt-0.5">好评率</p>
           </div>
         </div>
       </motion.div>

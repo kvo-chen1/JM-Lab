@@ -584,6 +584,19 @@ class IPService {
   // ============================================
 
   /**
+   * 获取主办方自己的商业机会列表
+   */
+  async getOrganizerOpportunities(): Promise<CommercialOpportunity[]> {
+    try {
+      const response = await apiClient.get<CommercialOpportunity[]>(`${this.baseUrl}/opportunities/organizer`);
+      return response.data || [];
+    } catch (error) {
+      console.error('[ipService.getOrganizerOpportunities] 错误:', error);
+      return [];
+    }
+  }
+
+  /**
    * 创建商业机会
    */
   async createOpportunity(opportunity: Omit<CommercialOpportunity, 'id' | 'createdAt' | 'updatedAt'>): Promise<CommercialOpportunity | null> {

@@ -180,7 +180,7 @@ const CartPage: React.FC = () => {
                   )}
                   <div className="flex items-center justify-between mt-3">
                     <span className="text-lg font-bold text-[#C02C38]">
-                      ¥{item.product?.price?.toLocaleString()}
+                      ¥{(item.product?.price || 0).toLocaleString()}
                     </span>
 
                     {/* 数量控制 */}
@@ -225,7 +225,7 @@ const CartPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">商品总价</span>
-                  <span>¥{cartStats.totalPrice.toLocaleString()}</span>
+                  <span>¥{(cartStats?.totalPrice || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">运费</span>
@@ -238,7 +238,7 @@ const CartPage: React.FC = () => {
               <div className="flex justify-between items-center mb-6">
                 <span className="font-semibold">合计</span>
                 <span className="text-2xl font-bold text-[#C02C38]">
-                  ¥{cartStats.totalPrice.toLocaleString()}
+                  ¥{(cartStats?.totalPrice || 0).toLocaleString()}
                 </span>
               </div>
 

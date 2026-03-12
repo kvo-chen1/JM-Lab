@@ -131,8 +131,9 @@ export default function CommercialOpportunityManager() {
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      // 获取商业机会列表
-      const opportunitiesData = await ipService.getAllOpportunities();
+      
+      // 获取主办方自己的商业机会列表
+      const opportunitiesData = await ipService.getOrganizerOpportunities();
       
       // 获取申请列表
       const partnershipsData = await ipService.getAllPartnerships();
@@ -154,9 +155,15 @@ export default function CommercialOpportunityManager() {
         total: opportunitiesWithStats.length,
         open: opportunitiesWithStats.filter(o => o.status === 'open').length,
         closed: opportunitiesWithStats.filter(o => o.status === 'closed').length,
-        totalApplications: partnershipsData.length,
-        pendingApplications: partnershipsData.filter(p => p.status === 'pending').length,
-        approvedApplications: partnershipsData.filter(p => p.status === 'approved').length
+        totalApplications: partnershipsData.filter(p => 
+          opportunitiesWithStats.some(o => o.id === p.opportunityId)
+        ).length,
+        pendingApplications: partnershipsData.filter(p => 
+          p.status === 'pending' && opportunitiesWithStats.some(o => o.id === p.opportunityId)
+        ).length,
+        approvedApplications: partnershipsData.filter(p => 
+          p.status === 'approved' && opportunitiesWithStats.some(o => o.id === p.opportunityId)
+        ).length
       });
     } catch (error) {
       console.error('加载数据失败:', error);

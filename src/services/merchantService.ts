@@ -689,10 +689,11 @@ class MerchantService {
       return orders;
     }
 
+    // 注意：订单表中使用的是 seller_id 而不是 merchant_id
     let query = supabase
       .from('orders')
       .select('*')
-      .eq('merchant_id', merchantId);
+      .eq('seller_id', merchantId);
 
     if (params?.status) query = query.eq('status', params.status);
     if (params?.startDate) query = query.gte('created_at', params.startDate);
@@ -700,7 +701,12 @@ class MerchantService {
 
     const { data, error } = await query.order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[MerchantService] 获取订单失败:', error);
+      throw error;
+    }
+    
+    console.log('[MerchantService] 获取订单成功:', data?.length || 0, '条记录');
     return data || [];
   }
 

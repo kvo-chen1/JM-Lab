@@ -812,9 +812,28 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
 
   if (currentUserId && currentUserId !== 'current-user') {
      const { count: likeCount } = await supabase.from('likes').select('*', { count: 'exact', head: true }).match({ user_id: currentUserId, post_id: p.id });
-     const { count: bookmarkCount } = await supabase.from('bookmarks').select('*', { count: 'exact', head: true }).match({ user_id: currentUserId, post_id: p.id });
      isLiked = !!likeCount;
-     isBookmarked = !!bookmarkCount;
+
+     // 检查 bookmarks 表是否存在 post_id 列
+     try {
+       const { count: bookmarkCount, error: bookmarkError } = await supabase.from('bookmarks').select('*', { count: 'exact', head: true }).match({ user_id: currentUserId, post_id: p.id });
+       if (bookmarkError) {
+         // 检查是否是列不存在的错误
+         if (bookmarkError.message?.includes('column "post_id" does not exist') ||
+             bookmarkError.code === '42703') {
+           console.warn('[enrichPostData] bookmarks 表没有 post_id 列');
+           isBookmarked = false;
+         } else {
+           console.error('[enrichPostData] Error checking bookmark:', bookmarkError);
+           isBookmarked = false;
+         }
+       } else {
+         isBookmarked = !!bookmarkCount;
+       }
+     } catch (err: any) {
+       console.warn('[enrichPostData] Error accessing bookmarks:', err);
+       isBookmarked = false;
+     }
   }
 
   const authorData = author || p.author || {
@@ -957,13 +976,41 @@ export async function getUserBookmarks(userId: string): Promise<string[]> {
 
   // 如果后端 API 不可用，尝试从 Supabase 获取
   console.log('[getUserBookmarks] Trying Supabase...');
-  const [worksBookmarks, postBookmarks] = await Promise.all([
-    supabase.from('works_bookmarks').select('work_id').eq('user_id', userId),
-    supabase.from('bookmarks').select('post_id').eq('user_id', userId)
-  ]);
 
-  const workIds = worksBookmarks.data?.map(d => d.work_id.toString()) || [];
-  const postIds = postBookmarks.data?.map(d => d.post_id.toString()) || [];
+  // 获取作品收藏
+  const { data: worksBookmarks, error: worksError } = await supabase
+    .from('works_bookmarks')
+    .select('work_id')
+    .eq('user_id', userId);
+
+  if (worksError) {
+    console.error('[getUserBookmarks] Error fetching works bookmarks:', worksError);
+  }
+
+  // 获取帖子收藏（处理 bookmarks 表可能没有 post_id 列的情况）
+  let postIds: string[] = [];
+  try {
+    const { data: postBookmarks, error: postError } = await supabase
+      .from('bookmarks')
+      .select('post_id')
+      .eq('user_id', userId);
+
+    if (postError) {
+      // 检查是否是列不存在的错误
+      if (postError.message?.includes('column "post_id" does not exist') ||
+          postError.code === '42703') {
+        console.warn('[getUserBookmarks] bookmarks 表没有 post_id 列');
+      } else {
+        console.error('[getUserBookmarks] Error fetching post bookmarks:', postError);
+      }
+    } else {
+      postIds = postBookmarks?.map(d => d.post_id?.toString()).filter(Boolean) || [];
+    }
+  } catch (err: any) {
+    console.warn('[getUserBookmarks] Error accessing bookmarks:', err);
+  }
+
+  const workIds = worksBookmarks?.map(d => d.work_id.toString()).filter(Boolean) || [];
 
   console.log('[getUserBookmarks] Supabase result:', { workIds, postIds });
   return [...workIds, ...postIds];

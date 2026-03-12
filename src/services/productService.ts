@@ -346,20 +346,82 @@ export async function getMerchantProducts(
 // 获取商品详情
 export async function getProductById(id: string): Promise<{ data?: Product; error?: string }> {
   try {
-    const { data, error } = await supabase
-      .from('product_details')
+    console.log('[getProductById] 开始获取商品详情:', id);
+    
+    // 首先尝试从 products 表获取
+    let { data, error } = await supabase
+      .from('products')
       .select('*')
       .eq('id', id)
       .single();
+    
+    // 如果获取成功，再单独获取品牌信息
+    if (data && !error) {
+      try {
+        const { data: brandData } = await supabase
+          .from('brands')
+          .select('id, name, logo')
+          .eq('id', data.brand_id)
+          .single();
+        if (brandData) {
+          data.brand = brandData;
+        }
+      } catch (brandErr) {
+        // 忽略品牌查询错误
+      }
+    }
 
-    if (error) throw error;
+    console.log('[getProductById] products 表查询结果:', { data, error });
+
+    // 如果返回的是数组，取第一个元素
+    if (Array.isArray(data)) {
+      console.warn('[getProductById] 返回的是数组，取第一个元素');
+      data = data[0];
+    }
+
+    if (error || !data) {
+      console.warn('[getProductById] 从 products 表获取失败或数据为空:', error);
+      
+      // 如果失败，尝试从 product_details 视图获取（如果存在）
+      let { data: detailsData, error: detailsError } = await supabase
+        .from('product_details')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      console.log('[getProductById] product_details 查询结果:', { detailsData, detailsError });
+      
+      // 如果返回的是数组，取第一个元素
+      if (Array.isArray(detailsData)) {
+        console.warn('[getProductById] product_details 返回的是数组，取第一个元素');
+        detailsData = detailsData[0];
+      }
+      
+      if (detailsError || !detailsData) {
+        console.error('[getProductById] 所有查询都失败:', detailsError);
+        return { error: '商品不存在或已下架' };
+      }
+      
+      // 增加浏览量
+      try {
+        await supabase.rpc('increment_product_view', { product_id: id });
+      } catch (viewErr) {
+        // 忽略浏览量更新错误
+      }
+      
+      return { data: detailsData };
+    }
 
     // 增加浏览量
-    await supabase.rpc('increment_product_view', { product_id: id });
+    try {
+      await supabase.rpc('increment_product_view', { product_id: id });
+    } catch (viewErr) {
+      // 忽略浏览量更新错误
+    }
 
     return { data };
   } catch (err: any) {
-    console.error('获取商品详情失败:', err);
+    console.error('[getProductById] 获取商品详情失败:', err);
     return { error: err.message || '获取商品详情失败' };
   }
 }
@@ -425,19 +487,61 @@ export async function deleteProduct(id: string): Promise<{ error?: string }> {
 // 获取购物车
 export async function getCart(userId: string): Promise<{ data?: CartItem[]; error?: string }> {
   try {
-    const { data, error } = await supabase
+    // 首先获取购物车数据
+    const { data: cartItems, error: cartError } = await supabase
       .from('shopping_carts')
-      .select(
-        `
-        *,
-        product:products(*, brand:brands(id, name, logo))
-      `
-      )
+      .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return { data: data || [] };
+    if (cartError) throw cartError;
+
+    if (!cartItems || cartItems.length === 0) {
+      return { data: [] };
+    }
+
+    // 获取所有商品ID
+    const productIds = cartItems.map(item => item.product_id).filter(Boolean);
+
+    // 批量获取商品信息
+    let productsMap = new Map();
+    if (productIds.length > 0) {
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .in('id', productIds);
+
+      if (productsError) {
+        console.warn('获取商品信息失败:', productsError);
+      } else {
+        // 获取所有品牌ID
+        const brandIds = [...new Set(products?.map((p: any) => p.brand_id).filter(Boolean) || [])];
+        let brandsMap = new Map();
+        if (brandIds.length > 0) {
+          const { data: brands } = await supabase
+            .from('brands')
+            .select('id, name, logo')
+            .in('id', brandIds);
+          brands?.forEach((brand: any) => brandsMap.set(brand.id, brand));
+        }
+        
+        // 组装商品和品牌信息
+        products?.forEach((product: any) => {
+          if (product.brand_id) {
+            product.brand = brandsMap.get(product.brand_id);
+          }
+          productsMap.set(product.id, product);
+        });
+      }
+    }
+
+    // 组装购物车数据
+    const data: CartItem[] = cartItems.map(item => ({
+      ...item,
+      product: productsMap.get(item.product_id) || undefined
+    }));
+
+    return { data };
   } catch (err: any) {
     console.error('获取购物车失败:', err);
     return { error: err.message || '获取购物车失败' };
@@ -551,17 +655,18 @@ export async function getProductReviews(
   } = {}
 ): Promise<{ data?: ProductReview[]; count?: number; error?: string }> {
   try {
+    // 简化查询，避免外键关联语法错误
     let query = supabase
       .from('product_reviews')
-      .select(
-        `
-        *,
-        user:user_id(id, username, avatar_url)
-      `,
-        { count: 'exact' }
-      )
-      .eq('product_id', productId)
-      .eq('is_visible', true);
+      .select('*', { count: 'exact' })
+      .eq('product_id', productId);
+
+    // 如果存在 is_visible 列，添加筛选
+    try {
+      query = query.eq('is_visible', true);
+    } catch (e) {
+      // 列不存在，忽略
+    }
 
     if (options.rating) {
       query = query.eq('rating', options.rating);
@@ -577,7 +682,11 @@ export async function getProductReviews(
 
     const { data, error, count } = await query.order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[getProductReviews] 查询失败:', error);
+      throw error;
+    }
+    
     return { data: data || [], count: count || 0 };
   } catch (err: any) {
     console.error('获取商品评价失败:', err);
@@ -611,34 +720,59 @@ export async function createProductReview(
 // 获取用户收藏
 export async function getUserFavorites(userId: string): Promise<{ data?: Product[]; error?: string }> {
   try {
-    // 先获取用户的收藏列表
+    // 先获取用户的收藏列表 - 使用 * 获取所有列，避免列名不匹配问题
     const { data: favorites, error: favoritesError } = await supabase
       .from('user_favorites')
-      .select('product_id')
+      .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (favoritesError) throw favoritesError;
+    if (favoritesError) {
+      console.error('[getUserFavorites] 查询收藏失败:', favoritesError);
+      throw favoritesError;
+    }
+    
     if (!favorites || favorites.length === 0) {
       return { data: [] };
     }
 
-    // 获取所有收藏的产品ID
-    const productIds = favorites.map((f: any) => f.product_id);
+    // 获取所有收藏的产品ID - 兼容不同的列名
+    const productIds = favorites.map((f: any) => f.product_id || f.productId || f.product).filter(Boolean);
+    
+    if (productIds.length === 0) {
+      console.warn('[getUserFavorites] 未找到有效的产品ID:', favorites);
+      return { data: [] };
+    }
 
     // 单独查询产品详情
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select(`
-        *,
-        brand:brands(id, name, logo)
-      `)
+      .select('*')
       .in('id', productIds);
 
     if (productsError) throw productsError;
 
+    // 获取所有品牌ID
+    const brandIds = [...new Set(products?.map((p: any) => p.brand_id).filter(Boolean) || [])];
+    let brandsMap = new Map();
+    if (brandIds.length > 0) {
+      const { data: brands } = await supabase
+        .from('brands')
+        .select('id, name, logo')
+        .in('id', brandIds);
+      brands?.forEach((brand: any) => brandsMap.set(brand.id, brand));
+    }
+
+    // 组装商品和品牌信息
+    const productsWithBrand = products?.map((product: any) => {
+      if (product.brand_id) {
+        product.brand = brandsMap.get(product.brand_id);
+      }
+      return product;
+    });
+
     // 按照收藏顺序排序产品
-    const productMap = new Map(products?.map((p: any) => [p.id, p]) || []);
+    const productMap = new Map(productsWithBrand?.map((p: any) => [p.id, p]) || []);
     const sortedProducts = productIds
       .map((id: string) => productMap.get(id))
       .filter((p): p is Product => p !== undefined);
@@ -653,12 +787,28 @@ export async function getUserFavorites(userId: string): Promise<{ data?: Product
 // 添加收藏
 export async function addToFavorites(userId: string, productId: string): Promise<{ error?: string }> {
   try {
+    // 尝试使用 product_id 列名插入
     const { error } = await supabase.from('user_favorites').insert({
       user_id: userId,
       product_id: productId,
     });
 
-    if (error) throw error;
+    if (error) {
+      // 如果失败，可能是列名不同，尝试其他常见列名
+      console.warn('[addToFavorites] 使用 product_id 失败，尝试其他列名:', error);
+      
+      // 尝试 productId (camelCase)
+      const { error: error2 } = await supabase.from('user_favorites').insert({
+        user_id: userId,
+        productId: productId,
+      });
+      
+      if (error2) {
+        console.error('[addToFavorites] 所有列名尝试失败:', error2);
+        throw error2;
+      }
+    }
+    
     return {};
   } catch (err: any) {
     console.error('添加收藏失败:', err);
@@ -672,11 +822,29 @@ export async function removeFromFavorites(
   productId: string
 ): Promise<{ error?: string }> {
   try {
+    // 先查询获取实际的记录ID
+    const { data: favorites, error: queryError } = await supabase
+      .from('user_favorites')
+      .select('id')
+      .eq('user_id', userId);
+    
+    if (queryError) throw queryError;
+    
+    // 找到匹配 product_id 的记录
+    const favorite = favorites?.find((f: any) => 
+      f.product_id === productId || f.productId === productId || f.product === productId
+    );
+    
+    if (!favorite) {
+      console.warn('[removeFromFavorites] 未找到收藏记录:', { userId, productId });
+      return {}; // 记录不存在，视为成功删除
+    }
+    
+    // 使用ID删除
     const { error } = await supabase
       .from('user_favorites')
       .delete()
-      .eq('user_id', userId)
-      .eq('product_id', productId);
+      .eq('id', favorite.id);
 
     if (error) throw error;
     return {};
@@ -692,15 +860,19 @@ export async function checkIsFavorite(
   productId: string
 ): Promise<{ isFavorite: boolean }> {
   try {
-    const { data, error } = await supabase
+    const { data: favorites, error } = await supabase
       .from('user_favorites')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('product_id', productId)
-      .maybeSingle();
+      .select('*')
+      .eq('user_id', userId);
 
     if (error) throw error;
-    return { isFavorite: !!data };
+    
+    // 检查是否有匹配的记录
+    const isFavorite = favorites?.some((f: any) => 
+      f.product_id === productId || f.productId === productId || f.product === productId
+    ) || false;
+    
+    return { isFavorite };
   } catch (err) {
     console.error('检查收藏状态失败:', err);
     return { isFavorite: false };

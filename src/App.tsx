@@ -696,21 +696,33 @@ const CreateStorePage = createLazyComponent(() => import(/* webpackChunkName: "p
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'create-store'
 });
-const ProductDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/ProductDetail"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'product-detail'
-});
-const Cart = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/Cart"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'cart'
-});
+// 商品详情页 - 直接导入，确保快速打开
+import ProductDetail from "@/pages/marketplace/ProductDetail";
+// 购物车页面 - 直接导入，确保快速打开
+import Cart from "@/pages/marketplace/Cart";
 const OrderConfirm = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/OrderConfirm"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'order-confirm'
 });
+const OrderPayPage = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/OrderPay"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'order-pay'
+});
 const LicensedProducts = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/LicensedProducts"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'licensed-products'
+});
+
+// 新增商城页面
+const SearchResultsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/SearchResults"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'marketplace-search'
+});
+// 收藏页面 - 直接导入，确保快速打开
+import FavoritesPage from "@/pages/marketplace/Favorites";
+const OrdersPage = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/Orders"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'marketplace-orders'
 });
 
 // ============================================
@@ -1286,10 +1298,14 @@ export default function App() {
           {/* 文创商城路由 */}
           {/* ============================================ */}
           <Route path="/marketplace" element={<LazyComponent><Marketplace /></LazyComponent>} />
-          <Route path="/marketplace/product/:id" element={<LazyComponent><ProductDetail /></LazyComponent>} />
-          <Route path="/marketplace/cart" element={<LazyComponent><PrivateRoute><Cart /></PrivateRoute></LazyComponent>} />
+          <Route path="/marketplace/product/:id" element={<ProductDetail />} />
+          <Route path="/marketplace/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
           <Route path="/marketplace/order/confirm" element={<LazyComponent><PrivateRoute><OrderConfirm /></PrivateRoute></LazyComponent>} />
+          <Route path="/marketplace/order/pay/:orderId" element={<LazyComponent><PrivateRoute><OrderPayPage /></PrivateRoute></LazyComponent>} />
           <Route path="/marketplace/licensed-products" element={<LazyComponent><LicensedProducts /></LazyComponent>} />
+          <Route path="/marketplace/search" element={<LazyComponent><SearchResultsPage /></LazyComponent>} />
+          <Route path="/marketplace/orders" element={<LazyComponent><PrivateRoute><OrdersPage /></PrivateRoute></LazyComponent>} />
+          <Route path="/favorites" element={<PrivateRoute><FavoritesPage /></PrivateRoute>} />
           
           {/* ============================================ */}
           {/* 商家工作台路由 */}

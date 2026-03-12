@@ -7,7 +7,7 @@ import orderService, { Order, ShippingAddress, CreateOrderParams } from '@/servi
 // 获取订单列表
 export function useOrders(
   options: {
-    buyer_id?: string;
+    customer_id?: string;
     seller_id?: string;
     status?: string;
     limit?: number;
@@ -35,7 +35,7 @@ export function useOrders(
     } finally {
       setLoading(false);
     }
-  }, [options.buyer_id, options.seller_id, options.status, options.limit, options.offset]);
+  }, [options.customer_id, options.seller_id, options.status, options.limit, options.offset]);
 
   useEffect(() => {
     fetchOrders();

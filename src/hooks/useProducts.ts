@@ -160,12 +160,13 @@ export function useMerchantProducts(
 // 获取商品详情
 export function useProduct(productId: string | null) {
   const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // 初始为 true，确保首次渲染时显示加载状态
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!productId) {
       setProduct(null);
+      setLoading(false);
       return;
     }
 

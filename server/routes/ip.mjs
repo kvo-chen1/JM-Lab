@@ -645,6 +645,225 @@ async function applyOpportunity(req, res, id) {
   }
 }
 
+// 获取主办方的商业机会（只返回自己发布的）
+async function getOrganizerOpportunities(req, res) {
+  try {
+    const userId = await getUserId(req);
+    
+    if (!userId) {
+      return sendJson(res, 401, { error: '未登录' });
+    }
+    
+    const pool = await getDB();
+    
+    const query = `
+      SELECT 
+        id,
+        brand_name,
+        brand_logo,
+        name,
+        description,
+        reward,
+        requirements,
+        deadline,
+        status,
+        match_criteria,
+        view_count,
+        created_at,
+        updated_at
+      FROM commercial_opportunities
+      WHERE brand_id = $1
+      ORDER BY created_at DESC
+    `;
+    
+    const result = await pool.query(query, [userId]);
+    
+    const opportunities = result.rows.map(row => ({
+      id: row.id,
+      brandName: row.brand_name,
+      brandLogo: row.brand_logo,
+      name: row.name,
+      description: row.description,
+      reward: row.reward,
+      requirements: row.requirements,
+      deadline: row.deadline,
+      status: row.status,
+      matchCriteria: row.match_criteria,
+      viewCount: row.view_count,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+    
+    sendJson(res, 200, { ok: true, data: opportunities });
+  } catch (error) {
+    console.error('[IP API] 获取主办方商业机会失败:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+// 创建商业机会
+async function createOpportunity(req, res) {
+  try {
+    const userId = await getUserId(req);
+    if (!userId) {
+      return sendJson(res, 401, { error: '未登录' });
+    }
+    
+    const body = await readBody(req);
+    const {
+      name,
+      brandName,
+      description,
+      type,
+      rewardMin,
+      rewardMax,
+      matchCriteria,
+      deadline,
+      contactInfo,
+      status
+    } = body;
+    
+    const pool = await getDB();
+    
+    // 构建奖励字符串
+    const reward = rewardMin && rewardMax 
+      ? `¥${rewardMin} - ¥${rewardMax}`
+      : rewardMin 
+        ? `¥${rewardMin}起`
+        : rewardMax 
+          ? `¥${rewardMax}以内`
+          : '面议';
+    
+    const insertQuery = `
+      INSERT INTO commercial_opportunities 
+        (brand_id, brand_name, name, description, reward, deadline, status, match_criteria, requirements)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `;
+    
+    const result = await pool.query(insertQuery, [
+      userId,
+      brandName,
+      name,
+      description,
+      reward,
+      deadline || null,
+      status || 'draft',
+      matchCriteria ? JSON.stringify(matchCriteria) : null,
+      contactInfo
+    ]);
+    
+    const row = result.rows[0];
+    const opportunity = {
+      id: row.id,
+      brandName: row.brand_name,
+      name: row.name,
+      description: row.description,
+      reward: row.reward,
+      deadline: row.deadline,
+      status: row.status,
+      matchCriteria: row.match_criteria,
+      viewCount: row.view_count,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+    
+    sendJson(res, 200, { ok: true, data: opportunity });
+  } catch (error) {
+    console.error('[IP API] 创建商业机会失败:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+// 更新商业机会
+async function updateOpportunity(req, res, id) {
+  try {
+    const userId = await getUserId(req);
+    if (!userId) {
+      return sendJson(res, 401, { error: '未登录' });
+    }
+    
+    const body = await readBody(req);
+    const {
+      name,
+      brandName,
+      description,
+      rewardMin,
+      rewardMax,
+      matchCriteria,
+      deadline,
+      contactInfo,
+      status
+    } = body;
+    
+    const pool = await getDB();
+    
+    // 检查是否是该用户发布的机会
+    const checkResult = await pool.query(
+      'SELECT brand_id FROM commercial_opportunities WHERE id = $1',
+      [id]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      return sendJson(res, 404, { error: '商业机会不存在' });
+    }
+    
+    if (checkResult.rows[0].brand_id !== userId) {
+      return sendJson(res, 403, { error: '无权修改此商业机会' });
+    }
+    
+    // 构建奖励字符串
+    const reward = rewardMin && rewardMax 
+      ? `¥${rewardMin} - ¥${rewardMax}`
+      : rewardMin 
+        ? `¥${rewardMin}起`
+        : rewardMax 
+          ? `¥${rewardMax}以内`
+          : '面议';
+    
+    const updateQuery = `
+      UPDATE commercial_opportunities 
+      SET brand_name = $1, name = $2, description = $3, reward = $4, 
+          deadline = $5, status = $6, match_criteria = $7, requirements = $8,
+          updated_at = NOW()
+      WHERE id = $9
+      RETURNING *
+    `;
+    
+    const result = await pool.query(updateQuery, [
+      brandName,
+      name,
+      description,
+      reward,
+      deadline || null,
+      status,
+      matchCriteria ? JSON.stringify(matchCriteria) : null,
+      contactInfo,
+      id
+    ]);
+    
+    const row = result.rows[0];
+    const opportunity = {
+      id: row.id,
+      brandName: row.brand_name,
+      name: row.name,
+      description: row.description,
+      reward: row.reward,
+      deadline: row.deadline,
+      status: row.status,
+      matchCriteria: row.match_criteria,
+      viewCount: row.view_count,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+    
+    sendJson(res, 200, { ok: true, data: opportunity });
+  } catch (error) {
+    console.error('[IP API] 更新商业机会失败:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
 // ============================================
 // 商业合作方法
 // ============================================
@@ -659,17 +878,26 @@ async function getAllPartnerships(req, res) {
     
     const pool = await getDB();
     
+    // 先检查表结构，动态构建查询
+    const columnCheckQuery = `
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'ip_partnerships'
+    `;
+    const columnResult = await pool.query(columnCheckQuery);
+    const columns = columnResult.rows.map(r => r.column_name);
+    
+    // 构建查询字段
+    const selectFields = ['id', 'ip_asset_id', 'brand_name', 'description', 'reward', 'status', 'created_at', 'updated_at'];
+    if (columns.includes('brand_logo')) {
+      selectFields.push('brand_logo');
+    }
+    if (columns.includes('opportunity_id')) {
+      selectFields.push('opportunity_id');
+    }
+    
     const query = `
-      SELECT 
-        id,
-        ip_asset_id,
-        brand_name,
-        brand_logo,
-        description,
-        reward,
-        status,
-        created_at,
-        updated_at
+      SELECT ${selectFields.join(', ')}
       FROM ip_partnerships
       WHERE user_id = $1
       ORDER BY created_at DESC
@@ -680,8 +908,9 @@ async function getAllPartnerships(req, res) {
     const partnerships = result.rows.map(row => ({
       id: row.id,
       ipAssetId: row.ip_asset_id,
+      opportunityId: row.opportunity_id,
       brandName: row.brand_name,
-      brandLogo: row.brand_logo,
+      brandLogo: row.brand_logo || null,
       description: row.description,
       reward: row.reward,
       status: row.status,
@@ -955,9 +1184,29 @@ export default async function ipRoutes(req, res) {
     return;
   }
 
+  // 主办方自己的商业机会路由（必须在 /api/ip/opportunities 之前）
+  if (pathname === '/api/ip/opportunities/organizer' && method === 'GET') {
+    await getOrganizerOpportunities(req, res);
+    return;
+  }
+
   // 商业机会路由
   if (pathname === '/api/ip/opportunities' && method === 'GET') {
     await getAllOpportunities(req, res);
+    return;
+  }
+
+  // 创建商业机会
+  if (pathname === '/api/ip/opportunities' && method === 'POST') {
+    await createOpportunity(req, res);
+    return;
+  }
+
+  // 更新商业机会
+  const opportunityUpdateMatch = pathname.match(/^\/api\/ip\/opportunities\/([^\/]+)$/);
+  if (opportunityUpdateMatch && method === 'PUT') {
+    const id = opportunityUpdateMatch[1];
+    await updateOpportunity(req, res, id);
     return;
   }
 

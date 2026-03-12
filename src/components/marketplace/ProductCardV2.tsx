@@ -35,13 +35,30 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
     : 0;
 
   const handleAddToCart = async (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    await onAddToCart?.(product);
+    console.log('[ProductCardV2] 添加到购物车:', product.id);
+    try {
+      await onAddToCart?.(product);
+    } catch (error) {
+      console.error('[ProductCardV2] 添加购物车失败:', error);
+    }
   };
 
-  const handleToggleFavorite = (e: React.MouseEvent) => {
+  const handleToggleFavorite = async (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    onToggleFavorite?.(product);
+    console.log('[ProductCardV2] 切换收藏:', product.id);
+    try {
+      await onToggleFavorite?.(product);
+    } catch (error) {
+      console.error('[ProductCardV2] 切换收藏失败:', error);
+    }
+  };
+
+  const handleCardClick = () => {
+    console.log('[ProductCardV2] 点击商品卡片:', product.id);
+    onClick?.(product);
   };
 
   return (
@@ -52,7 +69,7 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
       className="group cursor-pointer"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={() => onClick?.(product)}
+      onClick={handleCardClick}
     >
       {/* 商品图片区域 - 紧凑型 */}
       <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 mb-2">
@@ -114,6 +131,8 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
               className={`w-7 h-7 rounded-lg bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:bg-white transition-colors ${
                 isFavorite ? 'text-red-500' : 'text-gray-500'
               }`}
+              type="button"
+              aria-label={isFavorite ? '取消收藏' : '添加收藏'}
             >
               <Heart className={`w-3.5 h-3.5 ${isFavorite ? 'fill-current' : ''}`} />
             </button>
@@ -126,6 +145,8 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
           animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
           onClick={handleAddToCart}
           className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center shadow-lg hover:bg-sky-600 transition-colors"
+          type="button"
+          aria-label="添加到购物车"
         >
           <Plus className="w-4 h-4" />
         </motion.button>

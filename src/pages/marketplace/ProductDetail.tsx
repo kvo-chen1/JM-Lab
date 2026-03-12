@@ -19,19 +19,42 @@ const ProductDetailPage: React.FC = () => {
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
 
-  const { product, loading } = useProduct(id || null);
+  const { product, loading: productLoading, error } = useProduct(id || null);
   const { reviews, count: reviewCount } = useProductReviews(id || null, { limit: 5 });
   const { isFavorite } = useIsFavorite(user?.id || null, id || null);
   const { addToCart } = useAddToCart();
   const { addToFavorites } = useAddToFavorites();
   const { removeFromFavorites } = useRemoveFromFavorites();
 
-  if (loading) {
+  // 调试日志
+  console.log('[ProductDetail] 商品ID:', id);
+  console.log('[ProductDetail] 加载状态:', productLoading);
+  console.log('[ProductDetail] 错误信息:', error);
+  console.log('[ProductDetail] 商品数据:', product);
+
+  // 只有在加载完成且没有错误时，才渲染商品内容
+  const isReady = !productLoading && (product !== null || error !== null);
+
+  if (!isReady) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#C02C38] mx-auto"></div>
           <p className="mt-4 text-gray-600">加载中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 mb-2">加载失败</p>
+          <p className="text-gray-500 text-sm mb-4">{error}</p>
+          <Button onClick={() => navigate('/marketplace')} className="mt-4">
+            返回商城
+          </Button>
         </div>
       </div>
     );
@@ -173,18 +196,18 @@ const ProductDetailPage: React.FC = () => {
             <div className="bg-red-50 rounded-xl p-4">
               <div className="flex items-baseline gap-3">
                 <span className="text-3xl font-bold text-[#C02C38]">
-                  ¥{product.price.toLocaleString()}
+                  ¥{(product.price ?? 0).toLocaleString()}
                 </span>
                 {product.original_price && (
                   <span className="text-lg text-gray-400 line-through">
-                    ¥{product.original_price.toLocaleString()}
+                    ¥{(product.original_price ?? 0).toLocaleString()}
                   </span>
                 )}
                 {discount > 0 && (
                   <Badge className="bg-[#C02C38]">-{discount}%</Badge>
                 )}
               </div>
-              <p className="text-sm text-gray-500 mt-2">{product.sold_count}人已付款</p>
+              <p className="text-sm text-gray-500 mt-2">{(product.sold_count ?? 0)}人已付款</p>
             </div>
 
             {/* 规格选择 */}
@@ -208,18 +231,22 @@ const ProductDetailPage: React.FC = () => {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50"
+                  className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                  type="button"
                 >
-                  <Minus className="w-4 h-4" />
+                  <Minus className="w-4 h-4 text-gray-600" />
                 </button>
-                <span className="w-16 text-center font-medium">{quantity}</span>
+                <span className="w-12 h-10 flex items-center justify-center font-medium text-gray-900 border border-gray-200 rounded-lg">
+                  {quantity}
+                </span>
                 <button
                   onClick={() => setQuantity(quantity + 1)}
-                  className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50"
+                  className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                  type="button"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-4 h-4 text-gray-600" />
                 </button>
-                <span className="text-sm text-gray-500">库存 {product.stock} 件</span>
+                <span className="text-sm text-gray-500 ml-2">库存 {(product.stock ?? 0)} 件</span>
               </div>
             </div>
 
@@ -236,10 +263,10 @@ const ProductDetailPage: React.FC = () => {
             </div>
 
             {/* 操作按钮 */}
-            <div className="flex gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <Button
                 variant="outline"
-                className="flex-1"
+                className="h-12 text-base"
                 onClick={handleToggleFavorite}
               >
                 <Heart className={`w-5 h-5 mr-2 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
@@ -247,23 +274,23 @@ const ProductDetailPage: React.FC = () => {
               </Button>
               <Button
                 variant="outline"
-                className="flex-1"
+                className="h-12 text-base"
                 onClick={() => toast.info('分享功能开发中')}
               >
                 <Share2 className="w-5 h-5 mr-2" />
                 分享
               </Button>
             </div>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <Button
-                className="flex-1 bg-[#C02C38] hover:bg-[#991b1b]"
+                className="h-12 text-base bg-[#C02C38] hover:bg-[#991b1b]"
                 onClick={handleAddToCart}
               >
                 <ShoppingCart className="w-5 h-5 mr-2" />
                 加入购物车
               </Button>
               <Button
-                className="flex-1 bg-[#D4AF37] hover:bg-[#B8962F] text-gray-900"
+                className="h-12 text-base bg-[#D4AF37] hover:bg-[#B8962F] text-gray-900"
                 onClick={handleBuyNow}
               >
                 立即购买

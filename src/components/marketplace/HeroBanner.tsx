@@ -107,9 +107,36 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    console.log('[HeroBanner] 搜索:', searchQuery);
     if (searchQuery.trim()) {
       onSearch?.(searchQuery.trim());
     }
+  };
+
+  const handleSlideClick = (link: string) => {
+    console.log('[HeroBanner] 点击轮播图链接:', link);
+    window.location.href = link;
+  };
+
+  const handlePrevSlide = () => {
+    console.log('[HeroBanner] 上一张');
+    prevSlide();
+  };
+
+  const handleNextSlide = () => {
+    console.log('[HeroBanner] 下一张');
+    nextSlide();
+  };
+
+  const handleGoToSlide = (index: number) => {
+    console.log('[HeroBanner] 跳转到幻灯片:', index);
+    goToSlide(index);
+  };
+
+  const handleTogglePause = () => {
+    console.log('[HeroBanner] 切换播放状态:', !isPaused);
+    setIsPaused(!isPaused);
   };
 
   const currentSlideData = slides[currentSlide];
@@ -208,17 +235,18 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
               </motion.p>
 
               {/* CTA 按钮 */}
-              <motion.a
+              <motion.button
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
-                href={currentSlideData.ctaLink}
+                onClick={() => handleSlideClick(currentSlideData.ctaLink)}
                 className="inline-flex items-center gap-2 px-6 py-3.5 bg-white font-semibold rounded-xl hover:bg-white/95 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
                 style={{ color: currentSlideData.accentColor }}
+                type="button"
               >
                 {currentSlideData.ctaText}
                 <ChevronRight className="w-5 h-5 flex-shrink-0" strokeWidth={2.5} />
-              </motion.a>
+              </motion.button>
             </motion.div>
           </AnimatePresence>
 
@@ -244,6 +272,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
               <button
                 type="submit"
                 className="h-11 px-6 bg-gradient-to-r from-sky-500 to-blue-600 text-white text-sm font-medium rounded-xl hover:from-sky-400 hover:to-blue-500 transition-all whitespace-nowrap flex-shrink-0 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+                aria-label="搜索"
               >
                 搜索
               </button>
@@ -258,13 +287,14 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
             {slides.map((slide, index) => (
               <button
                 key={index}
-                onClick={() => goToSlide(index)}
+                onClick={() => handleGoToSlide(index)}
                 className={`h-2 rounded-full transition-all duration-300 ${
                   index === currentSlide 
                     ? 'w-8 bg-white shadow-lg' 
                     : 'w-2 bg-white/40 hover:bg-white/60'
                 }`}
                 aria-label={`切换到第 ${index + 1} 张幻灯片`}
+                type="button"
               />
             ))}
           </div>
@@ -273,9 +303,10 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
           <div className="flex items-center gap-2">
             {/* 暂停/播放按钮 */}
             <button
-              onClick={() => setIsPaused(!isPaused)}
+              onClick={handleTogglePause}
               className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-gray-700 hover:bg-white transition-all flex-shrink-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
               aria-label={isPaused ? '播放' : '暂停'}
+              type="button"
             >
               {isPaused ? (
                 <Play className="w-4 h-4 flex-shrink-0 ml-0.5" strokeWidth={2.5} />
@@ -284,16 +315,18 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
               )}
             </button>
             <button
-              onClick={prevSlide}
+              onClick={handlePrevSlide}
               className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-gray-700 hover:bg-white transition-all flex-shrink-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
               aria-label="上一张"
+              type="button"
             >
               <ChevronLeft className="w-5 h-5 flex-shrink-0" strokeWidth={2.5} />
             </button>
             <button
-              onClick={nextSlide}
+              onClick={handleNextSlide}
               className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-gray-700 hover:bg-white transition-all flex-shrink-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
               aria-label="下一张"
+              type="button"
             >
               <ChevronRight className="w-5 h-5 flex-shrink-0" strokeWidth={2.5} />
             </button>

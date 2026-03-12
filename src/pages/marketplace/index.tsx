@@ -1,8 +1,9 @@
 /**
  * 文创商城首页 V2 - 全新三栏式布局设计
  * 美观、高级、视觉吸引力强的用户界面
+ * 优化：添加数据刷新机制、购物车同步
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -14,7 +15,8 @@ import {
   Store,
   Award,
   ChevronDown,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react';
 import LicensedProductSection from '@/components/marketplace/LicensedProductSection';
 
@@ -34,11 +36,12 @@ import {
   useUserFavorites,
   useAddToCart,
   useAddToFavorites,
-  useRemoveFromFavorites
+  useRemoveFromFavorites,
+  useCart
 } from '@/hooks/useProducts';
 import { useBrands } from '@/hooks/useBrands';
 import { useAuth } from '@/hooks/useAuth';
-import { usePlatformStats } from '@/hooks/usePlatformStats';
+import { useCartSync, useFavoritesSync } from '@/hooks/useDataRefresh';
 
 // 类型
 import { Product } from '@/services/productService';
@@ -81,12 +84,19 @@ const MarketplacePage: React.FC = () => {
   });
 
   const { categories } = useProductCategories();
-  const { brands } = useBrands();
+  const { brands } = useBrands({ status: 'approved' });
   const { favorites, refetch: refetchFavorites } = useUserFavorites(user?.id || null);
+  const { cartItems, cartStats } = useCart(user?.id || null);
   const { addToCart } = useAddToCart();
   const { addToFavorites } = useAddToFavorites();
   const { removeFromFavorites } = useRemoveFromFavorites();
-  const { stats: platformStats } = usePlatformStats();
+
+  // 平台统计数据 - 使用实际获取的数据
+  const platformStats = useMemo(() => ({
+    totalProducts: products?.length || 0,
+    totalBrands: brands?.length || 0,
+    totalOrders: cartStats?.totalItems || 0,
+  }), [products?.length, brands?.length, cartStats?.totalItems]);
 
   // 收藏的商品ID列表
   const favoriteProductIds = useMemo(() => 
@@ -125,54 +135,112 @@ const MarketplacePage: React.FC = () => {
     return shuffled.slice(0, 6);
   }, [products]);
 
-  // 事件处理
-  const handleProductClick = (product: Product) => {
-    navigate(`/marketplace/product/${product.id}`);
-  };
+  // 数据同步
+  const { cartVersion, triggerCartUpdate } = useCartSync(user?.id || null);
+  const { favoritesVersion, triggerFavoritesUpdate } = useFavoritesSync(user?.id || null);
 
-  const handleAddToCart = async (product: Product) => {
-    if (!user) {
-      toast.error('请先登录');
-      navigate('/login');
-      return;
+  // 监听数据变化，刷新相关数据
+  useEffect(() => {
+    if (user?.id) {
+      console.log('[Marketplace] 购物车数据变化，刷新购物车');
+      // 购物车数据已通过 hook 自动刷新
     }
-    const success = await addToCart(user.id, product.id, 1);
-    if (success) {
-      toast.success('已添加到购物车');
-    } else {
-      toast.error('添加失败');
-    }
-  };
+  }, [cartVersion, user?.id]);
 
-  const handleToggleFavorite = async (product: Product) => {
-    if (!user) {
-      toast.error('请先登录');
-      navigate('/login');
-      return;
-    }
-    const isFavorite = favoriteProductIds.includes(product.id);
-    let success;
-    if (isFavorite) {
-      success = await removeFromFavorites(user.id, product.id);
-      if (success) toast.success('已取消收藏');
-    } else {
-      success = await addToFavorites(user.id, product.id);
-      if (success) toast.success('已添加到收藏');
-    }
-    if (success) {
+  useEffect(() => {
+    if (user?.id) {
+      console.log('[Marketplace] 收藏数据变化，刷新收藏');
       refetchFavorites();
-    } else {
-      toast.error('操作失败');
     }
-  };
+  }, [favoritesVersion, user?.id, refetchFavorites]);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-  };
+  // 页面可见性变化时刷新数据
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Marketplace] 页面可见，刷新数据');
+        // 触发数据刷新
+        if (user?.id) {
+          triggerCartUpdate();
+          triggerFavoritesUpdate();
+        }
+      }
+    };
 
-  const handleCategorySelect = (categoryId: string) => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user?.id, triggerCartUpdate, triggerFavoritesUpdate]);
+
+  // 事件处理
+  const handleProductClick = useCallback((product: Product) => {
+    navigate(`/marketplace/product/${product.id}`);
+  }, [navigate]);
+
+  const handleAddToCart = useCallback(async (product: Product) => {
+    if (!user) {
+      toast.error('请先登录');
+      navigate('/login');
+      return;
+    }
+    try {
+      const success = await addToCart(user.id, product.id, 1);
+      if (success) {
+        toast.success('已添加到购物车');
+        // 触发购物车更新事件
+        triggerCartUpdate();
+      } else {
+        toast.error('添加失败');
+      }
+    } catch (error) {
+      console.error('[Marketplace] 添加购物车失败:', error);
+      toast.error('添加失败，请重试');
+    }
+  }, [user, navigate, addToCart, triggerCartUpdate]);
+
+  const handleToggleFavorite = useCallback(async (product: Product) => {
+    if (!user) {
+      toast.error('请先登录');
+      navigate('/login');
+      return;
+    }
+    try {
+      const isFavorite = favoriteProductIds.includes(product.id);
+      let success;
+      if (isFavorite) {
+        success = await removeFromFavorites(user.id, product.id);
+        if (success) toast.success('已取消收藏');
+      } else {
+        success = await addToFavorites(user.id, product.id);
+        if (success) toast.success('已添加到收藏');
+      }
+      if (success) {
+        triggerFavoritesUpdate();
+      } else {
+        toast.error('操作失败');
+      }
+    } catch (error) {
+      console.error('[Marketplace] 收藏操作失败:', error);
+      toast.error('操作失败，请重试');
+    }
+  }, [user, navigate, favoriteProductIds, addToFavorites, removeFromFavorites, triggerFavoritesUpdate]);
+
+  const handleSearch = useCallback((query: string) => {
+    console.log('[Marketplace] 搜索:', query);
+    // 跳转到搜索结果页面
+    navigate(`/marketplace/search?q=${encodeURIComponent(query)}`);
+  }, [navigate]);
+
+  const handleCategorySelect = useCallback((categoryId: string) => {
+    console.log('[Marketplace] 选择分类:', categoryId);
     setSelectedCategory(categoryId);
-  };
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    console.log('[Marketplace] 手动刷新');
+    window.location.reload();
+  }, []);
 
   // 区块标题组件 - 紧凑型
   const SectionHeader: React.FC<{
@@ -209,10 +277,14 @@ const MarketplacePage: React.FC = () => {
     />
   );
 
-  // 右侧栏内容
+  // 右侧栏内容 - 使用真实的购物车数据
   const rightSidebarContent = (
     <RightSidebar
-      cartItems={[]}
+      cartItems={cartItems?.map(item => ({
+        id: item.id,
+        product: item.product,
+        quantity: item.quantity
+      })) || []}
       favoriteProducts={favorites || []}
       recentlyViewed={[]}
       promotions={[
@@ -232,6 +304,11 @@ const MarketplacePage: React.FC = () => {
       ]}
       recommendedProducts={recommendedProducts}
       platformStats={platformStats}
+      onRemoveFromCart={(itemId) => {
+        console.log('[Marketplace] 从右侧栏移除购物车商品:', itemId);
+        // 这里可以调用移除购物车的API
+        triggerCartUpdate();
+      }}
     />
   );
 

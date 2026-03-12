@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS ip_partnerships (
 -- 4. 创建 commercial_opportunities 表（商业机会表）
 CREATE TABLE IF NOT EXISTS commercial_opportunities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand_id UUID REFERENCES users(id) ON DELETE CASCADE,
     brand_name VARCHAR(255) NOT NULL,
     brand_logo TEXT,
     name VARCHAR(255) NOT NULL,

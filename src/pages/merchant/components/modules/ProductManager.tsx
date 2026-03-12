@@ -147,17 +147,18 @@ const ProductManager: React.FC = () => {
           <p className="text-sm text-[var(--text-muted)] mt-0.5">管理您的商品，支持上架、下架、编辑等操作</p>
         </div>
         <Button
-          className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white flex items-center gap-2"
+          className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white border-0"
           onClick={handlePublishProduct}
+          icon={<Plus className="w-4 h-4" />}
+          iconPosition="left"
         >
-          <Plus className="w-4 h-4" />
-          <span>发布商品</span>
+          发布商品
         </Button>
       </div>
 
-      {/* 统计卡片 */}
+      {/* 统计卡片 - 优化背景色 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
+        <div className="bg-[var(--bg-tertiary)] rounded-xl p-4 border border-[var(--border-primary)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-[#5ba3d4]/10 flex items-center justify-center">
               <Package className="w-5 h-5 text-[#5ba3d4]" />
@@ -168,7 +169,7 @@ const ProductManager: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
+        <div className="bg-[var(--bg-tertiary)] rounded-xl p-4 border border-[var(--border-primary)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
               <Tag className="w-5 h-5 text-emerald-400" />
@@ -179,7 +180,7 @@ const ProductManager: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
+        <div className="bg-[var(--bg-tertiary)] rounded-xl p-4 border border-[var(--border-primary)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-slate-500/10 flex items-center justify-center">
               <Package className="w-5 h-5 text-slate-400" />
@@ -190,7 +191,7 @@ const ProductManager: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
+        <div className="bg-[var(--bg-tertiary)] rounded-xl p-4 border border-[var(--border-primary)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
               <AlertCircle className="w-5 h-5 text-red-400" />
@@ -203,8 +204,8 @@ const ProductManager: React.FC = () => {
         </div>
       </div>
 
-      {/* 筛选栏 */}
-      <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-primary)]">
+      {/* 筛选栏 - 优化背景色 */}
+      <div className="bg-[var(--bg-tertiary)] rounded-xl p-4 border border-[var(--border-primary)]">
         <div className="flex flex-wrap items-center gap-3">
           {/* 搜索 */}
           <div className="flex-1 min-w-[200px]">
@@ -290,8 +291,8 @@ const ProductManager: React.FC = () => {
         />
       )}
 
-      {/* 商品列表 */}
-      <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] p-4">
+      {/* 商品列表 - 优化背景色 */}
+      <div className="bg-[var(--bg-tertiary)] rounded-xl border border-[var(--border-primary)] p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-medium text-[var(--text-primary)]">
             商品列表

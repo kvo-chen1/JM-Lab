@@ -113,8 +113,17 @@ export async function createPayment(req, res) {
     }
 
     // 验证金额是否匹配
-    if (pricing.price !== amount) {
-      return sendJSON(res, 400, { success: false, error: '金额不匹配' });
+    // 验证金额（转换为数字比较）
+    const amountNum = Number(amount);
+    if (pricing.price !== amountNum) {
+      console.error('[Payment] 金额不匹配:', { 
+        expected: pricing.price, 
+        received: amount, 
+        receivedNum: amountNum,
+        plan, 
+        period 
+      });
+      return sendJSON(res, 400, { success: false, error: `金额不匹配，期望${pricing.price}，收到${amountNum}` });
     }
 
     // 检查支付方式是否可用

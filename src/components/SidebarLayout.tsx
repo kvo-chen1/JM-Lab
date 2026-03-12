@@ -36,6 +36,7 @@ import supabasePointsService from '@/services/supabasePointsService'
 import achievementService from '@/services/achievementService'
 import { userStateService } from '@/services/userStateService'
 import { useBrowseHistory } from '@/hooks/useBrowseHistory'
+import { useJinbi } from '@/hooks/useJinbi'
 import { collectionService, CollectionType, type CollectionItem, type UserCollectionStats } from '@/services/collectionService'
 import { draftService, type Draft } from '@/services/draftService'
 import { eventParticipationService, type ParticipationDetail, type ParticipationStatus } from '@/services/eventParticipationService'
@@ -98,6 +99,9 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   const navigate = useNavigate()
   const [isMounted, setIsMounted] = useState(false)
   const { getDuration, getDelay } = useResponsiveAnimation()
+  
+  // 津币余额
+  const { balance: jinbiBalance } = useJinbi()
   
   // 无障碍功能
   const { announce } = useScreenReader()
@@ -1239,7 +1243,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                                 )}
                               </div>
                               <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                当前积分 <span className="font-medium">{userPoints.toLocaleString()}</span>
+                                当前积分 <span className="font-medium">{(userPoints || 0).toLocaleString()}</span>
                                 {creatorLevelInfo.nextLevel && (
                                   <>，距离 <span className="text-[#C02C38] font-medium">{creatorLevelInfo.nextLevel.name}</span> 还需 <span className="font-medium">{creatorLevelInfo.pointsToNextLevel}</span> 积分</>
                                 )}
@@ -1260,7 +1264,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                         </div>
                         
                         {/* 统计数据 */}
-                        <div className="flex items-center justify-center gap-8 mt-3 pt-3 border-t border-dashed border-gray-300/30">
+                        <div className="flex items-center justify-center gap-6 mt-3 pt-3 border-t border-dashed border-gray-300/30">
                           <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => { e.stopPropagation(); setShowUserMenu(false); navigate('/friends'); }}>
                             <p className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{userStats.followingCount}</p>
                             <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>关注</p>
@@ -1272,6 +1276,19 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                           <div className="text-center cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => { e.stopPropagation(); setShowUserMenu(false); navigate('/dashboard'); }}>
                             <p className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{userStats.worksCount}</p>
                             <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>作品</p>
+                          </div>
+                          <div 
+                            className="text-center cursor-pointer hover:opacity-80 transition-opacity" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setShowUserMenu(false); 
+                              navigate('/jinbi'); 
+                            }}
+                          >
+                            <p className={`font-bold text-lg ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                              {(jinbiBalance?.availableBalance || 0).toLocaleString()}
+                            </p>
+                            <p className={`text-xs mt-0.5 ${isDark ? 'text-amber-500/70' : 'text-amber-600/70'}`}>津币</p>
                           </div>
                         </div>
                       </div>

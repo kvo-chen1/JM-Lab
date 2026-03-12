@@ -494,6 +494,8 @@ import handleStorageRoute from './routes/storage-simple.mjs'
 import handleDbProxy from './routes/db-proxy-simple.mjs'
 import ipRoutes from './routes/ip.mjs'
 import copyrightLicenseRoutes from './routes/copyright-license.mjs'
+import brandRoutes from './routes/brand.mjs'
+import jinbiRoutes from './routes/jinbi.mjs'
 import { generateOAuthUrl, handleOAuthCallback, getConfiguredProviders, isOAuthConfigured } from './oauth-providers.mjs'
 import {
   testConnection,
@@ -1475,6 +1477,20 @@ async function route(req, res, u, path) {
   if (path.startsWith('/api/copyright')) {
     console.log('[Route] Delegating to copyright license routes:', path)
     await copyrightLicenseRoutes(req, res)
+    return
+  }
+
+  // 品牌授权路由
+  if (path.startsWith('/api/brand')) {
+    console.log('[Route] Delegating to brand routes:', path)
+    await brandRoutes(req, res)
+    return
+  }
+
+  // 津币路由
+  if (path.startsWith('/api/jinbi')) {
+    console.log('[Route] Delegating to jinbi routes:', path)
+    await jinbiRoutes(req, res)
     return
   }
 
@@ -7081,16 +7097,143 @@ async function route(req, res, u, path) {
     try {
       const eventId = path.match(/^\/api\/events\/([^/]+)\/works$/)[1]
       console.log('[API] Get event works:', eventId)
-      
-      // 暂时返回空数组，后续可以添加真实数据
-      sendJson(res, 200, { 
-        code: 0, 
-        data: [],
+
+      // 解析查询参数
+      const url = new URL(req.url, `http://${req.headers.host}`)
+      const offset = parseInt(url.searchParams.get('offset')) || 0
+      const limit = parseInt(url.searchParams.get('limit')) || 20
+      const mediaType = url.searchParams.get('mediaType') || 'all'
+      const sortBy = url.searchParams.get('sortBy') || 'newest'
+      const status = url.searchParams.get('status') || 'submitted'
+
+      const db = await getDB()
+
+      // 构建基础查询
+      let query = `
+        SELECT
+          es.id,
+          es.event_id,
+          es.user_id,
+          es.title,
+          es.description,
+          es.files,
+          es.status,
+          es.submitted_at,
+          es.reviewed_at,
+          es.review_notes,
+          es.score,
+          es.metadata,
+          es.created_at,
+          es.updated_at,
+          es.vote_count,
+          es.like_count,
+          es.avg_rating,
+          es.rating_count,
+          es.cover_image,
+          es.media_type,
+          e.title AS event_title,
+          u.username AS creator_name,
+          u.avatar_url AS creator_avatar,
+          u.full_name AS creator_full_name
+        FROM event_submissions es
+        JOIN events e ON es.event_id = e.id
+        LEFT JOIN users u ON es.user_id = u.id
+        WHERE es.event_id = $1
+      `
+      const queryParams = [eventId]
+      let paramIndex = 2
+
+      // 应用状态筛选
+      if (status !== 'all') {
+        query += ` AND es.status = $${paramIndex++}`
+        queryParams.push(status)
+      }
+
+      // 应用媒体类型筛选
+      if (mediaType !== 'all') {
+        query += ` AND es.media_type = $${paramIndex++}`
+        queryParams.push(mediaType)
+      }
+
+      // 应用排序
+      switch (sortBy) {
+        case 'newest':
+          query += ` ORDER BY es.submitted_at DESC`
+          break
+        case 'popular':
+          query += ` ORDER BY es.like_count DESC`
+          break
+        case 'rating':
+          query += ` ORDER BY es.avg_rating DESC`
+          break
+        case 'votes':
+          query += ` ORDER BY es.vote_count DESC`
+          break
+        default:
+          query += ` ORDER BY es.submitted_at DESC`
+      }
+
+      // 应用分页
+      query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`
+      queryParams.push(limit, offset)
+
+      // 执行查询
+      const { rows } = await db.query(query, queryParams)
+
+      // 获取总数
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM event_submissions es
+        WHERE es.event_id = $1
+        ${status !== 'all' ? 'AND es.status = $2' : ''}
+        ${mediaType !== 'all' ? `AND es.media_type = $${status !== 'all' ? 3 : 2}` : ''}
+      `
+      const countParams = [eventId]
+      if (status !== 'all') countParams.push(status)
+      if (mediaType !== 'all') countParams.push(mediaType)
+
+      const { rows: countRows } = await db.query(countQuery, countParams)
+      const total = parseInt(countRows[0]?.total || '0')
+
+      // 格式化返回数据
+      const works = rows.map(row => ({
+        id: row.id,
+        eventId: row.event_id,
+        userId: row.user_id,
+        title: row.title,
+        description: row.description,
+        files: row.files || [],
+        status: row.status,
+        submittedAt: row.submitted_at,
+        reviewedAt: row.reviewed_at,
+        reviewNotes: row.review_notes,
+        score: row.score,
+        metadata: row.metadata || {},
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        voteCount: row.vote_count || 0,
+        likeCount: row.like_count || 0,
+        avgRating: row.avg_rating || 0,
+        ratingCount: row.rating_count || 0,
+        coverImage: row.cover_image,
+        mediaType: row.media_type || 'image',
+        eventTitle: row.event_title,
+        creatorName: row.creator_name,
+        creatorAvatar: row.creator_avatar,
+        creatorFullName: row.creator_full_name,
+      }))
+
+      sendJson(res, 200, {
+        code: 0,
+        data: works,
+        total,
+        offset,
+        limit,
         message: '获取成功'
       })
     } catch (e) {
       console.error('[API] Get event works failed:', e)
-      sendJson(res, 500, { code: 1, message: '获取作品列表失败' })
+      sendJson(res, 500, { code: 1, message: '获取作品列表失败: ' + e.message })
     }
     return
   }

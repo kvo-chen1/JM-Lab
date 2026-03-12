@@ -141,12 +141,16 @@
   ],
   "functions": {
     "api/index.js": {
-      "maxDuration": 30,
-      "memory": 1024,
+      "maxDuration": 60,
+      "memory": 3009,
       "includeFiles": "dist/**"
     },
+    "api/db/[...path].js": {
+      "maxDuration": 60,
+      "memory": 3009
+    },
     "api/health/ping.js": {
-      "maxDuration": 5,
+      "maxDuration": 10,
       "memory": 512
     }
   },

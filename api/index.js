@@ -8,9 +8,12 @@ const verificationCodes = new Map();
 let pgClient = null;
 let dbAvailable = false;
 
-// 获取数据库连接
-async function getDbClient() {
-  if (pgClient) return pgClient;
+// 数据库连接池
+let pool = null;
+
+// 获取数据库连接池
+async function getDbPool() {
+  if (pool) return pool;
 
   // 尝试 Supabase PostgreSQL 环境变量
   // 优先使用 POSTGRES_URL_NON_POOLING，因为它使用直连方式，更可靠
@@ -35,43 +38,93 @@ async function getDbClient() {
     databaseUrl = databaseUrl.replace(/^psql '/, '').replace(/'$/, '');
   }
 
-  console.log('[DB] Connecting to database...');
+  console.log('[DB] Creating connection pool...');
 
   try {
-    const { Client } = await import('pg');
+    const { Pool } = await import('pg');
     
-    // Supabase PostgreSQL 连接配置
-    // 注意：使用 ssl: { rejectUnauthorized: false } 来允许自签名证书
-    const connectionConfig = {
+    // Supabase PostgreSQL 连接池配置
+    pool = new Pool({
       connectionString: databaseUrl,
       ssl: {
         rejectUnauthorized: false
       },
       // Vercel Serverless 优化
-      connectionTimeoutMillis: 10000,
-      query_timeout: 30000,
-    };
-    
-    pgClient = new Client(connectionConfig);
-    
-    // 添加错误监听
-    pgClient.on('error', (err) => {
-      console.error('[DB] Client error:', err.message);
-      pgClient = null;
-      dbAvailable = false;
+      max: 20,
+      min: 2,
+      idleTimeoutMillis: 120000,
+      connectionTimeoutMillis: 60000,
+      statement_timeout: 60000,
+      query_timeout: 60000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000
     });
     
-    await pgClient.connect();
+    // 添加错误监听
+    pool.on('error', (err) => {
+      console.error('[DB Pool] Unexpected error:', err.message);
+    });
+    
+    pool.on('connect', () => {
+      console.log('[DB Pool] New client connected');
+    });
+    
+    // 测试连接
+    const client = await pool.connect();
+    await client.query('SELECT NOW()');
+    client.release();
+    
     console.log('[DB] Connected to Supabase PostgreSQL database successfully');
     dbAvailable = true;
-    return pgClient;
+    return pool;
   } catch (error) {
     console.error('[DB] Connection error:', error.message);
     console.error('[DB] Error details:', error.stack);
     dbAvailable = false;
-    pgClient = null;
+    pool = null;
     return null;
   }
+}
+
+// 带重试的查询函数
+async function queryWithRetry(pool, sql, params, maxRetries = 3) {
+  let lastError;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const result = await pool.query(sql, params);
+      return result;
+    } catch (error) {
+      lastError = error;
+      console.error(`[DB] Query attempt ${i + 1} failed:`, error.message);
+      
+      // 如果是连接错误，等待后重试
+      if (error.message.includes('disconnected') || 
+          error.message.includes('terminated') ||
+          error.message.includes('ECONNRESET') ||
+          error.message.includes('timeout') ||
+          error.message.includes('Connection')) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        continue;
+      }
+      
+      // 其他错误直接抛出
+      throw error;
+    }
+  }
+  throw lastError;
+}
+
+// 获取数据库连接（兼容旧代码）
+async function getDbClient() {
+  const pool = await getDbPool();
+  if (!pool) return null;
+  
+  // 返回一个模拟的客户端对象
+  return {
+    query: (sql, params) => queryWithRetry(pool, sql, params),
+    on: () => {}, // 兼容旧代码
+    release: () => {} // 兼容旧代码
+  };
 }
 
 // 确保用户表存在

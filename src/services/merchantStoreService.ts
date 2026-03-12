@@ -62,11 +62,39 @@ export interface StoreFormData {
 class MerchantStoreService {
   
   /**
+   * 获取当前用户ID
+   */
+  private getCurrentUserId(): string | null {
+    // 尝试从 supabase 获取
+    const { data: { user } } = supabase.auth.getUserSync?.() || { data: { user: null } };
+    if (user?.id) {
+      console.log('[MerchantStoreService] 从 supabase 获取用户ID:', user.id);
+      return user.id;
+    }
+    
+    // 从 localStorage 获取
+    try {
+      const userStr = localStorage.getItem('user');
+      console.log('[MerchantStoreService] localStorage user:', userStr);
+      if (userStr) {
+        const userData = JSON.parse(userStr);
+        console.log('[MerchantStoreService] 从 localStorage 获取用户ID:', userData?.id);
+        return userData?.id || null;
+      }
+    } catch (e) {
+      console.error('[MerchantStoreService] 解析用户信息失败:', e);
+    }
+    
+    console.log('[MerchantStoreService] 无法获取用户ID');
+    return null;
+  }
+
+  /**
    * 创建店铺
    */
   async createStore(data: StoreFormData): Promise<MerchantStore> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('用户未登录');
+    const userId = this.getCurrentUserId();
+    if (!userId) throw new Error('用户未登录');
 
     // 检查是否已有店铺
     const existingStore = await this.getMyStore();
@@ -75,7 +103,7 @@ class MerchantStoreService {
     }
 
     const storeData = {
-      user_id: user.id,
+      user_id: userId,
       store_name: data.store_name,
       store_logo: data.store_logo || '',
       store_description: data.store_description || '',
@@ -91,6 +119,7 @@ class MerchantStoreService {
       status: 'active',
     };
 
+    // 创建店铺记录
     const { data: result, error } = await supabase
       .from('merchant_stores')
       .insert(storeData)
@@ -102,6 +131,43 @@ class MerchantStoreService {
       throw new Error('创建店铺失败: ' + error.message);
     }
 
+    // 同时创建 merchants 表记录（用于商家工作台）
+    try {
+      const { data: existingMerchant } = await supabase
+        .from('merchants')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!existingMerchant) {
+        const merchantData = {
+          user_id: userId,
+          store_name: data.store_name,
+          store_logo: data.store_logo || '',
+          store_description: data.store_description || '',
+          contact_name: data.contact_name,
+          contact_phone: data.contact_phone,
+          contact_email: data.contact_email || '',
+          status: 'approved',
+          rating: 5.0,
+          total_sales: 0,
+          total_orders: 0,
+        };
+
+        const { error: merchantError } = await supabase
+          .from('merchants')
+          .insert(merchantData);
+
+        if (merchantError) {
+          console.error('创建商家记录失败:', merchantError);
+        } else {
+          console.log('商家记录创建成功');
+        }
+      }
+    } catch (e) {
+      console.error('创建商家记录时出错:', e);
+    }
+
     return result;
   }
 
@@ -109,36 +175,43 @@ class MerchantStoreService {
    * 获取当前用户的店铺
    */
   async getMyStore(): Promise<MerchantStore | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const userId = this.getCurrentUserId();
+    console.log('[MerchantStoreService] getMyStore - 用户ID:', userId);
+    if (!userId) return null;
 
     const { data, error } = await supabase
       .from('merchant_stores')
       .select('*')
-      .eq('user_id', user.id)
-      .single();
+      .eq('user_id', userId);
+
+    console.log('[MerchantStoreService] getMyStore - 查询结果:', { data, error });
 
     if (error) {
-      if (error.code === 'PGRST116') return null; // 没有记录
-      console.error('获取店铺信息失败:', error);
+      console.error('[MerchantStoreService] 获取店铺信息失败:', error);
       throw new Error('获取店铺信息失败');
     }
 
-    return data;
+    // 如果没有记录，返回 null
+    if (!data || data.length === 0) {
+      return null;
+    }
+
+    // 返回第一条记录
+    return data[0];
   }
 
   /**
    * 更新店铺信息
    */
   async updateStore(storeId: string, data: Partial<StoreFormData>): Promise<MerchantStore> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('用户未登录');
+    const userId = this.getCurrentUserId();
+    if (!userId) throw new Error('用户未登录');
 
     const { data: result, error } = await supabase
       .from('merchant_stores')
       .update(data)
       .eq('id', storeId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .select()
       .single();
 

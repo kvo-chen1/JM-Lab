@@ -108,14 +108,14 @@ export const JinbiInsufficientModal: React.FC<JinbiInsufficientModalProps> = ({
                   <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>当前余额</span>
                 </div>
                 <span className={`font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                  {currentBalance.toLocaleString()} 津币
+                  {(currentBalance || 0).toLocaleString()} 津币
                 </span>
               </div>
               <div className="mt-2 pt-2 border-t border-dashed border-gray-300 dark:border-slate-700">
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>所需金额</span>
                   <span className="font-bold text-rose-500">
-                    {requiredAmount.toLocaleString()} 津币
+                    {(requiredAmount || 0).toLocaleString()} 津币
                   </span>
                 </div>
               </div>
@@ -123,7 +123,7 @@ export const JinbiInsufficientModal: React.FC<JinbiInsufficientModalProps> = ({
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>差额</span>
                   <span className="font-bold text-rose-500">
-                    {(requiredAmount - currentBalance).toLocaleString()} 津币
+                    {((requiredAmount || 0) - (currentBalance || 0)).toLocaleString()} 津币
                   </span>
                 </div>
               </div>

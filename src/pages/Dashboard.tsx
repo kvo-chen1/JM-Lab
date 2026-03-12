@@ -1012,7 +1012,7 @@ export default function Dashboard() {
                       <div>
                         <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.title}</p>
                         <p className={`text-2xl font-bold mt-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {stat.value.toLocaleString()}
+                          {(stat?.value || 0).toLocaleString()}
                         </p>
                       </div>
                       <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient} text-white shadow-lg`}>

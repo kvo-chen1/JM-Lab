@@ -1421,7 +1421,7 @@ ${outlineText}
       <div className={`flex items-center justify-between px-4 py-2 border-t text-xs ${isDark ? 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
         <div className="flex items-center gap-4">
           <span>字数 {wordCount}</span>
-          <span>字符 {charCount.toLocaleString()}</span>
+          <span>字符 {(charCount || 0).toLocaleString()}</span>
           <span>预计阅读 {readTime} 分钟</span>
           <span className="flex items-center gap-1">
             <Coins className="w-3 h-3 text-amber-500" />

@@ -66,7 +66,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
       { label: '商家入驻申请', path: '/merchant/apply' },
     ]},
     { icon: TrendingUp, label: '品牌活动', count: stats?.totalEvents || 0, active: false, path: '/business' },
-    { icon: Sparkles, label: 'AI创意', count: null, active: false, path: '/business' },
+    { icon: Sparkles, label: 'AI创意', count: null, active: false, path: '/creator-center/inspiration' },
   ];
 
   const handleMenuClick = (item: any) => {

@@ -37,7 +37,7 @@ export const JinbiBalance: React.FC<JinbiBalanceProps> = ({
       >
         <Coins className="w-4 h-4 text-amber-500" />
         <span className={`font-bold text-sm ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-          {loading.balance ? '...' : availableBalance.toLocaleString()}
+          {loading.balance ? '...' : (availableBalance || 0).toLocaleString()}
         </span>
         <span className={`text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>津币</span>
       </motion.button>
@@ -67,7 +67,7 @@ export const JinbiBalance: React.FC<JinbiBalanceProps> = ({
           <div>
             <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>津币余额</p>
             <p className={`text-2xl font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-              {loading.balance ? '...' : availableBalance.toLocaleString()}
+              {loading.balance ? '...' : (availableBalance || 0).toLocaleString()}
               <span className="text-sm font-normal ml-1">津币</span>
             </p>
           </div>
@@ -100,7 +100,7 @@ export const JinbiBalance: React.FC<JinbiBalanceProps> = ({
               <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>本月收入</span>
             </div>
             <p className={`font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-              +{monthlyStats.earned.toLocaleString()}
+              +{(monthlyStats?.earned || 0).toLocaleString()}
             </p>
           </div>
           <div className="text-center">
@@ -109,7 +109,7 @@ export const JinbiBalance: React.FC<JinbiBalanceProps> = ({
               <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>本月支出</span>
             </div>
             <p className={`font-semibold ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
-              -{monthlyStats.spent.toLocaleString()}
+              -{(monthlyStats?.spent || 0).toLocaleString()}
             </p>
           </div>
           <div className="text-center">
@@ -118,11 +118,11 @@ export const JinbiBalance: React.FC<JinbiBalanceProps> = ({
               <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>净变化</span>
             </div>
             <p className={`font-semibold ${
-              monthlyStats.netChange >= 0
+              (monthlyStats?.netChange || 0) >= 0
                 ? (isDark ? 'text-emerald-400' : 'text-emerald-600')
                 : (isDark ? 'text-rose-400' : 'text-rose-600')
             }`}>
-              {monthlyStats.netChange >= 0 ? '+' : ''}{monthlyStats.netChange.toLocaleString()}
+              {(monthlyStats?.netChange || 0) >= 0 ? '+' : ''}{(monthlyStats?.netChange || 0).toLocaleString()}
             </p>
           </div>
         </div>

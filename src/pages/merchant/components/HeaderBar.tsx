@@ -117,7 +117,7 @@ const HeaderBar: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs text-[var(--text-muted)]">今日销售额</p>
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">¥{merchantInfo.todaySales.toLocaleString()}</p>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">¥{(merchantInfo?.todaySales || 0).toLocaleString()}</p>
                   </div>
                 </div>
                 
@@ -146,28 +146,31 @@ const HeaderBar: React.FC = () => {
 
           {/* 右侧：快捷操作 */}
           <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
+              icon={<Bell className="w-4 h-4" />}
+              iconPosition="left"
             >
-              <Bell className="w-4 h-4 mr-2" />
               消息
             </Button>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
+              icon={<Settings className="w-4 h-4" />}
+              iconPosition="left"
             >
-              <Settings className="w-4 h-4 mr-2" />
               设置
             </Button>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
+              icon={<User className="w-4 h-4" />}
+              iconPosition="left"
             >
-              <User className="w-4 h-4 mr-2" />
               个人中心
             </Button>
           </div>

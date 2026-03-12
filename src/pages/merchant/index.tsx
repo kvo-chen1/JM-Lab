@@ -251,13 +251,13 @@ const MerchantWorkbench: React.FC = () => {
       {/* 顶部商家信息栏 */}
       <HeaderBar />
 
-      {/* 三栏式主体内容 */}
-      <div className="p-6 pt-4">
-        <div className="grid grid-cols-12 gap-6">
-          
+      {/* 三栏式主体内容 - 优化间距 */}
+      <div className="p-6 pt-6">
+        <div className="grid grid-cols-12 gap-8">
+
           {/* 左栏：功能导航 */}
           <div className="col-span-12 lg:col-span-2">
-            <LeftSidebar 
+            <LeftSidebar
               modules={MODULES}
               activeModule={activeModule}
               onModuleChange={setActiveModule}
@@ -271,6 +271,7 @@ const MerchantWorkbench: React.FC = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
+              className="bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-primary)] p-6"
             >
               {renderModule()}
             </motion.div>

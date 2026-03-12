@@ -291,7 +291,7 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
                               <div className="flex items-center gap-2">
                                 <DollarSign className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                 <span className={theme.textMuted}>授权费用:</span>
-                                <span className={`font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{application.actualLicenseFee.toLocaleString()}</span>
+                                <span className={`font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{(application?.actualLicenseFee || 0).toLocaleString()}</span>
                               </div>
                             )}
                             {application.revenueShareRate !== undefined && (
@@ -388,6 +388,7 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
           setSelectedApplication(null);
         }}
         application={selectedApplication}
+        isDark={isDark}
       />
 
       {/* 创建产品弹窗 */}
@@ -411,11 +412,13 @@ interface ApplicationDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   application: LicenseApplication | null;
+  isDark: boolean;
 }
 
-function ApplicationDetailModal({ isOpen, onClose, application }: ApplicationDetailModalProps) {
+function ApplicationDetailModal({ isOpen, onClose, application, isDark }: ApplicationDetailModalProps) {
   if (!application) return null;
 
+  const theme = useLicenseTheme(isDark);
   const status = STATUS_CONFIG[application.status as keyof typeof STATUS_CONFIG];
   const StatusIcon = status?.icon || Clock;
 
@@ -434,22 +437,22 @@ function ApplicationDetailModal({ isOpen, onClose, application }: ApplicationDet
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
-            className={`w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl ${DARK_THEME.glass} ${DARK_THEME.borderPrimary} border ${DARK_THEME.glowPrimary}`}
+            className={`w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl ${theme.glass} ${theme.borderPrimary} border ${theme.glowPrimary}`}
           >
             {/* 头部 */}
-            <div className={`flex items-center justify-between p-6 border-b ${DARK_THEME.borderPrimary}`}>
+            <div className={`flex items-center justify-between p-6 border-b ${theme.borderPrimary}`}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
                   <Award className="w-5 h-5 text-cyan-400" />
                 </div>
                 <div>
-                  <h2 className={`text-xl font-bold ${DARK_THEME.textPrimary}`}>申请详情</h2>
-                  <p className={`text-sm ${DARK_THEME.textMuted}`}>申请编号: {application.id.slice(0, 8)}</p>
+                  <h2 className={`text-xl font-bold ${theme.textPrimary}`}>申请详情</h2>
+                  <p className={`text-sm ${theme.textMuted}`}>申请编号: {application.id.slice(0, 8)}</p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className={`p-2 rounded-lg ${DARK_THEME.bgSecondary} ${DARK_THEME.textSecondary} hover:bg-slate-800 transition-colors`}
+                className={`p-2 rounded-lg ${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'} transition-colors`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -464,8 +467,8 @@ function ApplicationDetailModal({ isOpen, onClose, application }: ApplicationDet
               </div>
 
               {/* 品牌信息 */}
-              <div className={`p-4 rounded-xl ${DARK_THEME.bgSecondary} ${DARK_THEME.borderPrimary} border mb-4`}>
-                <h3 className={`font-semibold ${DARK_THEME.textPrimary} mb-3`}>品牌信息</h3>
+              <div className={`p-4 rounded-xl ${theme.bgSecondary} ${theme.borderPrimary} border mb-4`}>
+                <h3 className={`font-semibold ${theme.textPrimary} mb-3`}>品牌信息</h3>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center">
                     {application.request?.brandLogo ? (
@@ -479,8 +482,8 @@ function ApplicationDetailModal({ isOpen, onClose, application }: ApplicationDet
                     )}
                   </div>
                   <div>
-                    <p className={`font-medium ${DARK_THEME.textPrimary}`}>{application.request?.brandName}</p>
-                    <p className={`text-sm ${DARK_THEME.textMuted}`}>{application.request?.title}</p>
+                    <p className={`font-medium ${theme.textPrimary}`}>{application.request?.brandName}</p>
+                    <p className={`text-sm ${theme.textMuted}`}>{application.request?.title}</p>
                   </div>
                 </div>
               </div>
@@ -489,8 +492,8 @@ function ApplicationDetailModal({ isOpen, onClose, application }: ApplicationDet
               <div className="space-y-4">
                 {application.proposedUsage && (
                   <div>
-                    <h4 className={`text-sm font-medium ${DARK_THEME.textSecondary} mb-2`}>计划用途</h4>
-                    <p className={`p-3 rounded-lg ${DARK_THEME.bgSecondary} ${DARK_THEME.textSecondary} text-sm`}>
+                    <h4 className={`text-sm font-medium ${theme.textSecondary} mb-2`}>计划用途</h4>
+                    <p className={`p-3 rounded-lg ${theme.bgSecondary} ${theme.textSecondary} text-sm`}>
                       {application.proposedUsage}
                     </p>
                   </div>
@@ -498,12 +501,12 @@ function ApplicationDetailModal({ isOpen, onClose, application }: ApplicationDet
 
                 {application.expectedProducts && application.expectedProducts.length > 0 && (
                   <div>
-                    <h4 className={`text-sm font-medium ${DARK_THEME.textSecondary} mb-2`}>预期产品类型</h4>
+                    <h4 className={`text-sm font-medium ${theme.textSecondary} mb-2`}>预期产品类型</h4>
                     <div className="flex flex-wrap gap-2">
                       {application.expectedProducts.map((product, i) => (
                         <span
                           key={i}
-                          className={`px-3 py-1 rounded-full text-sm ${DARK_THEME.bgSecondary} ${DARK_THEME.textSecondary} border ${DARK_THEME.borderPrimary}`}
+                          className={`px-3 py-1 rounded-full text-sm ${theme.bgSecondary} ${theme.textSecondary} border ${theme.borderPrimary}`}
                         >
                           {product}
                         </span>
@@ -514,8 +517,8 @@ function ApplicationDetailModal({ isOpen, onClose, application }: ApplicationDet
 
                 {application.message && (
                   <div>
-                    <h4 className={`text-sm font-medium ${DARK_THEME.textSecondary} mb-2`}>申请留言</h4>
-                    <p className={`p-3 rounded-lg ${DARK_THEME.bgSecondary} ${DARK_THEME.textSecondary} text-sm`}>
+                    <h4 className={`text-sm font-medium ${theme.textSecondary} mb-2`}>申请留言</h4>
+                    <p className={`p-3 rounded-lg ${theme.bgSecondary} ${theme.textSecondary} text-sm`}>
                       {application.message}
                     </p>
                   </div>
@@ -523,8 +526,8 @@ function ApplicationDetailModal({ isOpen, onClose, application }: ApplicationDet
 
                 {application.brandResponse && (
                   <div>
-                    <h4 className={`text-sm font-medium ${DARK_THEME.textSecondary} mb-2`}>品牌方回复</h4>
-                    <p className={`p-3 rounded-lg bg-violet-500/10 border border-violet-500/20 ${DARK_THEME.textSecondary} text-sm`}>
+                    <h4 className={`text-sm font-medium ${theme.textSecondary} mb-2`}>品牌方回复</h4>
+                    <p className={`p-3 rounded-lg bg-violet-500/10 border border-violet-500/20 ${theme.textSecondary} text-sm`}>
                       {application.brandResponse}
                     </p>
                   </div>
@@ -532,26 +535,26 @@ function ApplicationDetailModal({ isOpen, onClose, application }: ApplicationDet
               </div>
 
               {/* 时间线 */}
-              <div className={`mt-6 pt-6 border-t ${DARK_THEME.borderPrimary}`}>
-                <h4 className={`text-sm font-medium ${DARK_THEME.textSecondary} mb-4`}>申请进度</h4>
+              <div className={`mt-6 pt-6 border-t ${theme.borderPrimary}`}>
+                <h4 className={`text-sm font-medium ${theme.textSecondary} mb-4`}>申请进度</h4>
                 <div className="space-y-3 text-sm">
                   <div className="flex items-center gap-3">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span className={DARK_THEME.textMuted}>提交申请</span>
-                    <span className={DARK_THEME.textSecondary}>{new Date(application.createdAt).toLocaleString('zh-CN')}</span>
+                    <span className={theme.textMuted}>提交申请</span>
+                    <span className={theme.textSecondary}>{new Date(application.createdAt).toLocaleString('zh-CN')}</span>
                   </div>
                   {application.reviewedAt && (
                     <div className="flex items-center gap-3">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span className={DARK_THEME.textMuted}>品牌方审核</span>
-                      <span className={DARK_THEME.textSecondary}>{new Date(application.reviewedAt).toLocaleString('zh-CN')}</span>
+                      <span className={theme.textMuted}>品牌方审核</span>
+                      <span className={theme.textSecondary}>{new Date(application.reviewedAt).toLocaleString('zh-CN')}</span>
                     </div>
                   )}
                   {application.completedAt && (
                     <div className="flex items-center gap-3">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span className={DARK_THEME.textMuted}>授权完成</span>
-                      <span className={DARK_THEME.textSecondary}>{new Date(application.completedAt).toLocaleString('zh-CN')}</span>
+                      <span className={theme.textMuted}>授权完成</span>
+                      <span className={theme.textSecondary}>{new Date(application.completedAt).toLocaleString('zh-CN')}</span>
                     </div>
                   )}
                 </div>

@@ -12,11 +12,52 @@ const pool = new Pool({
   ssl: { 
     rejectUnauthorized: false
   },
-  max: 10,
-  min: 2,
-  idleTimeoutMillis: 60000,
-  connectionTimeoutMillis: 30000
+  max: 20,
+  min: 5,
+  idleTimeoutMillis: 120000,
+  connectionTimeoutMillis: 60000,
+  statement_timeout: 60000,
+  query_timeout: 60000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
 })
+
+// 连接池错误处理
+pool.on('error', (err) => {
+  console.error('[DB Pool] Unexpected error:', err.message)
+})
+
+pool.on('connect', () => {
+  console.log('[DB Pool] New client connected')
+})
+
+// 带重试的查询函数
+async function queryWithRetry(sql, params, maxRetries = 3) {
+  let lastError
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const result = await pool.query(sql, params)
+      return result
+    } catch (error) {
+      lastError = error
+      console.error(`[DB Proxy] Query attempt ${i + 1} failed:`, error.message)
+      
+      // 如果是连接错误，等待后重试
+      if (error.message.includes('disconnected') || 
+          error.message.includes('terminated') ||
+          error.message.includes('ECONNRESET') ||
+          error.message.includes('timeout') ||
+          error.message.includes('Connection')) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+        continue
+      }
+      
+      // 其他错误直接抛出
+      throw error
+    }
+  }
+  throw lastError
+}
 
 // 验证 JWT token
 function verifyToken(authHeader) {
@@ -95,7 +136,7 @@ async function handleAuthRequest(req, res, path) {
     }
     
     try {
-      const result = await pool.query(
+      const result = await queryWithRetry(
         'SELECT id, email, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1',
         [user.sub || user.id]
       )
@@ -225,7 +266,7 @@ async function handleDbRequest(req, res, table, searchParams) {
         
         console.log('[DB Proxy] SQL:', sql.replace(/\$\d+/g, '?'), 'Values:', values)
         
-        const result = await pool.query(sql, values)
+        const result = await queryWithRetry(sql, values)
         
         if (req.method === 'HEAD') {
           return res.status(200).setHeader('Content-Length', 0).end()
@@ -266,7 +307,7 @@ async function handleDbRequest(req, res, table, searchParams) {
         console.log('[DB Proxy] INSERT SQL:', sql.replace(/\$\d+/g, '?'))
         console.log('[DB Proxy] INSERT Values:', JSON.stringify(values, null, 2))
         
-        const result = await pool.query(sql, values)
+        const result = await queryWithRetry(sql, values)
         return res.status(201).json(result.rows)
       }
       
@@ -306,7 +347,7 @@ async function handleDbRequest(req, res, table, searchParams) {
         
         sql += ` RETURNING *`
         
-        const result = await pool.query(sql, values)
+        const result = await queryWithRetry(sql, values)
         return res.status(200).json(result.rows)
       }
       
@@ -341,7 +382,7 @@ async function handleDbRequest(req, res, table, searchParams) {
         
         sql += ` RETURNING *`
         
-        const result = await pool.query(sql, values)
+        const result = await queryWithRetry(sql, values)
         return res.status(200).json(result.rows)
       }
       
@@ -382,8 +423,27 @@ export default async function handler(req, res) {
     // 处理 RPC 调用
     if (fullPath.startsWith('rest/v1/rpc/')) {
       const functionName = fullPath.replace('rest/v1/rpc/', '')
-      // 这里可以添加 RPC 函数处理
-      return res.status(501).json({ error: 'RPC not implemented', function: functionName })
+      
+      try {
+        const body = req.body || {}
+        const paramNames = Object.keys(body)
+        const paramValues = Object.values(body)
+        
+        const sql = `SELECT * FROM "${functionName}"(${paramNames.map((_, i) => `$${i + 1}`).join(', ')})`
+        
+        console.log('[DB Proxy] RPC SQL:', sql, paramValues)
+        
+        try {
+          const result = await queryWithRetry(sql, paramValues)
+          return res.status(200).json(result.rows)
+        } catch (queryError) {
+          console.error('[DB Proxy] RPC error:', queryError.message)
+          return res.status(500).json({ error: queryError.message })
+        }
+      } catch (error) {
+        console.error('[DB Proxy] RPC setup error:', error.message)
+        return res.status(500).json({ error: error.message })
+      }
     }
     
     // 处理标准 REST API

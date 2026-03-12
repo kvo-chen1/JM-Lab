@@ -1,10 +1,11 @@
 /**
  * 商品卡片组件 V2 - 全新设计
  * 采用文创商城主题，更美观、更高级的视觉设计
+ * 优化：更现代的UI、更流畅的动画、更好的交互体验
  */
 import React, { useState } from 'react';
 import { Product } from '@/services/productService';
-import { Heart, ShoppingCart, Star, Eye } from 'lucide-react';
+import { Heart, ShoppingCart, Star, Eye, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ProductCardV2Props {
@@ -28,14 +29,17 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
-  const discount = product.original_price
+  const discount = product?.original_price && product?.price
     ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
     : 0;
 
-  const handleAddToCart = (e: React.MouseEvent) => {
+  const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    onAddToCart?.(product);
+    setIsAddingToCart(true);
+    await onAddToCart?.(product);
+    setTimeout(() => setIsAddingToCart(false), 500);
   };
 
   const handleToggleFavorite = (e: React.MouseEvent) => {
@@ -57,13 +61,15 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
       <div className="mp-product-image-wrapper">
         {/* 骨架屏 */}
         {!imageLoaded && (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse" />
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+          </div>
         )}
         
-        {product.cover_image ? (
+        {product?.cover_image ? (
           <img
             src={product.cover_image}
-            alt={product.name}
+            alt={product?.name || '商品'}
             className={`mp-product-image transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
             onLoad={() => setImageLoaded(true)}
           />
@@ -89,7 +95,7 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
 
         {/* 热销/新品标签 */}
         <div className="absolute bottom-3 left-3 flex gap-1">
-          {product.is_hot && (
+          {product?.is_hot && (
             <motion.span
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -98,7 +104,7 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
               热销
             </motion.span>
           )}
-          {product.is_new && (
+          {product?.is_new && (
             <motion.span
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -110,75 +116,86 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
           )}
         </div>
 
-        {/* 收藏按钮 */}
-        {showFavorite && (
+        {/* 快速操作按钮组 */}
+        <div className="mp-product-actions">
+          {/* 收藏按钮 */}
+          {showFavorite && (
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handleToggleFavorite}
+              className={`mp-product-action-btn ${isFavorite ? 'active' : ''}`}
+            >
+              <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
+            </motion.button>
+          )}
+          
+          {/* 快速预览按钮 */}
           <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={handleToggleFavorite}
-            className={`mp-product-favorite ${isFavorite ? 'bg-red-500 text-white' : 'bg-white/90 text-gray-400 hover:text-red-500'}`}
+            className="mp-product-action-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick?.(product);
+            }}
           >
-            <Heart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
+            <Eye className="w-4 h-4" />
           </motion.button>
-        )}
+        </div>
 
-        {/* 快速操作遮罩 */}
-        <AnimatePresence>
-          {isHovered && (
+        {/* 快速加购按钮 */}
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={handleAddToCart}
+          disabled={isAddingToCart}
+          className="mp-product-quick-add"
+        >
+          {isAddingToCart ? (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end justify-center pb-4"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 0.5, repeat: Infinity, ease: 'linear' }}
             >
-              <motion.button
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 20, opacity: 0 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleAddToCart}
-                className="mp-btn mp-btn-primary mp-btn-sm flex items-center gap-2"
-              >
-                <ShoppingCart className="w-4 h-4" />
-                加入购物车
-              </motion.button>
+              <Plus className="w-5 h-5" />
             </motion.div>
+          ) : (
+            <Plus className="w-5 h-5" />
           )}
-        </AnimatePresence>
+        </motion.button>
       </div>
 
       {/* 商品信息区域 */}
       <div className="mp-product-info">
         {/* 品牌 */}
-        {product.brand && (
+        {product?.brand && (
           <p className="mp-product-brand">{product.brand.name}</p>
         )}
 
         {/* 商品名称 */}
-        <h3 className="mp-product-name group-hover:text-[var(--haihe-500)]">
-          {product.name}
+        <h3 className="mp-product-name">
+          {product?.name || '未知商品'}
         </h3>
 
         {/* 评分 */}
-        {(product.average_rating ?? 0) > 0 && (
+        {(product?.average_rating ?? 0) > 0 && (
           <div className="mp-product-rating">
             <div className="flex items-center">
               {[...Array(5)].map((_, i) => (
                 <Star
                   key={i}
                   className={`w-3 h-3 ${
-                    i < Math.floor(product.average_rating || 0)
+                    i < Math.floor(product?.average_rating || 0)
                       ? 'fill-yellow-400 text-yellow-400'
                       : 'fill-gray-200 text-gray-200'
                   }`}
                 />
               ))}
             </div>
-            <span className="text-xs text-gray-500">{product.average_rating}</span>
-            <span className="text-xs text-gray-400">({product.review_count || 0})</span>
+            <span className="text-xs text-gray-500 font-medium">{product?.average_rating}</span>
+            <span className="text-xs text-gray-400">({product?.review_count || 0})</span>
           </div>
         )}
 
@@ -186,17 +203,17 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
         <div className="flex items-center justify-between">
           <div className="mp-product-price">
             <span className="mp-product-price-current">
-              ¥{product.price.toLocaleString()}
+              ¥{((product?.price) || 0).toLocaleString()}
             </span>
-            {product.original_price && (
+            {product?.original_price && (
               <span className="mp-product-price-original">
-                ¥{product.original_price.toLocaleString()}
+                ¥{((product?.original_price) || 0).toLocaleString()}
               </span>
             )}
           </div>
           <div className="flex items-center gap-1 text-xs text-gray-400">
             <Eye className="w-3 h-3" />
-            <span>{product.sold_count || 0}人付款</span>
+            <span>{product?.sold_count || 0}人付款</span>
           </div>
         </div>
       </div>

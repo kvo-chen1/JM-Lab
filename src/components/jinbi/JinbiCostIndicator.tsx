@@ -91,7 +91,7 @@ export const JinbiCostIndicator: React.FC<JinbiCostIndicatorProps> = ({
           <AlertCircle size={iconSizes[size]} className="text-rose-500" />
         )}
         <Coins size={iconSizes[size]} className={hasEnough ? 'text-amber-500' : 'text-rose-400'} />
-        <span>{cost.toLocaleString()} 津币</span>
+        <span>{(cost || 0).toLocaleString()} 津币</span>
         {!hasEnough && <span className="text-xs opacity-70">(余额不足)</span>}
       </motion.div>
 

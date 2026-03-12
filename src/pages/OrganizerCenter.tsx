@@ -17,6 +17,7 @@ import OrganizerSettings from './organizer/OrganizerSettings';
 import MobileOrganizerCenter from './organizer/MobileOrganizerCenter';
 import BrandTaskManager from './organizer/BrandTaskManager';
 import FundManagement from './organizer/FundManagement';
+import CommercialOpportunityManager from './organizer/CommercialOpportunityManager';
 import { StepIndicator } from '@/components/StepIndicator';
 import { InfoCard, StatCard } from '@/components/InfoCard';
 import { EventPreview } from '@/components/EventPreview';
@@ -66,7 +67,8 @@ import {
   Heart,
   Trophy,
   Gift,
-  Target
+  Target,
+  Briefcase
 } from 'lucide-react';
 
 // 自定义 hook 用于检测移动端
@@ -89,7 +91,7 @@ function useIsMobile() {
 // 活动状态筛选类型
 type StatusFilter = 'all' | 'draft' | 'pending' | 'published' | 'rejected';
 type ViewMode = 'list' | 'grid';
-type TabType = 'activities' | 'create' | 'works' | 'analytics' | 'settings' | 'brand-tasks' | 'funds';
+type TabType = 'activities' | 'create' | 'works' | 'analytics' | 'settings' | 'brand-tasks' | 'funds' | 'commercial-opportunities';
 type StepType = 'basic' | 'type' | 'content' | 'media' | 'prizes' | 'settings' | 'preview';
 
 // 状态配置
@@ -132,7 +134,7 @@ export default function OrganizerCenter() {
   const [showBrandSwitch, setShowBrandSwitch] = useState(false);
 
   // 当前标签页 - 从 URL 查询参数中读取，默认为 'activities'
-  const validTabs: TabType[] = ['activities', 'create', 'works', 'brand-tasks', 'analytics', 'settings', 'funds'];
+  const validTabs: TabType[] = ['activities', 'create', 'works', 'brand-tasks', 'analytics', 'settings', 'funds', 'commercial-opportunities'];
   const tabFromUrl = searchParams.get('tab') as TabType;
   const [activeTab, setActiveTab] = useState<TabType>(
     validTabs.includes(tabFromUrl) ? tabFromUrl : 'activities'
@@ -1244,6 +1246,7 @@ export default function OrganizerCenter() {
     { id: 'create' as TabType, label: '创建活动', icon: Plus },
     { id: 'works' as TabType, label: '作品评分', icon: Trophy },
     { id: 'brand-tasks' as TabType, label: '品牌任务', icon: Target },
+    { id: 'commercial-opportunities' as TabType, label: '商业机会', icon: Briefcase },
     { id: 'analytics' as TabType, label: '数据分析', icon: BarChart3 },
     { id: 'settings' as TabType, label: '主办方设置', icon: Settings },
   ];
@@ -2731,6 +2734,19 @@ export default function OrganizerCenter() {
               className="h-[calc(100vh-200px)]"
             >
               <FundManagement />
+            </motion.div>
+          )}
+
+          {/* 商业机会标签 */}
+          {activeTab === 'commercial-opportunities' && (
+            <motion.div
+              key="commercial-opportunities"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <CommercialOpportunityManager />
             </motion.div>
           )}
         </AnimatePresence>

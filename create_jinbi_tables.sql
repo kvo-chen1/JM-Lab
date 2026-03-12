@@ -210,5 +210,7 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS total_jinbi_spent INTEGER DEFA
 -- 修改 membership_orders 表
 ALTER TABLE public.membership_orders ADD COLUMN IF NOT EXISTS jinbi_granted INTEGER DEFAULT 0;
 ALTER TABLE public.membership_orders ADD COLUMN IF NOT EXISTS jinbi_bonus INTEGER DEFAULT 0;
+ALTER TABLE public.membership_orders ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT NULL;
+ALTER TABLE public.membership_orders ADD COLUMN IF NOT EXISTS payment_data JSONB DEFAULT NULL;
 
 SELECT '津币系统表创建成功' as status;

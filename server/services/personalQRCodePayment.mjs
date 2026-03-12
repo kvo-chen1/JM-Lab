@@ -173,9 +173,10 @@ class PersonalQRCodePaymentService {
         throw new Error('订单状态不正确');
       }
 
-      // 更新 metadata
+      // 更新 metadata（确保 metadata 不为 null）
+      const currentMetadata = order.metadata || {};
       const updatedMetadata = {
-        ...order.metadata,
+        ...currentMetadata,
         payment_proof: {
           transactionId,
           screenshotUrl,
@@ -230,9 +231,10 @@ class PersonalQRCodePaymentService {
         throw new Error('订单不存在');
       }
 
-      // 更新 metadata
+      // 更新 metadata（确保 metadata 不为 null）
+      const currentMetadata = order.metadata || {};
       const updatedMetadata = {
-        ...order.metadata,
+        ...currentMetadata,
         verified_by: adminId,
         verified_at: new Date().toISOString(),
         notes: notes || (verified ? '审核通过' : '审核未通过'),

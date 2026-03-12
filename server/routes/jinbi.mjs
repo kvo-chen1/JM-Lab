@@ -465,6 +465,137 @@ export async function getJinbiStats(req, res) {
 }
 
 /**
+ * 充值津币
+ * POST /api/jinbi/recharge
+ */
+export async function rechargeJinbi(req, res) {
+  try {
+    const user = await authenticateUser(req);
+    if (!user) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: '未登录' }));
+      return;
+    }
+
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+
+    req.on('end', async () => {
+      try {
+        const { packageId, amount, jinbiAmount, paymentMethod } = JSON.parse(body);
+
+        if (!packageId || !amount || amount <= 0 || !jinbiAmount) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: '参数错误' }));
+          return;
+        }
+
+        // 获取用户ID (Supabase token 使用 sub 字段)
+        const userId = user.userId || user.sub || user.id;
+        if (!userId) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: '无法获取用户ID' }));
+          return;
+        }
+
+        // 1. 获取当前余额
+        const { data: balanceData } = await supabaseServer
+          .from('user_jinbi_balance')
+          .select('total_balance')
+          .eq('user_id', userId)
+          .single();
+
+        const currentBalance = balanceData?.total_balance || 0;
+        const newBalance = currentBalance + jinbiAmount;
+
+        // 2. 创建充值记录
+        const { data: record, error: recordError } = await supabaseServer
+          .from('jinbi_records')
+          .insert({
+            user_id: userId,
+            amount: jinbiAmount,
+            type: 'purchase',
+            source: paymentMethod || 'unknown',
+            description: `充值 ${jinbiAmount} 津币`,
+            balance_after: newBalance,
+            related_id: null, // packageId 不是 UUID，存入 metadata
+            related_type: 'jinbi_package',
+            metadata: JSON.stringify({
+              paymentMethod,
+              price: amount,
+              packageId,
+            }),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (recordError) throw recordError;
+
+        // 3. 更新余额 - 先尝试更新，如果不存在则插入
+        const { data: existingBalance, error: checkError } = await supabaseServer
+          .from('user_jinbi_balance')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        let updateError;
+        if (existingBalance) {
+          // 更新现有记录
+          const { error } = await supabaseServer
+            .from('user_jinbi_balance')
+            .update({
+              total_balance: newBalance,
+              available_balance: newBalance,
+              total_earned: (existingBalance.total_earned || 0) + jinbiAmount,
+              last_updated: new Date().toISOString(),
+            })
+            .eq('user_id', userId);
+          updateError = error;
+        } else {
+          // 插入新记录
+          const { error } = await supabaseServer
+            .from('user_jinbi_balance')
+            .insert({
+              user_id: userId,
+              total_balance: newBalance,
+              available_balance: newBalance,
+              total_earned: jinbiAmount,
+              total_consumed: 0,
+              frozen_balance: 0,
+              last_updated: new Date().toISOString(),
+            });
+          updateError = error;
+        }
+
+        if (updateError) throw updateError;
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          data: {
+            recordId: record.id,
+            amount: jinbiAmount,
+            newBalance,
+          }
+        }));
+      } catch (error) {
+        console.error('[Jinbi] Recharge error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: '充值失败' }));
+      }
+    });
+  } catch (error) {
+    console.error('[Jinbi] Recharge error:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: '充值失败' }));
+  }
+}
+
+/**
  * 津币路由处理器
  */
 export default async function jinbiRoutes(req, res) {
@@ -516,6 +647,11 @@ export default async function jinbiRoutes(req, res) {
 
   if (pathname === '/api/jinbi/stats' && method === 'GET') {
     await getJinbiStats(req, res);
+    return;
+  }
+
+  if (pathname === '/api/jinbi/recharge' && method === 'POST') {
+    await rechargeJinbi(req, res);
     return;
   }
 

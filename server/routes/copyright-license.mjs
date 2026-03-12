@@ -297,11 +297,36 @@ async function getApplicationById(req, res, id) {
 async function approveApplication(req, res, id) {
   try {
     const body = await readBody(req);
+    console.log('[approveApplication] 收到请求:', { id, body });
+
     const { actualLicenseFee, revenueShareRate, licenseStartDate, licenseEndDate, brandResponse } = body;
 
+    // 验证必要参数（允许 0 作为有效值，但不能是 undefined 或 null）
+    if (actualLicenseFee === undefined || actualLicenseFee === null ||
+        revenueShareRate === undefined || revenueShareRate === null) {
+      return sendJson(res, 400, { error: '缺少必要参数: actualLicenseFee 或 revenueShareRate' });
+    }
+
+    // 将日期字符串转换为 PostgreSQL timestamp 格式
+    // 前端传入的是 YYYY-MM-DD 格式，需要转换为带时区的完整时间戳
+    const formatDateForPostgres = (dateStr) => {
+      if (!dateStr) return null;
+      // 如果已经是完整的时间戳格式，直接返回
+      if (dateStr.includes('T') || dateStr.includes(' ')) {
+        return dateStr;
+      }
+      // 将 YYYY-MM-DD 转换为 YYYY-MM-DD 00:00:00+00
+      return `${dateStr} 00:00:00+00`;
+    };
+
+    const formattedStartDate = formatDateForPostgres(licenseStartDate);
+    const formattedEndDate = formatDateForPostgres(licenseEndDate);
+
     const db = await getDB();
+    console.log('[approveApplication] 执行更新，参数:', [actualLicenseFee, revenueShareRate, formattedStartDate, formattedEndDate, brandResponse, id]);
+
     const result = await db.query(
-      `UPDATE copyright_applications 
+      `UPDATE copyright_applications
        SET status = 'approved',
            actual_license_fee = $1,
            revenue_share_rate = $2,
@@ -311,8 +336,10 @@ async function approveApplication(req, res, id) {
            reviewed_at = NOW()
        WHERE id = $6
        RETURNING *`,
-      [actualLicenseFee, revenueShareRate, licenseStartDate, licenseEndDate, brandResponse, id]
+      [actualLicenseFee, revenueShareRate, formattedStartDate, formattedEndDate, brandResponse, id]
     );
+
+    console.log('[approveApplication] 更新结果:', result.rows.length > 0 ? '成功' : '未找到记录');
 
     if (result.rows.length === 0) {
       return sendJson(res, 404, { error: '申请不存在' });
@@ -320,8 +347,9 @@ async function approveApplication(req, res, id) {
 
     sendJson(res, 200, toCamelCase(result.rows[0]));
   } catch (error) {
-    console.error('同意授权申请失败:', error);
-    sendJson(res, 500, { error: '同意授权申请失败' });
+    console.error('[approveApplication] 同意授权申请失败:', error);
+    console.error('[approveApplication] 错误详情:', error.message);
+    sendJson(res, 500, { error: '同意授权申请失败: ' + error.message });
   }
 }
 
@@ -577,13 +605,13 @@ async function submitApplication(req, res) {
     // 获取用户信息
     const db = await getDB();
     const userResult = await db.query(
-      'SELECT username, nickname FROM users WHERE id = $1',
+      'SELECT username, display_name FROM users WHERE id = $1',
       [userId]
     );
-    
-    const userName = applicantName || 
-                     (userResult.rows[0]?.nickname) || 
-                     (userResult.rows[0]?.username) || 
+
+    const userName = applicantName ||
+                     (userResult.rows[0]?.display_name) ||
+                     (userResult.rows[0]?.username) ||
                      '未知用户';
 
     console.log('[submitApplication] 提交申请:', { 

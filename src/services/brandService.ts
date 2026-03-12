@@ -88,28 +88,26 @@ export async function getBrands(
   } = {}
 ): Promise<{ data?: Brand[]; count?: number; error?: string }> {
   try {
-    let query = supabase.from('brands').select('*', { count: 'exact' });
+    // 构建查询参数
+    const params = new URLSearchParams();
+    if (options.status) params.append('status', options.status);
+    if (options.category) params.append('category', options.category);
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.offset) params.append('offset', options.offset.toString());
 
-    if (options.status) {
-      query = query.eq('status', options.status);
+    // 使用本地 API 而不是 Supabase
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const response = await fetch(`/api/brand/brands?${params}`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
     }
 
-    if (options.category) {
-      query = query.eq('category', options.category);
-    }
-
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-
-    if (options.offset) {
-      query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
-    }
-
-    const { data, error, count } = await query.order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return { data: data || [], count: count || 0 };
+    const result = await response.json();
+    return { data: result.data || [], count: result.data?.length || 0 };
   } catch (err: any) {
     console.error('获取品牌方列表失败:', err);
     return { error: err.message || '获取品牌方列表失败' };
@@ -192,40 +190,27 @@ export async function getAuthorizations(
   } = {}
 ): Promise<{ data?: BrandAuthorization[]; count?: number; error?: string }> {
   try {
-    let query = supabase.from('brand_authorizations').select(
-      `
-        *,
-        brand:brands(*),
-        ip_asset:ip_assets(id, name, thumbnail),
-        applicant:applicant_id(id, username, avatar_url)
-      `,
-      { count: 'exact' }
-    );
+    // 构建查询参数
+    const params = new URLSearchParams();
+    if (options.applicant_id) params.append('applicant_id', options.applicant_id);
+    if (options.brand_id) params.append('brand_id', options.brand_id);
+    if (options.status) params.append('status', options.status);
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.offset) params.append('offset', options.offset.toString());
 
-    if (options.applicant_id) {
-      query = query.eq('applicant_id', options.applicant_id);
+    // 使用本地 API 而不是 Supabase
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const response = await fetch(`/api/brand/authorizations?${params}`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
     }
 
-    if (options.brand_id) {
-      query = query.eq('brand_id', options.brand_id);
-    }
-
-    if (options.status) {
-      query = query.eq('status', options.status);
-    }
-
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-
-    if (options.offset) {
-      query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
-    }
-
-    const { data, error, count } = await query.order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return { data: data || [], count: count || 0 };
+    const result = await response.json();
+    return { data: result.data || [], count: result.data?.length || 0 };
   } catch (err: any) {
     console.error('获取授权申请列表失败:', err);
     return { error: err.message || '获取授权申请列表失败' };

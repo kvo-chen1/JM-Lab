@@ -285,7 +285,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               <TrendingUp className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
               <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>本月收入</p>
               <p className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                +{stats.jinbi.earned.toLocaleString()}
+                +{(stats?.jinbi?.earned || 0).toLocaleString()}
               </p>
             </div>
             <div className={`
@@ -295,7 +295,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               <TrendingDown className="w-4 h-4 text-rose-500 mx-auto mb-1" />
               <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>本月支出</p>
               <p className={`font-bold ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
-                -{stats.jinbi.spent.toLocaleString()}
+                -{(stats?.jinbi?.spent || 0).toLocaleString()}
               </p>
             </div>
             <div className={`
@@ -304,8 +304,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             `}>
               <Wallet className="w-4 h-4 text-amber-500 mx-auto mb-1" />
               <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>净变化</p>
-              <p className={`font-bold ${stats.jinbi.netChange >= 0 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-rose-400' : 'text-rose-600')}`}>
-                {stats.jinbi.netChange >= 0 ? '+' : ''}{stats.jinbi.netChange.toLocaleString()}
+              <p className={`font-bold ${(stats?.jinbi?.netChange || 0) >= 0 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-rose-400' : 'text-rose-600')}`}>
+                {(stats?.jinbi?.netChange || 0) >= 0 ? '+' : ''}{(stats?.jinbi?.netChange || 0).toLocaleString()}
               </p>
             </div>
           </div>

@@ -1,6 +1,7 @@
 /**
- * 右侧边栏组件
+ * 右侧边栏组件 V2 - 全新设计
  * 包含购物车预览、我的收藏、浏览历史、促销活动等
+ * 优化：更现代的UI、更好的空状态设计、更丰富的交互
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +14,10 @@ import {
   ChevronRight,
   Trash2,
   TrendingUp,
-  Gift
+  Gift,
+  Package,
+  ShoppingBag,
+  ArrowRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Product } from '@/services/productService';
@@ -48,13 +52,18 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   const navigate = useNavigate();
 
   // 计算购物车总价
-  const cartTotal = cartItems.reduce((sum, item) => 
-    sum + (item.product.price * item.quantity), 0
-  );
+  const cartTotal = cartItems.reduce((sum, item) => {
+    const price = item?.product?.price ?? 0;
+    const quantity = item?.quantity ?? 1;
+    return sum + (price * quantity);
+  }, 0);
+
+  // 计算购物车商品总数
+  const cartItemCount = cartItems.reduce((sum, item) => sum + (item?.quantity || 1), 0);
 
   return (
     <div className="space-y-4">
-      {/* 购物车预览 */}
+      {/* 购物车预览 - 新设计 */}
       <motion.div
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
@@ -63,97 +72,110 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--haihe-500)] to-[var(--haihe-600)] flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-sky-500/20">
               <ShoppingCart className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
             </div>
-            <h3 className="font-semibold text-[var(--text-primary)]">购物车</h3>
+            <h3 className="font-semibold text-gray-900">购物车</h3>
           </div>
-          <span className="text-xs text-[var(--text-muted)]">
-            {cartItems.length} 件商品
-          </span>
+          {cartItemCount > 0 && (
+            <span className="text-xs font-medium px-2 py-1 bg-sky-100 text-sky-700 rounded-full">
+              {cartItemCount} 件商品
+            </span>
+          )}
         </div>
 
         {cartItems.length > 0 ? (
           <>
-            <div className="space-y-3 max-h-[200px] overflow-y-auto">
-              {cartItems.slice(0, 4).map((item, index) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + index * 0.05 }}
-                  className="flex gap-3 p-2 rounded-lg bg-[var(--bg-tertiary)] group"
-                >
-                  <div className="w-12 h-12 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
-                    {item.product.cover_image ? (
-                      <img
-                        src={item.product.cover_image}
-                        alt={item.product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-                        无图
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-[var(--text-primary)] truncate">
-                      {item.product.name}
-                    </p>
-                    <p className="text-xs text-[var(--haihe-500)] font-medium">
-                      ¥{item.product.price.toLocaleString()}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => onRemoveFromCart?.(item.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-500"
+            <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1">
+              {cartItems.slice(0, 4).map((item, index) => {
+                if (!item?.product) return null;
+                return (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 + index * 0.05 }}
+                    className="flex gap-3 p-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group"
                   >
-                    <Trash2 className="w-3 h-3 flex-shrink-0" strokeWidth={2.5} />
-                  </button>
-                </motion.div>
-              ))}
+                    <div className="w-14 h-14 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
+                      {item.product?.cover_image ? (
+                        <img
+                          src={item.product.cover_image}
+                          alt={item.product.name || '商品'}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <Package className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900 truncate font-medium">
+                        {item.product?.name || '未知商品'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-sm font-semibold text-sky-600">
+                          ¥{((item.product?.price) || 0).toLocaleString()}
+                        </span>
+                        <span className="text-xs text-gray-400">x{item?.quantity || 1}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onRemoveFromCart?.(item.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                    >
+                      <Trash2 className="w-4 h-4" strokeWidth={2} />
+                    </button>
+                  </motion.div>
+                );
+              })}
             </div>
             
             {cartItems.length > 4 && (
-              <p className="text-xs text-[var(--text-muted)] text-center py-2">
+              <p className="text-xs text-gray-400 text-center py-2">
                 还有 {cartItems.length - 4} 件商品...
               </p>
             )}
 
-            <div className="border-t border-[var(--border-primary)] pt-3 mt-3">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-sm text-[var(--text-secondary)]">合计</span>
-                <span className="text-lg font-bold text-[var(--haihe-500)]">
-                  ¥{cartTotal.toLocaleString()}
+            <div className="border-t border-gray-100 pt-4 mt-4">
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-sm text-gray-600">合计</span>
+                <span className="text-xl font-bold text-sky-600">
+                  ¥{(cartTotal || 0).toLocaleString()}
                 </span>
               </div>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => navigate('/marketplace/cart')}
-                className="mp-btn mp-btn-primary w-full mp-btn-sm"
+                className="w-full py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-medium rounded-xl shadow-lg shadow-sky-500/25 hover:shadow-xl transition-all flex items-center justify-center gap-2"
               >
                 去结算
-                <ChevronRight className="w-4 h-4 flex-shrink-0" strokeWidth={2.5} />
-              </button>
+                <ArrowRight className="w-4 h-4" />
+              </motion.button>
             </div>
           </>
         ) : (
-          <div className="text-center py-6">
-            <div className="w-12 h-12 mx-auto rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center mb-2">
-              <ShoppingCart className="w-6 h-6 text-[var(--text-muted)] flex-shrink-0" strokeWidth={2} />
+          <div className="text-center py-8">
+            <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mb-3">
+              <ShoppingBag className="w-8 h-8 text-gray-300" strokeWidth={1.5} />
             </div>
-            <p className="text-sm text-[var(--text-muted)]">购物车是空的</p>
-            <button
+            <p className="text-sm text-gray-500 mb-1">购物车是空的</p>
+            <p className="text-xs text-gray-400 mb-4">快去挑选心仪的商品吧</p>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigate('/marketplace')}
-              className="mp-btn mp-btn-secondary mp-btn-sm mt-3"
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
             >
               去逛逛
-            </button>
+            </motion.button>
           </div>
         )}
       </motion.div>
 
-      {/* 我的收藏 */}
+      {/* 我的收藏 - 新设计 */}
       {favoriteProducts.length > 0 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -163,21 +185,23 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-400 to-pink-600 flex items-center justify-center flex-shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-pink-500/20">
                 <Heart className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
               </div>
-              <h3 className="font-semibold text-[var(--text-primary)]">我的收藏</h3>
+              <h3 className="font-semibold text-gray-900">我的收藏</h3>
             </div>
-            <button
+            <motion.button
+              whileHover={{ x: 2 }}
               onClick={() => navigate('/favorites')}
-              className="text-xs text-[var(--haihe-500)] hover:underline"
+              className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-0.5"
             >
               查看全部
-            </button>
+              <ChevronRight className="w-3 h-3" />
+            </motion.button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            {favoriteProducts.slice(0, 4).map((product, index) => (
+          <div className="grid grid-cols-2 gap-3">
+            {favoriteProducts.filter(p => p && p.id).slice(0, 4).map((product, index) => (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -186,24 +210,24 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 onClick={() => navigate(`/marketplace/product/${product.id}`)}
                 className="cursor-pointer group"
               >
-                <div className="aspect-square rounded-lg bg-gray-200 overflow-hidden mb-1">
-                  {product.cover_image ? (
+                <div className="aspect-square rounded-xl bg-gray-100 overflow-hidden mb-2">
+                  {product?.cover_image ? (
                     <img
                       src={product.cover_image}
-                      alt={product.name}
+                      alt={product?.name || '商品'}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-                      无图
+                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+                      <Package className="w-6 h-6" />
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-[var(--text-primary)] truncate">
-                  {product.name}
+                <p className="text-xs text-gray-700 truncate font-medium group-hover:text-sky-600 transition-colors">
+                  {product?.name || '未知商品'}
                 </p>
-                <p className="text-xs text-[var(--haihe-500)] font-medium">
-                  ¥{product.price.toLocaleString()}
+                <p className="text-xs font-semibold text-sky-600 mt-0.5">
+                  ¥{((product?.price) || 0).toLocaleString()}
                 </p>
               </motion.div>
             ))}
@@ -211,71 +235,19 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         </motion.div>
       )}
 
-      {/* 浏览历史 */}
-      {recentlyViewed.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mp-sidebar-card"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center flex-shrink-0">
-              <Clock className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
-            </div>
-            <h3 className="font-semibold text-[var(--text-primary)]">浏览历史</h3>
-          </div>
-
-          <div className="space-y-2">
-            {recentlyViewed.slice(0, 3).map((product, index) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + index * 0.05 }}
-                onClick={() => navigate(`/marketplace/product/${product.id}`)}
-                className="flex gap-3 p-2 rounded-lg hover:bg-[var(--bg-tertiary)] cursor-pointer transition-colors"
-              >
-                <div className="w-14 h-14 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
-                  {product.cover_image ? (
-                    <img
-                      src={product.cover_image}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-                      无图
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[var(--text-primary)] line-clamp-2">
-                    {product.name}
-                  </p>
-                  <p className="text-xs text-[var(--haihe-500)] font-medium mt-1">
-                    ¥{product.price.toLocaleString()}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* 促销活动 */}
+      {/* 促销活动 - 新设计 */}
       {promotions.length > 0 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mp-sidebar-card bg-gradient-to-br from-[var(--jinmen-50)] to-[var(--jinmen-100)] border-[var(--jinmen-200)]"
+          transition={{ delay: 0.3 }}
+          className="mp-sidebar-card bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100"
         >
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--jinmen-500)] to-[var(--jinmen-600)] flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/20">
               <Gift className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
             </div>
-            <h3 className="font-semibold text-[var(--text-primary)]">限时促销</h3>
+            <h3 className="font-semibold text-gray-900">限时促销</h3>
           </div>
 
           <div className="space-y-3">
@@ -284,24 +256,25 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 key={promo.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 + index * 0.05 }}
-                className="p-3 rounded-lg bg-white/80 border border-[var(--jinmen-200)]"
+                transition={{ delay: 0.3 + index * 0.05 }}
+                className="p-3 rounded-xl bg-white/80 border border-amber-100 shadow-sm"
               >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold text-[var(--text-primary)]">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-semibold text-gray-900">
                     {promo.title}
                   </span>
-                  <span className="px-2 py-0.5 text-xs font-bold text-white bg-[var(--jinmen-500)] rounded-full">
+                  <span className="px-2 py-0.5 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-full shadow-sm">
                     {promo.discount}
                   </span>
                 </div>
-                <p className="text-xs text-[var(--text-secondary)] mb-2">
+                <p className="text-xs text-gray-600 mb-2">
                   {promo.description}
                 </p>
                 {promo.endTime && (
-                  <p className="text-xs text-[var(--jinmen-600)]">
-                    截止: {promo.endTime}
-                  </p>
+                  <div className="flex items-center gap-1 text-xs text-amber-600">
+                    <Clock className="w-3 h-3" />
+                    <span>截止: {promo.endTime}</span>
+                  </div>
                 )}
               </motion.div>
             ))}
@@ -309,55 +282,55 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         </motion.div>
       )}
 
-      {/* 为你推荐 */}
+      {/* 为你推荐 - 新设计 */}
       {recommendedProducts.length > 0 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.4 }}
           className="mp-sidebar-card"
         >
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-purple-500/20">
               <Sparkles className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
             </div>
-            <h3 className="font-semibold text-[var(--text-primary)]">为你推荐</h3>
+            <h3 className="font-semibold text-gray-900">为你推荐</h3>
           </div>
 
           <div className="space-y-3">
-            {recommendedProducts.slice(0, 3).map((product, index) => (
+            {recommendedProducts.filter(p => p && p.id).slice(0, 3).map((product, index) => (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 + index * 0.05 }}
+                transition={{ delay: 0.4 + index * 0.05 }}
                 onClick={() => navigate(`/marketplace/product/${product.id}`)}
-                className="flex gap-3 p-2 rounded-lg hover:bg-[var(--bg-tertiary)] cursor-pointer transition-colors"
+                className="flex gap-3 p-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors group"
               >
-                <div className="w-14 h-14 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
-                  {product.cover_image ? (
+                <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+                  {product?.cover_image ? (
                     <img
                       src={product.cover_image}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
+                      alt={product?.name || '商品'}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-                      无图
+                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+                      <Package className="w-5 h-5" />
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[var(--text-primary)] line-clamp-2">
-                    {product.name}
+                  <p className="text-sm text-gray-900 font-medium line-clamp-2 group-hover:text-sky-600 transition-colors">
+                    {product?.name || '未知商品'}
                   </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <p className="text-xs text-[var(--haihe-500)] font-medium">
-                      ¥{product.price.toLocaleString()}
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <p className="text-sm font-bold text-sky-600">
+                      ¥{((product?.price) || 0).toLocaleString()}
                     </p>
-                    {product.original_price && (
-                      <p className="text-xs text-[var(--text-muted)] line-through">
-                        ¥{product.original_price.toLocaleString()}
+                    {product?.original_price && (
+                      <p className="text-xs text-gray-400 line-through">
+                        ¥{((product?.original_price) || 0).toLocaleString()}
                       </p>
                     )}
                   </div>
@@ -368,36 +341,36 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         </motion.div>
       )}
 
-      {/* 平台统计 */}
+      {/* 平台统计 - 新设计 */}
       <motion.div
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.6 }}
+        transition={{ delay: 0.5 }}
         className="mp-sidebar-card"
       >
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/20">
             <TrendingUp className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2.5} />
           </div>
-          <h3 className="font-semibold text-[var(--text-primary)]">平台动态</h3>
+          <h3 className="font-semibold text-gray-900">平台动态</h3>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="text-center p-3 rounded-lg bg-[var(--bg-tertiary)]">
-            <p className="text-lg font-bold text-[var(--haihe-500)]">1,234</p>
-            <p className="text-xs text-[var(--text-muted)]">在售商品</p>
+          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-100">
+            <p className="text-xl font-bold text-sky-600">1,234</p>
+            <p className="text-xs text-gray-500 mt-0.5">在售商品</p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-[var(--bg-tertiary)]">
-            <p className="text-lg font-bold text-[var(--jinmen-500)]">56</p>
-            <p className="text-xs text-[var(--text-muted)]">入驻品牌</p>
+          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100">
+            <p className="text-xl font-bold text-amber-600">56</p>
+            <p className="text-xs text-gray-500 mt-0.5">入驻品牌</p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-[var(--bg-tertiary)]">
-            <p className="text-lg font-bold text-green-500">8,888</p>
-            <p className="text-xs text-[var(--text-muted)]">累计订单</p>
+          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
+            <p className="text-xl font-bold text-emerald-600">8,888</p>
+            <p className="text-xs text-gray-500 mt-0.5">累计订单</p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-[var(--bg-tertiary)]">
-            <p className="text-lg font-bold text-purple-500">99%</p>
-            <p className="text-xs text-[var(--text-muted)]">好评率</p>
+          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100">
+            <p className="text-xl font-bold text-purple-600">99%</p>
+            <p className="text-xs text-gray-500 mt-0.5">好评率</p>
           </div>
         </div>
       </motion.div>

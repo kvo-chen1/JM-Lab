@@ -1054,7 +1054,7 @@ export default function ChatPanel() {
   };
 
   return (
-    <div className={`flex flex-col h-full ${isDark ? 'bg-gray-900/50' : 'bg-white/50'}`}>
+    <div className={`flex flex-col h-full ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
       {/* Agent Switcher Modal */}
       <AgentSwitcher
         fromAgent={switcherFromAgent}

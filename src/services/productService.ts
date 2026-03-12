@@ -164,6 +164,7 @@ export async function getProducts(
   } = {}
 ): Promise<{ data?: Product[]; count?: number; error?: string }> {
   try {
+    console.log('[getMerchantProducts] 开始查询，参数:', options);
     let query = supabase.from('product_details').select('*', { count: 'exact' });
 
     if (options.categoryId) {
@@ -218,7 +219,7 @@ export async function getProducts(
           query = query.order('view_count', { ascending: false });
           break;
         case 'sales':
-          query = query.order('sold_count', { ascending: false });
+          query = query.order('sales_count', { ascending: false });
           break;
       }
     } else {
@@ -261,7 +262,7 @@ export async function getMerchantProducts(
   } = {}
 ): Promise<{ data?: Product[]; count?: number; error?: string }> {
   try {
-    let query = supabase.from('merchant_product_details').select('*', { count: 'exact' });
+    let query = supabase.from('product_details').select('*', { count: 'exact' });
 
     if (options.categoryId) {
       query = query.eq('category_id', options.categoryId);
@@ -315,7 +316,7 @@ export async function getMerchantProducts(
           query = query.order('view_count', { ascending: false });
           break;
         case 'sales':
-          query = query.order('sold_count', { ascending: false });
+          query = query.order('sales_count', { ascending: false });
           break;
       }
     } else {
@@ -332,10 +333,12 @@ export async function getMerchantProducts(
 
     const { data, error, count } = await query;
 
+    console.log('[getMerchantProducts] 查询结果:', { data, error, count });
+
     if (error) throw error;
     return { data: data || [], count: count || 0 };
   } catch (err: any) {
-    console.error('获取商家商品列表失败:', err);
+    console.error('[getMerchantProducts] 获取失败:', err);
     return { error: err.message || '获取商家商品列表失败' };
   }
 }
@@ -608,18 +611,39 @@ export async function createProductReview(
 // 获取用户收藏
 export async function getUserFavorites(userId: string): Promise<{ data?: Product[]; error?: string }> {
   try {
-    const { data, error } = await supabase
+    // 先获取用户的收藏列表
+    const { data: favorites, error: favoritesError } = await supabase
       .from('user_favorites')
-      .select(
-        `
-        product:products(*, brand:brands(id, name, logo))
-      `
-      )
+      .select('product_id')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return { data: data?.map((item: any) => item.product) || [] };
+    if (favoritesError) throw favoritesError;
+    if (!favorites || favorites.length === 0) {
+      return { data: [] };
+    }
+
+    // 获取所有收藏的产品ID
+    const productIds = favorites.map((f: any) => f.product_id);
+
+    // 单独查询产品详情
+    const { data: products, error: productsError } = await supabase
+      .from('products')
+      .select(`
+        *,
+        brand:brands(id, name, logo)
+      `)
+      .in('id', productIds);
+
+    if (productsError) throw productsError;
+
+    // 按照收藏顺序排序产品
+    const productMap = new Map(products?.map((p: any) => [p.id, p]) || []);
+    const sortedProducts = productIds
+      .map((id: string) => productMap.get(id))
+      .filter((p): p is Product => p !== undefined);
+
+    return { data: sortedProducts };
   } catch (err: any) {
     console.error('获取用户收藏失败:', err);
     return { error: err.message || '获取用户收藏失败' };
@@ -1186,6 +1210,7 @@ export async function deletePointsProduct(id: string): Promise<boolean> {
 export default {
   getProductCategories,
   getProducts,
+  getMerchantProducts,
   getAllProducts,
   getProductById,
   createProduct,

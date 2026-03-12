@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import { BrandLicenseBrowser } from './ip-incubation/BrandLicenseBrowser';
 import { MyLicenses } from './ip-incubation/MyLicenses';
+import { OpportunitiesContent } from './ip-incubation/OpportunitiesContent';
+import { CopyrightAssetsContent } from './ip-incubation/CopyrightAssetsContent';
 
 // 导航项类型
 interface NavItem {
@@ -462,7 +464,7 @@ function ProgressOverview({
                selectedAsset.type === '3d_model' ? '3D模型' :
                selectedAsset.type === 'digital_collectible' ? '数字藏品' : '设计'}
               {' · '}
-              预估价值 <span className={isDark ? 'text-emerald-400' : 'text-emerald-600'}>¥{selectedAsset.commercialValue.toLocaleString()}</span>
+              预估价值 <span className={isDark ? 'text-emerald-400' : 'text-emerald-600'}>¥{(selectedAsset?.commercialValue || 0).toLocaleString()}</span>
             </p>
           </div>
         </div>
@@ -659,7 +661,7 @@ function SampleIPAssetCard({
         </div>
         <div className="absolute top-3 right-3">
           <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            ¥{asset.commercialValue.toLocaleString()}
+            ¥{(asset?.commercialValue || 0).toLocaleString()}
           </span>
         </div>
       </div>
@@ -856,7 +858,7 @@ function SampleAssetDetailModal({
               <div className="flex items-center justify-between">
                 <div>
                   <p className={`text-sm ${theme.textMuted} mb-1`}>预估商业价值</p>
-                  <p className="text-2xl font-bold text-emerald-400">¥{asset.commercialValue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-emerald-400">¥{(asset?.commercialValue || 0).toLocaleString()}</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
                   <TrendingUp className="w-6 h-6 text-emerald-400" />
@@ -1299,7 +1301,7 @@ function AssetsContent({
                   <div className="flex-1 min-w-0">
                     <h4 className={`font-semibold truncate ${theme.textSecondary}`}>{asset.name}</h4>
                     <p className={`text-sm mt-1 ${theme.textMuted}`}>{getTypeLabel(asset.type)}</p>
-                    <p className={`text-sm mt-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{asset.commercialValue.toLocaleString()}</p>
+                    <p className={`text-sm mt-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{(asset?.commercialValue || 0).toLocaleString()}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <div className={`flex-1 h-1.5 rounded-full ${theme.bgTertiary}`}>
                         <div
@@ -1632,7 +1634,7 @@ export function IPIncubationCenter() {
 
   // 提交作品
   const handleSubmitWork = () => {
-    navigate('/create');
+    navigate('/create/ip-submit');
   };
 
   // 导出数据
@@ -1688,6 +1690,18 @@ export function IPIncubationCenter() {
         return (
           <MyLicenses 
             onClose={() => setActiveTab('path')}
+          />
+        );
+      case 'opportunities':
+        return (
+          <OpportunitiesContent 
+            ipAssets={ipAssets}
+          />
+        );
+      case 'copyright':
+        return (
+          <CopyrightAssetsContent 
+            ipAssets={ipAssets}
           />
         );
       default:

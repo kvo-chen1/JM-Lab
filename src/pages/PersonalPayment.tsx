@@ -78,30 +78,56 @@ const PersonalPayment: React.FC = () => {
   const plan = (location.state as any)?.plan || 'premium';
   const isRenew = (location.state as any)?.renew || false;
 
-  // 会员套餐数据
+  // 会员套餐数据（五级会员体系）
   const membershipPlans = {
-    premium: {
-      name: '高级会员',
-      nameEn: 'Premium',
+    base: {
+      name: '基础会员',
+      nameEn: 'Base',
+      price: 29,
+      originalPrice: 39,
+      periodText: '1个月',
+      duration: 30 * 24 * 60 * 60 * 1000,
+      features: ['每月1000津币', '3个并发任务', '10GB云存储', '消费95折'],
+      badge: '入门',
+      color: 'from-emerald-500 to-teal-600',
+      bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-200'
+    },
+    pro: {
+      name: '专业会员',
+      nameEn: 'Pro',
       price: 99,
       originalPrice: 129,
       periodText: '1个月',
       duration: 30 * 24 * 60 * 60 * 1000,
-      features: ['AI生成无限制', '50GB云存储', '优先客服支持', '高级模板库'],
+      features: ['每月3000津币', '5个并发任务', '50GB云存储', '消费9折', '高清导出'],
       badge: '推荐',
+      color: 'from-blue-500 to-cyan-600',
+      bgColor: 'bg-blue-50',
+      borderColor: 'border-blue-200'
+    },
+    star: {
+      name: '星耀会员',
+      nameEn: 'Star',
+      price: 199,
+      originalPrice: 259,
+      periodText: '1个月',
+      duration: 30 * 24 * 60 * 60 * 1000,
+      features: ['每月8000津币', '10个并发任务', '200GB云存储', '消费85折', '4K导出'],
+      badge: '尊享',
       color: 'from-violet-500 to-purple-600',
       bgColor: 'bg-violet-50',
       borderColor: 'border-violet-200'
     },
     vip: {
-      name: 'VIP会员',
+      name: '至尊会员',
       nameEn: 'VIP',
-      price: 199,
-      originalPrice: 299,
+      price: 399,
+      originalPrice: 499,
       periodText: '1个月',
       duration: 30 * 24 * 60 * 60 * 1000,
-      features: ['AI生成无限制', '无限云存储', '专属客服', '全部模板库', '团队协作'],
-      badge: '尊享',
+      features: ['每月20000津币', '20个并发任务', '无限云存储', '消费8折', '专属模型'],
+      badge: '顶级',
       color: 'from-amber-400 to-orange-500',
       bgColor: 'bg-amber-50',
       borderColor: 'border-amber-200'

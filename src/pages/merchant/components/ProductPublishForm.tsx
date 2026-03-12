@@ -192,15 +192,15 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ animation: 'fadeIn 0.2s ease-out' }}
     >
-      {/* 背景遮罩 */}
+      {/* 背景遮罩 - 增强遮罩效果 */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
         onClick={onClose}
       />
       
-      {/* 表单内容 */}
+      {/* 表单内容 - 增强阴影和边框效果 */}
       <div 
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[var(--bg-primary)] rounded-2xl shadow-2xl"
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[var(--bg-primary)] rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] border border-[var(--border-primary)]"
         style={{ animation: 'scaleIn 0.3s ease-out' }}
       >
         {/* 头部 */}
@@ -302,14 +302,14 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
             />
           </div>
 
-          {/* 价格和库存 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* 价格和库存 - 优化为并排布局 */}
+          <div className="grid grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="price" className="text-[var(--text-primary)] mb-2 block">
+              <Label htmlFor="price" className="text-[var(--text-primary)] mb-2 block text-sm">
                 售价 <span className="text-red-500">*</span>
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">¥</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">¥</span>
                 <Input
                   id="price"
                   name="price"
@@ -319,17 +319,17 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
                   value={formData.price}
                   onChange={handleInputChange}
                   placeholder="0.00"
-                  className="pl-8 bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-primary)]"
+                  className="pl-7 bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-primary)] h-10"
                 />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="original_price" className="text-[var(--text-primary)] mb-2 block">
+              <Label htmlFor="original_price" className="text-[var(--text-primary)] mb-2 block text-sm">
                 原价
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">¥</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">¥</span>
                 <Input
                   id="original_price"
                   name="original_price"
@@ -339,13 +339,13 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
                   value={formData.original_price}
                   onChange={handleInputChange}
                   placeholder="0.00"
-                  className="pl-8 bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-primary)]"
+                  className="pl-7 bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-primary)] h-10"
                 />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="stock" className="text-[var(--text-primary)] mb-2 block">
+              <Label htmlFor="stock" className="text-[var(--text-primary)] mb-2 block text-sm">
                 库存 <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -357,15 +357,15 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
                 value={formData.stock}
                 onChange={handleInputChange}
                 placeholder="0"
-                className="bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-primary)]"
+                className="bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-primary)] h-10"
               />
             </div>
           </div>
 
-          {/* 分类和状态 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 分类和状态 - 优化为并排布局 */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="category" className="text-[var(--text-primary)] mb-2 block">
+              <Label htmlFor="category" className="text-[var(--text-primary)] mb-2 block text-sm">
                 商品分类 <span className="text-red-500">*</span>
               </Label>
               <select
@@ -373,7 +373,7 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
                 name="category"
                 value={formData.category}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-[var(--border-primary)] rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[#5ba3d4]/20 focus:border-[#5ba3d4]"
+                className="w-full px-3 py-2 border border-[var(--border-primary)] rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[#5ba3d4]/20 focus:border-[#5ba3d4] h-10"
               >
                 <option value="">请选择分类</option>
                 {CATEGORIES.map(cat => (
@@ -383,7 +383,7 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
             </div>
 
             <div>
-              <Label htmlFor="status" className="text-[var(--text-primary)] mb-2 block">
+              <Label htmlFor="status" className="text-[var(--text-primary)] mb-2 block text-sm">
                 上架状态
               </Label>
               <select
@@ -391,7 +391,7 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
                 name="status"
                 value={formData.status}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-[var(--border-primary)] rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[#5ba3d4]/20 focus:border-[#5ba3d4]"
+                className="w-full px-3 py-2 border border-[var(--border-primary)] rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[#5ba3d4]/20 focus:border-[#5ba3d4] h-10"
               >
                 <option value="active">立即上架</option>
                 <option value="inactive">暂不上架</option>
@@ -410,23 +410,26 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
             >
               取消
             </Button>
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white min-w-[120px]"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  发布中...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  发布商品
-                </>
-              )}
-            </Button>
+            {submitting ? (
+              <Button
+                type="submit"
+                disabled={true}
+                className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white min-w-[120px]"
+                loading={true}
+              >
+                发布中...
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="bg-[#5ba3d4] hover:bg-[#4a8ab8] text-white min-w-[120px]"
+                icon={<CheckCircle2 className="w-4 h-4" />}
+                iconPosition="left"
+              >
+                发布商品
+              </Button>
+            )}
           </div>
         </form>
       </div>

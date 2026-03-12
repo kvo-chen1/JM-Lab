@@ -356,7 +356,7 @@ const PricingCards: React.FC<PricingCardsProps> = ({ isDark, user, membershipLev
                       ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'}
                     `}>
                       <Coins size={12} />
-                      每月{plan.jinbiPerMonth.toLocaleString()}津币
+                      每月{(plan?.jinbiPerMonth || 0).toLocaleString()}津币
                     </div>
                   )}
                   

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -20,15 +20,21 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  CreditCard,
+  X,
+  Loader2,
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useJinbi, SERVICE_TYPES } from '@/hooks/useJinbi';
-import { JinbiRecord, JinbiRecordType, JinbiPackage } from '@/services/jinbiService';
+import { JinbiRecord, JinbiRecordType, JinbiPackage, jinbiService } from '@/services/jinbiService';
 import JinbiBalance from '@/components/jinbi/JinbiBalance';
+import { AuthContext } from '@/contexts/authContext';
+import { toast } from 'sonner';
 
 const JinbiManagement: React.FC = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const {
     balance,
     records,
@@ -45,7 +51,66 @@ const JinbiManagement: React.FC = () => {
   const [filterType, setFilterType] = useState<JinbiRecordType | 'all'>('all');
   const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
 
+  // 充值相关状态
+  const [selectedPackage, setSelectedPackage] = useState<JinbiPackage | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'wechat' | 'alipay'>('wechat');
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const availableBalance = balance?.availableBalance || 0;
+
+  // 处理充值
+  const handleRecharge = async (pkg: JinbiPackage) => {
+    if (!user) {
+      toast.error('请先登录');
+      return;
+    }
+
+    setSelectedPackage(pkg);
+    setShowPaymentModal(true);
+  };
+
+  // 确认支付
+  const handleConfirmPayment = async () => {
+    if (!selectedPackage || !user) return;
+
+    setIsProcessing(true);
+
+    try {
+      // 调用充值API
+      const response = await fetch('/api/jinbi/recharge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          packageId: selectedPackage.id,
+          amount: selectedPackage.price,
+          jinbiAmount: selectedPackage.jinbiAmount + selectedPackage.bonusJinbi,
+          paymentMethod,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('充值成功！');
+        setShowPaymentModal(false);
+        setSelectedPackage(null);
+        // 刷新余额
+        refreshBalance();
+        refreshRecords();
+      } else {
+        toast.error(result.error || '充值失败');
+      }
+    } catch (error) {
+      console.error('充值失败:', error);
+      toast.error('充值失败，请稍后重试');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   // 过滤记录
   const filteredRecords = filterType === 'all'
@@ -315,8 +380,8 @@ const JinbiManagement: React.FC = () => {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`font-bold ${record.amount > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                              {record.amount > 0 ? '+' : ''}{record.amount.toLocaleString()}
+                            <span className={`font-bold ${(record?.amount || 0) > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {(record?.amount || 0) > 0 ? '+' : ''}{(record?.amount || 0).toLocaleString()}
                             </span>
                             {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                           </div>
@@ -334,7 +399,7 @@ const JinbiManagement: React.FC = () => {
                                 <div>
                                   <p className={isDark ? 'text-slate-500' : 'text-gray-500'}>变动后余额</p>
                                   <p className={`font-medium ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                                    {record.balanceAfter.toLocaleString()} 津币
+                                    {(record?.balanceAfter || 0).toLocaleString()} 津币
                                   </p>
                                 </div>
                                 {record.source && (
@@ -440,12 +505,12 @@ const JinbiManagement: React.FC = () => {
                         <div className="flex items-center justify-center gap-1">
                           <Coins className="w-5 h-5 text-amber-500" />
                           <span className={`text-3xl font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                            {pkg.jinbiAmount.toLocaleString()}
+                            {(pkg?.jinbiAmount || 0).toLocaleString()}
                           </span>
                         </div>
-                        {pkg.bonusJinbi > 0 && (
+                        {(pkg?.bonusJinbi || 0) > 0 && (
                           <p className={`text-sm mt-1 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                            +{pkg.bonusJinbi.toLocaleString()} 赠送
+                            +{(pkg?.bonusJinbi || 0).toLocaleString()} 赠送
                           </p>
                         )}
                       </div>
@@ -462,6 +527,7 @@ const JinbiManagement: React.FC = () => {
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
+                        onClick={() => handleRecharge(pkg)}
                         className={`
                           w-full mt-4 py-2.5 rounded-xl font-medium
                           ${index === 1
@@ -511,6 +577,145 @@ const JinbiManagement: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* 支付弹窗 */}
+      <AnimatePresence>
+        {showPaymentModal && selectedPackage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => !isProcessing && setShowPaymentModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`
+                w-full max-w-md rounded-2xl p-6 shadow-2xl
+                ${isDark ? 'bg-slate-900 border border-slate-800' : 'bg-white border border-gray-200'}
+              `}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* 弹窗头部 */}
+              <div className="flex items-center justify-between mb-6">
+                <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  确认充值
+                </h3>
+                <button
+                  onClick={() => !isProcessing && setShowPaymentModal(false)}
+                  className={`p-2 rounded-lg ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* 套餐信息 */}
+              <div className={`
+                rounded-xl p-4 mb-6
+                ${isDark ? 'bg-slate-800/50' : 'bg-gray-50'}
+              `}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={isDark ? 'text-slate-400' : 'text-gray-500'}>套餐</span>
+                  <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {selectedPackage.name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={isDark ? 'text-slate-400' : 'text-gray-500'}>津币数量</span>
+                  <span className="font-medium text-amber-500">
+                    {(selectedPackage?.jinbiAmount || 0).toLocaleString()}
+                    {(selectedPackage?.bonusJinbi || 0) > 0 && (
+                      <span className="text-sm text-emerald-500 ml-1">
+                        +{(selectedPackage?.bonusJinbi || 0).toLocaleString()} 赠送
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-dashed border-gray-300 dark:border-slate-700">
+                  <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>支付金额</span>
+                  <span className="text-2xl font-bold text-amber-500">¥{selectedPackage.price}</span>
+                </div>
+              </div>
+
+              {/* 支付方式 */}
+              <div className="mb-6">
+                <label className={`block text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                  选择支付方式
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setPaymentMethod('wechat')}
+                    className={`
+                      flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all
+                      ${paymentMethod === 'wechat'
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10'
+                        : isDark
+                          ? 'border-slate-700 hover:border-slate-600'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <svg className="w-5 h-5 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 014.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178 1.17 1.17 0 01-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 01.598.082l1.584.926a.272.272 0 00.14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 01-.023-.156.49.49 0 01.201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.27-.027-.407-.03zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.969-.982z" />
+                    </svg>
+                    <span className="font-medium">微信支付</span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod('alipay')}
+                    className={`
+                      flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all
+                      ${paymentMethod === 'alipay'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10'
+                        : isDark
+                          ? 'border-slate-700 hover:border-slate-600'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M5.5 2.5h13a3 3 0 013 3v13a3 3 0 01-3 3h-13a3 3 0 01-3-3v-13a3 3 0 013-3zm12.35 4.75a.65.65 0 00-.65-.65h-2.6a.65.65 0 00-.65.65v.6h3.9v-.6zm-4.55 2.6c-.36.13-.75.2-1.15.2-1.6 0-2.9-1.1-2.9-2.45 0-1.35 1.3-2.45 2.9-2.45.4 0 .79.07 1.15.2a3.78 3.78 0 00-1.15-.2c-1.6 0-2.9 1.1-2.9 2.45 0 1.35 1.3 2.45 2.9 2.45.4 0 .79-.07 1.15-.2zm-3.25 1.3h4.55v.65h-1.3v3.9h-.65v-3.9h-2.6v-.65zm-2.6 0h.65v4.55h-.65v-4.55zm-1.3 0h.65v4.55h-.65v-4.55zm5.85 4.55h-.65v-1.95h.65v1.95zm-2.6 0h-.65v-1.95h.65v-1.95z" />
+                    </svg>
+                    <span className="font-medium">支付宝</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 支付按钮 */}
+              <button
+                onClick={handleConfirmPayment}
+                disabled={isProcessing}
+                className={`
+                  w-full py-3 rounded-xl font-medium text-white
+                  ${isProcessing
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-amber-500 hover:bg-amber-600 active:scale-95'
+                  }
+                  transition-all flex items-center justify-center gap-2
+                `}
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    处理中...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-5 h-5" />
+                    确认支付 ¥{selectedPackage.price}
+                  </>
+                )}
+              </button>
+
+              {/* 提示信息 */}
+              <p className={`text-xs text-center mt-4 ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                点击确认支付即表示您同意充值服务条款
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -120,7 +120,9 @@ export function useMerchantProducts(
     setLoading(true);
     setError(null);
     try {
+      console.log('[useMerchantProducts] 开始获取商品，参数:', options);
       const result = await productService.getMerchantProducts(options);
+      console.log('[useMerchantProducts] 获取结果:', result);
       if (result.error) {
         setError(result.error);
       } else {
@@ -128,6 +130,7 @@ export function useMerchantProducts(
         setCount(result.count || 0);
       }
     } catch (err: any) {
+      console.error('[useMerchantProducts] 获取失败:', err);
       setError(err.message || '获取商家商品列表失败');
     } finally {
       setLoading(false);

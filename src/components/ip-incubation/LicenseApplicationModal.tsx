@@ -99,7 +99,7 @@ export function LicenseApplicationModal({
 
   const loadUserIPAssets = async () => {
     try {
-      const assets = await ipService.getIPAssets();
+      const assets = await ipService.getAllIPAssets();
       setUserIPAssets(assets.filter(a => a.status === 'active'));
     } catch (error) {
       console.error('加载IP资产失败:', error);

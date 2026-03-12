@@ -41,10 +41,7 @@ async function getDbPool() {
 
     pool = new Pool({
       connectionString: databaseUrl,
-      ssl: process.env.NODE_ENV === 'production' ? {
-        rejectUnauthorized: false,
-        sslmode: 'require'
-      } : false,
+      ssl: true,
       max: 20,
       min: 2,
       idleTimeoutMillis: 120000,
@@ -1256,10 +1253,7 @@ async function handleDebug(req, res) {
       const { Pool } = await import('pg');
       const testPool = new Pool({
         connectionString: databaseUrl,
-        ssl: {
-          rejectUnauthorized: false,
-          sslmode: 'require'
-        },
+        ssl: true,
         connectionTimeoutMillis: 10000,
         max: 1
       });

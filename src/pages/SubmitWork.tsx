@@ -569,21 +569,31 @@ export default function SubmitWork() {
     setSubmitting(true);
 
     try {
-      // 上传文件到 Supabase Storage
-      const uploadedFiles = [];
-      for (const file of data.files) {
-        const uploadResult = await eventSubmissionService.uploadFile(
-          file,
-          id,
-          user.id
-        );
-
-        if (uploadResult.success && uploadResult.fileData) {
-          uploadedFiles.push(uploadResult.fileData);
-        } else {
-          throw new Error(uploadResult.error || `上传文件 "${file.name}" 失败`);
+      // 使用并行上传多个文件
+      const uploadResult = await eventSubmissionService.uploadFilesParallel(
+        data.files as File[],
+        id,
+        user.id,
+        {
+          maxConcurrent: 3,
+          onProgress: (fileIndex, progress) => {
+            console.log(`文件 ${fileIndex + 1} 上传进度: ${progress}%`);
+          },
+          onFileComplete: (fileIndex, fileData) => {
+            console.log(`文件 ${fileIndex + 1} 上传完成:`, fileData);
+          },
+          onFileError: (fileIndex, error) => {
+            console.error(`文件 ${fileIndex + 1} 上传失败:`, error);
+          },
+          retries: 3
         }
+      );
+
+      if (!uploadResult.success || uploadResult.errors.length > 0) {
+        throw new Error(uploadResult.errors.join('; ') || '部分文件上传失败');
       }
+
+      const uploadedFiles = uploadResult.files;
 
       // 提交作品到数据库
       const result = await eventSubmissionService.submitWork(

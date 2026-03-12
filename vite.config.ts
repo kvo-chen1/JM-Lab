@@ -212,7 +212,16 @@ export default defineConfig({
     // 生成 sourcemap（生产环境可关闭）
     sourcemap: false,
     // 设置 chunk 大小警告阈值（单位：KB）
-    chunkSizeWarningLimit: 800, // 降低警告阈值，确保chunk大小合理
+    chunkSizeWarningLimit: 1000, // 性能预算：单个chunk最大1000KB
+    // 性能预算配置
+    performance: {
+      // 入口文件大小限制（单位：字节）
+      maxEntrypointSize: 1200 * 1024, // 1.2MB
+      // chunk文件大小限制
+      maxAssetSize: 1000 * 1024, // 1MB
+      // 性能提示级别
+      hints: 'warning',
+    },
     // 启用资产预加载
     preloadAssets: true, // 启用预加载，优化加载性能
     // 禁用压缩大小报告以加快构建

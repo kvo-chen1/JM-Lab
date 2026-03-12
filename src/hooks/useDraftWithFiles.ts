@@ -28,6 +28,7 @@ interface UseDraftWithFilesOptions<T> {
   interval?: number;
   enabled?: boolean;
   userId?: string;
+  onConflict?: (localData: DraftData<T>, serverData: DraftData<T>) => Promise<'local' | 'server'>;
 }
 
 interface UseDraftWithFilesReturn<T> {
@@ -40,6 +41,10 @@ interface UseDraftWithFilesReturn<T> {
   hasDraft: boolean;
   loadDraft: () => Promise<{ formData: T; files: File[] } | null>;
   uploadProgress: Record<string, number>;
+  syncStatus: 'idle' | 'syncing' | 'synced' | 'conflict' | 'error';
+  lastSyncedAt: Date | null;
+  checkForConflicts: () => Promise<boolean>;
+  forceSync: () => Promise<void>;
 }
 
 /**
@@ -56,13 +61,16 @@ export function useDraftWithFiles<T extends Record<string, any>>({
   files,
   interval = 30000,
   enabled = true,
-  userId
+  userId,
+  onConflict
 }: UseDraftWithFilesOptions<T>): UseDraftWithFilesReturn<T> {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'conflict' | 'error'>('idle');
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
   const formDataRef = useRef(formData);
   const filesRef = useRef(files);
@@ -335,6 +343,102 @@ export function useDraftWithFiles<T extends Record<string, any>>({
     }
   }, [key, userId]);
 
+  /**
+   * 检查是否有冲突
+   */
+  const checkForConflicts = useCallback(async (): Promise<boolean> => {
+    if (!userId || typeof window === 'undefined') return false;
+
+    try {
+      // 从服务器获取最新草稿
+      const { data: serverDraft } = await supabase
+        .from('event_submissions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'draft')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!serverDraft) return false;
+
+      // 获取本地草稿
+      const localDraft = localStorage.getItem(`draft_${key}`);
+      if (!localDraft) return false;
+
+      const parsed = JSON.parse(localDraft);
+      
+      // 比较时间戳
+      const localTime = new Date(parsed.savedAt).getTime();
+      const serverTime = new Date(serverDraft.updated_at).getTime();
+
+      // 如果服务器版本更新，且本地有未保存的更改，则存在冲突
+      if (serverTime > localTime) {
+        setSyncStatus('conflict');
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('检查冲突失败:', error);
+      return false;
+    }
+  }, [userId, key]);
+
+  /**
+   * 强制同步到服务器
+   */
+  const forceSync = useCallback(async () => {
+    if (!userId || !formDataRef.current) return;
+
+    setSyncStatus('syncing');
+
+    try {
+      // 查找或创建草稿
+      const { data: existingDraft } = await supabase
+        .from('event_submissions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('status', 'draft')
+        .limit(1)
+        .maybeSingle();
+
+      const now = Date.now();
+
+      if (existingDraft) {
+        // 更新现有草稿
+        await supabase
+          .from('event_submissions')
+          .update({
+            title: formDataRef.current.title || '',
+            description: formDataRef.current.description || '',
+            metadata: { ...formDataRef.current, savedAt: now },
+            updated_at: now
+          })
+          .eq('id', existingDraft.id);
+      } else {
+        // 创建新草稿
+        await supabase
+          .from('event_submissions')
+          .insert({
+            user_id: userId,
+            status: 'draft',
+            title: formDataRef.current.title || '',
+            description: formDataRef.current.description || '',
+            metadata: { ...formDataRef.current, savedAt: now },
+            created_at: now,
+            updated_at: now
+          });
+      }
+
+      setSyncStatus('synced');
+      setLastSyncedAt(new Date());
+    } catch (error) {
+      console.error('同步失败:', error);
+      setSyncStatus('error');
+    }
+  }, [userId]);
+
   // 自动保存定时器（已禁用，避免 isSaving 卡住问题）
   // useEffect(() => {
   //   if (!enabled) return;
@@ -370,7 +474,11 @@ export function useDraftWithFiles<T extends Record<string, any>>({
     clearDraft,
     hasDraft,
     loadDraft,
-    uploadProgress
+    uploadProgress,
+    syncStatus,
+    lastSyncedAt,
+    checkForConflicts,
+    forceSync
   };
 }
 

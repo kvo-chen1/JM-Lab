@@ -156,7 +156,7 @@ export default function Square() {
     // 从API获取数据
     try {
       const response = await apiClient.get('/communities/featured')
-      const items = response.data || []
+      const items: FeaturedCommunity[] = response.data || []
 
       // 缓存结果
       localStorage.setItem(FEATURED_CACHE_KEY, JSON.stringify({
@@ -485,7 +485,7 @@ export default function Square() {
   
   // 优化：使用useCallback稳定like函数
   const like = useCallback(async (id: string) => {
-    if (!checkAuth()) {
+    if (!checkAuth() || !user) {
       return
     }
     
@@ -509,16 +509,19 @@ export default function Square() {
         await postsApi.likePost(id, user.id)
         toast.success('点赞成功')
         
+        // 获取作者ID
+        const authorId = typeof targetPost.author === 'string' ? targetPost.author : targetPost.author?.id
+        
         // 创建通知给作品作者
-        if (targetPost.authorId && targetPost.authorId !== user.id) {
+        if (authorId && authorId !== user.id) {
           addNotification({
             type: 'post_liked',
             title: '有人赞了你的作品',
             content: `${user.username || '有人'}赞了你的作品"${targetPost.title || '无标题'}"`,
             senderId: user.id,
             senderName: user.username || '匿名用户',
-            senderAvatar: user.avatar || user.avatar_url || '',
-            recipientId: targetPost.authorId,
+            senderAvatar: (user as any).avatar || (user as any).avatar_url || '',
+            recipientId: authorId,
             postId: id,
             priority: 'low',
             link: `/square?id=${id}`
@@ -545,7 +548,7 @@ export default function Square() {
     if (!content) return
     
     // 检查用户是否登录
-    if (!checkAuth()) {
+    if (!checkAuth() || !user) {
       return
     }
     
@@ -564,15 +567,16 @@ export default function Square() {
 
         // 创建通知给作品作者
         const commentedPost = current.find(p => p.id === id)
-        if (commentedPost && commentedPost.authorId && commentedPost.authorId !== user.id) {
+        const authorId = commentedPost && (typeof commentedPost.author === 'string' ? commentedPost.author : commentedPost.author?.id)
+        if (authorId && authorId !== user.id) {
           addNotification({
             type: 'post_commented',
             title: '有人评论了你的作品',
-            content: `${user.username || '有人'}评论了你的作品"${commentedPost.title || '无标题'}"`,
+            content: `${user.username || '有人'}评论了你的作品"${commentedPost?.title || '无标题'}"`,
             senderId: user.id,
             senderName: user.username || '匿名用户',
-            senderAvatar: user.avatar || user.avatar_url || '',
-            recipientId: commentedPost.authorId,
+            senderAvatar: (user as any).avatar || (user as any).avatar_url || '',
+            recipientId: authorId,
             postId: id,
             priority: 'medium',
             link: `/square?id=${id}`
@@ -601,7 +605,7 @@ export default function Square() {
   // 优化：使用useCallback稳定toggleFavorite函数
   const toggleFavorite = useCallback(async (id: string) => {
     // 中文注释：收藏/取消收藏
-    if (!checkAuth()) {
+    if (!checkAuth() || !user) {
       return
     }
 
@@ -1053,14 +1057,14 @@ export default function Square() {
             thumbnail: shareTarget.post.thumbnail,
             videoUrl: shareTarget.post.videoUrl,
             url: `${location.origin}/square/${shareTarget.post.id}`,
-            author: shareTarget.post.author ? {
+            author: shareTarget.post.author && typeof shareTarget.post.author === 'object' ? {
               name: shareTarget.post.author.username || '未知用户',
               avatar: shareTarget.post.author.avatar
             } : undefined
           }}
           userId={user?.id || ''}
           userName={user?.username || '用户'}
-          userAvatar={user?.avatar_url || user?.avatar}
+          userAvatar={(user as any)?.avatar_url || (user as any)?.avatar}
         />
       )}
 

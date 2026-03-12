@@ -3345,3 +3345,159 @@ ${description}
 
 // 导出LLM服务实例
 export const llmService = new LLMService();
+
+export default llmService;
+
+// 扩展 AI 功能：标签智能推荐
+llmService.suggestTags = async function(
+  description: string,
+  existingTags: string[] = [],
+  limit: number = 5
+): Promise<{ success: boolean; tags?: string[]; error?: string }> {
+  try {
+    const prompt = `根据以下作品描述，推荐最合适的标签。
+
+作品描述:
+${description}
+
+已有标签: ${existingTags.join(', ') || '无'}
+
+请从以下标签类别中选择最合适的标签（最多${limit}个）:
+- 文化元素: 天津文化, 京津冀, 传统文化, 民俗, 非遗, 地方特色
+- 作品类型: 平面设计, UI设计, 插画, 摄影, 视频, 3D设计
+- 风格: 简约, 传统, 现代, 复古, 时尚, 国风
+- 用途: 商业, 公益, 个人创作, 比赛, 教学
+
+请直接返回标签列表，用逗号分隔，不要包含任何解释。`;
+
+    const response = await fetch('/api/qwen/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        temperature: 0.5,
+        max_tokens: 100
+      })
+    });
+
+    if (!response.ok) {
+      return { success: false, error: '标签推荐失败' };
+    }
+
+    const result = await response.json();
+    const content = result.content || result.response || '';
+    const tags = content.split(',').map((t: string) => t.trim()).filter(Boolean).slice(0, limit);
+
+    return { success: true, tags };
+  } catch (error: any) {
+    console.error('标签推荐失败:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// 扩展 AI 功能：封面图自动生成建议
+llmService.suggestCoverImage = async function(
+  title: string,
+  description: string,
+  tags: string[]
+): Promise<{ success: boolean; suggestions?: string[]; error?: string }> {
+  try {
+    const prompt = `作为设计专家，请为以下作品推荐合适的封面图提示词（用于AI生成或手动设计参考）。
+
+作品标题: ${title}
+作品描述: ${description}
+标签: ${tags.join(', ')}
+
+请提供3个不同风格的封面图设计建议，包含:
+1. 风格描述（简约/传统/现代/复古等）
+2. 色彩建议
+3. 构图要点
+
+直接返回建议内容，每条建议用换行分隔。`;
+
+    const response = await fetch('/api/qwen/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        temperature: 0.7,
+        max_tokens: 300
+      })
+    });
+
+    if (!response.ok) {
+      return { success: false, error: '封面建议获取失败' };
+    }
+
+    const result = await response.json();
+    const content = result.content || result.response || '';
+    const suggestions = content.split('\n').filter((s: string) => s.trim());
+
+    return { success: true, suggestions };
+  } catch (error: any) {
+    console.error('封面建议获取失败:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// 扩展 AI 功能：相似作品推荐
+llmService.findSimilarWorks = async function(
+  workId: string,
+  title: string,
+  tags: string[],
+  limit: number = 5
+): Promise<{ success: boolean; works?: Array<{ id: string; title: string; similarity: number }>; error?: string }> {
+  // 这里应该调用后端 API 进行相似度计算
+  // 暂时返回空结果，实际需要后端支持
+  return { success: true, works: [] };
+};
+
+// 扩展 AI 功能：AI生成内容检测
+llmService.detectAIGenerated = async function(
+  content: string
+): Promise<{ success: boolean; isAIGenerated?: boolean; confidence?: number; error?: string }> {
+  try {
+    const prompt = `请分析以下文本内容，判断它是否由AI生成。
+
+待检测文本:
+${content}
+
+请从以下维度进行分析:
+1. 语言模式是否过于规范或机械
+2. 是否存在AI常见的表述方式
+3. 创意性和个性化程度
+
+请直接返回判断结果，格式如下:
+is_ai_generated: true/false
+confidence: 0-100
+
+不要包含任何解释。`;
+
+    const response = await fetch('/api/qwen/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        temperature: 0.3,
+        max_tokens: 100
+      })
+    });
+
+    if (!response.ok) {
+      return { success: false, error: 'AI检测失败' };
+    }
+
+    const result = await response.json();
+    const contentText = result.content || result.response || '';
+    
+    // 解析结果
+    const isMatch = contentText.toLowerCase().includes('true');
+    const confidenceMatch = contentText.match(/confidence:\s*(\d+)/);
+    const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 50;
+
+    return { success: true, isAIGenerated: isMatch, confidence };
+  } catch (error: any) {
+    console.error('AI检测失败:', error);
+    return { success: false, error: error.message };
+  }
+};

@@ -5,7 +5,7 @@
 
 import apiClient from '../lib/apiClient';
 import errorService from './errorService';
-import securityService from './securityService';
+import { securityService } from './securityService';
 import rbacService from './rbacService';
 import eventBus from './eventBus';
 import { EventType } from './eventBus';

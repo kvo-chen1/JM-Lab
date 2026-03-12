@@ -1,6 +1,9 @@
 // Vercel API 入口
 // 处理所有 /api/* 请求
 
+// 跳过SSL证书验证（用于Supabase连接）
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 // 内存中存储验证码（作为数据库的备选）
 const verificationCodes = new Map();
 

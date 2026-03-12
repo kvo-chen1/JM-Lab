@@ -1,6 +1,6 @@
 // 导入错误服务
 import errorService from '../services/errorService';
-import securityService from '../services/securityService';
+import { securityService } from '../services/securityService';
 import { recordNetworkRequest } from '../utils/performanceMonitor';
 import eventBus from './eventBus'; // 导入事件总线
 

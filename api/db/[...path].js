@@ -1,6 +1,9 @@
 // Vercel API Route - Supabase 兼容的数据库代理
 // 处理所有 /api/db/* 请求
 
+// 跳过SSL证书验证（用于Supabase连接）
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+
 import { Pool } from 'pg'
 
 // 连接池延迟初始化

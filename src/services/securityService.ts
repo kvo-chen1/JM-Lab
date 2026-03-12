@@ -1,374 +1,256 @@
-/**
- * 安全服务模块 - 提供数据加密、防作弊和安全验证功能
- */
+import { supabaseAdmin } from '@/lib/supabase';
 
-// 数据加密类型
-export interface EncryptedData {
-  data: string;
-  timestamp: number;
-  signature: string;
-  iv?: string;
+export interface SecurityLog {
+  id: string;
+  user_id: string;
+  action: string;
+  resource_type: string;
+  resource_id?: string;
+  details?: Record<string, any>;
+  ip_address?: string;
+  user_agent?: string;
+  created_at: string;
 }
 
-// 安全服务类
+export interface SecurityConfig {
+  maxFileSize: number;
+  allowedFileTypes: string[];
+  maxFilesPerSubmission: number;
+  dailySubmissionLimit: number;
+  rateLimitWindow: number;
+  rateLimitMaxRequests: number;
+}
+
+const DEFAULT_CONFIG: SecurityConfig = {
+  maxFileSize: 10 * 1024 * 1024, // 10MB
+  allowedFileTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm'],
+  maxFilesPerSubmission: 10,
+  dailySubmissionLimit: 10,
+  rateLimitWindow: 60 * 1000, // 1分钟
+  rateLimitMaxRequests: 10
+};
+
 class SecurityService {
-  private readonly ENCRYPTION_KEY = this.getEncryptionKey(); // 加密密钥（生产环境应使用环境变量）
-  private readonly SALT = 'f3s6v9yB2e5h8k0n3q6t9w2z5C8r1V4x7'; // 盐值
-  private readonly MAX_CACHE_AGE = 3600000; // 缓存最大年龄（1小时）
-  private cryptoKey: CryptoKey | null = null;
+  private config: SecurityConfig = DEFAULT_CONFIG;
 
-  constructor() {
-    // 只有在浏览器环境中才初始化加密密钥
-    if (typeof window !== 'undefined') {
-      this.initializeCryptoKey();
-    }
+  /**
+   * 初始化安全配置
+   */
+  init(config: Partial<SecurityConfig>) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
   /**
-   * 获取加密密钥，兼容Node.js和浏览器环境
+   * 验证文件
    */
-  private getEncryptionKey(): string {
-    try {
-      // 尝试获取环境变量
-      let envKey: string | undefined;
-      
-      // 检查Node.js环境
-      if (typeof process !== 'undefined' && process.env) {
-        envKey = process.env.VITE_ENCRYPTION_KEY;
-      }
-      
-      // 检查浏览器环境中的全局变量（如果Vite注入了环境变量）
-      else if (typeof window !== 'undefined') {
-        const windowWithEnv = window as any;
-        envKey = windowWithEnv.VITE_ENCRYPTION_KEY || 
-                windowWithEnv.__VITE_ENCRYPTION_KEY__ ||
-                (windowWithEnv.import && windowWithEnv.import.meta?.env?.VITE_ENCRYPTION_KEY);
-      }
-      
-      return envKey || 'j9kL2pQ5rT8wZ1cV4xY7mU3tR6nH9bE2';
-    } catch (e) {
-      // 忽略错误，使用默认密钥
-      return 'j9kL2pQ5rT8wZ1cV4xY7mU3tR6nH9bE2';
+  validateFile(file: File): { valid: boolean; error?: string } {
+    // 检查文件大小
+    if (file.size > this.config.maxFileSize) {
+      return {
+        valid: false,
+        error: `文件大小超过限制（最大 ${this.config.maxFileSize / 1024 / 1024}MB）`
+      };
     }
+
+    // 检查文件类型
+    if (!this.config.allowedFileTypes.includes(file.type)) {
+      return {
+        valid: false,
+        error: `不支持的文件类型：${file.type}`
+      };
+    }
+
+    return { valid: true };
   }
 
   /**
-   * 初始化加密密钥
+   * 验证文件列表
    */
-  private async initializeCryptoKey(): Promise<void> {
-    try {
-      if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
-        this.cryptoKey = await window.crypto.subtle.generateKey(
-          {
-            name: 'AES-GCM',
-            length: 256,
-          },
-          true,
-          ['encrypt', 'decrypt']
-        );
+  validateFiles(files: File[]): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    // 检查文件数量
+    if (files.length > this.config.maxFilesPerSubmission) {
+      errors.push(`文件数量超过限制（最多 ${this.config.maxFilesPerSubmission} 个）`);
+    }
+
+    // 验证每个文件
+    for (const file of files) {
+      const result = this.validateFile(file);
+      if (!result.valid && result.error) {
+        errors.push(result.error);
       }
-    } catch (error) {
-      console.warn('Failed to initialize Web Crypto API, falling back to XOR encryption');
     }
-  }
-
-  /**
-   * 使用Web Crypto API进行加密（如果可用）
-   */
-  private async encryptWithWebCrypto(data: string): Promise<{ encrypted: string; iv: string }> {
-    if (!this.cryptoKey) {
-      throw new Error('Crypto key not initialized');
-    }
-
-    const encoder = new TextEncoder();
-    const encodedData = encoder.encode(data);
-    const iv = window.crypto.getRandomValues(new Uint8Array(12));
-
-    const encrypted = await window.crypto.subtle.encrypt(
-      {
-        name: 'AES-GCM',
-        iv: iv,
-      },
-      this.cryptoKey,
-      encodedData
-    );
 
     return {
-      encrypted: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
-      iv: btoa(String.fromCharCode(...iv))
+      valid: errors.length === 0,
+      errors
     };
   }
 
   /**
-   * 使用Web Crypto API进行解密（如果可用）
+   * 计算文件哈希
    */
-  private async decryptWithWebCrypto(encryptedData: string, iv: string): Promise<string> {
-    if (!this.cryptoKey) {
-      throw new Error('Crypto key not initialized');
-    }
-
-    const encrypted = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
-    const ivArray = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
-
-    const decrypted = await window.crypto.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv: ivArray,
-      },
-      this.cryptoKey,
-      encrypted
-    );
-
-    const decoder = new TextDecoder();
-    return decoder.decode(decrypted);
+  async calculateHash(file: File): Promise<string> {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   /**
-   * 加密数据（优先使用Web Crypto API，回退到XOR加密）
+   * 记录安全日志
    */
-  async encrypt(data: any): Promise<EncryptedData> {
-    const jsonData = JSON.stringify(data);
-    const timestamp = Date.now();
-    
+  async logSecurityEvent(params: {
+    userId?: string;
+    action: string;
+    resourceType: string;
+    resourceId?: string;
+    details?: Record<string, any>;
+    ipAddress?: string;
+    userAgent?: string;
+  }): Promise<void> {
     try {
-      if (this.cryptoKey) {
-        const { encrypted, iv } = await this.encryptWithWebCrypto(jsonData);
-        const signature = this.generateSignature(encrypted, timestamp);
-        return {
-          data: encrypted,
-          timestamp,
-          signature,
-          iv
-        };
-      }
+      await supabaseAdmin
+        .from('security_logs')
+        .insert({
+          user_id: params.userId || 'anonymous',
+          action: params.action,
+          resource_type: params.resourceType,
+          resource_id: params.resourceId,
+          details: params.details || {},
+          ip_address: params.ipAddress,
+          user_agent: params.userAgent,
+          created_at: Date.now()
+        });
     } catch (error) {
-      console.warn('Web Crypto encryption failed, falling back to XOR encryption');
+      console.error('记录安全日志失败:', error);
     }
-    
-    let encrypted = '';
-    for (let i = 0; i < jsonData.length; i++) {
-      const charCode = jsonData.charCodeAt(i) ^ this.ENCRYPTION_KEY.charCodeAt(i % this.ENCRYPTION_KEY.length);
-      encrypted += String.fromCharCode(charCode);
+  }
+
+  /**
+   * 检查速率限制
+   */
+  async checkRateLimit(userId: string, action: string): Promise<{
+    allowed: boolean;
+    remaining: number;
+    resetAt: Date;
+  }> {
+    try {
+      const windowStart = Date.now() - this.config.rateLimitWindow;
+
+      // 查询最近的操作
+      const { data, error } = await supabaseAdmin
+        .from('security_logs')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('action', action)
+        .gte('created_at', windowStart);
+
+      if (error) throw error;
+
+      const requestCount = (data || []).length;
+      const remaining = Math.max(0, this.config.rateLimitMaxRequests - requestCount);
+      const resetAt = new Date(Date.now() + this.config.rateLimitWindow);
+
+      return {
+        allowed: requestCount < this.config.rateLimitMaxRequests,
+        remaining,
+        resetAt
+      };
+    } catch (error) {
+      console.error('检查速率限制失败:', error);
+      // 出错时允许操作
+      return {
+        allowed: true,
+        remaining: this.config.rateLimitMaxRequests,
+        resetAt: new Date(Date.now() + this.config.rateLimitWindow)
+      };
     }
-    
-    const base64Data = btoa(encrypted);
-    const signature = this.generateSignature(base64Data, timestamp);
-    
+  }
+
+  /**
+   * 检测可疑IP
+   */
+  async checkSuspiciousIP(ipAddress: string): Promise<boolean> {
+    try {
+      // 查询IP是否在黑名单中
+      const { data } = await supabaseAdmin
+        .from('ip_blacklist')
+        .select('id')
+        .eq('ip_address', ipAddress)
+        .maybeSingle();
+
+      return !!data;
+    } catch (error) {
+      console.error('检查IP信誉失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取操作历史
+   */
+  async getSecurityLogs(params: {
+    userId?: string;
+    action?: string;
+    resourceType?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+  }): Promise<SecurityLog[]> {
+    try {
+      let query = supabaseAdmin
+        .from('security_logs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (params.userId) {
+        query = query.eq('user_id', params.userId);
+      }
+      if (params.action) {
+        query = query.eq('action', params.action);
+      }
+      if (params.resourceType) {
+        query = query.eq('resource_type', params.resourceType);
+      }
+      if (params.startDate) {
+        query = query.gte('created_at', params.startDate.getTime());
+      }
+      if (params.endDate) {
+        query = query.lte('created_at', params.endDate.getTime());
+      }
+      if (params.limit) {
+        query = query.limit(params.limit);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      return (data || []).map(this.formatLog);
+    } catch (error) {
+      console.error('获取安全日志失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 格式化日志
+   */
+  private formatLog(data: any): SecurityLog {
     return {
-      data: base64Data,
-      timestamp,
-      signature
+      id: data.id,
+      user_id: data.user_id,
+      action: data.action,
+      resource_type: data.resource_type,
+      resource_id: data.resource_id,
+      details: data.details,
+      ip_address: data.ip_address,
+      user_agent: data.user_agent,
+      created_at: data.created_at
     };
-  }
-
-  /**
-   * 解密数据（支持Web Crypto API和XOR加密）
-   */
-  async decrypt(encryptedData: EncryptedData): Promise<any> {
-    const { data, timestamp, signature, iv } = encryptedData;
-    
-    if (!this.verifySignature(data, timestamp, signature)) {
-      throw new Error('数据已被篡改');
-    }
-    
-    if (Date.now() - timestamp > this.MAX_CACHE_AGE) {
-      throw new Error('数据已过期');
-    }
-    
-    try {
-      if (this.cryptoKey && iv) {
-        const decrypted = await this.decryptWithWebCrypto(data, iv);
-        return JSON.parse(decrypted);
-      }
-    } catch (error) {
-      console.warn('Web Crypto decryption failed, falling back to XOR decryption');
-    }
-    
-    const encrypted = atob(data);
-    let decrypted = '';
-    for (let i = 0; i < encrypted.length; i++) {
-      const charCode = encrypted.charCodeAt(i) ^ this.ENCRYPTION_KEY.charCodeAt(i % this.ENCRYPTION_KEY.length);
-      decrypted += String.fromCharCode(charCode);
-    }
-    
-    return JSON.parse(decrypted);
-  }
-
-  /**
-   * 生成数据签名
-   */
-  generateSignature(data: string, timestamp: number): string {
-    const signatureData = `${data}${timestamp}${this.SALT}`;
-    return this.hash(signatureData);
-  }
-
-  /**
-   * 验证数据签名
-   */
-  private verifySignature(data: string, timestamp: number, signature: string): boolean {
-    const expectedSignature = this.generateSignature(data, timestamp);
-    return expectedSignature === signature;
-  }
-
-  /**
-   * 简单的哈希算法
-   */
-  private hash(data: string): string {
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      const char = data.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    return Math.abs(hash).toString(16);
-  }
-
-  /**
-   * 验证数据完整性
-   */
-  verifyDataIntegrity(data: any, expectedType: string): boolean {
-    if (typeof data !== expectedType) {
-      return false;
-    }
-    
-    // 添加更多数据完整性验证逻辑
-    return true;
-  }
-
-  /**
-   * 检测作弊行为
-   */
-  detectCheating(userId: string): boolean {
-    // 检查本地存储数据是否被篡改
-    try {
-      // 只在浏览器环境中检测
-      if (typeof localStorage !== 'undefined') {
-        // 验证积分记录
-        const pointsRecords = localStorage.getItem('POINTS_RECORDS');
-        if (pointsRecords) {
-          const parsedRecords = JSON.parse(pointsRecords);
-          if (!Array.isArray(parsedRecords)) {
-            return true;
-          }
-          
-          // 验证每条记录的完整性
-          for (const record of parsedRecords) {
-            if (!record.id || !record.source || !record.type || record.points === undefined) {
-              return true;
-            }
-          }
-        }
-        
-        // 验证任务记录
-        const tasks = localStorage.getItem('CREATIVE_TASKS');
-        if (tasks) {
-          const parsedTasks = JSON.parse(tasks);
-          if (!Array.isArray(parsedTasks)) {
-            return true;
-          }
-        }
-        
-        // 验证签到记录
-        const checkinRecords = localStorage.getItem('CHECKIN_RECORDS');
-        if (checkinRecords) {
-          const parsedCheckins = JSON.parse(checkinRecords);
-          if (!Array.isArray(parsedCheckins)) {
-            return true;
-          }
-        }
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Cheating detection error:', error);
-      return true; // 解析错误也视为作弊
-    }
-  }
-
-  /**
-   * 获取安全的本地存储项
-   */
-  async getSecureItem(key: string): Promise<any | null> {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const stored = localStorage.getItem(key);
-        if (stored) {
-          const encryptedData: EncryptedData = JSON.parse(stored);
-          return await this.decrypt(encryptedData);
-        }
-      }
-      return null;
-    } catch (error) {
-      console.error('Failed to get secure item:', error);
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem(key);
-      }
-      return null;
-    }
-  }
-
-  /**
-   * 设置安全的本地存储项
-   */
-  async setSecureItem(key: string, data: any): Promise<void> {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const encryptedData = await this.encrypt(data);
-        localStorage.setItem(key, JSON.stringify(encryptedData));
-      }
-    } catch (error) {
-      console.error('Failed to set secure item:', error);
-    }
-  }
-
-  /**
-   * 清理过期缓存
-   */
-  cleanupExpiredCache(): void {
-    const now = Date.now();
-    
-    // 只在浏览器环境中清理
-    if (typeof localStorage !== 'undefined') {
-      // 清理所有安全存储项
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('SECURE_') || key.includes('_SECURE'))) {
-          try {
-            const stored = localStorage.getItem(key);
-            if (stored) {
-              const encryptedData: EncryptedData = JSON.parse(stored);
-              if (now - encryptedData.timestamp > this.MAX_CACHE_AGE) {
-                localStorage.removeItem(key);
-              }
-            }
-          } catch (error) {
-            localStorage.removeItem(key); // 删除损坏的数据
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * 生成唯一标识符
-   */
-  generateUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  }
-
-  /**
-   * 验证UUID格式
-   */
-  isValidUUID(uuid: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(uuid);
   }
 }
 
-// 导出单例实例
-const service = new SecurityService();
-export default service;
+export const securityService = new SecurityService();

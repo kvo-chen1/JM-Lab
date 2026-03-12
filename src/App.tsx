@@ -74,25 +74,14 @@ import { createLazyThreeComponent } from '@/components/lazy/LazyThreeComponent';
 
 // 优化懒加载策略：根据页面访问频率和大小重新分类
 
-// 1. 高频访问页面 - 只保留最核心的页面同步加载
-const WorkDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/WorkDetail"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'work-detail'
-});
+// 高频访问页面 - 同步导入，确保快速打开
+import Dashboard from "@/pages/Dashboard";
+import Community from "@/pages/Community";
+import Square from "@/pages/Square";
+import Feed from "@/pages/Feed";
+import WorkDetail from "@/pages/WorkDetail";
 
-// 2. 其他高频页面改为懒加载
-const Dashboard = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Dashboard"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'dashboard'
-});
-const Community = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Community"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'community'
-});
-const Square = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Square"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'square'
-});
+// 中等频率页面 - 懒加载
 const Friends = createLazyComponent(() => import(/* webpackChunkName: "pages-core" */ "@/pages/Friends"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'friends'
@@ -102,7 +91,7 @@ const ChatPage = createLazyComponent(() => import(/* webpackChunkName: "pages-co
   name: 'chat'
 });
 
-// 3. 核心工具页面改为懒加载
+// 核心工具页面 - 懒加载
 const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'create'
@@ -165,12 +154,6 @@ const MobileSubmitWork = createLazyComponent(() => import(/* webpackChunkName: "
 const SearchResults = createLazyComponent(() => import(/* webpackChunkName: "pages-explore" */ "@/pages/SearchResults"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'search'
-});
-
-// 动态内容展示页面 - 懒加载
-const Feed = createLazyComponent(() => import(/* webpackChunkName: "pages-feed" */ "@/pages/Feed"), {
-  priority: ROUTE_PRIORITIES.HIGH,
-  name: 'feed'
 });
 
 const CreateLayout = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/CreateLayout"), {
@@ -736,18 +719,35 @@ const MarketplaceAdmin = createLazyComponent(() => import(/* webpackChunkName: "
 // 导入新的骨架屏组件
 import { DashboardSkeleton, ProfileSkeleton, SimpleLoadingSkeleton } from '@/components/skeletons/PageSkeletons';
 
-// 优化LazyComponent，添加延迟加载和错误处理
+const InstantLoadingSkeleton = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="w-full max-w-md p-4">
+      <div className="animate-pulse space-y-4">
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+        <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const LazyComponent = React.memo(({ 
   children, 
-  fallback = <SimpleLoadingSkeleton /> 
+  fallback = <SimpleLoadingSkeleton />,
+  instant = false
 }: { 
   children: React.ReactNode; 
-  fallback?: React.ReactNode; 
+  fallback?: React.ReactNode;
+  instant?: boolean;
 }) => {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        {fallback}
+        {instant ? <InstantLoadingSkeleton /> : fallback}
       </div>
     }>
       <ErrorBoundary>
@@ -1153,19 +1153,19 @@ export default function App() {
 
           <Route path="/about" element={<LazyComponent><About /></LazyComponent>} />
           <Route path="/neo" element={<Navigate to="/create/inspiration" replace />} />
-          <Route path="/square" element={<LazyComponent><Square /></LazyComponent>} />
+          <Route path="/square" element={<Square />} />
 <Route path="/square/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <Square />}</LazyComponent>} />
-          <Route path="/community" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
+          <Route path="/community" element={<PrivateRoute><Community /></PrivateRoute>} />
           <Route path="/community/:id" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id/:channel" element={<LazyComponent><PrivateRoute><Community /></PrivateRoute></LazyComponent>} />
           <Route path="/community/:id/admin" element={<LazyComponent><PrivateRoute><CommunityAdminPanelWrapper /></PrivateRoute></LazyComponent>} />
           <Route path="/friends" element={<LazyComponent><PrivateRoute><Friends /></PrivateRoute></LazyComponent>} />
           <Route path="/chat/:userId" element={<LazyComponent><PrivateRoute><ChatPage /></PrivateRoute></LazyComponent>} />
           <Route path="/post/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <WorkDetail />}</LazyComponent>} />
-          <Route path="/work/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <WorkDetail />}</LazyComponent>} />
-          <Route path="/works/:id" element={<LazyComponent>{isMobile ? <MobilePostDetail /> : <WorkDetail />}</LazyComponent>} />
+          <Route path="/work/:id" element={isMobile ? <MobilePostDetail /> : <WorkDetail />} />
+          <Route path="/works/:id" element={isMobile ? <MobilePostDetail /> : <WorkDetail />} />
           <Route path="/creator-community" element={<Navigate to="/community" replace />} />
-          <Route path="/dashboard" element={<LazyComponent fallback={<DashboardSkeleton />}><PrivateRoute><Dashboard /></PrivateRoute></LazyComponent>} />
+          <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
           {/* 设计平台路由 - 使用 DesignPlatformGuard 进行严格保护 */}
           <Route path="/create/*" element={<LazyComponent><DesignPlatformGuard><Create /></DesignPlatformGuard></LazyComponent>} />
@@ -1178,7 +1178,7 @@ export default function App() {
           <Route path="/ai-assistant" element={<LazyComponent><PrivateRoute><AIAssistantMobile /></PrivateRoute></LazyComponent>} />
           
           {/* 动态内容展示页面 */}
-          <Route path="/feed" element={<LazyComponent><PrivateRoute><Feed /></PrivateRoute></LazyComponent>} />
+          <Route path="/feed" element={<PrivateRoute><Feed /></PrivateRoute>} />
           
           {/* 大型组件和低频访问页面使用懒加载 */}
 

@@ -55,6 +55,26 @@ export interface AuditStatistics {
   approvalRate: number;
 }
 
+// 量化审核评分
+export interface AuditScore {
+  culturalAuthenticity: number; // 文化纯正度 (0-100)
+  creativity: number;            // 创意性 (0-100)
+  technicalQuality: number;      // 技术质量 (0-100)
+  brandAlignment: number;         // 品牌契合度 (0-100)
+  overallScore: number;           // 综合评分 (0-100)
+}
+
+// 审核结果
+export interface AuditResult {
+  workId: string;
+  status: SubmissionStatus;
+  scores: AuditScore;
+  notes?: string;
+  reason?: string;
+  reviewedBy?: string;
+  reviewedAt: string;
+}
+
 // 筛选选项
 export interface WorkFilterOptions {
   status?: SubmissionStatus | 'all';
@@ -300,7 +320,8 @@ export async function reviewWork(
   workId: string,
   action: 'approve' | 'reject',
   notes?: string,
-  adminId?: string
+  adminId?: string,
+  scores?: AuditScore
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const updates: Record<string, any> = {
@@ -325,6 +346,14 @@ export async function reviewWork(
       updates.metadata = {
         ...current?.metadata,
         reject_reason: notes
+      };
+    }
+
+    // 保存审核评分到metadata
+    if (scores) {
+      updates.metadata = {
+        ...updates.metadata,
+        audit_scores: scores
       };
     }
 

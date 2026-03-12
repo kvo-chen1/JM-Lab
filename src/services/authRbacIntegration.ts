@@ -7,7 +7,7 @@ import { AuthContext, User } from '../contexts/authContext';
 import rbacService from './rbacService';
 import eventBus from './eventBus';
 import { EventType } from './eventBus';
-import securityService from './securityService';
+import { securityService } from './securityService';
 import errorService from './errorService';
 import { Permission, Role, UserRole } from '../types';
 

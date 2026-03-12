@@ -1,9 +1,0 @@
-COPY public.score_audit_logs (id, submission_id, judge_id, action, old_score, new_score, comment, created_at) FROM stdin;
-19397ad1-fdce-44d4-9cb8-4b2c649578a9	427ed2f9-c598-46cc-a0e6-69f1ac914b8b	f3dedf79-5c5e-40fd-9513-d0fb0995d429	score	\N	10.00	很不错	2026-02-16 06:39:42.721867+00
-\.
-
-
---
--- Data for Name: search_behavior_tracking; Type: TABLE DATA; Schema: public; Owner: postgres
---
-

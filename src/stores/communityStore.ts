@@ -1,10 +1,13 @@
 import { create } from 'zustand'
-import { communityService } from '../services/communityService'
+import { communityService, UserProfile as ServiceUserProfile } from '../services/communityService'
 import { getPosts } from '../lib/api'
 import { toast } from 'sonner'
 import type { PostWithAuthor, UserProfile, CommentWithAuthor } from '../lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+
+// 使用 service 层的 UserProfile 类型
+type CommunityUserProfile = ServiceUserProfile;
 
 interface FriendRequest {
   id: string
@@ -57,7 +60,7 @@ interface CommunityState {
   follows: Set<string>
   
   // 好友相关
-  friends: UserProfile[]
+  friends: CommunityUserProfile[]
   sentFriendRequests: FriendRequest[]
   receivedFriendRequests: FriendRequest[]
   chatSessions: ChatSession[]
@@ -194,6 +197,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             },
             attachments: [
               {
+                type: 'image',
                 url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20cultural%20community%20welcome%20banner%2C%20modern%20design%2C%20blue%20and%20white%20colors%2C%20cultural%20elements&size=landscape_16_9'
               }
             ]
@@ -226,6 +230,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             },
             attachments: [
               {
+                type: 'image',
                 url: 'https://neeko-copilot.bytedance.net/api/text2image?prompt=Tianjin%20cultural%20elements%20in%20modern%20design%2C%20creative%20concept%2C%20traditional%20patterns&size=landscape_16_9'
               }
             ]

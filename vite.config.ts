@@ -68,10 +68,10 @@ export default defineConfig({
     })] : []),
     VitePWA({
       injectRegister: false,
-      selfDestroying: true,
+      selfDestroying: false,
       registerType: 'autoUpdate',
       // Explicitly include static assets from public folder
-      includeAssets: ['robots.txt'],
+      includeAssets: ['robots.txt', 'sw.js'],
       manifest: {
         name: '津脉智坊 - 津门老字号共创平台',
         short_name: '津脉智坊',
@@ -86,15 +86,79 @@ export default defineConfig({
         scope: '/'
       },
       workbox: {
-        // 简化workbox配置
+        // 增强的 Workbox 配置
         maximumFileSizeToCacheInBytes: 8000000,
-        globPatterns: ['**/*.{js,css,html}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/db\//],
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
-        globIgnores: ['**/*.map', '**/node_modules/**']
+        globIgnores: ['**/*.map', '**/node_modules/**', '**/sw.js'],
+        // 运行时缓存策略
+        runtimeCaching: [
+          // 图片缓存策略 - Cache First
+          {
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'images-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 30 * 24 * 60 * 60, // 30天
+              },
+            },
+          },
+          // 字体缓存策略 - Cache First
+          {
+            urlPattern: /\.(?:woff2?|ttf|otf|eot)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fonts-cache',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 365 * 24 * 60 * 60, // 1年
+              },
+            },
+          },
+          // API 缓存策略 - Network First
+          {
+            urlPattern: /\/api\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 5 * 60, // 5分钟
+              },
+              networkTimeoutSeconds: 3,
+            },
+          },
+          // CDN 资源缓存
+          {
+            urlPattern: /^https:\/\/cdn\./,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'cdn-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 7 * 24 * 60 * 60, // 7天
+              },
+            },
+          },
+          // Google Fonts 缓存
+          {
+            urlPattern: /^https:\/\/fonts\./,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'google-fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 365 * 24 * 60 * 60, // 1年
+              },
+            },
+          },
+        ],
       }
     }),
     // 启用 Gzip 压缩

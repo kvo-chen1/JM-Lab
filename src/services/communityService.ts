@@ -1740,5 +1740,58 @@ export const communityService = {
       console.error('[deleteMessage] Error:', error);
       throw error;
     }
+  },
+
+  // 订阅帖子更新（使用轮询模拟）
+  subscribeToPosts(callback: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE'; new: any; old: any }) => void): { unsubscribe: () => void } {
+    let isActive = true;
+    let lastCheck = Date.now();
+    
+    const poll = async () => {
+      if (!isActive) return;
+      
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        if (!token) {
+          setTimeout(poll, 5000);
+          return;
+        }
+        
+        const response = await fetch('/api/posts/recent?since=' + lastCheck, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.code === 0 && Array.isArray(result.data)) {
+            result.data.forEach((post: any) => {
+              callback({
+                eventType: 'INSERT',
+                new: post,
+                old: null
+              });
+            });
+          }
+        }
+        
+        lastCheck = Date.now();
+      } catch (error) {
+        console.error('[subscribeToPosts] Poll error:', error);
+      }
+      
+      if (isActive) {
+        setTimeout(poll, 5000);
+      }
+    };
+    
+    poll();
+    
+    return {
+      unsubscribe: () => {
+        isActive = false;
+      }
+    };
   }
 };

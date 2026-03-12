@@ -207,6 +207,18 @@ export async function createOrder(
   }
 }
 
+// 带超时的 Supabase 查询
+async function queryWithTimeout<T>(
+  queryPromise: Promise<T>,
+  timeoutMs: number = 10000,
+  errorMessage: string = '请求超时'
+): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+  });
+  return Promise.race([queryPromise, timeoutPromise]);
+}
+
 // 获取订单列表
 export async function getOrders(
   options: {
@@ -218,6 +230,12 @@ export async function getOrders(
   } = {}
 ): Promise<{ data?: Order[]; count?: number; error?: string }> {
   try {
+    // 参数校验
+    if (!options.customer_id && !options.seller_id) {
+      console.warn('[getOrders] 缺少必要的查询参数: customer_id 或 seller_id');
+      return { data: [], count: 0 };
+    }
+
     // 先查询订单列表
     let query = supabase.from('orders').select(
       'id, order_no, customer_id, seller_id, total_amount, status, shipping_address, remark, created_at, updated_at',
@@ -244,7 +262,11 @@ export async function getOrders(
       query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
     }
 
-    const { data: orders, error, count } = await query.order('created_at', { ascending: false });
+    const { data: orders, error, count } = await queryWithTimeout(
+      query.order('created_at', { ascending: false }),
+      15000,
+      '获取订单列表超时，请检查网络连接'
+    );
 
     if (error) throw error;
 
@@ -254,10 +276,14 @@ export async function getOrders(
     // 如果有订单，批量获取订单项
     let itemsMap = new Map();
     if (orderIds.length > 0) {
-      const { data: items, error: itemsError } = await supabase
-        .from('order_items')
-        .select('id, order_id, product_id, product_name, product_image, product_specs, price, quantity, subtotal')
-        .in('order_id', orderIds);
+      const { data: items, error: itemsError } = await queryWithTimeout(
+        supabase
+          .from('order_items')
+          .select('id, order_id, product_id, product_name, product_image, product_specs, price, quantity, subtotal')
+          .in('order_id', orderIds),
+        10000,
+        '获取订单项超时'
+      );
 
       if (itemsError) {
         console.warn('获取订单项失败:', itemsError);

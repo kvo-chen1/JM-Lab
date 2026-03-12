@@ -64,7 +64,7 @@ const getStatusStyle = (status: string) => {
 const OrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   // 状态
   const [activeStatus, setActiveStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,32 +72,46 @@ const OrdersPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 调试：打印用户信息
+  useEffect(() => {
+    console.log('[Orders] user:', user);
+    console.log('[Orders] user?.id:', user?.id);
+  }, [user]);
+
   // 获取真实订单数据
   useEffect(() => {
-    if (!user) return;
-    
+    if (!user?.id) {
+      console.log('[Orders] 缺少 user.id，跳过请求');
+      setLoading(false);
+      return;
+    }
+
+    console.log('[Orders] 开始获取订单，user.id:', user.id);
+
     const fetchOrders = async () => {
       setLoading(true);
       setError(null);
       try {
         const result = await getOrders({ customer_id: user.id });
+        console.log('[Orders] 获取订单结果:', result);
         if (result.error) {
           setError(result.error);
         } else {
           setOrders(result.data || []);
         }
       } catch (err: any) {
+        console.error('[Orders] 获取订单异常:', err);
         setError(err.message || '获取订单失败');
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchOrders();
-  }, [user]);
+  }, [user?.id]);
 
   // 检查是否登录
-  if (!user) {
+  if (!user?.id) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

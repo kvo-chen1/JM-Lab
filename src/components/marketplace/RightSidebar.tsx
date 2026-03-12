@@ -4,7 +4,7 @@
  * 优化：更现代的UI、更好的空状态设计、更丰富的交互
  */
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   ShoppingCart, 
   Heart, 
@@ -17,10 +17,19 @@ import {
   Gift,
   Package,
   ShoppingBag,
-  ArrowRight
+  ArrowRight,
+  Home,
+  Store
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Product } from '@/services/productService';
+
+interface PlatformStats {
+  totalProducts: number;
+  totalBrands: number;
+  totalOrders: number;
+  positiveRate: number;
+}
 
 interface RightSidebarProps {
   cartItems?: Array<{
@@ -38,6 +47,7 @@ interface RightSidebarProps {
     endTime?: string;
   }>;
   recommendedProducts?: Product[];
+  platformStats?: PlatformStats;
   onRemoveFromCart?: (itemId: string) => void;
 }
 
@@ -47,9 +57,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   recentlyViewed = [],
   promotions = [],
   recommendedProducts = [],
+  platformStats,
   onRemoveFromCart,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // 计算购物车总价
   const cartTotal = cartItems.reduce((sum, item) => {
@@ -61,8 +73,68 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   // 计算购物车商品总数
   const cartItemCount = cartItems.reduce((sum, item) => sum + (item?.quantity || 1), 0);
 
+  const isActive = (path: string) => {
+    // 处理带查询参数的路径
+    const cleanPath = path.split('?')[0];
+    
+    // 首页特殊处理
+    if (cleanPath === '/marketplace') {
+      return location.pathname === '/marketplace' || location.pathname === '/marketplace/';
+    }
+    
+    // 其他路径使用 startsWith 匹配
+    return location.pathname.startsWith(cleanPath);
+  };
+
+  const menuItems = [
+    { id: 'home', label: '首页', icon: Home, href: '/marketplace' },
+    { id: 'products', label: '全部商品', icon: ShoppingBag, href: '/marketplace?sort=newest' },
+    { id: 'favorites', label: '我的收藏', icon: Heart, href: '/favorites' },
+    { id: 'cart', label: '购物车', icon: ShoppingCart, href: '/marketplace/cart' },
+    { id: 'orders', label: '我的订单', icon: Store, href: '/orders' },
+  ];
+
+  const handleMenuClick = (href: string) => {
+    navigate(href);
+  };
+
   return (
     <div className="space-y-4">
+      {/* 快捷导航 - 新设计 */}
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.05 }}
+        className="mp-sidebar-card"
+      >
+        <h3 className="mp-sidebar-card-title">
+          <ShoppingBag className="w-4 h-4 text-gray-400" />
+          快捷导航
+        </h3>
+        <nav className="mp-sidebar-nav">
+          {menuItems.map((item, index) => {
+            const Icon = item.icon;
+            const active = isActive(item.href.split('?')[0]);
+            return (
+              <motion.button
+                key={item.id}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.05 + index * 0.05 }}
+                onClick={() => handleMenuClick(item.href)}
+                className={`mp-sidebar-nav-item ${active ? 'active' : ''}`}
+              >
+                <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
+                <span>{item.label}</span>
+                {active && (
+                  <ChevronRight className="w-4 h-4 ml-auto opacity-50" />
+                )}
+              </motion.button>
+            );
+          })}
+        </nav>
+      </motion.div>
+
       {/* 购物车预览 - 新设计 */}
       <motion.div
         initial={{ opacity: 0, x: 20 }}
@@ -357,19 +429,19 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="text-center p-3 rounded-xl bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-100">
-            <p className="text-xl font-bold text-sky-600">1,234</p>
+            <p className="text-xl font-bold text-sky-600">{(platformStats?.totalProducts || 0).toLocaleString()}</p>
             <p className="text-xs text-gray-500 mt-0.5">在售商品</p>
           </div>
           <div className="text-center p-3 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100">
-            <p className="text-xl font-bold text-amber-600">56</p>
+            <p className="text-xl font-bold text-amber-600">{(platformStats?.totalBrands || 0).toLocaleString()}</p>
             <p className="text-xs text-gray-500 mt-0.5">入驻品牌</p>
           </div>
           <div className="text-center p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
-            <p className="text-xl font-bold text-emerald-600">8,888</p>
+            <p className="text-xl font-bold text-emerald-600">{(platformStats?.totalOrders || 0).toLocaleString()}</p>
             <p className="text-xs text-gray-500 mt-0.5">累计订单</p>
           </div>
           <div className="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100">
-            <p className="text-xl font-bold text-purple-600">99%</p>
+            <p className="text-xl font-bold text-purple-600">{platformStats?.positiveRate || 99}%</p>
             <p className="text-xs text-gray-500 mt-0.5">好评率</p>
           </div>
         </div>

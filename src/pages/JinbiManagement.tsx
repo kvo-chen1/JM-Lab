@@ -98,7 +98,8 @@ const JinbiManagement: React.FC = () => {
         toast.success('充值成功！');
         setShowPaymentModal(false);
         setSelectedPackage(null);
-        // 刷新余额
+        // 清除缓存并刷新余额
+        jinbiService.clearCache();
         refreshBalance();
         refreshRecords();
       } else {

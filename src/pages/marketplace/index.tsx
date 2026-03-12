@@ -12,7 +12,9 @@ import {
   ChevronRight,
   Package,
   Store,
-  Award
+  Award,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import LicensedProductSection from '@/components/marketplace/LicensedProductSection';
 
@@ -36,6 +38,7 @@ import {
 } from '@/hooks/useProducts';
 import { useBrands } from '@/hooks/useBrands';
 import { useAuth } from '@/hooks/useAuth';
+import { usePlatformStats } from '@/hooks/usePlatformStats';
 
 // 类型
 import { Product } from '@/services/productService';
@@ -52,6 +55,15 @@ const MarketplacePage: React.FC = () => {
   const [selectedBrand, setSelectedBrand] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'sales'>('newest');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+
+  // 排序选项
+  const sortOptions = [
+    { value: 'newest', label: '最新上架' },
+    { value: 'price_asc', label: '价格从低到高' },
+    { value: 'price_desc', label: '价格从高到低' },
+    { value: 'sales', label: '销量优先' },
+  ] as const;
 
   // 数据获取 - 使用商家商品 hook
   const { products, loading: productsLoading, error: productsError } = useMerchantProducts({
@@ -74,6 +86,7 @@ const MarketplacePage: React.FC = () => {
   const { addToCart } = useAddToCart();
   const { addToFavorites } = useAddToFavorites();
   const { removeFromFavorites } = useRemoveFromFavorites();
+  const { stats: platformStats } = usePlatformStats();
 
   // 收藏的商品ID列表
   const favoriteProductIds = useMemo(() => 
@@ -161,24 +174,24 @@ const MarketplacePage: React.FC = () => {
     setSelectedCategory(categoryId);
   };
 
-  // 区块标题组件
+  // 区块标题组件 - 紧凑型
   const SectionHeader: React.FC<{
     title: string;
     icon: React.ReactNode;
     iconBg?: string;
     action?: { label: string; onClick: () => void };
   }> = ({ title, icon, iconBg = 'from-[var(--haihe-500)] to-[var(--haihe-600)]', action }) => (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${iconBg} flex items-center justify-center shadow-lg`}>
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2">
+        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${iconBg} flex items-center justify-center shadow-md`}>
           {icon}
         </div>
-        <h2 className="text-xl font-bold text-[var(--text-primary)]">{title}</h2>
+        <h2 className="text-lg font-bold text-[var(--text-primary)]">{title}</h2>
       </div>
       {action && (
         <button
           onClick={action.onClick}
-          className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--haihe-500)] transition-colors"
+          className="flex items-center gap-0.5 text-sm text-[var(--text-muted)] hover:text-[var(--haihe-500)] transition-colors"
         >
           {action.label}
           <ChevronRight className="w-4 h-4" />
@@ -218,6 +231,7 @@ const MarketplacePage: React.FC = () => {
         },
       ]}
       recommendedProducts={recommendedProducts}
+      platformStats={platformStats}
     />
   );
 
@@ -239,13 +253,13 @@ const MarketplacePage: React.FC = () => {
           >
             <SectionHeader
               title="热销推荐"
-              icon={<Flame className="w-5 h-5 text-white" />}
+              icon={<Flame className="w-4 h-4 text-white" />}
               iconBg="from-orange-500 to-red-500"
               action={{ label: '查看全部', onClick: () => setSortBy('sales') }}
             />
             <ProductGridV2
               products={hotProducts}
-              columns={4}
+              columns={5}
               onProductClick={handleProductClick}
               onAddToCart={handleAddToCart}
               onToggleFavorite={handleToggleFavorite}
@@ -263,12 +277,12 @@ const MarketplacePage: React.FC = () => {
           >
             <SectionHeader
               title="精选好物"
-              icon={<Sparkles className="w-5 h-5 text-white" />}
+              icon={<Sparkles className="w-4 h-4 text-white" />}
               iconBg="from-purple-500 to-pink-500"
             />
             <ProductGridV2
               products={featuredProducts}
-              columns={4}
+              columns={5}
               onProductClick={handleProductClick}
               onAddToCart={handleAddToCart}
               onToggleFavorite={handleToggleFavorite}
@@ -286,13 +300,13 @@ const MarketplacePage: React.FC = () => {
           >
             <SectionHeader
               title="新品上市"
-              icon={<TrendingUp className="w-5 h-5 text-white" />}
+              icon={<TrendingUp className="w-4 h-4 text-white" />}
               iconBg="from-green-500 to-teal-500"
               action={{ label: '查看全部', onClick: () => setSortBy('newest') }}
             />
             <ProductGridV2
               products={newProducts}
-              columns={4}
+              columns={5}
               onProductClick={handleProductClick}
               onAddToCart={handleAddToCart}
               onToggleFavorite={handleToggleFavorite}
@@ -322,27 +336,56 @@ const MarketplacePage: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--haihe-500)] to-[var(--haihe-600)] flex items-center justify-center shadow-lg">
-                <Package className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--haihe-500)] to-[var(--haihe-600)] flex items-center justify-center shadow-md">
+                <Package className="w-4 h-4 text-white" />
               </div>
-              <h2 className="text-xl font-bold text-[var(--text-primary)]">全部商品</h2>
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">全部商品</h2>
             </div>
 
-            {/* 排序选项 */}
+            {/* 排序选项 - 自定义下拉菜单 */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-[var(--text-muted)]">排序：</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className="h-9 px-3 text-sm bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--haihe-500)]/20 focus:border-[var(--haihe-500)]"
-              >
-                <option value="newest">最新上架</option>
-                <option value="price_asc">价格从低到高</option>
-                <option value="price_desc">价格从高到低</option>
-                <option value="sales">销量优先</option>
-              </select>
+              <span className="text-sm text-gray-500">排序：</span>
+              <div className="relative">
+                <button
+                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                  className="flex items-center gap-2 h-8 px-3 text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-all"
+                >
+                  <span className="text-gray-700">
+                    {sortOptions.find(opt => opt.value === sortBy)?.label}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${sortDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {sortDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40"
+                      onClick={() => setSortDropdownOpen(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-gray-100 rounded-lg shadow-lg z-50 py-1">
+                      {sortOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            setSortBy(option.value);
+                            setSortDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors ${
+                            sortBy === option.value ? 'text-sky-600 bg-sky-50/50' : 'text-gray-700'
+                          }`}
+                        >
+                          <span>{option.label}</span>
+                          {sortBy === option.value && (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -379,7 +422,7 @@ const MarketplacePage: React.FC = () => {
           <ProductGridV2
             products={products || []}
             loading={productsLoading}
-            columns={4}
+            columns={5}
             onProductClick={handleProductClick}
             onAddToCart={handleAddToCart}
             onToggleFavorite={handleToggleFavorite}
@@ -398,7 +441,7 @@ const MarketplacePage: React.FC = () => {
           >
             <SectionHeader
               title="入驻品牌"
-              icon={<Store className="w-5 h-5 text-white" />}
+              icon={<Store className="w-4 h-4 text-white" />}
               iconBg="from-amber-500 to-orange-500"
             />
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">

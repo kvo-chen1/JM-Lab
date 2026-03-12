@@ -55,6 +55,7 @@ export interface CommercialOpportunity {
   deadline?: string;
   status: 'open' | 'matched' | 'closed';
   matchCriteria?: Record<string, any>;
+  viewCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -576,6 +577,94 @@ class IPService {
   calculateSampleProgress(stages: IPStage[]): number {
     const completedStages = stages.filter(stage => stage.completed).length;
     return Math.round((completedStages / stages.length) * 100);
+  }
+
+  // ============================================
+  // 商业机会管理方法 (主办方视角)
+  // ============================================
+
+  /**
+   * 创建商业机会
+   */
+  async createOpportunity(opportunity: Omit<CommercialOpportunity, 'id' | 'createdAt' | 'updatedAt'>): Promise<CommercialOpportunity | null> {
+    try {
+      const response = await apiClient.post<CommercialOpportunity, any>(`${this.baseUrl}/opportunities`, opportunity);
+      if (response.ok && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('[ipService.createOpportunity] 错误:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 更新商业机会
+   */
+  async updateOpportunity(id: string, opportunity: Partial<CommercialOpportunity>): Promise<CommercialOpportunity | null> {
+    try {
+      const response = await apiClient.put<CommercialOpportunity, any>(`${this.baseUrl}/opportunities/${id}`, opportunity);
+      if (response.ok && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('[ipService.updateOpportunity] 错误:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 删除商业机会
+   */
+  async deleteOpportunity(id: string): Promise<boolean> {
+    try {
+      const response = await apiClient.delete(`${this.baseUrl}/opportunities/${id}`);
+      return response.ok;
+    } catch (error) {
+      console.error('[ipService.deleteOpportunity] 错误:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 更新商业机会状态 (开启/关闭)
+   */
+  async updateOpportunityStatus(id: string, status: 'open' | 'closed'): Promise<boolean> {
+    try {
+      const response = await apiClient.put<boolean, any>(`${this.baseUrl}/opportunities/${id}/status`, { status });
+      return response.ok;
+    } catch (error) {
+      console.error('[ipService.updateOpportunityStatus] 错误:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取商业机会的申请者列表 (主办方视角)
+   */
+  async getOpportunityApplications(opportunityId: string): Promise<CommercialPartnership[]> {
+    try {
+      const response = await apiClient.get<CommercialPartnership[]>(`${this.baseUrl}/opportunities/${opportunityId}/applications`);
+      return response.data || [];
+    } catch (error) {
+      console.error('[ipService.getOpportunityApplications] 错误:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 审核申请 (通过/拒绝)
+   */
+  async reviewApplication(applicationId: string, status: 'approved' | 'rejected', message?: string): Promise<boolean> {
+    try {
+      const response = await apiClient.put<boolean, any>(`${this.baseUrl}/partnerships/${applicationId}/review`, { status, message });
+      return response.ok;
+    } catch (error) {
+      console.error('[ipService.reviewApplication] 错误:', error);
+      return false;
+    }
   }
 }
 

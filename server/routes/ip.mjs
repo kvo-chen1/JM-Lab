@@ -563,6 +563,7 @@ async function getAllOpportunities(req, res) {
         deadline,
         status,
         match_criteria,
+        view_count,
         created_at,
         updated_at
       FROM commercial_opportunities
@@ -583,6 +584,7 @@ async function getAllOpportunities(req, res) {
       deadline: row.deadline,
       status: row.status,
       matchCriteria: row.match_criteria,
+      viewCount: row.view_count,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));

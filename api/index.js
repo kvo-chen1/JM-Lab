@@ -4,19 +4,15 @@
 // 内存中存储验证码（作为数据库的备选）
 const verificationCodes = new Map();
 
-// 数据库连接
-let pgClient = null;
+// 数据库连接池（延迟初始化）
+let pool = null;
 let dbAvailable = false;
 
-// 数据库连接池
-let pool = null;
-
-// 获取数据库连接池
+// 获取数据库连接池（延迟初始化）
 async function getDbPool() {
   if (pool) return pool;
 
   // 尝试 Supabase PostgreSQL 环境变量
-  // 优先使用 POSTGRES_URL_NON_POOLING，因为它使用直连方式，更可靠
   let databaseUrl = process.env.POSTGRES_URL_NON_POOLING ||
                     process.env.DATABASE_URL ||
                     process.env.POSTGRES_URL;
@@ -42,14 +38,12 @@ async function getDbPool() {
 
   try {
     const { Pool } = await import('pg');
-    
-    // Supabase PostgreSQL 连接池配置
+
     pool = new Pool({
       connectionString: databaseUrl,
       ssl: {
         rejectUnauthorized: false
       },
-      // Vercel Serverless 优化
       max: 20,
       min: 2,
       idleTimeoutMillis: 120000,
@@ -59,27 +53,25 @@ async function getDbPool() {
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000
     });
-    
-    // 添加错误监听
+
     pool.on('error', (err) => {
       console.error('[DB Pool] Unexpected error:', err.message);
     });
-    
+
     pool.on('connect', () => {
       console.log('[DB Pool] New client connected');
     });
-    
+
     // 测试连接
     const client = await pool.connect();
     await client.query('SELECT NOW()');
     client.release();
-    
-    console.log('[DB] Connected to Supabase PostgreSQL database successfully');
+
+    console.log('[DB] Connected to database successfully');
     dbAvailable = true;
     return pool;
   } catch (error) {
     console.error('[DB] Connection error:', error.message);
-    console.error('[DB] Error details:', error.stack);
     dbAvailable = false;
     pool = null;
     return null;
@@ -87,7 +79,12 @@ async function getDbPool() {
 }
 
 // 带重试的查询函数
-async function queryWithRetry(pool, sql, params, maxRetries = 3) {
+async function queryWithRetry(sql, params, maxRetries = 3) {
+  const pool = await getDbPool();
+  if (!pool) {
+    throw new Error('Database not configured');
+  }
+
   let lastError;
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -96,9 +93,8 @@ async function queryWithRetry(pool, sql, params, maxRetries = 3) {
     } catch (error) {
       lastError = error;
       console.error(`[DB] Query attempt ${i + 1} failed:`, error.message);
-      
-      // 如果是连接错误，等待后重试
-      if (error.message.includes('disconnected') || 
+
+      if (error.message.includes('disconnected') ||
           error.message.includes('terminated') ||
           error.message.includes('ECONNRESET') ||
           error.message.includes('timeout') ||
@@ -106,8 +102,7 @@ async function queryWithRetry(pool, sql, params, maxRetries = 3) {
         await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
         continue;
       }
-      
-      // 其他错误直接抛出
+
       throw error;
     }
   }
@@ -118,22 +113,21 @@ async function queryWithRetry(pool, sql, params, maxRetries = 3) {
 async function getDbClient() {
   const pool = await getDbPool();
   if (!pool) return null;
-  
-  // 返回一个模拟的客户端对象
+
   return {
-    query: (sql, params) => queryWithRetry(pool, sql, params),
-    on: () => {}, // 兼容旧代码
-    release: () => {} // 兼容旧代码
+    query: (sql, params) => queryWithRetry(sql, params),
+    on: () => {},
+    release: () => {}
   };
 }
 
 // 确保用户表存在
 async function ensureUsersTable() {
   try {
-    const client = await getDbClient();
-    if (!client) return false;
+    const pool = await getDbPool();
+    if (!pool) return false;
 
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(255) PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
@@ -155,10 +149,10 @@ async function ensureUsersTable() {
 // 确保验证码表存在
 async function ensureVerificationTable() {
   try {
-    const client = await getDbClient();
-    if (!client) return false;
+    const pool = await getDbPool();
+    if (!pool) return false;
 
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS verification_codes (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) NOT NULL,
@@ -180,12 +174,12 @@ async function ensureVerificationTable() {
 // 根据邮箱查询用户
 async function getUserByEmail(email) {
   try {
-    const client = await getDbClient();
-    if (!client) return null;
+    const pool = await getDbPool();
+    if (!pool) return null;
 
     await ensureUsersTable();
 
-    const result = await client.query(
+    const result = await queryWithRetry(
       'SELECT * FROM users WHERE email = $1',
       [email]
     );
@@ -205,12 +199,12 @@ async function getUserByEmail(email) {
 // 保存或更新用户
 async function saveUser(user) {
   try {
-    const client = await getDbClient();
-    if (!client) return user;
+    const pool = await getDbPool();
+    if (!pool) return user;
 
     await ensureUsersTable();
 
-    await client.query(`
+    await queryWithRetry(`
       INSERT INTO users (id, email, username, avatar_url, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
       ON CONFLICT (email)
@@ -235,12 +229,12 @@ async function saveVerificationCode(email, code, expiresAt) {
   console.log('[Memory] Code saved for', email);
 
   try {
-    const client = await getDbClient();
-    if (!client) return;
+    const pool = await getDbPool();
+    if (!pool) return;
 
     await ensureVerificationTable();
-    await client.query('DELETE FROM verification_codes WHERE email = $1', [email]);
-    await client.query(
+    await queryWithRetry('DELETE FROM verification_codes WHERE email = $1', [email]);
+    await queryWithRetry(
       'INSERT INTO verification_codes (email, code, expires_at, attempts) VALUES ($1, $2, $3, $4)',
       [email, code, new Date(expiresAt), 0]
     );
@@ -258,11 +252,11 @@ async function getVerificationCode(email) {
   }
 
   try {
-    const client = await getDbClient();
-    if (!client) return null;
+    const pool = await getDbPool();
+    if (!pool) return null;
 
     await ensureVerificationTable();
-    const result = await client.query('SELECT * FROM verification_codes WHERE email = $1', [email]);
+    const result = await queryWithRetry('SELECT * FROM verification_codes WHERE email = $1', [email]);
     return result.rows[0] || null;
   } catch (error) {
     console.error('[DB] Get code error:', error.message);
@@ -276,8 +270,8 @@ async function incrementAttempts(email) {
   if (memoryData) memoryData.attempts++;
 
   try {
-    const client = await getDbClient();
-    if (client) await client.query('UPDATE verification_codes SET attempts = attempts + 1 WHERE email = $1', [email]);
+    const pool = await getDbPool();
+    if (pool) await queryWithRetry('UPDATE verification_codes SET attempts = attempts + 1 WHERE email = $1', [email]);
   } catch (error) {
     console.error('[DB] Increment attempts error:', error.message);
   }
@@ -287,8 +281,8 @@ async function incrementAttempts(email) {
 async function deleteVerificationCode(email) {
   verificationCodes.delete(email);
   try {
-    const client = await getDbClient();
-    if (client) await client.query('DELETE FROM verification_codes WHERE email = $1', [email]);
+    const pool = await getDbPool();
+    if (pool) await queryWithRetry('DELETE FROM verification_codes WHERE email = $1', [email]);
   } catch (error) {
     console.error('[DB] Delete code error:', error.message);
   }
@@ -374,18 +368,10 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // 正确处理路径：移除 /api 前缀，并移除查询参数
+  // 正确处理路径
   const urlWithoutQuery = req.url.split('?')[0];
   const path = urlWithoutQuery.replace(/^\/api/, '') || '/';
   console.log('[Vercel API] Request:', req.method, path, 'Original URL:', req.url);
-  
-  // 调试：打印环境变量状态（不要打印敏感信息）
-  console.log('[Vercel API] Env check:', {
-    hasDatabaseUrl: !!process.env.DATABASE_URL || !!process.env.NETLIFY_DATABASE_URL,
-    hasEmailHost: !!process.env.EMAIL_HOST,
-    hasEmailUser: !!process.env.EMAIL_USER,
-    hasEmailPass: !!process.env.EMAIL_PASS
-  });
 
   try {
     // 健康检查
@@ -412,7 +398,7 @@ export default async function handler(req, res) {
       return handleClaimPoints(req, res);
     }
 
-    // 用户作品统计API (ports可能是笔误，应该是stats)
+    // 用户作品统计API
     if (path === '/user/ports' && req.method === 'GET') {
       return handleUserStats(req, res);
     }
@@ -466,17 +452,14 @@ export default async function handler(req, res) {
 
 // 辅助函数：解析请求体
 async function parseRequestBody(req) {
-  // 如果 req.body 已经被解析（Vercel 会自动解析 JSON）
   if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
     return req.body;
   }
 
-  // 如果不是 POST/PUT/PATCH，返回空对象
   if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') {
     return {};
   }
 
-  // 如果 req.body 是字符串，尝试解析为 JSON
   if (typeof req.body === 'string') {
     try {
       return JSON.parse(req.body);
@@ -485,7 +468,6 @@ async function parseRequestBody(req) {
     }
   }
 
-  // 如果 req.body 是 Buffer，转换为字符串并解析
   if (Buffer.isBuffer(req.body)) {
     try {
       const str = req.body.toString('utf8');
@@ -495,14 +477,12 @@ async function parseRequestBody(req) {
     }
   }
 
-  // 默认返回空对象
   return {};
 }
 
 // 处理认证请求
 async function handleAuthRequest(req, res, path) {
   try {
-    // 解析请求体
     const body = await parseRequestBody(req);
 
     console.log('[Auth] Path:', path, 'Body:', JSON.stringify(body));
@@ -550,11 +530,9 @@ async function handleAuthRequest(req, res, path) {
 
       await deleteVerificationCode(email);
 
-      // 先查询是否已有该用户
       let user = await getUserByEmail(email);
 
       if (!user) {
-        // 新用户，创建记录
         user = {
           id: 'user_' + Date.now(),
           email,
@@ -581,72 +559,6 @@ async function handleAuthRequest(req, res, path) {
   }
 }
 
-// 处理数据库请求
-async function handleDbRequest(req, res, path) {
-  try {
-    let databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING;
-
-    if (!databaseUrl) {
-      return res.status(503).json({ code: 1, message: 'Database not configured' });
-    }
-
-    const client = await getDbClient();
-    if (!client) {
-      return res.status(503).json({ code: 1, message: 'Database connection failed' });
-    }
-
-    // 解析请求体
-    const body = await parseRequestBody(req);
-
-    const { operation, table, data, query, params } = body;
-    console.log('[DB] Operation:', operation, 'Table:', table);
-
-    // 简单的数据库操作
-    if (operation === 'select') {
-      const result = await client.query(query || `SELECT * FROM ${table}`, params || []);
-      return res.status(200).json({ code: 0, message: 'Query successful', data: result.rows });
-    }
-
-    if (operation === 'insert' && data) {
-      const columns = Object.keys(data).join(', ');
-      const values = Object.values(data);
-      const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-      const result = await client.query(
-        `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`,
-        values
-      );
-      return res.status(200).json({ code: 0, message: 'Insert successful', data: result.rows[0] });
-    }
-
-    // 默认返回成功
-    return res.status(200).json({ code: 0, message: 'Database operation received', operation, table });
-
-  } catch (error) {
-    console.error('[DB] Error:', error);
-    return res.status(500).json({ code: 1, message: 'Database error', error: error.message });
-  }
-}
-
-// 验证Token
-function verifyAuthToken(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  const token = authHeader.substring(7);
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    if (payload.exp && payload.exp < Date.now() / 1000) {
-      return null;
-    }
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
 // 处理用户成就查询
 async function handleUserAchievements(req, res) {
   const decoded = verifyAuthToken(req);
@@ -655,14 +567,12 @@ async function handleUserAchievements(req, res) {
   }
 
   try {
-    const client = await getDbClient();
-    if (!client) {
-      // 返回空数据，避免前端报错
+    const pool = await getDbPool();
+    if (!pool) {
       return res.status(200).json({ code: 0, data: [] });
     }
 
-    // 查询用户成就表
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS user_achievements (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
@@ -675,9 +585,10 @@ async function handleUserAchievements(req, res) {
       )
     `);
 
-    const result = await client.query(
+    const userId = decoded.userId || decoded.id || decoded.sub;
+    const result = await queryWithRetry(
       'SELECT * FROM user_achievements WHERE user_id = $1',
-      [decoded.userId || decoded.id || decoded.sub]
+      [userId]
     );
 
     return res.status(200).json({ code: 0, data: result.rows });
@@ -695,13 +606,12 @@ async function handleUserPoints(req, res) {
   }
 
   try {
-    const client = await getDbClient();
-    if (!client) {
+    const pool = await getDbPool();
+    if (!pool) {
       return res.status(200).json({ code: 0, data: { total: 0, records: [] } });
     }
 
-    // 查询积分记录表
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS points_records (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
@@ -715,13 +625,12 @@ async function handleUserPoints(req, res) {
     `);
 
     const userId = decoded.userId || decoded.id || decoded.sub;
-    const recordsResult = await client.query(
+    const recordsResult = await queryWithRetry(
       'SELECT * FROM points_records WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
       [userId]
     );
 
-    // 计算总积分
-    const totalResult = await client.query(
+    const totalResult = await queryWithRetry(
       'SELECT COALESCE(SUM(points), 0) as total FROM points_records WHERE user_id = $1',
       [userId]
     );
@@ -750,21 +659,19 @@ async function handleClaimPoints(req, res) {
     const body = await parseRequestBody(req);
     const { achievementId, points } = body;
 
-    const client = await getDbClient();
-    if (!client) {
+    const pool = await getDbPool();
+    if (!pool) {
       return res.status(503).json({ code: 1, message: 'Database not available' });
     }
 
     const userId = decoded.userId || decoded.id || decoded.sub;
 
-    // 添加积分记录
-    await client.query(`
+    await queryWithRetry(`
       INSERT INTO points_records (user_id, points, source, source_type, description, balance_after)
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [userId, points, `achievement_${achievementId}`, 'achievement', '成就奖励', points]);
 
-    // 更新成就状态为已领取
-    await client.query(`
+    await queryWithRetry(`
       UPDATE user_achievements SET is_claimed = TRUE WHERE user_id = $1 AND achievement_id = $2
     `, [userId, achievementId]);
 
@@ -783,23 +690,17 @@ async function handleUserStats(req, res) {
   }
 
   try {
-    const client = await getDbClient();
-    if (!client) {
+    const pool = await getDbPool();
+    if (!pool) {
       return res.status(200).json({
         code: 0,
-        data: {
-          works_count: 0,
-          total_likes: 0,
-          total_views: 0,
-          favorites_count: 0
-        }
+        data: { works_count: 0, total_likes: 0, total_views: 0, favorites_count: 0 }
       });
     }
 
     const userId = decoded.userId || decoded.id || decoded.sub;
 
-    // 创建必要的表
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS works (
         id UUID PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
@@ -814,7 +715,7 @@ async function handleUserStats(req, res) {
       )
     `);
 
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS favorites (
         id UUID PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
@@ -823,13 +724,12 @@ async function handleUserStats(req, res) {
       )
     `);
 
-    // 查询统计数据
-    const worksResult = await client.query(
+    const worksResult = await queryWithRetry(
       'SELECT COUNT(*) as count, COALESCE(SUM(likes), 0) as total_likes, COALESCE(SUM(views), 0) as total_views FROM works WHERE user_id = $1',
       [userId]
     );
 
-    const favoritesResult = await client.query(
+    const favoritesResult = await queryWithRetry(
       'SELECT COUNT(*) as count FROM favorites WHERE user_id = $1',
       [userId]
     );
@@ -847,12 +747,7 @@ async function handleUserStats(req, res) {
     console.error('[API] Get user stats error:', error);
     return res.status(200).json({
       code: 0,
-      data: {
-        works_count: 0,
-        total_likes: 0,
-        total_views: 0,
-        favorites_count: 0
-      }
+      data: { works_count: 0, total_likes: 0, total_views: 0, favorites_count: 0 }
     });
   }
 }
@@ -874,13 +769,11 @@ async function handleUploadAvatar(req, res) {
       return res.status(400).json({ code: 1, error: 'BAD_REQUEST', message: '缺少文件数据' });
     }
 
-    // 验证文件类型
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(fileType)) {
       return res.status(400).json({ code: 1, error: 'BAD_REQUEST', message: '不支持的文件类型' });
     }
 
-    // 解码base64并检查文件大小
     let base64Data;
     if (fileData.startsWith('data:')) {
       base64Data = fileData.split(',')[1];
@@ -889,18 +782,17 @@ async function handleUploadAvatar(req, res) {
     }
 
     const fileBuffer = Buffer.from(base64Data, 'base64');
-    const maxSize = 2 * 1024 * 1024; // 2MB
+    const maxSize = 2 * 1024 * 1024;
     if (fileBuffer.length > maxSize) {
       return res.status(413).json({ code: 1, error: 'PAYLOAD_TOO_LARGE', message: '图片过大，请使用小于2MB的图片' });
     }
 
-    const client = await getDbClient();
-    if (!client) {
+    const pool = await getDbPool();
+    if (!pool) {
       return res.status(503).json({ code: 1, message: 'Database not available' });
     }
 
-    // 创建头像存储表
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS user_avatars (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) UNIQUE NOT NULL,
@@ -914,8 +806,7 @@ async function handleUploadAvatar(req, res) {
     const userId = decoded.userId || decoded.id || decoded.sub;
     const dataUrl = `data:${fileType};base64,${base64Data}`;
 
-    // 保存头像到数据库
-    await client.query(`
+    await queryWithRetry(`
       INSERT INTO user_avatars (user_id, avatar_data, file_type)
       VALUES ($1, $2, $3)
       ON CONFLICT (user_id)
@@ -925,8 +816,7 @@ async function handleUploadAvatar(req, res) {
         updated_at = CURRENT_TIMESTAMP
     `, [userId, dataUrl, fileType]);
 
-    // 同时更新users表的avatar_url字段
-    await client.query(`
+    await queryWithRetry(`
       UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
     `, [dataUrl, userId]);
 
@@ -935,10 +825,7 @@ async function handleUploadAvatar(req, res) {
     return res.status(200).json({
       code: 0,
       message: '头像上传成功',
-      data: {
-        url: dataUrl,
-        path: `/api/avatar/${userId}`
-      }
+      data: { url: dataUrl, path: `/api/avatar/${userId}` }
     });
   } catch (error) {
     console.error('[API] Avatar upload error:', error);
@@ -949,13 +836,12 @@ async function handleUploadAvatar(req, res) {
 // 处理获取作品列表
 async function handleGetWorks(req, res) {
   try {
-    const client = await getDbClient();
-    if (!client) {
+    const pool = await getDbPool();
+    if (!pool) {
       return res.status(200).json({ code: 0, data: [], message: 'Database not available' });
     }
 
-    // 创建works表
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS works (
         id UUID PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
@@ -971,7 +857,7 @@ async function handleGetWorks(req, res) {
       )
     `);
 
-    const result = await client.query(
+    const result = await queryWithRetry(
       'SELECT * FROM works WHERE status = $1 ORDER BY created_at DESC LIMIT 50',
       ['published']
     );
@@ -1010,28 +896,22 @@ async function handleCreateWork(req, res) {
     const body = await parseRequestBody(req);
     const { title, description, thumbnail, videoUrl } = body;
 
-    const client = await getDbClient();
-    if (!client) {
+    const pool = await getDbPool();
+    if (!pool) {
       return res.status(503).json({ code: 1, message: 'Database not available' });
     }
 
     const userId = decoded.userId || decoded.id || decoded.sub;
-
-    // 生成 UUID
     const { randomUUID } = await import('crypto');
     const workId = randomUUID();
 
-    const result = await client.query(`
+    const result = await queryWithRetry(`
       INSERT INTO works (id, user_id, title, description, thumbnail, video_url, status)
       VALUES ($1, $2, $3, $4, $5, $6, 'published')
       RETURNING *
     `, [workId, userId, title, description, thumbnail, videoUrl]);
 
-    return res.status(200).json({
-      code: 0,
-      message: '作品创建成功',
-      data: result.rows[0]
-    });
+    return res.status(200).json({ code: 0, message: '作品创建成功', data: result.rows[0] });
   } catch (error) {
     console.error('[API] Create work error:', error);
     return res.status(500).json({ code: 1, message: '创建作品失败', error: error.message });
@@ -1046,13 +926,12 @@ async function handleFollows(req, res, path) {
   }
 
   try {
-    const client = await getDbClient();
-    if (!client) {
+    const pool = await getDbPool();
+    if (!pool) {
       return res.status(200).json({ code: 0, data: { isFollowing: false, followers: 0, following: 0 } });
     }
 
-    // 创建关注表
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS follows (
         id SERIAL PRIMARY KEY,
         follower_id VARCHAR(255) NOT NULL,
@@ -1064,13 +943,12 @@ async function handleFollows(req, res, path) {
 
     const userId = decoded.userId || decoded.id || decoded.sub;
 
-    // 获取关注统计
     if (path === '/follows/stats' || path === '/follows/counts') {
-      const followersResult = await client.query(
+      const followersResult = await queryWithRetry(
         'SELECT COUNT(*) as count FROM follows WHERE following_id = $1',
         [userId]
       );
-      const followingResult = await client.query(
+      const followingResult = await queryWithRetry(
         'SELECT COUNT(*) as count FROM follows WHERE follower_id = $1',
         [userId]
       );
@@ -1084,18 +962,14 @@ async function handleFollows(req, res, path) {
       });
     }
 
-    // 检查是否关注某个用户
     if (path.startsWith('/follows/')) {
       const targetUserId = path.replace('/follows/', '').split('/')[0];
       if (targetUserId && targetUserId !== 'following' && targetUserId !== 'followers') {
-        const result = await client.query(
+        const result = await queryWithRetry(
           'SELECT * FROM follows WHERE follower_id = $1 AND following_id = $2',
           [userId, targetUserId]
         );
-        return res.status(200).json({
-          code: 0,
-          data: { isFollowing: result.rows.length > 0 }
-        });
+        return res.status(200).json({ code: 0, data: { isFollowing: result.rows.length > 0 } });
       }
     }
 
@@ -1109,13 +983,12 @@ async function handleFollows(req, res, path) {
 // 处理活动相关请求
 async function handleEvents(req, res, path) {
   try {
-    const client = await getDbClient();
-    if (!client) {
+    const pool = await getDbPool();
+    if (!pool) {
       return res.status(200).json({ code: 0, data: [] });
     }
 
-    // 创建活动表
-    await client.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
@@ -1128,9 +1001,8 @@ async function handleEvents(req, res, path) {
       )
     `);
 
-    // 获取活动列表
     if (req.method === 'GET') {
-      const result = await client.query(
+      const result = await queryWithRetry(
         'SELECT * FROM events WHERE status = $1 ORDER BY created_at DESC LIMIT 10',
         ['active']
       );
@@ -1147,15 +1019,25 @@ async function handleEvents(req, res, path) {
 // 处理社区相关请求
 async function handleCommunities(req, res, path) {
   try {
-    const client = await getDbClient();
-    if (!client) {
+    const pool = await getDbPool();
+    if (!pool) {
+      // 返回默认数据
+      if (path === '/communities/featured' && req.method === 'GET') {
+        const defaultCommunities = [
+          { name: '天津文化', members: 12580, path: '/community/tianjin-culture', official: true, topic: '天津传统文化交流', tags: ['文化', '传统', '天津'], cover: '/images/communities/tianjin-culture.jpg', avatar: '/images/avatars/tianjin.jpg' },
+          { name: '创意灵感', members: 8920, path: '/community/creative-inspiration', official: true, topic: '创意设计与灵感分享', tags: ['设计', '创意', '灵感'], cover: '/images/communities/creative.jpg', avatar: '/images/avatars/creative.jpg' },
+          { name: '摄影爱好者', members: 6540, path: '/community/photography', official: false, topic: '摄影技巧与作品分享', tags: ['摄影', '艺术', '视觉'], cover: '/images/communities/photography.jpg', avatar: '/images/avatars/photo.jpg' },
+          { name: '文学创作', members: 4320, path: '/community/literature', official: false, topic: '文学创作与阅读交流', tags: ['文学', '写作', '阅读'], cover: '/images/communities/literature.jpg', avatar: '/images/avatars/literature.jpg' },
+          { name: '美食探店', members: 9870, path: '/community/food', official: false, topic: '天津美食推荐与探店', tags: ['美食', '探店', '天津'], cover: '/images/communities/food.jpg', avatar: '/images/avatars/food.jpg' },
+          { name: '旅行攻略', members: 7650, path: '/community/travel', official: false, topic: '旅行经验与攻略分享', tags: ['旅行', '攻略', '景点'], cover: '/images/communities/travel.jpg', avatar: '/images/avatars/travel.jpg' }
+        ];
+        return res.status(200).json({ code: 0, data: defaultCommunities });
+      }
       return res.status(200).json({ code: 0, data: [] });
     }
 
-    // 获取精选社区
     if (path === '/communities/featured' && req.method === 'GET') {
-      // 创建社区表（如果不存在）
-      await client.query(`
+      await queryWithRetry(`
         CREATE TABLE IF NOT EXISTS communities (
           id SERIAL PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
@@ -1169,12 +1051,8 @@ async function handleCommunities(req, res, path) {
         )
       `);
 
-      // 查询精选社区
-      const result = await client.query(
-        'SELECT * FROM communities ORDER BY member_count DESC LIMIT 6'
-      );
+      const result = await queryWithRetry('SELECT * FROM communities ORDER BY member_count DESC LIMIT 6');
 
-      // 如果没有数据，返回默认数据
       if (result.rows.length === 0) {
         const defaultCommunities = [
           { name: '天津文化', members: 12580, path: '/community/tianjin-culture', official: true, topic: '天津传统文化交流', tags: ['文化', '传统', '天津'], cover: '/images/communities/tianjin-culture.jpg', avatar: '/images/avatars/tianjin.jpg' },
@@ -1187,7 +1065,6 @@ async function handleCommunities(req, res, path) {
         return res.status(200).json({ code: 0, data: defaultCommunities });
       }
 
-      // 转换数据格式
       const communities = result.rows.map(row => ({
         name: row.name,
         members: row.member_count,
@@ -1209,71 +1086,50 @@ async function handleCommunities(req, res, path) {
   }
 }
 
-// 处理数据库代理请求 (Supabase/Neon)
+// 处理数据库代理请求
 async function handleDbProxy(req, res, path) {
   try {
-    // 获取数据库连接
-    const client = await getDbClient();
-    if (!client) {
-      return res.status(503).json({ 
-        code: 1, 
+    const pool = await getDbPool();
+    if (!pool) {
+      // 对于GET请求，返回空数据而不是错误
+      if (req.method === 'GET') {
+        return res.status(200).json([]);
+      }
+      return res.status(503).json({
+        code: 1,
         message: 'Database not configured',
         hint: 'Please set DATABASE_URL environment variable'
       });
     }
 
-    // 解析请求体
     const body = await parseRequestBody(req);
-    
     console.log('[DB Proxy]', req.method, path, body);
 
-    // 处理不同的数据库操作
     if (req.method === 'POST' && body) {
-      // 执行查询
       if (body.query) {
         try {
-          const result = await client.query(body.query, body.params || []);
-          return res.status(200).json({
-            code: 0,
-            data: result.rows,
-            rowCount: result.rowCount
-          });
+          const result = await queryWithRetry(body.query, body.params || []);
+          return res.status(200).json({ code: 0, data: result.rows, rowCount: result.rowCount });
         } catch (queryError) {
           console.error('[DB Proxy] Query error:', queryError);
-          return res.status(400).json({
-            code: 1,
-            message: 'Query failed',
-            error: queryError.message
-          });
+          return res.status(400).json({ code: 1, message: 'Query failed', error: queryError.message });
         }
       }
-      
-      // RPC 调用
+
       if (body.rpc) {
         try {
-          const result = await client.query(
-            `SELECT * FROM ${body.rpc}($1)`,
-            [JSON.stringify(body.params || {})]
-          );
-          return res.status(200).json({
-            code: 0,
-            data: result.rows
-          });
+          const result = await queryWithRetry(`SELECT * FROM ${body.rpc}($1)`, [JSON.stringify(body.params || {})]);
+          return res.status(200).json({ code: 0, data: result.rows });
         } catch (rpcError) {
           console.error('[DB Proxy] RPC error:', rpcError);
-          return res.status(400).json({
-            code: 1,
-            message: 'RPC call failed',
-            error: rpcError.message
-          });
+          return res.status(400).json({ code: 1, message: 'RPC call failed', error: rpcError.message });
         }
       }
     }
 
-    // GET 请求 - 返回数据库状态
     if (req.method === 'GET') {
       try {
-        const result = await client.query('SELECT NOW() as time, version() as version');
+        const result = await queryWithRetry('SELECT NOW() as time, version() as version');
         return res.status(200).json({
           code: 0,
           status: 'connected',
@@ -1281,37 +1137,29 @@ async function handleDbProxy(req, res, path) {
           version: result.rows[0].version
         });
       } catch (error) {
-        return res.status(503).json({
-          code: 1,
-          message: 'Database connection error',
-          error: error.message
-        });
+        return res.status(503).json({ code: 1, message: 'Database connection error', error: error.message });
       }
     }
 
-    return res.status(405).json({
-      code: 1,
-      message: 'Method not allowed'
-    });
+    return res.status(405).json({ code: 1, message: 'Method not allowed' });
 
   } catch (error) {
     console.error('[DB Proxy] Error:', error);
-    return res.status(500).json({
-      code: 1,
-      message: 'Internal server error',
-      error: error.message
-    });
+    return res.status(500).json({ code: 1, message: 'Internal server error', error: error.message });
   }
 }
 
 // 处理 Supabase REST API 代理
 async function handleSupabaseRestProxy(req, res, path) {
   try {
-    // 获取 Supabase 配置
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
+      // 对于GET请求，返回空数据
+      if (req.method === 'GET') {
+        return res.status(200).json([]);
+      }
       return res.status(503).json({
         code: 1,
         message: 'Supabase not configured',
@@ -1319,13 +1167,11 @@ async function handleSupabaseRestProxy(req, res, path) {
       });
     }
 
-    // 构建目标 URL
     const targetPath = path.replace(/^\/rest\/v1/, '');
     const targetUrl = `${supabaseUrl}/rest/v1${targetPath}`;
 
     console.log('[Supabase Proxy]', req.method, targetUrl);
 
-    // 转发请求到 Supabase
     const headers = {
       'apikey': supabaseKey,
       'Authorization': req.headers.authorization || `Bearer ${supabaseKey}`,
@@ -1333,13 +1179,12 @@ async function handleSupabaseRestProxy(req, res, path) {
       'Prefer': req.headers.prefer || 'return=representation'
     };
 
-    // 复制原始请求头
     if (req.headers.accept) headers['Accept'] = req.headers.accept;
     if (req.headers['accept-profile']) headers['Accept-Profile'] = req.headers['accept-profile'];
     if (req.headers['content-profile']) headers['Content-Profile'] = req.headers['content-profile'];
 
     const body = await parseRequestBody(req);
-    
+
     const fetchOptions = {
       method: req.method,
       headers,
@@ -1349,10 +1194,8 @@ async function handleSupabaseRestProxy(req, res, path) {
     const response = await fetch(targetUrl, fetchOptions);
     const data = await response.json().catch(() => null);
 
-    // 返回响应
     res.status(response.status);
-    
-    // 复制响应头
+
     response.headers.forEach((value, key) => {
       if (key.toLowerCase() !== 'content-encoding' && key.toLowerCase() !== 'transfer-encoding') {
         res.setHeader(key, value);
@@ -1363,10 +1206,30 @@ async function handleSupabaseRestProxy(req, res, path) {
 
   } catch (error) {
     console.error('[Supabase Proxy] Error:', error);
-    return res.status(500).json({
-      code: 1,
-      message: 'Proxy error',
-      error: error.message
-    });
+    // 对于GET请求，返回空数据而不是错误
+    if (req.method === 'GET') {
+      return res.status(200).json([]);
+    }
+    return res.status(500).json({ code: 1, message: 'Proxy error', error: error.message });
+  }
+}
+
+// 验证Token
+function verifyAuthToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authHeader.substring(7);
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    if (payload.exp && payload.exp < Date.now() / 1000) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
   }
 }

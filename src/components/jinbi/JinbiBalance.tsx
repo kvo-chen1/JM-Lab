@@ -18,6 +18,12 @@ export const JinbiBalance: React.FC<JinbiBalanceProps> = ({
   const { isDark } = useTheme();
   const { balance, monthlyStats, loading } = useJinbi();
 
+  // Debug logging
+  React.useEffect(() => {
+    console.log('[JinbiBalance] balance:', balance);
+    console.log('[JinbiBalance] loading:', loading);
+  }, [balance, loading]);
+
   const availableBalance = balance?.availableBalance || 0;
 
   if (compact) {

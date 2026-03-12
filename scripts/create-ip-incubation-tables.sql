@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS commercial_opportunities (
     deadline TIMESTAMPTZ,
     status VARCHAR(50) DEFAULT 'open',
     match_criteria JSONB,
+    view_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

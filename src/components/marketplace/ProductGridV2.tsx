@@ -1,12 +1,12 @@
 /**
- * 商品网格组件 V2 - 全新设计
- * 支持响应式布局和动画效果
- * 优化：更现代的加载状态、更好的空状态设计、流畅的进入动画
+ * 商品网格组件 V2 - 紧凑型设计
+ * 支持响应式布局和高密度展示
+ * 优化：更紧凑的网格、更多商品展示、流畅的进入动画
  */
 import React from 'react';
 import { Product } from '@/services/productService';
 import ProductCardV2 from './ProductCardV2';
-import { Loader2, Package, SearchX, ShoppingBag } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface ProductGridV2Props {
@@ -16,31 +16,27 @@ interface ProductGridV2Props {
   onAddToCart?: (product: Product) => void;
   onToggleFavorite?: (product: Product) => void;
   favoriteProductIds?: string[];
-  columns?: 2 | 3 | 4 | 5;
+  columns?: 2 | 3 | 4 | 5 | 6;
   emptyMessage?: string;
   className?: string;
 }
 
-// 骨架屏卡片组件
+// 骨架屏卡片组件 - 紧凑型
 const SkeletonCard: React.FC<{ index: number }> = ({ index }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.3, delay: index * 0.05 }}
-    className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm"
+    transition={{ duration: 0.3, delay: index * 0.03 }}
+    className="rounded-xl overflow-hidden"
   >
     {/* 图片骨架 */}
-    <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
-    </div>
+    <div className="aspect-square bg-gray-100 rounded-xl animate-pulse" />
     {/* 内容骨架 */}
-    <div className="p-4 space-y-3">
-      <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
-      <div className="h-4 w-full bg-gray-200 rounded animate-pulse" />
-      <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse" />
-      <div className="flex items-center justify-between pt-2">
-        <div className="h-5 w-20 bg-gray-200 rounded animate-pulse" />
-        <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
+    <div className="mt-2 space-y-1.5">
+      <div className="h-3.5 w-full bg-gray-100 rounded animate-pulse" />
+      <div className="flex items-center justify-between">
+        <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
+        <div className="h-3 w-10 bg-gray-100 rounded animate-pulse" />
       </div>
     </div>
   </motion.div>
@@ -53,13 +49,13 @@ const ProductGridV2: React.FC<ProductGridV2Props> = ({
   onAddToCart,
   onToggleFavorite,
   favoriteProductIds = [],
-  columns = 4,
+  columns = 5,
   emptyMessage = '暂无商品',
   className = '',
 }) => {
-  // 响应式列数配置
+  // 响应式列数配置 - 高密度展示
   const getGridClasses = () => {
-    const baseClasses = 'grid gap-5 md:gap-6';
+    const baseClasses = 'grid gap-3 md:gap-4';
     
     switch (columns) {
       case 2:
@@ -67,11 +63,13 @@ const ProductGridV2: React.FC<ProductGridV2Props> = ({
       case 3:
         return `${baseClasses} grid-cols-2 md:grid-cols-3`;
       case 4:
-        return `${baseClasses} grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4`;
+        return `${baseClasses} grid-cols-2 sm:grid-cols-3 md:grid-cols-4`;
       case 5:
-        return `${baseClasses} grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5`;
+        return `${baseClasses} grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5`;
+      case 6:
+        return `${baseClasses} grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6`;
       default:
-        return `${baseClasses} grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4`;
+        return `${baseClasses} grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5`;
     }
   };
 
@@ -79,7 +77,7 @@ const ProductGridV2: React.FC<ProductGridV2Props> = ({
   if (loading) {
     return (
       <div className={getGridClasses()}>
-        {[...Array(8)].map((_, index) => (
+        {[...Array(10)].map((_, index) => (
           <SkeletonCard key={index} index={index} />
         ))}
       </div>
@@ -93,23 +91,21 @@ const ProductGridV2: React.FC<ProductGridV2Props> = ({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4 }}
-        className="mp-empty-state"
+        className="flex flex-col items-center justify-center py-16 text-center"
       >
-        <div className="mp-empty-state-icon">
-          <Package className="w-16 h-16 text-gray-300" strokeWidth={1.5} />
+        <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <Package className="w-10 h-10 text-gray-300" strokeWidth={1.5} />
         </div>
-        <h3 className="mp-empty-state-title">{emptyMessage}</h3>
-        <p className="mp-empty-state-desc">
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">{emptyMessage}</h3>
+        <p className="text-sm text-gray-500 mb-4">
           暂时没有符合条件的商品，换个筛选条件试试吧
         </p>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+        <button
           onClick={() => window.location.reload()}
-          className="mt-6 px-6 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-medium rounded-xl shadow-lg hover:shadow-xl transition-all"
+          className="px-5 py-2 bg-sky-500 text-white text-sm font-medium rounded-lg hover:bg-sky-600 transition-colors"
         >
           刷新页面
-        </motion.button>
+        </button>
       </motion.div>
     );
   }

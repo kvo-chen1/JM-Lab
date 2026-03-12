@@ -122,7 +122,7 @@ export const SERVICE_TYPES = {
 
 // 缓存时间配置
 const CACHE_TTL = {
-  balance: 1000 * 30,      // 30秒
+  balance: 1000 * 5,       // 5秒（缩短缓存时间）
   packages: 1000 * 60 * 5, // 5分钟
   pricing: 1000 * 60 * 10, // 10分钟
 };
@@ -175,6 +175,24 @@ class JinbiService {
     return Date.now() - lastUpdated < ttl;
   }
 
+  /**
+   * 清除缓存
+   */
+  clearCache() {
+    this.cache = {
+      balance: null,
+      packages: null,
+      pricing: null,
+      lastUpdated: {
+        balance: 0,
+        packages: 0,
+        pricing: 0,
+      },
+    };
+    localStorage.removeItem(this.CACHE_KEY);
+    console.log('[JinbiService] 缓存已清除');
+  }
+
   private updateCache<T extends keyof JinbiCache>(
     key: T,
     value: JinbiCache[T]
@@ -206,36 +224,47 @@ class JinbiService {
   async getBalance(userId: string): Promise<JinbiBalance | null> {
     if (!userId) return null;
 
+    console.log('[JinbiService] getBalance called with userId:', userId);
+
     // 检查缓存
     if (this.cache.balance?.userId === userId && this.isCacheValid('balance')) {
+      console.log('[JinbiService] Returning cached balance:', this.cache.balance);
       return this.cache.balance;
     }
 
     try {
+      console.log('[JinbiService] Fetching balance from database...');
+      // 不使用 .single()，因为代理返回数组
       const { data, error } = await supabase
         .from('user_jinbi_balance')
         .select('*')
-        .eq('user_id', userId)
-        .single();
+        .eq('user_id', userId);
+
+      console.log('[JinbiService] Database response:', { data, error });
 
       if (error) {
-        // 如果没有记录，创建默认记录
-        if (error.code === 'PGRST116') {
-          return this.createDefaultBalance(userId);
-        }
         throw error;
       }
 
+      // 处理返回的数组
+      if (!data || data.length === 0) {
+        console.log('[JinbiService] No record found, creating default balance');
+        return this.createDefaultBalance(userId);
+      }
+
+      // 取第一条记录
+      const record = data[0];
       const balance: JinbiBalance = {
-        userId: data.user_id,
-        totalBalance: data.total_balance,
-        availableBalance: data.available_balance,
-        frozenBalance: data.frozen_balance,
-        totalEarned: data.total_earned,
-        totalSpent: data.total_spent,
-        lastUpdated: data.last_updated,
+        userId: record.user_id,
+        totalBalance: record.total_balance,
+        availableBalance: record.available_balance,
+        frozenBalance: record.frozen_balance,
+        totalEarned: record.total_earned,
+        totalSpent: record.total_spent,
+        lastUpdated: record.last_updated,
       };
 
+      console.log('[JinbiService] Balance fetched successfully:', balance);
       this.updateCache('balance', balance);
       return balance;
     } catch (error) {
@@ -249,7 +278,8 @@ class JinbiService {
    */
   private async createDefaultBalance(userId: string): Promise<JinbiBalance> {
     try {
-      const { data, error } = await supabase
+      // 先尝试插入新记录
+      const { data: insertData, error: insertError } = await supabase
         .from('user_jinbi_balance')
         .insert({
           user_id: userId,
@@ -262,22 +292,50 @@ class JinbiService {
         .select()
         .single();
 
-      if (error) throw error;
+      if (!insertError && insertData) {
+        const balance: JinbiBalance = {
+          userId: insertData.user_id,
+          totalBalance: insertData.total_balance,
+          availableBalance: insertData.available_balance,
+          frozenBalance: insertData.frozen_balance,
+          totalEarned: insertData.total_earned,
+          totalSpent: insertData.total_spent,
+          lastUpdated: insertData.last_updated,
+        };
+        this.updateCache('balance', balance);
+        return balance;
+      }
+
+      // 如果插入失败（记录已存在），重新查询
+      if (insertError) {
+        console.log('[JinbiService] 插入失败，尝试重新查询:', insertError.message);
+      }
+
+      const { data: queryData, error: queryError } = await supabase
+        .from('user_jinbi_balance')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (queryError || !queryData) {
+        throw queryError || new Error('无法获取余额记录');
+      }
 
       const balance: JinbiBalance = {
-        userId: data.user_id,
-        totalBalance: data.total_balance,
-        availableBalance: data.available_balance,
-        frozenBalance: data.frozen_balance,
-        totalEarned: data.total_earned,
-        totalSpent: data.total_spent,
-        lastUpdated: data.last_updated,
+        userId: queryData.user_id,
+        totalBalance: queryData.total_balance,
+        availableBalance: queryData.available_balance,
+        frozenBalance: queryData.frozen_balance,
+        totalEarned: queryData.total_earned,
+        totalSpent: queryData.total_spent,
+        lastUpdated: queryData.last_updated,
       };
 
       this.updateCache('balance', balance);
       return balance;
     } catch (error) {
-      console.error('[JinbiService] 创建默认余额失败:', error);
+      console.error('[JinbiService] 创建/获取默认余额失败:', error);
+      // 返回一个临时对象，但不缓存
       return {
         userId,
         totalBalance: 0,

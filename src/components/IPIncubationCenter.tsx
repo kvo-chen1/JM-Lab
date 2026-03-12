@@ -713,12 +713,14 @@ function SampleAssetDetailModal({
   isDark: boolean;
 }) {
   const theme = useIPTheme(isDark);
-  if (!asset) return null;
 
   const progress = useMemo(() => {
+    if (!asset) return 0;
     const completedStages = asset.stages.filter(s => s.completed).length;
     return Math.round((completedStages / asset.stages.length) * 100);
   }, [asset]);
+
+  if (!asset) return null;
 
   const getStageIcon = (stageName: string) => {
     switch (stageName) {

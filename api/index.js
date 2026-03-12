@@ -379,6 +379,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
     }
 
+    // 调试API
+    if (path === '/debug') {
+      return handleDebug(req, res);
+    }
+
     // 认证相关
     if (path.startsWith('/auth/')) {
       return handleAuthRequest(req, res, path);
@@ -1212,6 +1217,79 @@ async function handleSupabaseRestProxy(req, res, path) {
     }
     return res.status(500).json({ code: 1, message: 'Proxy error', error: error.message });
   }
+}
+
+// 处理调试请求
+async function handleDebug(req, res) {
+  // 收集环境变量信息（隐藏敏感信息）
+  const envInfo = {
+    // 数据库相关
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    hasPostgresUrl: !!process.env.POSTGRES_URL,
+    hasPostgresUrlNonPooling: !!process.env.POSTGRES_URL_NON_POOLING,
+    databaseUrlPrefix: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 30) + '...' : null,
+    postgresUrlPrefix: process.env.POSTGRES_URL ? process.env.POSTGRES_URL.substring(0, 30) + '...' : null,
+    postgresUrlNonPoolingPrefix: process.env.POSTGRES_URL_NON_POOLING ? process.env.POSTGRES_URL_NON_POOLING.substring(0, 30) + '...' : null,
+
+    // Supabase相关
+    hasSupabaseUrl: !!process.env.SUPABASE_URL,
+    hasSupabaseAnonKey: !!process.env.SUPABASE_ANON_KEY,
+    hasNextPublicSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasNextPublicSupabaseAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+
+    // Vercel环境
+    vercelEnv: process.env.VERCEL_ENV,
+    nodeEnv: process.env.NODE_ENV,
+    region: process.env.VERCEL_REGION,
+  };
+
+  // 尝试连接数据库
+  let dbStatus = 'not_configured';
+  let dbError = null;
+  let dbInfo = null;
+
+  const databaseUrl = process.env.POSTGRES_URL_NON_POOLING || process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+  if (databaseUrl) {
+    try {
+      const { Pool } = await import('pg');
+      const testPool = new Pool({
+        connectionString: databaseUrl,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 10000,
+        max: 1
+      });
+
+      const client = await testPool.connect();
+      const result = await client.query('SELECT NOW() as time, version() as version, current_database() as database');
+      client.release();
+      await testPool.end();
+
+      dbStatus = 'connected';
+      dbInfo = {
+        time: result.rows[0].time,
+        version: result.rows[0].version.substring(0, 50) + '...',
+        database: result.rows[0].database
+      };
+    } catch (error) {
+      dbStatus = 'error';
+      dbError = error.message;
+    }
+  }
+
+  return res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: envInfo,
+    databaseStatus: dbStatus,
+    databaseInfo: dbInfo,
+    databaseError: dbError,
+    message: dbStatus === 'not_configured'
+      ? '数据库未配置，请在Vercel环境变量中设置 DATABASE_URL 或 POSTGRES_URL'
+      : dbStatus === 'connected'
+      ? '数据库连接正常'
+      : '数据库连接失败: ' + dbError
+  });
 }
 
 // 验证Token

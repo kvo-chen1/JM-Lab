@@ -25,6 +25,35 @@ const SearchBar = lazy(() => import('@/components/SearchBar'))
 // 移动端瀑布流组件
 const MobileWorksGallery = lazy(() => import('@/pages/MobileWorksGallery'))
 
+// 广场数据缓存key
+const SQUARE_POSTS_CACHE_KEY = 'jmzf_square_posts_cache';
+const SQUARE_CACHE_DURATION = 60 * 1000; // 缓存1分钟
+
+// 从缓存获取数据
+function getSquarePostsFromCache(): Post[] | null {
+  try {
+    const cached = localStorage.getItem(SQUARE_POSTS_CACHE_KEY);
+    if (!cached) return null;
+    const { posts, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp > SQUARE_CACHE_DURATION) {
+      return null;
+    }
+    return posts;
+  } catch {
+    return null;
+  }
+}
+
+// 保存数据到缓存
+function setSquarePostsToCache(posts: Post[]) {
+  try {
+    localStorage.setItem(SQUARE_POSTS_CACHE_KEY, JSON.stringify({
+      posts,
+      timestamp: Date.now()
+    }));
+  } catch {}
+}
+
 export default function Square() {
   const { isDark } = useTheme()
   const params = useParams()
@@ -156,7 +185,7 @@ export default function Square() {
     // 从API获取数据
     try {
       const response = await apiClient.get('/communities/featured')
-      const items: FeaturedCommunity[] = response.data || []
+      const items = (response.data || []) as FeaturedCommunity[]
 
       // 缓存结果
       localStorage.setItem(FEATURED_CACHE_KEY, JSON.stringify({
@@ -240,82 +269,76 @@ export default function Square() {
     }
   }, [searchParams])
 
-  // 优化初始数据加载：只加载必要的数据
+  // 优化初始数据加载：缓存优先，后台更新
   useEffect(() => {
     const loadInitialData = async () => {
-      try {
-        setIsLoading(true)
-        // 不清除缓存，利用缓存加速页面加载
-
-        // 从数据库同步收藏列表到本地状态
-        if (user?.id) {
-          try {
-            const bookmarkedIds = await postsApi.getUserBookmarks(user.id)
-            setFavorites(bookmarkedIds)
-            localStorage.setItem('jmzf_favs', JSON.stringify(bookmarkedIds))
-          } catch (error) {
-            console.warn('同步收藏列表失败:', error)
-          }
-        }
-
-        // 津脉广场只显示作品（works表），不显示帖子（posts表）
-        // 同时获取推广作品并混合展示
-        let current: Post[] = [];
-        let promotedPosts: PromotedPost[] = [];
-        try {
-          // 并行获取推广作品和普通作品
-          const [promotedResult, allWorks] = await Promise.all([
-            postsApi.getSquareWorksWithPromotion(20, 0, user?.id),
-            postsApi.getPosts(undefined, user?.id, false, 'works')
-          ]);
-          promotedPosts = promotedResult;
-
-          if (promotedPosts && promotedPosts.length > 0) {
-            // 转换推广作品为Post格式
-            const promotedAsPosts = promotedPosts.map(convertPromotedPostToPost);
-
-            // 合并推广作品和普通作品：优先使用推广作品的数据，然后补充普通作品
-            const promotedIds = new Set(promotedAsPosts.map(p => p.id));
-            const normalWorks = allWorks.filter(w => !promotedIds.has(w.id));
-
-            // 合并：推广作品在前，普通作品在后
-            current = [...promotedAsPosts, ...normalWorks];
-
-            // 记录推广作品曝光（异步并行，不阻塞页面加载）
-            const promotedWorks = promotedPosts.filter(p => p.is_promoted && p.promoted_work_id);
-            if (promotedWorks.length > 0) {
-              // 使用 Promise.all 并行记录曝光，不阻塞页面渲染
-              Promise.all(
-                promotedWorks.map(p =>
-                  postsApi.recordPromotionView(p.promoted_work_id!, user?.id).catch(err => {
-                    // 静默失败，不影响用户体验
-                  })
-                )
-              );
-            }
-          } else {
-            console.warn('getSquareWorksWithPromotion 返回空数据，使用普通作品');
-            // 使用普通作品
-            current = allWorks;
-          }
-        } catch (promoError) {
-          // 降级：只获取普通作品
-          current = await postsApi.getPosts(undefined, user?.id, false, 'works');
-        }
-
-        if (Array.isArray(current)) {
-          setPosts(current)
-        } else {
-          setPosts([])
-        }
-      } catch (error) {
-        console.error('加载初始数据失败:', error)
-        setPosts([])
-      } finally {
-        setIsLoading(false)
+      // 1. 先尝试从缓存加载，立即显示
+      const cachedPosts = getSquarePostsFromCache();
+      if (cachedPosts && cachedPosts.length > 0) {
+        setPosts(cachedPosts);
+        setIsLoading(false);
       }
-    }
-    loadInitialData()
+
+      // 2. 后台静默更新数据
+      const fetchFreshData = async () => {
+        try {
+          // 从数据库同步收藏列表
+          if (user?.id) {
+            try {
+              const bookmarkedIds = await postsApi.getUserBookmarks(user.id)
+              setFavorites(bookmarkedIds)
+              localStorage.setItem('jmzf_favs', JSON.stringify(bookmarkedIds))
+            } catch (error) {
+              console.warn('同步收藏列表失败:', error)
+            }
+          }
+
+          let current: Post[] = [];
+          let promotedPosts: PromotedPost[] = [];
+          try {
+            const [promotedResult, allWorks] = await Promise.all([
+              postsApi.getSquareWorksWithPromotion(20, 0, user?.id),
+              postsApi.getPosts(undefined, user?.id, false, 'works')
+            ]);
+            promotedPosts = promotedResult;
+
+            if (promotedPosts && promotedPosts.length > 0) {
+              const promotedAsPosts = promotedPosts.map(convertPromotedPostToPost);
+              const promotedIds = new Set(promotedAsPosts.map(p => p.id));
+              const normalWorks = allWorks.filter(w => !promotedIds.has(w.id));
+              current = [...promotedAsPosts, ...normalWorks];
+
+              const promotedWorks = promotedPosts.filter(p => p.is_promoted && p.promoted_work_id);
+              if (promotedWorks.length > 0) {
+                Promise.all(
+                  promotedWorks.map(p =>
+                    postsApi.recordPromotionView(p.promoted_work_id!, user?.id).catch(() => {})
+                  )
+                );
+              }
+            } else {
+              current = allWorks;
+            }
+          } catch (promoError) {
+            current = await postsApi.getPosts(undefined, user?.id, false, 'works');
+          }
+
+          if (Array.isArray(current)) {
+            setPosts(current);
+            setSquarePostsToCache(current);
+          } else {
+            setPosts([]);
+          }
+        } catch (error) {
+          console.error('后台更新数据失败:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchFreshData();
+    };
+    loadInitialData();
   }, [user?.id])
   
   // 已移除 loadPostDetail 函数，点击作品直接跳转到独立页面 /post/:id

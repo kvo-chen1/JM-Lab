@@ -344,18 +344,18 @@ function generateVerificationEmailTemplate(code) {
 }
 
 // 生成 JWT Token
+// 生成安全的随机Token
 function generateToken(user) {
-  const header = JSON.stringify({ alg: 'HS256', typ: 'JWT' });
-  const payload = JSON.stringify({
-    ...user,
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60)
-  });
-
-  const base64 = (str) => btoa(str).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  const signature = base64(process.env.JWT_SECRET || 'default-secret');
-
-  return `${base64(header)}.${base64(payload)}.${signature}`;
+  const timestamp = Date.now();
+  const randomPart = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const userPart = Buffer.from(JSON.stringify({
+    id: user.id,
+    email: user.email,
+    iat: Math.floor(timestamp / 1000),
+    exp: Math.floor(timestamp / 1000) + (7 * 24 * 60 * 60)
+  })).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  
+  return `jm_${timestamp}_${randomPart}_${userPart}`;
 }
 
 // Vercel API Handler
@@ -1301,13 +1301,30 @@ function verifyAuthToken(req) {
   }
   const token = authHeader.substring(7);
   try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    if (payload.exp && payload.exp < Date.now() / 1000) {
-      return null;
+    // 支持新的token格式: jm_timestamp_random_userPart
+    if (token.startsWith('jm_')) {
+      const parts = token.split('_');
+      if (parts.length >= 4) {
+        const userPart = parts.slice(3).join('_');
+        const payload = JSON.parse(Buffer.from(userPart.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
+        if (payload.exp && payload.exp < Date.now() / 1000) {
+          return null;
+        }
+        return payload;
+      }
     }
-    return payload;
+    
+    // 兼容旧格式 (JWT格式)
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      if (payload.exp && payload.exp < Date.now() / 1000) {
+        return null;
+      }
+      return payload;
+    }
+    
+    return null;
   } catch {
     return null;
   }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, LoadingSpinner } from '@/components/ui';
+import { Card, Button, HamsterWheelLoader } from '@/components/ui';
 import { ArrowLeft, Send, MoreVertical, Phone, Video } from 'lucide-react';
 import { getDirectMessages, sendDirectMessage, markMessagesAsRead } from '@/services/messageService';
 import { parseWorkShareMessage } from '@/services/workShareService';
@@ -311,7 +311,7 @@ const ChatPage: React.FC = () => {
         <div className="w-full max-w-4xl mx-auto space-y-4">
           {loading ? (
             <div className="flex justify-center py-12">
-              <LoadingSpinner className="w-8 h-8" />
+              <HamsterWheelLoader size="medium" text="加载消息中..." />
             </div>
           ) : messages.length === 0 ? (
             <div className="text-center py-12">
@@ -434,7 +434,7 @@ const ChatPage: React.FC = () => {
             }`}
           >
             {sending ? (
-              <LoadingSpinner className="w-5 h-5" />
+              <HamsterWheelLoader size="small" />
             ) : (
               <Send className="w-5 h-5" />
             )}

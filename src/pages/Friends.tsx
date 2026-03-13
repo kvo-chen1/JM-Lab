@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, Input, Button, LoadingSpinner } from '@/components/ui';
+import { Card, Input, Button, HamsterWheelLoader } from '@/components/ui';
 import { MessageSquare, UserPlus, UserMinus, MessageCircle, Users, Heart, UserCheck } from 'lucide-react';
 import { getFollowingList, getFollowersList, followUser, unfollowUser } from '@/services/postService';
 import { getConversations, getUnreadMessageCounts, Conversation } from '@/services/messageService';
@@ -606,7 +606,7 @@ const FriendsPage: React.FC = () => {
               exit={{ opacity: 0 }}
               className="flex justify-center py-12"
             >
-              <LoadingSpinner className="w-8 h-8" />
+              <HamsterWheelLoader size="medium" text="加载中..." />
             </motion.div>
           ) : (
             <motion.div

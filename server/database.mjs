@@ -101,8 +101,8 @@ const config = {
   postgresql: {
     connectionString: connectionString,
     options: {
-      // 连接池大小：保持最小连接数以减少连接建立开销
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '3'),
+      // 连接池大小：减少连接数以避免超过数据库限制
+      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '2'),
       // 最小连接数：保持1个空闲连接以避免冷启动延迟
       min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '1'),
       // 空闲连接超时：增加超时时间以保持连接更久

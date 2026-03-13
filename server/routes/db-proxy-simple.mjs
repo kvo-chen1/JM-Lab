@@ -13,7 +13,7 @@ const pool = new Pool({
     rejectUnauthorized: false,
     keepAlive: true,
   },
-  max: 5,
+  max: 2,
   min: 1,
   idleTimeoutMillis: 300000,
   connectionTimeoutMillis: 60000,

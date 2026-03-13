@@ -41,12 +41,14 @@ import CommandPalette from '@/components/CommandPalette';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { TianjinThemeWrapper } from '@/components/TianjinThemeWrapper';
 import { ScrollRestoration } from '@/components/ScrollRestoration';
+import { HamsterWheelLoader } from '@/components/ui';
 
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
 import Home from "@/pages/Home";
 import MobileHome from "@/pages/MobileHome";
 import ComponentShowcase from "@/pages/ComponentShowcase";
 import ThemeTestPage from "@/pages/ThemeTestPage";
+import HamsterLoaderDemo from "@/pages/HamsterLoaderDemo";
 
 // 认证相关页面 - 懒加载减少初始包大小
 const Login = createLazyComponent(() => import(/* webpackChunkName: "pages-auth" */ "@/pages/Login"), {
@@ -547,6 +549,14 @@ const CreativeMatchmaking = createLazyComponent(() => import(/* webpackChunkName
 const AchievementMuseum = createLazyComponent(() => import(/* webpackChunkName: "components-community" */ "@/components/AchievementMuseum"), {
   priority: ROUTE_PRIORITIES.MEDIUM
 });
+const ChallengeCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/components/ChallengeCenter"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'challenge-center'
+});
+const TaskCenter = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/components/TaskCenter"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'task-center'
+});
 
 
 // 作者个人资料页面 - 懒加载
@@ -740,18 +750,8 @@ const MarketplaceAdmin = createLazyComponent(() => import(/* webpackChunkName: "
 import { DashboardSkeleton, ProfileSkeleton, SimpleLoadingSkeleton } from '@/components/skeletons/PageSkeletons';
 
 const InstantLoadingSkeleton = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <div className="w-full max-w-md p-4">
-      <div className="animate-pulse space-y-4">
-        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-        <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
-        </div>
-      </div>
-    </div>
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
+    <HamsterWheelLoader size="large" text="正在加载..." />
   </div>
 );
 
@@ -1044,52 +1044,10 @@ export default function App() {
 
 
 
-  // 优化全局加载骨架屏，实现更美观的品牌化加载体验
+  // 优化全局加载骨架屏，使用仓鼠跑轮动画
   const GlobalLoadingSkeleton = () => (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="w-full max-w-md space-y-8">
-        {/* 品牌Logo骨架 */}
-        <div className="flex flex-col items-center">
-          <div className="relative">
-            <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 animate-pulse relative overflow-hidden">
-              {/* 添加品牌元素的骨架 */}
-              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-            </div>
-            {/* 添加旋转动画效果 */}
-            <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-xl opacity-50 animate-spin-slow"></div>
-          </div>
-          {/* 品牌名称骨架 */}
-          <div className="mt-6 space-y-2">
-            <div className="h-8 w-40 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded"></div>
-            <div className="h-4 w-64 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded"></div>
-          </div>
-        </div>
-        
-        {/* 进度指示器 */}
-        <div className="space-y-2">
-          <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-blue-500 to-purple-600 animate-pulse rounded-full" style={{ width: '70%' }}></div>
-          </div>
-          <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-            加载中...
-          </div>
-        </div>
-        
-        {/* 内容骨架 */}
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="h-16 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded-lg"></div>
-            <div className="h-16 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded-lg"></div>
-            <div className="h-16 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded-lg"></div>
-          </div>
-          <div className="h-24 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded-lg"></div>
-        </div>
-        
-        {/* 版权信息骨架 */}
-        <div className="text-center text-xs text-gray-500 dark:text-gray-500">
-          <div className="h-3 w-40 mx-auto bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 animate-pulse rounded"></div>
-        </div>
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
+      <HamsterWheelLoader size="xlarge" text="正在加载..." />
     </div>
   );
 
@@ -1219,6 +1177,8 @@ export default function App() {
           <Route path="/help" element={<LazyComponent><Help /></LazyComponent>} />
           <Route path="/leaderboard" element={<LazyComponent><Leaderboard /></LazyComponent>} />
           <Route path="/games" element={<LazyComponent><Games /></LazyComponent>} />
+          <Route path="/challenge-center" element={<LazyComponent><ChallengeCenter /></LazyComponent>} />
+          <Route path="/task-center" element={<LazyComponent><TaskCenter /></LazyComponent>} />
 
           <Route path="/author/:id" element={<LazyComponent><AuthorProfile currentUser={user} /></LazyComponent>} />
 
@@ -1248,6 +1208,7 @@ export default function App() {
           <Route path="/notifications" element={<LazyComponent><PrivateRoute><Notifications /></PrivateRoute></LazyComponent>} />
           <Route path="/messages" element={<LazyComponent><PrivateRoute><MessageCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/component-showcase" element={<ComponentShowcase />} />
+          <Route path="/hamster-loader-demo" element={<HamsterLoaderDemo />} />
           <Route path="/trending-card-demo" element={<LazyComponent><TrendingCardDemo /></LazyComponent>} />
           <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/knowledge/:type/:id" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />

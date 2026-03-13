@@ -87,7 +87,7 @@ function EditableDescription({
 
   if (isEditing) {
     return (
-      <div className={`p-4 space-y-3 ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+      <div className={`p-4 space-y-3 ${isDark ? 'bg-[#1E1E2E]' : 'bg-gray-50'}`}>
         <input
           ref={titleRef}
           type="text"
@@ -96,7 +96,7 @@ function EditableDescription({
           onKeyDown={handleKeyDown}
           className={`w-full px-3 py-2 text-lg font-semibold rounded-lg border-2 outline-none transition-colors ${
             isDark 
-              ? 'bg-gray-900 border-blue-500/50 text-white focus:border-blue-500' 
+              ? 'bg-[#14141F] border-[#8B5CF6]/30 text-white focus:border-[#8B5CF6]' 
               : 'bg-white border-blue-400/50 text-gray-900 focus:border-blue-500'
           }`}
           placeholder="标题"
@@ -109,7 +109,7 @@ function EditableDescription({
           rows={4}
           className={`w-full px-3 py-2 text-sm rounded-lg border-2 outline-none transition-colors resize-none ${
             isDark 
-              ? 'bg-gray-900 border-blue-500/50 text-gray-200 focus:border-blue-500' 
+              ? 'bg-[#14141F] border-[#8B5CF6]/30 text-gray-200 focus:border-[#8B5CF6]' 
               : 'bg-white border-blue-400/50 text-gray-700 focus:border-blue-500'
           }`}
           placeholder="描述..."
@@ -119,7 +119,7 @@ function EditableDescription({
             onClick={handleCancel}
             className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
               isDark 
-                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                ? 'bg-[#2A2A3E] text-gray-300 hover:bg-[#363654]' 
                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
             }`}
           >
@@ -128,7 +128,11 @@ function EditableDescription({
           </button>
           <button
             onClick={handleSave}
-            className="px-3 py-1.5 text-xs rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+            className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+              isDark
+                ? 'bg-[#8B5CF6] text-white hover:bg-[#7C3AED]'
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
           >
             <Check className="w-3 h-3 inline mr-1" />
             保存
@@ -385,11 +389,13 @@ export default function WorkCard({
         relative rounded-2xl overflow-hidden cursor-pointer
         transition-all duration-300 max-w-md
         ${isDark 
-          ? 'bg-gray-800/80 shadow-xl shadow-black/20' 
+          ? 'bg-[#14141F] border border-[#2A2A3E] shadow-xl shadow-black/30' 
           : 'bg-white shadow-xl shadow-gray-200/50'
         }
         ${isSelected 
-          ? 'ring-2 ring-[#C02C38] ring-offset-2 ring-offset-gray-900' 
+          ? isDark 
+            ? 'ring-2 ring-[#8B5CF6] ring-offset-2 ring-offset-[#0A0A0F]' 
+            : 'ring-2 ring-[#C02C38] ring-offset-2 ring-offset-gray-100'
           : 'hover:shadow-2xl'
         }
         ${className}
@@ -433,17 +439,19 @@ export default function WorkCard({
 
         {/* 选中状态指示器 */}
         {isSelected && (
-          <div className="absolute inset-0 ring-2 ring-[#C02C38] ring-inset pointer-events-none" />
+          <div className={`absolute inset-0 ring-2 ring-inset pointer-events-none ${
+            isDark ? 'ring-[#8B5CF6]' : 'ring-[#C02C38]'
+          }`} />
         )}
       </div>
 
       {/* 底部信息栏 */}
       <div className={`px-4 py-2 flex items-center justify-between text-xs ${
-        isDark ? 'bg-gray-900/50 text-gray-500' : 'bg-gray-50 text-gray-400'
+        isDark ? 'bg-[#0A0A0F]/50 text-gray-500 border-t border-[#2A2A3E]' : 'bg-gray-50 text-gray-400'
       }`}>
         <span>{new Date(data.createdAt).toLocaleDateString('zh-CN')}</span>
         {data.isFavorite && (
-          <span className="text-[#C02C38]">已收藏</span>
+          <span className={isDark ? 'text-[#8B5CF6]' : 'text-[#C02C38]'}>已收藏</span>
         )}
       </div>
     </motion.div>

@@ -554,23 +554,47 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
     });
   };
 
-  // 获取 Agent 名称和颜色
+  // 获取 Agent 名称和颜色 - 优化深色主题
   const getAgentInfo = (role: AgentType) => {
     switch (role) {
       case 'director':
-        return { name: AGENT_CONFIG.director.name, color: 'text-amber-500', bgColor: 'from-amber-500 to-orange-600' };
+        return { 
+          name: AGENT_CONFIG.director.name, 
+          color: isDark ? 'text-[#A78BFA]' : 'text-amber-500', 
+          bgColor: 'from-amber-500 to-orange-600' 
+        };
       case 'designer':
-        return { name: AGENT_CONFIG.designer.name, color: 'text-cyan-500', bgColor: 'from-cyan-500 to-blue-600' };
+        return { 
+          name: AGENT_CONFIG.designer.name, 
+          color: isDark ? 'text-[#A78BFA]' : 'text-cyan-500', 
+          bgColor: 'from-cyan-500 to-blue-600' 
+        };
       case 'illustrator':
-        return { name: AGENT_CONFIG.illustrator.name, color: 'text-pink-500', bgColor: 'from-pink-500 to-rose-600' };
+        return { 
+          name: AGENT_CONFIG.illustrator.name, 
+          color: isDark ? 'text-[#A78BFA]' : 'text-pink-500', 
+          bgColor: 'from-pink-500 to-rose-600' 
+        };
       case 'copywriter':
-        return { name: AGENT_CONFIG.copywriter.name, color: 'text-emerald-500', bgColor: 'from-emerald-500 to-teal-600' };
+        return { 
+          name: AGENT_CONFIG.copywriter.name, 
+          color: isDark ? 'text-[#A78BFA]' : 'text-emerald-500', 
+          bgColor: 'from-emerald-500 to-teal-600' 
+        };
       case 'animator':
-        return { name: AGENT_CONFIG.animator.name, color: 'text-violet-500', bgColor: 'from-violet-500 to-purple-600' };
+        return { 
+          name: AGENT_CONFIG.animator.name, 
+          color: isDark ? 'text-[#A78BFA]' : 'text-violet-500', 
+          bgColor: 'from-violet-500 to-purple-600' 
+        };
       case 'researcher':
-        return { name: AGENT_CONFIG.researcher.name, color: 'text-slate-500', bgColor: 'from-slate-500 to-gray-600' };
+        return { 
+          name: AGENT_CONFIG.researcher.name, 
+          color: isDark ? 'text-[#A78BFA]' : 'text-slate-500', 
+          bgColor: 'from-slate-500 to-gray-600' 
+        };
       default:
-        return { name: '系统', color: 'text-gray-500', bgColor: 'from-gray-500 to-gray-600' };
+        return { name: '系统', color: isDark ? 'text-gray-400' : 'text-gray-500', bgColor: 'from-gray-500 to-gray-600' };
     }
   };
 
@@ -914,29 +938,33 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
     }
   };
 
-  // 获取气泡样式
+  // 获取气泡样式 - 统一深色主题样式
   const getBubbleStyle = () => {
     if (isUser) {
-      return `bg-gradient-to-br from-[#C02C38] to-[#E85D75] text-white rounded-2xl rounded-tr-sm`;
+      return `bg-gradient-to-br from-[#8B5CF6] to-[#6366F1] text-white rounded-2xl rounded-tr-sm shadow-lg shadow-[#8B5CF6]/20`;
     }
 
-    const agentInfo = getAgentInfo(agentRole);
-
+    // 统一使用简洁的深色主题样式
+    if (isDark) {
+      return 'bg-[#1E1E2E] border border-[#2A2A3E] rounded-2xl rounded-tl-sm';
+    }
+    
+    // 浅色主题保持原样
     switch (agentRole) {
       case 'director':
-        return `${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-2xl rounded-tl-sm`;
+        return 'bg-white border border-gray-200 rounded-2xl rounded-tl-sm';
       case 'designer':
-        return `${isDark ? 'bg-gray-800/80 border-gray-700/50' : 'bg-white/80 border-gray-200/50'} border rounded-2xl rounded-tl-sm`;
+        return 'bg-white/80 border border-gray-200/50 rounded-2xl rounded-tl-sm';
       case 'illustrator':
-        return `${isDark ? 'bg-pink-900/20 border-pink-700/30' : 'bg-pink-50 border-pink-200'} border rounded-2xl rounded-tl-sm`;
+        return 'bg-pink-50 border border-pink-200 rounded-2xl rounded-tl-sm';
       case 'copywriter':
-        return `${isDark ? 'bg-emerald-900/20 border-emerald-700/30' : 'bg-emerald-50 border-emerald-200'} border rounded-2xl rounded-tl-sm`;
+        return 'bg-emerald-50 border border-emerald-200 rounded-2xl rounded-tl-sm';
       case 'animator':
-        return `${isDark ? 'bg-violet-900/20 border-violet-700/30' : 'bg-violet-50 border-violet-200'} border rounded-2xl rounded-tl-sm`;
+        return 'bg-violet-50 border border-violet-200 rounded-2xl rounded-tl-sm';
       case 'researcher':
-        return `${isDark ? 'bg-slate-800/80 border-slate-700/50' : 'bg-slate-50 border-slate-200'} border rounded-2xl rounded-tl-sm`;
+        return 'bg-slate-50 border border-slate-200 rounded-2xl rounded-tl-sm';
       default:
-        return `${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-2xl rounded-tl-sm`;
+        return 'bg-gray-100 rounded-2xl rounded-tl-sm';
     }
   };
 

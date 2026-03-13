@@ -1,26 +1,13 @@
 import React from 'react';
+import { HamsterWheelLoader } from '@/components/ui';
 import { SkeletonBox, SkeletonText, SkeletonCard, SkeletonAvatar, SkeletonButton } from '../Skeleton';
 
 /**
- * 通用加载骨架屏 - 轻量级版本
+ * 通用加载骨架屏 - 使用仓鼠跑轮动画
  */
 export const SimpleLoadingSkeleton = React.memo(() => (
-  <div className="w-full max-w-md p-4">
-    <div className="space-y-4">
-      {/* 简化的标题和内容骨架 */}
-      <div className="space-y-2">
-        <SkeletonText width="60%" variant="h4" />
-        <SkeletonText width="90%" />
-        <SkeletonText width="75%" />
-      </div>
-      
-      {/* 简化的卡片骨架 */}
-      <div className="space-y-3">
-        <SkeletonBox height="48px" rounded />
-        <SkeletonBox height="48px" rounded />
-        <SkeletonBox height="48px" rounded />
-      </div>
-    </div>
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-50 dark:from-gray-900 dark:to-gray-800">
+    <HamsterWheelLoader size="large" text="正在加载..." />
   </div>
 ));
 

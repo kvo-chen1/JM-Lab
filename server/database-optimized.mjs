@@ -96,11 +96,11 @@ const getPoolConfig = () => {
   }
 
   if (isDirectConnection) {
-    // 直连模式：使用更大的连接池
+    // 直连模式：减少连接池以避免超过数据库限制
     return {
       ...baseConfig,
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '10'),
-      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '2'),
+      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '2'),
+      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '1'),
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
       // 保持连接活跃
@@ -111,7 +111,7 @@ const getPoolConfig = () => {
     // Pooler 模式：使用较小的连接池
     return {
       ...baseConfig,
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '5'),
+      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '2'),
       min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '1'),
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 15000,

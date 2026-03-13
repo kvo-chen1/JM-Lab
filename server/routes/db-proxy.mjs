@@ -18,8 +18,8 @@ const pool = new Pool({
     rejectUnauthorized: false,
     keepAlive: true
   },
-  max: 10,
-  min: 2,
+  max: 2,
+  min: 1,
   idleTimeoutMillis: 120000,
   connectionTimeoutMillis: 30000,
   statement_timeout: 60000,

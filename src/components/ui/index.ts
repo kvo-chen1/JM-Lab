@@ -5,6 +5,7 @@ export { default as Button, type ButtonVariant, type ButtonSize } from './Button
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './Card';
 export { default as Input, type InputVariant, type InputSize, type InputShape } from './Input';
 export { default as LoadingSpinner, type SpinnerSize, type SpinnerVariant } from './LoadingSpinner';
+export { HamsterWheelLoader, type HamsterSize } from './HamsterWheelLoader';
 export { default as Badge, type BadgeVariant, type BadgeSize, type BadgeShape } from './Badge';
 export { Avatar, AvatarImage, AvatarFallback, AvatarGroup, type AvatarSize, type AvatarShape, type AvatarStatus } from './Avatar';
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableCaption } from './Table';

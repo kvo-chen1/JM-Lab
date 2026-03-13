@@ -29,6 +29,12 @@ import { supabase } from '@/lib/supabaseClient';
 import CulturalMemoryGame from '@/components/CulturalMemoryGame';
 import CulturalMatchingGame from '@/components/CulturalMatchingGame';
 import CulturalPuzzleGame from '@/components/CulturalPuzzleGame';
+import CulturalSortingGame from '@/components/CulturalSortingGame';
+import CulturalRiddleGame from '@/components/CulturalRiddleGame';
+import CulturalTimelineGame from '@/components/CulturalTimelineGame';
+import CulturalWordChainGame from '@/components/CulturalWordChainGame';
+import CulturalSpotTheDifferenceGame from '@/components/CulturalSpotTheDifferenceGame';
+import CulturalPairMatchingGame from '@/components/CulturalPairMatchingGame';
 
 // 游戏封面图片 - 使用渐变色占位图
 const getGameCover = (seed: string, color1: string, color2: string) => 
@@ -104,7 +110,7 @@ const gamesList = [
     duration: '8-12分钟',
     features: ['历史知识', '逻辑排序', '时间线', '挑战模式'],
     color: 'from-green-500 to-green-600',
-    component: null // 待实现
+    component: 'sorting'
   },
   {
     id: 'riddle-game',
@@ -118,7 +124,7 @@ const gamesList = [
     duration: '5-10分钟',
     features: ['趣味谜语', '提示系统', '积分奖励', '分享功能'],
     color: 'from-orange-500 to-orange-600',
-    component: null // 待实现
+    component: 'riddle'
   },
   {
     id: 'timeline-game',
@@ -132,7 +138,7 @@ const gamesList = [
     duration: '15-20分钟',
     features: ['历史知识', '时间排序', '详细解析', '学习模式'],
     color: 'from-amber-500 to-amber-600',
-    component: null // 待实现
+    component: 'timeline'
   },
   {
     id: 'spot-difference',
@@ -146,7 +152,35 @@ const gamesList = [
     duration: '3-8分钟',
     features: ['观察训练', '精美图片', '提示功能', '关卡模式'],
     color: 'from-rose-500 to-rose-600',
-    component: null // 待实现
+    component: 'spot'
+  },
+  {
+    id: 'pair-matching',
+    title: '文化配对',
+    description: '将相关的文化元素进行配对，考验你的文化知识关联能力。',
+    category: 'pair',
+    difficulty: 'easy' as const,
+    image: getGameCover('pair-game', '14b8a6', '0f766e'),
+    players: 7650,
+    rating: 4.5,
+    duration: '5-10分钟',
+    features: ['知识关联', '配对挑战', '提示系统', '积分奖励'],
+    color: 'from-teal-500 to-teal-600',
+    component: 'pair'
+  },
+  {
+    id: 'wordchain-game',
+    title: '成语接龙',
+    description: '经典成语接龙游戏，考验你的成语积累和反应速度。',
+    category: 'wordchain',
+    difficulty: 'medium' as const,
+    image: getGameCover('wordchain-game', '6366f1', '4338ca'),
+    players: 6780,
+    rating: 4.7,
+    duration: '5-15分钟',
+    features: ['成语知识', '接龙挑战', '提示系统', '积分排行'],
+    color: 'from-indigo-500 to-indigo-600',
+    component: 'wordchain'
   }
 ];
 
@@ -362,6 +396,48 @@ export default function Games() {
       case 'puzzle':
         return (
           <CulturalPuzzleGame 
+            isOpen={true} 
+            onClose={handleCloseGame} 
+          />
+        );
+      case 'sorting':
+        return (
+          <CulturalSortingGame 
+            isOpen={true} 
+            onClose={handleCloseGame} 
+          />
+        );
+      case 'riddle':
+        return (
+          <CulturalRiddleGame 
+            isOpen={true} 
+            onClose={handleCloseGame} 
+          />
+        );
+      case 'timeline':
+        return (
+          <CulturalTimelineGame 
+            isOpen={true} 
+            onClose={handleCloseGame} 
+          />
+        );
+      case 'wordchain':
+        return (
+          <CulturalWordChainGame 
+            isOpen={true} 
+            onClose={handleCloseGame} 
+          />
+        );
+      case 'spot':
+        return (
+          <CulturalSpotTheDifferenceGame 
+            isOpen={true} 
+            onClose={handleCloseGame} 
+          />
+        );
+      case 'pair':
+        return (
+          <CulturalPairMatchingGame 
             isOpen={true} 
             onClose={handleCloseGame} 
           />

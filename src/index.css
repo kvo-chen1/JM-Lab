@@ -3,7 +3,6 @@
 
 /* 导入模块化主题样式 */
 @import './styles/themes/base.css';
-@import './styles/themes/light.css';
 @import './styles/themes/blue.css';
 @import './styles/themes/green.css';
 @import './styles/themes/pixel.css';
@@ -12,6 +11,9 @@
 @import './styles/themes/tianjin-enhanced.css';
 @import './styles/themes/marketplace-theme.css';
 @import './styles/themes/poizon.css';
+
+/* 导入仓鼠加载动画样式 */
+@import './styles/hamster-loader.css';
 
 @tailwind base;
 @tailwind components;
@@ -2739,20 +2741,6 @@ body,
 
 /* 覆盖硬编码的灰色背景类 */
 .bg-gray-800 { background-color: var(--bg-secondary, #1f2937) !important; }
-
-/* ============================================
-   覆盖半透明背景类 - 处理 bg-black/xx 和 bg-white/xx
-   ============================================ */
-
-/* 半透明黑色背景 - 使用主题背景色+透明度 */
-[class*="bg-black/"] {
-  background-color: color-mix(in srgb, var(--bg-primary, #000000) var(--tw-bg-opacity, 100%), transparent) !important;
-}
-
-/* 半透明白色背景 - 使用主题背景色+透明度 */
-[class*="bg-white/"] {
-  background-color: color-mix(in srgb, var(--bg-primary, #ffffff) var(--tw-bg-opacity, 100%), transparent) !important;
-}
 
 /* 确保所有主题类都能正确传播 CSS 变量 */
 .tianjin,

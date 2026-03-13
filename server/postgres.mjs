@@ -40,7 +40,7 @@ const pool = new Pool({
     requestCert: true,
     agent: false
   },
-  max: 5,
+  max: 2,
   min: 1,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 60000,

@@ -526,19 +526,19 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
         )}
 
         {generatedOutputs.length === 0 && currentTask?.type !== 'ip-character' ? (
-          // Empty State
+          // Empty State - 优化深色主题样式
           <div className="flex items-center justify-center h-full min-h-[400px]">
             <div className="text-center">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 className={`w-24 h-24 mx-auto mb-6 rounded-2xl flex items-center justify-center ${
-                  isDark ? 'bg-gray-800' : 'bg-white'
-                }`}
+                  isDark ? 'bg-[#1E1E2E] border border-[#2A2A3E]' : 'bg-white border border-gray-200'
+                } shadow-lg`}
               >
-                <Wand2 className={`w-10 h-10 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+                <Wand2 className={`w-10 h-10 ${isDark ? 'text-[#8B5CF6]' : 'text-gray-400'}`} />
               </motion.div>
-              <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
                 开始你的设计之旅
               </h3>
               <p className={`text-sm max-w-xs mx-auto ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -566,8 +566,8 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                     exit={{ opacity: 0 }}
                     className="inline-block"
                   >
-                    {/* Work Cards - 自由排列 */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-32 max-w-5xl">
+                    {/* Work Cards - 自由排列 - 优化间距 */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl">
                       {generatedOutputs.map((output, index) => (
                         <motion.div
                           key={output.id}
@@ -643,7 +643,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                     )}
                   </motion.div>
                 ) : (
-                  // Grid View - 使用WorkCard的紧凑模式
+                  // Grid View - 使用WorkCard的紧凑模式 - 优化间距
                   <motion.div
                     key="grid"
                     initial={{ opacity: 0 }}
@@ -651,7 +651,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                     exit={{ opacity: 0 }}
                     className="inline-block"
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-24 max-w-6xl p-16">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-6xl p-8">
                       {generatedOutputs.map((output, index) => (
                         <motion.div
                           key={output.id}

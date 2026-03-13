@@ -1282,51 +1282,22 @@ export default function ChatPanel() {
           </div>
         </div>
 
-        {/* Quick Actions - 两行布局 */}
+        {/* Quick Actions - 优化为单行布局 */}
         <div className="mb-3">
-          {/* 第一行：主要操作按钮 */}
-          <div className="flex items-center gap-2 mb-2">
-            {quickActions.slice(0, 4).map((action, index) => (
-              <motion.button
-                key={index}
-                onClick={action.onClick}
-                disabled={(action as any).loading}
-                whileHover={{ scale: 1.05, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                  isDark
-                    ? 'bg-gradient-to-br from-gray-800 to-gray-900 hover:from-gray-700 hover:to-gray-800 text-gray-300 border border-gray-700/50 hover:border-gray-600'
-                    : 'bg-gradient-to-br from-white to-gray-50 hover:from-gray-50 hover:to-gray-100 text-gray-700 border border-gray-200/50 hover:border-gray-300 shadow-sm'
-                } ${(action as any).loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {(action as any).loading ? (
-                  <motion.div
-                    className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  />
-                ) : (
-                  <action.icon className="w-3.5 h-3.5" />
-                )}
-                <span>{action.label}</span>
-              </motion.button>
-            ))}
-          </div>
-
-          {/* 第二行：更多操作 + 津币余额 */}
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {quickActions.slice(4).map((action, index) => (
+            {/* 左侧：快捷操作按钮组 */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {quickActions.map((action, index) => (
                 <motion.button
-                  key={index + 4}
+                  key={index}
                   onClick={action.onClick}
                   disabled={(action as any).loading}
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     isDark
-                      ? 'bg-gradient-to-br from-gray-800 to-gray-900 hover:from-gray-700 hover:to-gray-800 text-gray-300 border border-gray-700/50 hover:border-gray-600'
-                      : 'bg-gradient-to-br from-white to-gray-50 hover:from-gray-50 hover:to-gray-100 text-gray-700 border border-gray-200/50 hover:border-gray-300 shadow-sm'
+                      ? 'bg-[#1E1E2E] hover:bg-[#2A2A3E] text-gray-300 border border-[#2A2A3E] hover:border-[#3A3A54]'
+                      : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300 shadow-sm'
                   } ${(action as any).loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {(action as any).loading ? (
@@ -1338,12 +1309,12 @@ export default function ChatPanel() {
                   ) : (
                     <action.icon className="w-3.5 h-3.5" />
                   )}
-                  <span>{action.label}</span>
+                  <span className="hidden sm:inline">{action.label}</span>
                 </motion.button>
               ))}
             </div>
 
-            {/* 津币余额显示 */}
+            {/* 右侧：津币余额显示 */}
             {userId && !userId.startsWith('anon_') && (
               <div className="flex-shrink-0">
                 {(jinbiBalance?.availableBalance || 0) < jinbiCost ? (
@@ -1352,16 +1323,14 @@ export default function ChatPanel() {
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setShowJinbiModal(true)}
                     className={`
-                      flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap
+                      flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap
                       ${isDark
-                        ? 'bg-gradient-to-r from-red-500/20 to-red-600/10 text-red-400 hover:from-red-500/30 hover:to-red-600/20 border border-red-500/50'
-                        : 'bg-gradient-to-r from-red-100 to-red-50 text-red-700 hover:from-red-200 hover:to-red-100 border border-red-300'}
-                      animate-pulse
+                        ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30'
+                        : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'}
                     `}
                   >
                     <AlertCircle className="w-3.5 h-3.5" />
                     <span>津币不足</span>
-                    <span className="opacity-60">({jinbiBalance?.availableBalance || 0}/{jinbiCost})</span>
                   </motion.button>
                 ) : (
                   <motion.button
@@ -1369,15 +1338,14 @@ export default function ChatPanel() {
                     whileTap={{ scale: 0.98 }}
                     onClick={() => window.location.href = '/jinbi'}
                     className={`
-                      flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap
+                      flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap
                       ${isDark
-                        ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-amber-400 hover:from-amber-500/30 hover:to-amber-600/20 border border-amber-500/30'
-                        : 'bg-gradient-to-r from-amber-100 to-amber-50 text-amber-700 hover:from-amber-200 hover:to-amber-100 border border-amber-300'}
+                        ? 'bg-[#8B5CF6]/10 text-[#A78BFA] hover:bg-[#8B5CF6]/20 border border-[#8B5CF6]/30'
+                        : 'bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200'}
                     `}
                   >
                     <Coins className="w-3.5 h-3.5" />
-                    <span>{jinbiBalance?.availableBalance?.toLocaleString() || 0} 津币</span>
-                    <span className="opacity-60">({jinbiCost}/轮)</span>
+                    <span>{jinbiBalance?.availableBalance?.toLocaleString() || 0}</span>
                   </motion.button>
                 )}
               </div>
@@ -1385,12 +1353,12 @@ export default function ChatPanel() {
           </div>
         </div>
 
-        {/* Input Box */}
-        <div className={`flex items-end gap-2 p-2 rounded-xl border ${
+        {/* Input Box - 优化深色主题样式 */}
+        <div className={`flex items-end gap-2 p-3 rounded-xl border ${
           isDark
-            ? 'bg-gray-800 border-gray-700 focus-within:border-gray-600'
+            ? 'bg-[#14141F] border-[#2A2A3E] focus-within:border-[#8B5CF6]/50 focus-within:shadow-[0_0_0_3px_rgba(139,92,246,0.1)]'
             : 'bg-white border-gray-200 focus-within:border-gray-300'
-        }`}>
+        } transition-all duration-200`}>
           <textarea
             ref={inputRef}
             value={inputValue}
@@ -1398,12 +1366,12 @@ export default function ChatPanel() {
             onKeyDown={handleKeyDown}
             placeholder="输入你的设计需求..."
             disabled={isTyping}
-            className={`flex-1 bg-transparent border-none outline-none resize-none max-h-[120px] min-h-[40px] py-2 px-2 text-sm ${
-              isDark ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'
+            className={`flex-1 bg-transparent border-none outline-none resize-none max-h-[120px] min-h-[44px] py-2.5 px-2 text-sm leading-relaxed ${
+              isDark ? 'text-gray-100 placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'
             } disabled:opacity-50`}
             rows={1}
           />
-          <div className="flex items-center gap-1 pb-1">
+          <div className="flex items-center gap-1.5 pb-1">
             <VoiceInputButton
               onTranscript={(text) => {
                 setInputValue(prev => prev + text);
@@ -1429,11 +1397,11 @@ export default function ChatPanel() {
             <motion.button
               onClick={handleSend}
               disabled={!inputValue.trim() || isTyping}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`p-2.5 rounded-lg transition-all ${
                 inputValue.trim() && !isTyping
-                  ? 'bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white'
+                  ? 'bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] text-white shadow-lg shadow-[#8B5CF6]/25 hover:shadow-xl hover:shadow-[#8B5CF6]/30'
                   : isDark
-                    ? 'bg-gray-700 text-gray-500'
+                    ? 'bg-[#2A2A3E] text-gray-500'
                     : 'bg-gray-200 text-gray-400'
               }`}
               whileHover={inputValue.trim() && !isTyping ? { scale: 1.05 } : {}}
@@ -1444,34 +1412,38 @@ export default function ChatPanel() {
           </div>
         </div>
 
-        {/* 津币不足提示 */}
-        {userId && !userId.startsWith('anon_') && (jinbiBalance?.availableBalance || 0) < jinbiCost && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`
-              mt-2 p-2 rounded-lg text-xs text-center
-              ${isDark
-                ? 'bg-red-500/10 text-red-400 border border-red-500/30'
-                : 'bg-red-50 text-red-600 border border-red-200'
-              }
-            `}
-          >
-            <span className="font-medium">⚠️ 津币余额不足</span>
-            <span className="mx-1">|</span>
-            <span>当前余额 {(jinbiBalance?.availableBalance || 0)} 津币，需要 {jinbiCost} 津币</span>
-            <button
-              onClick={() => setShowJinbiModal(true)}
-              className="ml-2 underline hover:no-underline font-medium"
+        {/* 底部提示区域 */}
+        <div className="mt-2 flex items-center justify-between">
+          {/* 左侧：津币不足提示 */}
+          {userId && !userId.startsWith('anon_') && (jinbiBalance?.availableBalance || 0) < jinbiCost ? (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`
+                flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs
+                ${isDark
+                  ? 'bg-red-500/10 text-red-400 border border-red-500/30'
+                  : 'bg-red-50 text-red-600 border border-red-200'
+                }
+              `}
             >
-              立即充值
-            </button>
-          </motion.div>
-        )}
+              <span>⚠️ 津币余额不足</span>
+              <button
+                onClick={() => setShowJinbiModal(true)}
+                className="underline hover:no-underline font-medium"
+              >
+                充值
+              </button>
+            </motion.div>
+          ) : (
+            <div />
+          )}
 
-        <p className={`text-xs mt-2 text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          按 Enter 发送，Shift + Enter 换行
-        </p>
+          {/* 右侧：快捷键提示 */}
+          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            Enter 发送 · Shift+Enter 换行
+          </p>
+        </div>
       </div>
 
       {/* 数据迁移对话框 */}

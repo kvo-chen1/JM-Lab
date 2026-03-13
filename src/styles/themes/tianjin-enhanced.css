@@ -131,28 +131,28 @@
   --color-error: var(--niren-500);
   --color-info: var(--fengzheng-500);
   
-  /* 背景 */
-  --bg-primary: #FAFAF8;
-  --bg-secondary: #FFFFFF;
-  --bg-tertiary: #F5F3F0;
-  --bg-elevated: #FFFFFF;
+  /* 背景 - 深色主题，与 tianjin 主题形成对比 */
+  --bg-primary: #1A1F2E;
+  --bg-secondary: #242B3D;
+  --bg-tertiary: #2E3548;
+  --bg-elevated: #323A4F;
   
-  /* 文字 */
-  --text-primary: #1A1A1A;
-  --text-secondary: #4A4A4A;
-  --text-tertiary: #7A7A7A;
-  --text-muted: #9A9A9A;
+  /* 文字 - 深色主题使用浅色文字 */
+  --text-primary: #F0F0F0;
+  --text-secondary: #C0C0C0;
+  --text-tertiary: #909090;
+  --text-muted: #707070;
   
-  /* 边框 */
-  --border-primary: #E8E5E0;
-  --border-secondary: #D8D5D0;
-  --border-tertiary: #C8C5C0;
+  /* 边框 - 深色主题使用深色边框 */
+  --border-primary: #3A4154;
+  --border-secondary: #4A5164;
+  --border-tertiary: #5A6174;
   
-  /* 阴影 */
-  --shadow-sm: 0 1px 2px rgba(30, 95, 142, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(30, 95, 142, 0.08), 0 2px 4px -1px rgba(30, 95, 142, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(30, 95, 142, 0.1), 0 4px 6px -2px rgba(30, 95, 142, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(30, 95, 142, 0.12), 0 8px 10px -6px rgba(30, 95, 142, 0.06);
+  /* 阴影 - 深色主题使用更深的阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
   
   /* 发光 */
   --glow-primary: 0 0 20px rgba(30, 95, 142, 0.2);

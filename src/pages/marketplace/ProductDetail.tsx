@@ -3,13 +3,14 @@
  */
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useProduct, useProductReviews, useAddToCart, useIsFavorite, useAddToFavorites, useRemoveFromFavorites } from '@/hooks/useProducts';
+import { useProduct, useProductReviews, useAddToCart, useIsFavorite, useAddToFavorites, useRemoveFromFavorites, useCreateProductReview } from '@/hooks/useProducts';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { Separator } from '@/components/ui/Separator';
-import { Heart, ShoppingCart, Share2, Store, Star, Truck, Shield, ArrowLeft, Minus, Plus } from 'lucide-react';
+import { Textarea } from '@/components/ui/Textarea';
+import { Heart, ShoppingCart, Share2, Store, Star, Truck, Shield, ArrowLeft, Minus, Plus, Send } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ProductDetailPage: React.FC = () => {
@@ -18,13 +19,20 @@ const ProductDetailPage: React.FC = () => {
   const { user } = useAuth();
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [mainImageError, setMainImageError] = useState(false);
+  const [thumbnailErrors, setThumbnailErrors] = useState<Record<number, boolean>>({});
+  
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewContent, setReviewContent] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   const { product, loading: productLoading, error } = useProduct(id || null);
-  const { reviews, count: reviewCount } = useProductReviews(id || null, { limit: 5 });
+  const { reviews, count: reviewCount, refetch: refetchReviews } = useProductReviews(id || null, { limit: 5 });
   const { isFavorite } = useIsFavorite(user?.id || null, id || null);
   const { addToCart } = useAddToCart();
   const { addToFavorites } = useAddToFavorites();
   const { removeFromFavorites } = useRemoveFromFavorites();
+  const { createReview, loading: createReviewLoading } = useCreateProductReview();
 
   // 调试日志
   console.log('[ProductDetail] 商品ID:', id);
@@ -73,7 +81,10 @@ const ProductDetailPage: React.FC = () => {
     );
   }
 
-  const images = product.images?.length > 0 ? product.images : [product.cover_image];
+  // 优先使用 images 数组，如果没有则使用 cover_image
+  const images = product.images?.length > 0
+    ? product.images
+    : (product.cover_image ? [product.cover_image] : []);
   const discount = product.original_price
     ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
     : 0;
@@ -112,6 +123,39 @@ const ProductDetailPage: React.FC = () => {
     }
   };
 
+  const handleSubmitReview = async () => {
+    if (!user) {
+      toast.error('请先登录');
+      return;
+    }
+    if (!reviewContent.trim()) {
+      toast.error('请输入评价内容');
+      return;
+    }
+    
+    try {
+      const result = await createReview({
+        product_id: product.id,
+        order_id: '',
+        user_id: user.id,
+        rating: reviewRating,
+        content: reviewContent,
+        is_anonymous: isAnonymous,
+        is_recommended: reviewRating >= 4,
+      });
+      
+      if (result) {
+        toast.success('评价提交成功！');
+        setReviewContent('');
+        setReviewRating(5);
+        setIsAnonymous(false);
+        refetchReviews();
+      }
+    } catch (err: any) {
+      toast.error(err.message || '评价提交失败');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 顶部导航 */}
@@ -132,11 +176,12 @@ const ProductDetailPage: React.FC = () => {
           {/* 左侧：商品图片 */}
           <div className="space-y-4">
             <div className="aspect-square rounded-2xl overflow-hidden bg-gray-100">
-              {images[selectedImage] ? (
+              {images[selectedImage] && !mainImageError ? (
                 <img
                   src={images[selectedImage]}
                   alt={product.name}
                   className="w-full h-full object-cover"
+                  onError={() => setMainImageError(true)}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-200">
@@ -154,7 +199,18 @@ const ProductDetailPage: React.FC = () => {
                       selectedImage === index ? 'border-[#C02C38]' : 'border-transparent'
                     }`}
                   >
-                    <img src={image} alt="" className="w-full h-full object-cover" />
+                    {!thumbnailErrors[index] ? (
+                      <img
+                        src={image}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={() => setThumbnailErrors(prev => ({ ...prev, [index]: true }))}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                        <span className="text-xs text-gray-400">无图</span>
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
@@ -325,6 +381,77 @@ const ProductDetailPage: React.FC = () => {
           <TabsContent value="reviews" className="mt-6">
             <div className="bg-white rounded-xl p-6">
               <h3 className="font-semibold text-lg mb-4">商品评价</h3>
+              
+              {user ? (
+                <div className="border border-gray-200 rounded-lg p-4 mb-6">
+                  <h4 className="font-medium mb-3">发表评价</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">评分</label>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((rating) => (
+                          <button
+                            key={rating}
+                            type="button"
+                            onClick={() => setReviewRating(rating)}
+                            className="focus:outline-none"
+                          >
+                            <Star
+                              className={`w-6 h-6 cursor-pointer ${
+                                rating <= reviewRating
+                                  ? 'fill-yellow-400 text-yellow-400'
+                                  : 'text-gray-300'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">评价内容</label>
+                      <Textarea
+                        value={reviewContent}
+                        onChange={(e: any) => setReviewContent(e.target.value)}
+                        placeholder="分享您的购物体验..."
+                        rows={4}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isAnonymous}
+                          onChange={(e) => setIsAnonymous(e.target.checked)}
+                          className="rounded border-gray-300 text-[#C02C38] focus:ring-[#C02C38]"
+                        />
+                        <span className="text-sm text-gray-600">匿名评价</span>
+                      </label>
+                      
+                      <Button
+                        onClick={handleSubmitReview}
+                        disabled={createReviewLoading || !reviewContent.trim()}
+                        className="bg-[#C02C38] hover:bg-[#991b1b]"
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        {createReviewLoading ? '提交中...' : '提交评价'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-4 mb-6 text-center">
+                  <p className="text-gray-600 mb-2">登录后才能发表评价</p>
+                  <Button
+                    onClick={() => navigate('/login')}
+                    className="bg-[#C02C38] hover:bg-[#991b1b]"
+                  >
+                    立即登录
+                  </Button>
+                </div>
+              )}
+              
               {reviews.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">暂无评价</p>
               ) : (

@@ -11,9 +11,11 @@ import {
   Search, Filter, Shield, CheckCircle2, X, Loader2,
   Briefcase, DollarSign, Calendar, Download, Eye,
   Settings, TrendingUp, FileText, Award, Clock,
-  ChevronDown, Plus, AlertCircle, Lock, Unlock
+  ChevronDown, Plus, AlertCircle, Lock, Unlock,
+  ShoppingBag
 } from 'lucide-react';
 import ipService, { type CopyrightAsset, type IPAsset } from '@/services/ipService';
+import { licensedProductService, type LicensedProduct } from '@/services/licensedProductService';
 import { CopyrightDetailModal } from './CopyrightDetailModal';
 
 // 深色主题配色
@@ -87,7 +89,9 @@ export function CopyrightAssetsContent({ ipAssets = [] }: CopyrightAssetsContent
 
   // 数据状态
   const [copyrightAssets, setCopyrightAssets] = useState<CopyrightAsset[]>([]);
+  const [licensedProducts, setLicensedProducts] = useState<LicensedProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'assets' | 'products'>('assets');
 
   // 筛选状态
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,6 +106,7 @@ export function CopyrightAssetsContent({ ipAssets = [] }: CopyrightAssetsContent
   // 加载数据
   useEffect(() => {
     loadCopyrightAssets();
+    loadLicensedProducts();
   }, []);
 
   const loadCopyrightAssets = async () => {
@@ -114,6 +119,15 @@ export function CopyrightAssetsContent({ ipAssets = [] }: CopyrightAssetsContent
       toast.error('加载版权资产失败');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadLicensedProducts = async () => {
+    try {
+      const products = await licensedProductService.getLicensedProducts();
+      setLicensedProducts(products);
+    } catch (error) {
+      console.error('加载授权产品失败:', error);
     }
   };
 
@@ -283,7 +297,32 @@ export function CopyrightAssetsContent({ ipAssets = [] }: CopyrightAssetsContent
         </div>
       </div>
 
+      {/* 标签切换 */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveTab('assets')}
+          className={`px-6 py-3 rounded-xl font-medium transition-all ${
+            activeTab === 'assets'
+              ? (isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white' : 'bg-gradient-to-r from-cyan-600 to-blue-700 text-white')
+              : `${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`
+          }`}
+        >
+          版权资产 ({copyrightAssets.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('products')}
+          className={`px-6 py-3 rounded-xl font-medium transition-all ${
+            activeTab === 'products'
+              ? (isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white' : 'bg-gradient-to-r from-cyan-600 to-blue-700 text-white')
+              : `${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`
+          }`}
+        >
+          授权产品 ({licensedProducts.length})
+        </button>
+      </div>
+
       {/* 搜索和筛选栏 */}
+      {activeTab === 'assets' && (
       <div className={`rounded-2xl p-4 ${theme.glass} border ${theme.borderPrimary}`}>
         <div className="flex flex-wrap gap-4 items-center">
           {/* 搜索框 */}
@@ -380,24 +419,26 @@ export function CopyrightAssetsContent({ ipAssets = [] }: CopyrightAssetsContent
           )}
         </AnimatePresence>
       </div>
+      )}
 
       {/* 资产列表 */}
-      {isLoading ? (
-        <div className={`flex flex-col items-center justify-center py-20 rounded-2xl border ${theme.glass} ${theme.borderPrimary}`}>
-          <Loader2 className={`w-12 h-12 animate-spin mb-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
-          <p className={theme.textMuted}>加载版权资产...</p>
-        </div>
-      ) : filteredAssets.length === 0 ? (
-        <div className={`flex flex-col items-center justify-center py-20 rounded-2xl border ${theme.glass} ${theme.borderPrimary}`}>
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-slate-800' : 'bg-gray-100'}`}>
-            <Shield className={`w-10 h-10 ${theme.textMuted}`} />
+      {activeTab === 'assets' ? (
+        isLoading ? (
+          <div className={`flex flex-col items-center justify-center py-20 rounded-2xl border ${theme.glass} ${theme.borderPrimary}`}>
+            <Loader2 className={`w-12 h-12 animate-spin mb-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+            <p className={theme.textMuted}>加载版权资产...</p>
           </div>
-          <h3 className={`text-lg font-medium mb-2 ${theme.textSecondary}`}>暂无版权资产</h3>
-          <p className={theme.textMuted}>完成作品版权存证后，您的版权资产将显示在这里</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredAssets.map((asset, index) => {
+        ) : filteredAssets.length === 0 ? (
+          <div className={`flex flex-col items-center justify-center py-20 rounded-2xl border ${theme.glass} ${theme.borderPrimary}`}>
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-slate-800' : 'bg-gray-100'}`}>
+              <Shield className={`w-10 h-10 ${theme.textMuted}`} />
+            </div>
+            <h3 className={`text-lg font-medium mb-2 ${theme.textSecondary}`}>暂无版权资产</h3>
+            <p className={theme.textMuted}>完成作品版权存证后，您的版权资产将显示在这里</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {filteredAssets.map((asset, index) => {
             const statusStyle = getStatusStyle(asset.status);
 
             return (
@@ -508,7 +549,90 @@ export function CopyrightAssetsContent({ ipAssets = [] }: CopyrightAssetsContent
             );
           })}
         </div>
-      )}
+      )
+    ) : (
+      // 授权产品列表
+      licensedProducts.length === 0 ? (
+        <div className={`flex flex-col items-center justify-center py-20 rounded-2xl border ${theme.glass} ${theme.borderPrimary}`}>
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-slate-800' : 'bg-gray-100'}`}>
+            <ShoppingBag className={`w-10 h-10 ${theme.textMuted}`} />
+          </div>
+          <h3 className={`text-lg font-medium mb-2 ${theme.textSecondary}`}>暂无授权产品</h3>
+          <p className={theme.textMuted}>基于授权创建的产品将显示在这里</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {licensedProducts.map((product, index) => (
+            <motion.div
+              key={product.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              className={`group relative rounded-2xl border overflow-hidden hover:border-cyan-500/30 transition-all ${theme.bgCard} ${theme.borderPrimary} ${theme.glowPrimary}`}
+            >
+              <div className="p-6">
+                {/* 头部信息 */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    {product.productImages && product.productImages.length > 0 ? (
+                      <img src={product.productImages[0]} alt={product.productName} className="w-14 h-14 rounded-xl object-cover ring-2 ring-cyan-500/30" />
+                    ) : (
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-cyan-500/20 to-blue-500/20' : 'bg-gradient-to-br from-cyan-100 to-blue-100'}`}>
+                        <ShoppingBag className={`w-7 h-7 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                      </div>
+                    )}
+                    <div>
+                      <h4 className={`font-semibold ${theme.textPrimary}`}>{product.productName}</h4>
+                      <p className={`text-xs ${theme.textMuted}`}>{product.brandName}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${
+                    product.status === 'on_sale' 
+                      ? (isDark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-100 text-emerald-600 border-emerald-200')
+                      : product.status === 'draft'
+                      ? (isDark ? 'bg-slate-500/20 text-slate-400 border-slate-500/30' : 'bg-gray-200 text-gray-600 border-gray-300')
+                      : (isDark ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-amber-100 text-amber-600 border-amber-200')
+                  }`}>
+                    {product.status === 'on_sale' ? '销售中' : product.status === 'draft' ? '草稿' : '审核中'}
+                  </span>
+                </div>
+
+                {/* 产品信息 */}
+                <div className={`p-3 rounded-xl mb-4 ${theme.bgTertiary} border ${theme.borderSecondary}`}>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className={theme.textMuted}>价格</span>
+                      <span className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{product.price.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className={theme.textMuted}>库存</span>
+                      <span className={theme.textSecondary}>{product.stock} 件</span>
+                    </div>
+                    {product.salesCount > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className={theme.textMuted}>销量</span>
+                        <span className={theme.textSecondary}>{product.salesCount} 件</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 操作按钮 */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => window.open(`/marketplace/products/${product.id}`, '_blank')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all ${theme.bgTertiary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-200'}`}
+                  >
+                    <Eye className="w-4 h-4" />
+                    查看
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )
+    )}
 
       {/* 详情弹窗 */}
       <CopyrightDetailModal

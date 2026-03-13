@@ -1406,54 +1406,88 @@ async function handleJinbi(req, res, path) {
     const pool = await getDbPool();
     const userId = decoded.id || decoded.userId || decoded.sub;
 
-    // 获取余额
+    // 获取余额 - 使用前端期望的表名和字段名
     if (path === '/jinbi/balance' && req.method === 'GET') {
       if (!pool) {
-        return res.status(200).json({ code: 0, data: { balance: 0, frozen: 0, total: 0 } });
+        return res.status(200).json({
+          code: 0,
+          data: [{
+            user_id: userId,
+            total_balance: 0,
+            available_balance: 0,
+            frozen_balance: 0,
+            total_earned: 0,
+            total_spent: 0,
+            last_updated: new Date().toISOString()
+          }]
+        });
       }
 
       await queryWithRetry(`
-        CREATE TABLE IF NOT EXISTS jinbi_balances (
+        CREATE TABLE IF NOT EXISTS user_jinbi_balance (
           user_id VARCHAR(255) PRIMARY KEY,
-          balance INTEGER DEFAULT 0,
-          frozen INTEGER DEFAULT 0,
-          total INTEGER DEFAULT 0,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          total_balance INTEGER DEFAULT 0,
+          available_balance INTEGER DEFAULT 0,
+          frozen_balance INTEGER DEFAULT 0,
+          total_earned INTEGER DEFAULT 0,
+          total_spent INTEGER DEFAULT 0,
+          last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
       const result = await queryWithRetry(
-        'SELECT * FROM jinbi_balances WHERE user_id = $1',
+        'SELECT * FROM user_jinbi_balance WHERE user_id = $1',
         [userId]
       );
 
       if (result.rows.length === 0) {
-        return res.status(200).json({ code: 0, data: { balance: 0, frozen: 0, total: 0 } });
+        // 创建默认记录
+        await queryWithRetry(`
+          INSERT INTO user_jinbi_balance (user_id, total_balance, available_balance, frozen_balance, total_earned, total_spent)
+          VALUES ($1, 0, 0, 0, 0, 0)
+          ON CONFLICT (user_id) DO NOTHING
+        `, [userId]);
+
+        return res.status(200).json({
+          code: 0,
+          data: [{
+            user_id: userId,
+            total_balance: 0,
+            available_balance: 0,
+            frozen_balance: 0,
+            total_earned: 0,
+            total_spent: 0,
+            last_updated: new Date().toISOString()
+          }]
+        });
       }
 
       return res.status(200).json({
         code: 0,
-        data: {
-          balance: result.rows[0].balance || 0,
-          frozen: result.rows[0].frozen || 0,
-          total: result.rows[0].total || 0
-        }
+        data: result.rows
       });
     }
 
-    // 获取记录
+    // 获取记录 - 使用前端期望的表名和字段名
     if (path === '/jinbi/records' && req.method === 'GET') {
       if (!pool) {
-        return res.status(200).json({ code: 0, data: [] });
+        return res.status(200).json({ code: 0, data: [], total: 0 });
       }
 
       await queryWithRetry(`
         CREATE TABLE IF NOT EXISTS jinbi_records (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(255) NOT NULL,
-          type VARCHAR(50) NOT NULL,
           amount INTEGER NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          source VARCHAR(255),
+          source_type VARCHAR(50),
           description TEXT,
+          balance_after INTEGER,
+          related_id VARCHAR(255),
+          related_type VARCHAR(50),
+          expires_at TIMESTAMP,
+          metadata JSONB DEFAULT '{}',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
@@ -1463,7 +1497,17 @@ async function handleJinbi(req, res, path) {
         [userId]
       );
 
-      return res.status(200).json({ code: 0, data: result.rows });
+      // 获取总数
+      const countResult = await queryWithRetry(
+        'SELECT COUNT(*) as total FROM jinbi_records WHERE user_id = $1',
+        [userId]
+      );
+
+      return res.status(200).json({
+        code: 0,
+        data: result.rows,
+        total: parseInt(countResult.rows[0]?.total || 0)
+      });
     }
 
     // 获取消费明细
@@ -1471,28 +1515,93 @@ async function handleJinbi(req, res, path) {
       return res.status(200).json({ code: 0, data: [] });
     }
 
-    // 获取套餐
+    // 获取套餐 - 使用前端期望的表名和字段名
     if (path === '/jinbi/packages' && req.method === 'GET') {
-      return res.status(200).json({
-        code: 0,
-        data: [
-          { id: 1, name: '基础套餐', price: 10, amount: 100, description: '100津币' },
-          { id: 2, name: '标准套餐', price: 50, amount: 550, description: '550津币（赠送50）' },
-          { id: 3, name: '高级套餐', price: 100, amount: 1200, description: '1200津币（赠送200）' }
-        ]
-      });
+      if (!pool) {
+        return res.status(200).json({
+          code: 0,
+          data: [
+            { id: '1', name: '基础套餐', description: '100津币', jinbi_amount: 100, price: 10, currency: 'CNY', bonus_jinbi: 0, is_active: true, sort_order: 1 },
+            { id: '2', name: '标准套餐', description: '550津币（赠送50）', jinbi_amount: 500, price: 50, currency: 'CNY', bonus_jinbi: 50, is_active: true, sort_order: 2 },
+            { id: '3', name: '高级套餐', description: '1200津币（赠送200）', jinbi_amount: 1000, price: 100, currency: 'CNY', bonus_jinbi: 200, is_active: true, sort_order: 3 }
+          ]
+        });
+      }
+
+      await queryWithRetry(`
+        CREATE TABLE IF NOT EXISTS jinbi_packages (
+          id VARCHAR(255) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          jinbi_amount INTEGER NOT NULL,
+          price INTEGER NOT NULL,
+          currency VARCHAR(10) DEFAULT 'CNY',
+          bonus_jinbi INTEGER DEFAULT 0,
+          is_active BOOLEAN DEFAULT TRUE,
+          sort_order INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // 插入默认套餐数据
+      await queryWithRetry(`
+        INSERT INTO jinbi_packages (id, name, description, jinbi_amount, price, currency, bonus_jinbi, is_active, sort_order)
+        VALUES 
+          ('1', '基础套餐', '100津币', 100, 10, 'CNY', 0, TRUE, 1),
+          ('2', '标准套餐', '550津币（赠送50）', 500, 50, 'CNY', 50, TRUE, 2),
+          ('3', '高级套餐', '1200津币（赠送200）', 1000, 100, 'CNY', 200, TRUE, 3)
+        ON CONFLICT (id) DO NOTHING
+      `);
+
+      const result = await queryWithRetry(
+        'SELECT * FROM jinbi_packages WHERE is_active = TRUE ORDER BY sort_order ASC'
+      );
+
+      return res.status(200).json({ code: 0, data: result.rows });
     }
 
-    // 获取收费标准
+    // 获取收费标准 - 使用前端期望的表名和字段名
     if (path === '/jinbi/pricing' && req.method === 'GET') {
-      return res.status(200).json({
-        code: 0,
-        data: {
-          ai_generation: 10,
-          image_enhance: 5,
-          video_export: 20
-        }
-      });
+      if (!pool) {
+        return res.status(200).json({
+          code: 0,
+          data: [
+            { id: '1', service_type: 'agent_chat', service_subtype: null, name: 'AI对话', description: '与AI助手对话', base_cost: 1, params: {}, is_active: true },
+            { id: '2', service_type: 'image_gen', service_subtype: null, name: '图片生成', description: '生成AI图片', base_cost: 10, params: {}, is_active: true },
+            { id: '3', service_type: 'video_gen', service_subtype: null, name: '视频生成', description: '生成AI视频', base_cost: 20, params: {}, is_active: true }
+          ]
+        });
+      }
+
+      await queryWithRetry(`
+        CREATE TABLE IF NOT EXISTS service_pricing (
+          id VARCHAR(255) PRIMARY KEY,
+          service_type VARCHAR(100) NOT NULL,
+          service_subtype VARCHAR(100),
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          base_cost INTEGER NOT NULL,
+          params JSONB DEFAULT '{}',
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // 插入默认计费标准
+      await queryWithRetry(`
+        INSERT INTO service_pricing (id, service_type, service_subtype, name, description, base_cost, params, is_active)
+        VALUES 
+          ('1', 'agent_chat', NULL, 'AI对话', '与AI助手对话', 1, '{}', TRUE),
+          ('2', 'image_gen', NULL, '图片生成', '生成AI图片', 10, '{}', TRUE),
+          ('3', 'video_gen', NULL, '视频生成', '生成AI视频', 20, '{}', TRUE)
+        ON CONFLICT (id) DO NOTHING
+      `);
+
+      const result = await queryWithRetry(
+        'SELECT * FROM service_pricing WHERE is_active = TRUE ORDER BY service_type ASC'
+      );
+
+      return res.status(200).json({ code: 0, data: result.rows });
     }
 
     // 获取月度统计

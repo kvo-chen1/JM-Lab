@@ -1,0 +1,252 @@
+/* 得物(Poizon)风格主题 - 极光蓝+黑白极简 */
+.poizon {
+  /* 极光蓝品牌色 */
+  --color-primary: #00C6FF;
+  --color-primary-hover: #00B8E6;
+  --color-primary-light: #E6F9FF;
+  --color-primary-dark: #00A8D4;
+  --color-secondary: #00D4FF;
+  --color-accent: #00E5FF;
+  
+  /* 功能色 */
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #00C6FF;
+  
+  /* 黑白极简背景层次 */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8F9FA;
+  --bg-tertiary: #F1F3F5;
+  --bg-hover: #E9ECEF;
+  --bg-active: #DEE2E6;
+  --bg-muted: #F8F9FA;
+  --bg-overlay: rgba(255, 255, 255, 0.95);
+  
+  /* 黑白极简文字层次 - 高对比 */
+  --text-primary: #1A1A1A;
+  --text-secondary: #495057;
+  --text-tertiary: #6C757D;
+  --text-muted: #ADB5BD;
+  --text-inverse: #FFFFFF;
+  --text-link: #00C6FF;
+  
+  /* 边框层次 */
+  --border-primary: #DEE2E6;
+  --border-secondary: #E9ECEF;
+  --border-tertiary: #F1F3F5;
+  --border-muted: #E9ECEF;
+  
+  /* 轻阴影系统 - 微磨砂质感 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.10);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --shadow-popup: 0 4px 20px rgba(0, 0, 0, 0.12);
+  
+  /* 发光效果 */
+  --glow-primary: 0 0 12px rgba(0, 198, 255, 0.25);
+  --glow-secondary: 0 0 20px rgba(0, 198, 255, 0.15);
+  --glow-accent: 0 0 30px rgba(0, 198, 255, 0.2);
+  --glow-text: 0 0 8px rgba(0, 198, 255, 0.3);
+  
+  /* 极光渐变 */
+  --gradient-primary: linear-gradient(135deg, #FFFFFF 0%, #F8F9FA 100%);
+  --gradient-secondary: linear-gradient(135deg, #F8F9FA 0%, #F1F3F5 100%);
+  --gradient-accent: linear-gradient(135deg, #00C6FF 0%, #00A8D4 100%);
+  --gradient-button: linear-gradient(135deg, #00C6FF 0%, #00C6FF 100%);
+  --gradient-card: linear-gradient(135deg, #FFFFFF 0%, #F8F9FA 100%);
+  --gradient-aurora: linear-gradient(135deg, #00C6FF 0%, #00E5FF 50%, #00C6FF 100%);
+  --gradient-hero: linear-gradient(180deg, #FFFFFF 0%, #F8F9FA 100%);
+  
+  /* 磨砂质感 */
+  --frosted-light: blur(8px);
+  --frosted-medium: blur(12px);
+  --frosted-heavy: blur(20px);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.05);
+  
+  /* 圆角系统 - 大圆角现代感 */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+  
+  /* 间距系统 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  
+  /* 过渡动画 */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 350ms ease;
+  --transition-bounce: 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  
+  /* 层级 */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-popover: 400;
+  --z-tooltip: 500;
+  
+  /* 品牌色变量 - 兼容其他组件 */
+  --primary: #00C6FF;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F8F9FA;
+  --secondary-foreground: #1A1A1A;
+  --muted: #F1F3F5;
+  --muted-foreground: #6C757D;
+  --accent: #00C6FF;
+  --accent-foreground: #FFFFFF;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --card: #FFFFFF;
+  --card-foreground: #1A1A1A;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1A1A;
+  --border: #DEE2E6;
+  --input: #DEE2E6;
+  --ring: #00C6FF;
+}
+
+/* 全局覆盖样式 - 让主题产生明显效果 */
+.poizon body {
+  background-color: #FFFFFF;
+  color: #1A1A1A;
+}
+
+/* 按钮主题色覆盖 */
+.poizon .btn-primary,
+.poizon button[class*="bg-blue"],
+.poizon [class*="bg-"][class*="blue"] {
+  background-color: #00C6FF !important;
+}
+
+.poizon button:hover {
+  box-shadow: var(--glow-primary);
+}
+
+/* 链接颜色 */
+.poizon a,
+.poizon [class*="text-blue"] {
+  color: #00C6FF !important;
+}
+
+/* 卡片样式 */
+.poizon .card,
+.poizon [class*="card"] {
+  background: #FFFFFF;
+  box-shadow: var(--shadow-card);
+  border-radius: 12px;
+}
+
+/* 输入框 */
+.poizon input,
+.poizon textarea,
+.poizon select {
+  border-color: #DEE2E6 !important;
+}
+
+.poizon input:focus,
+.poizon textarea:focus,
+.poizon select:focus {
+  border-color: #00C6FF !important;
+  box-shadow: var(--glow-primary);
+}
+
+/* 主色调强调元素 */
+.poizon [class*="primary"],
+.poizon .text-primary {
+  color: #00C6FF !important;
+}
+
+.poizon .bg-primary,
+.poizon [class*="bg-primary"] {
+  background-color: #00C6FF !important;
+}
+
+/* 边框颜色 */
+.poizon [class*="border"] {
+  border-color: #DEE2E6 !important;
+}
+
+/* 滚动条主题色 */
+.poizon ::-webkit-scrollbar-thumb {
+  background: #00C6FF !important;
+}
+
+.poizon ::-webkit-scrollbar-track {
+  background: #F8F9FA !important;
+}
+
+/* 发光效果元素 */
+.poizon .glow,
+.poizon [class*="glow"] {
+  box-shadow: var(--glow-accent);
+}
+
+/* 渐变按钮 */
+.poizon .gradient-button,
+.poizon [class*="gradient"] {
+  background: var(--gradient-button) !important;
+}
+
+/* 磨砂效果 */
+.poizon .frosted,
+.poizon [class*="frosted"] {
+  backdrop-filter: var(--frosted-medium);
+  background: var(--glass-bg);
+}
+
+/* 更多全局覆盖 - 确保明显效果 */
+.poizon {
+  /* 主要按钮颜色 */
+  --tw-bg-opacity: 1;
+  background-color: rgb(0 198 255 / var(--tw-bg-opacity)) !important;
+}
+
+/* 覆盖blue-500, blue-600等常见色 */
+.poizon .bg-blue-500,
+.poizon .bg-blue-600,
+.poizon .bg-blue-700,
+.poizon .bg-blue-400 {
+  background-color: #00C6FF !important;
+}
+
+.poizon .text-blue-500,
+.poizon .text-blue-600,
+.poizon .text-blue-700,
+.poizon .text-blue-400 {
+  color: #00C6FF !important;
+}
+
+.poizon .border-blue-500,
+.poizon .border-blue-600 {
+  border-color: #00C6FF !important;
+}
+
+.poizon .ring-blue-500,
+.poizon .ring-blue-600 {
+  --tw-ring-color: #00C6FF !important;
+}
+
+/* 激活状态 */
+.poizon .active,
+.poizon [class*="active"] {
+  background-color: #00C6FF !important;
+  color: #FFFFFF !important;
+}
+
+/* 图标颜色 */
+.poizon i[class*="fa-"],
+.poizon [class*="icon"] {
+  color: #00C6FF;
+}

@@ -24,6 +24,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
   showFavorite = true,
   layout = 'vertical',
 }) => {
+  const [imageError, setImageError] = React.useState(false);
+
+  // 优先使用 cover_image，如果没有则使用 images 数组的第一张
+  const displayImage = product?.cover_image || product?.images?.[0] || '';
+
   const discount = product.original_price
     ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
     : 0;
@@ -46,11 +51,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
       >
         {/* 商品图片 */}
         <div className="w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
-          {product.cover_image ? (
+          {displayImage && !imageError ? (
             <img
-              src={product.cover_image}
+              src={displayImage}
               alt={product.name}
               className="w-full h-full object-cover"
+              onError={() => setImageError(true)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-200">
@@ -121,11 +127,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
     >
       {/* 商品图片 */}
       <div className="relative aspect-square overflow-hidden bg-gray-100">
-        {product.cover_image ? (
+        {displayImage && !imageError ? (
           <img
-            src={product.cover_image}
+            src={displayImage}
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={() => setImageError(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-200">

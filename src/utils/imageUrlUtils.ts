@@ -150,9 +150,9 @@ export function processImageUrl(url: string, options: ImageProcessingOptions = {
         result = url;
       }
     }
-    // 检测 Supabase Storage URL（已无法访问）
+    // 检测 Supabase Storage URL - 现在可以正常访问
     else if (url.includes('supabase.co/storage')) {
-      result = ''; // 返回空字符串，让调用方使用 fallback 图片
+      result = url; // 允许 Supabase Storage URL 通过
     }
     // 其他所有URL直接返回
     else {

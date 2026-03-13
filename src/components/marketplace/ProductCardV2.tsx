@@ -29,6 +29,10 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  // 优先使用 cover_image，如果没有则使用 images 数组的第一张
+  const displayImage = product?.cover_image || product?.images?.[0] || '';
 
   const discount = product?.original_price && product?.price
     ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
@@ -78,17 +82,18 @@ const ProductCardV2: React.FC<ProductCardV2Props> = ({
           <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse" />
         )}
         
-        {product?.cover_image ? (
+        {displayImage && !imageError ? (
           <img
-            src={product.cover_image}
+            src={displayImage}
             alt={product?.name || '商品'}
             className={`w-full h-full object-cover transition-all duration-300 ${
               imageLoaded ? 'opacity-100' : 'opacity-0'
             } group-hover:scale-105`}
             onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300">
+          <div className="w-full h-full flex items-center justify-center text-gray-300 bg-gray-100">
             <span className="text-xs">暂无图片</span>
           </div>
         )}

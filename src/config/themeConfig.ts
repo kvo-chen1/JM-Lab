@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon';
 
 // 自定义主题接口
 export interface CustomTheme {
@@ -56,7 +56,8 @@ export const themeConfig: ThemeConfig[] = [
   { value: 'fengzhengwei', label: '风筝魏蓝', icon: 'fas fa-paper-plane', description: '传统技艺主题，清新蓝色调，用于信息提示和链接' },
   { value: 'guifaxiang', label: '桂发祥金', icon: 'fas fa-crown', description: '传统美食主题，尊贵金色调，用于VIP标识和会员等级' },
   { value: 'goubuli', label: '狗不理棕', icon: 'fas fa-bread-slice', description: '传统美食主题，温暖棕色调，用于暖色调装饰' },
-  { value: 'tianjin-enhanced', label: '津门雅韵·深', icon: 'fas fa-city', description: '天津文化主题深化版，融合海河波纹、传统纹样、老字号元素，展现津门文化魅力', isSystem: true }
+  { value: 'tianjin-enhanced', label: '津门雅韵·深', icon: 'fas fa-city', description: '天津文化主题深化版，融合海河波纹、传统纹样、老字号元素，展现津门文化魅力', isSystem: true },
+  { value: 'poizon', label: '得物潮流', icon: 'fas fa-bolt', description: '得物App风格主题，极光蓝(#00C6FF)品牌色+黑白极简基底，高对比干净高级，潮流轻奢感' }
 ];
 
 
@@ -75,7 +76,8 @@ export const themeEnhancements = {
     fengzhengwei: 1.15,
     guifaxiang: 1.18,
     goubuli: 1.15,
-    'tianjin-enhanced': 1.2
+    'tianjin-enhanced': 1.2,
+    'poizon': 1.25
   },
   // 色彩饱和度优化
   saturation: {
@@ -90,7 +92,8 @@ export const themeEnhancements = {
     fengzhengwei: 1.05,
     guifaxiang: 1.12,
     goubuli: 1.08,
-    'tianjin-enhanced': 1.1
+    'tianjin-enhanced': 1.1,
+    'poizon': 1.15
   },
   // 亮度调整
   brightness: {
@@ -105,7 +108,8 @@ export const themeEnhancements = {
     fengzhengwei: 1.05,
     guifaxiang: 1.0,
     goubuli: 0.98,
-    'tianjin-enhanced': 1.02
+    'tianjin-enhanced': 1.02,
+    'poizon': 1.05
   },
   // 主题过渡动画
   transition: {
@@ -162,6 +166,14 @@ export const themeEnhancements = {
       color: '#8B4513',
       artStyle: 'warm'
     },
+    poizon: {
+      glow: true,
+      intensity: 'high',
+      color: '#00C6FF',
+      auroraEffect: true,
+      frosted: true,
+      minimalist: true
+    },
     'tianjin-enhanced': {
       glow: true,
       intensity: 'medium',
@@ -204,7 +216,7 @@ export const autoThemeConfig = {
 // 主题预设配置
 export const themePresets = {
   // 推荐主题组合
-  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced'] as Theme[],
+  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon'] as Theme[],
   // 季节适配
   seasonal: {
     spring: 'green',
@@ -229,10 +241,10 @@ export const themePresets = {
 export const defaultTheme: Theme = 'pixel';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon'];
 
 // 有效的主题列表（用于验证）
-export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced'];
+export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {
@@ -276,6 +288,8 @@ export const getAppliedTheme = (theme: Theme): Theme => {
     case 'fengzhengwei':
     case 'guifaxiang':
     case 'goubuli':
+    case 'tianjin-enhanced':
+    case 'poizon':
       return theme;
     default:
       return defaultTheme;

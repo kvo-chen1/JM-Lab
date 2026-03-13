@@ -166,7 +166,9 @@ export function processImageUrl(url: string, options: ImageProcessingOptions = {
   if (urlCache.size >= MAX_CACHE_SIZE) {
     // 删除最早的缓存项
     const firstKey = urlCache.keys().next().value;
-    urlCache.delete(firstKey);
+    if (firstKey) {
+      urlCache.delete(firstKey);
+    }
   }
   urlCache.set(url, result);
   

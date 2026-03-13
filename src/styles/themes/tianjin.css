@@ -247,14 +247,14 @@
   --color-neutral: #9A8A7A;
 
   /* 
-   * 背景：仿陶土质感的米灰
-   * 泥人张作品底色多为素雅的陶土色
+   * 背景：深陶土色 - 让主题更明显
+   * 使用较深的陶土色背景，突出泥人张特色
    */
-  --bg-primary: #F5F0EB;
-  --bg-secondary: #FAF8F5;
-  --bg-tertiary: #E8E0D8;
-  --bg-hover: #DDD5C8;
-  --bg-active: #D0C8B8;
+  --bg-primary: #E8DCD0;
+  --bg-secondary: #F5EDE5;
+  --bg-tertiary: #D4C4B0;
+  --bg-hover: #C8B8A0;
+  --bg-active: #BCAC90;
 
   /* 文字：深墨色 - 模仿泥塑的立体感 */
   --text-primary: #2A2420;
@@ -262,23 +262,23 @@
   --text-tertiary: #6A6050;
 
   /* 边框：陶土棕 */
-  --border-primary: #D8D0C0;
-  --border-secondary: #C8C0B0;
-  --border-tertiary: #B8B0A0;
+  --border-primary: #D8C8B8;
+  --border-secondary: #C8B8A8;
+  --border-tertiary: #B8A898;
 
   /* 阴影：朱砂红光晕 */
-  --shadow-sm: 0 1px 2px 0 rgba(184, 50, 26, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(184, 50, 26, 0.08), 0 2px 4px -1px rgba(184, 50, 26, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(184, 50, 26, 0.1), 0 4px 6px -2px rgba(184, 50, 26, 0.05);
+  --shadow-sm: 0 1px 2px 0 rgba(184, 50, 26, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(184, 50, 26, 0.12), 0 2px 4px -1px rgba(184, 50, 26, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(184, 50, 26, 0.15), 0 4px 6px -2px rgba(184, 50, 26, 0.08);
 
-  --glow-primary: 0 0 20px rgba(184, 50, 26, 0.2);
-  --glow-secondary: 0 0 20px rgba(139, 90, 60, 0.15);
+  --glow-primary: 0 0 20px rgba(184, 50, 26, 0.25);
+  --glow-secondary: 0 0 20px rgba(139, 90, 60, 0.2);
 
   /* 
    * 渐变：模仿泥塑的立体感
    * 泥人张作品色彩过渡自然，层次分明
    */
-  --gradient-primary: linear-gradient(135deg, #F5F0EB 0%, #FAF8F5 50%, #E8E0D8 100%);
+  --gradient-primary: linear-gradient(135deg, #E8DCD0 0%, #F5EDE5 50%, #D4C4B0 100%);
   --gradient-accent: linear-gradient(135deg, #B8321A 0%, #D4543A 100%);
   --gradient-earth: linear-gradient(135deg, #8B5A3C 0%, #A67B5B 100%);
   --gradient-gold: linear-gradient(135deg, #C9A227 0%, #E0B83A 100%);
@@ -324,38 +324,38 @@
   --color-neutral: #8D6E63;
 
   /* 
-   * 背景：仿古宣纸质感
-   * 杨柳青年画使用特制宣纸，微微泛黄
+   * 背景：青绿色调 - 让主题更明显
+   * 使用石青色调的背景，突出杨柳青特色
    */
-  --bg-primary: #FAF6ED;
-  --bg-secondary: #FFFEF9;
-  --bg-tertiary: #F2ECD8;
-  --bg-hover: #E8E0C8;
-  --bg-active: #DDD4B8;
+  --bg-primary: #E8F0F5;
+  --bg-secondary: #F5F9FC;
+  --bg-tertiary: #D0E0EB;
+  --bg-hover: #B8D0E0;
+  --bg-active: #A0C0D5;
 
   /* 文字：深墨色 - 模仿年画线条 */
-  --text-primary: #2C2416;
-  --text-secondary: #4A3F2A;
-  --text-tertiary: #6B5D45;
+  --text-primary: #1A2A3A;
+  --text-secondary: #2C3E50;
+  --text-tertiary: #4A5A6A;
 
-  /* 边框：木版印刷的棕色 */
-  --border-primary: #D4C8A8;
-  --border-secondary: #C4B898;
-  --border-tertiary: #B4A888;
+  /* 边框：石青色调 */
+  --border-primary: #C0D0E0;
+  --border-secondary: #B0C8D8;
+  --border-tertiary: #A0C0D0;
 
   /* 阴影：石青光晕 */
-  --shadow-sm: 0 1px 2px 0 rgba(46, 90, 172, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(46, 90, 172, 0.1), 0 2px 4px -1px rgba(46, 90, 172, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(46, 90, 172, 0.12), 0 4px 6px -2px rgba(46, 90, 172, 0.06);
+  --shadow-sm: 0 1px 2px 0 rgba(46, 90, 172, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(46, 90, 172, 0.12), 0 2px 4px -1px rgba(46, 90, 172, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(46, 90, 172, 0.15), 0 4px 6px -2px rgba(46, 90, 172, 0.08);
 
-  --glow-primary: 0 0 20px rgba(46, 90, 172, 0.25);
-  --glow-secondary: 0 0 20px rgba(212, 53, 28, 0.2);
+  --glow-primary: 0 0 20px rgba(46, 90, 172, 0.3);
+  --glow-secondary: 0 0 20px rgba(212, 53, 28, 0.25);
 
   /* 
    * 渐变：模仿年画的套色效果
    * 杨柳青年画采用"半印半绘"，色彩层次丰富
    */
-  --gradient-primary: linear-gradient(135deg, #FAF6ED 0%, #FFFEF9 50%, #F2ECD8 100%);
+  --gradient-primary: linear-gradient(135deg, #E8F0F5 0%, #F5F9FC 50%, #D0E0EB 100%);
   --gradient-accent: linear-gradient(135deg, #2E5AAC 0%, #4A7FC9 100%);
   --gradient-warm: linear-gradient(135deg, #D4351C 0%, #E85A41 100%);
   --gradient-gold: linear-gradient(135deg, #E6A817 0%, #F5C842 100%);
@@ -402,38 +402,38 @@
   --color-neutral: #95A5A6;
 
   /* 
-   * 背景：蓝天白云般的清新
-   * 模仿晴朗天空的渐变感
+   * 背景：天蓝色调 - 让主题更明显
+   * 使用天蓝色调的背景，突出风筝魏特色
    */
-  --bg-primary: #F0F7FF;
-  --bg-secondary: #FFFFFF;
-  --bg-tertiary: #E0F0FF;
-  --bg-hover: #C8E0FF;
-  --bg-active: #B0D0FF;
+  --bg-primary: #D6E8FF;
+  --bg-secondary: #E8F2FF;
+  --bg-tertiary: #C0DCFF;
+  --bg-hover: #A8D0FF;
+  --bg-active: #90C4FF;
 
   /* 文字：深空蓝 */
-  --text-primary: #1A2A3A;
-  --text-secondary: #2C3E50;
-  --text-tertiary: #5D6D7E;
+  --text-primary: #0A1A2A;
+  --text-secondary: #1C3A5A;
+  --text-tertiary: #3A5A7A;
 
   /* 边框：天空蓝 */
-  --border-primary: #D0E0F0;
-  --border-secondary: #B0D0E8;
-  --border-tertiary: #90C0E0;
+  --border-primary: #B8D4F0;
+  --border-secondary: #A0C8E8;
+  --border-tertiary: #88BCE0;
 
   /* 阴影：天蓝光晕 */
-  --shadow-sm: 0 1px 2px 0 rgba(74, 144, 226, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(74, 144, 226, 0.1), 0 2px 4px -1px rgba(74, 144, 226, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(74, 144, 226, 0.12), 0 4px 6px -2px rgba(74, 144, 226, 0.06);
+  --shadow-sm: 0 1px 2px 0 rgba(74, 144, 226, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(74, 144, 226, 0.12), 0 2px 4px -1px rgba(74, 144, 226, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(74, 144, 226, 0.15), 0 4px 6px -2px rgba(74, 144, 226, 0.08);
 
-  --glow-primary: 0 0 20px rgba(74, 144, 226, 0.25);
-  --glow-secondary: 0 0 20px rgba(231, 76, 60, 0.15);
+  --glow-primary: 0 0 20px rgba(74, 144, 226, 0.3);
+  --glow-secondary: 0 0 20px rgba(231, 76, 60, 0.2);
 
   /* 
    * 渐变：模仿天空的渐变
    * 从地平线到天空的蓝色渐变
    */
-  --gradient-primary: linear-gradient(135deg, #F0F7FF 0%, #FFFFFF 50%, #E0F0FF 100%);
+  --gradient-primary: linear-gradient(135deg, #D6E8FF 0%, #E8F2FF 50%, #C0DCFF 100%);
   --gradient-accent: linear-gradient(135deg, #4A90E2 0%, #6BA5E8 100%);
   --gradient-sky: linear-gradient(180deg, #4A90E2 0%, #87CEEB 50%, #E0F0FF 100%);
   --gradient-kite: linear-gradient(135deg, #E74C3C 0%, #F1C40F 50%, #4A90E2 100%);
@@ -476,38 +476,38 @@
   --color-neutral: #C4B896;
 
   /* 
-   * 背景：暖黄米白
-   * 模仿麻花和芝麻的暖色调
+   * 背景：金黄色调 - 让主题更明显
+   * 使用金黄色调的背景，突出桂发祥特色
    */
-  --bg-primary: #FDF9E8;
-  --bg-secondary: #FFFCF5;
-  --bg-tertiary: #F5ECD0;
-  --bg-hover: #EDE0B8;
-  --bg-active: #E5D4A8;
+  --bg-primary: #F5E6C0;
+  --bg-secondary: #FCF5E0;
+  --bg-tertiary: #EDD8A8;
+  --bg-hover: #E5CC90;
+  --bg-active: #D9C080;
 
   /* 文字：深棕 - 焦糖色 */
-  --text-primary: #3A2A1A;
-  --text-secondary: #5A4A3A;
-  --text-tertiary: #7A6A5A;
+  --text-primary: #2A1A0A;
+  --text-secondary: #4A3A2A;
+  --text-tertiary: #6A5A4A;
 
   /* 边框：金黄 */
-  --border-primary: #E8DCC0;
-  --border-secondary: #D8CCA8;
-  --border-tertiary: #C8BC98;
+  --border-primary: #E0D0A8;
+  --border-secondary: #D0C098;
+  --border-tertiary: #C0B088;
 
   /* 阴影：金黄光晕 */
-  --shadow-sm: 0 1px 2px 0 rgba(212, 168, 75, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(212, 168, 75, 0.1), 0 2px 4px -1px rgba(212, 168, 75, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(212, 168, 75, 0.12), 0 4px 6px -2px rgba(212, 168, 75, 0.06);
+  --shadow-sm: 0 1px 2px 0 rgba(212, 168, 75, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(212, 168, 75, 0.12), 0 2px 4px -1px rgba(212, 168, 75, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(212, 168, 75, 0.15), 0 4px 6px -2px rgba(212, 168, 75, 0.08);
 
-  --glow-primary: 0 0 20px rgba(212, 168, 75, 0.3);
-  --glow-secondary: 0 0 20px rgba(139, 69, 19, 0.15);
+  --glow-primary: 0 0 20px rgba(212, 168, 75, 0.35);
+  --glow-secondary: 0 0 20px rgba(139, 69, 19, 0.2);
 
   /* 
    * 渐变：模仿麻花的层次感
    * 金黄到焦糖的渐变，体现油炸食品的层次
    */
-  --gradient-primary: linear-gradient(135deg, #FDF9E8 0%, #FFFCF5 50%, #F5ECD0 100%);
+  --gradient-primary: linear-gradient(135deg, #F5E6C0 0%, #FCF5E0 50%, #EDD8A8 100%);
   --gradient-accent: linear-gradient(135deg, #D4A84B 0%, #E8C547 50%, #F0D878 100%);
   --gradient-caramel: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
   --gradient-mahua: linear-gradient(135deg, #D4A84B 0%, #E8C547 50%, #8B4513 100%);
@@ -550,38 +550,38 @@
   --color-neutral: #B0A090;
 
   /* 
-   * 背景：蒸笼白雾般的米白
-   * 模仿热气腾腾的包子铺氛围
+   * 背景：麦香棕色调 - 让主题更明显
+   * 使用麦香棕色调的背景，突出狗不理特色
    */
-  --bg-primary: #F8F6F0;
-  --bg-secondary: #FDFCFA;
-  --bg-tertiary: #EDE8E0;
-  --bg-hover: #E0D8D0;
-  --bg-active: #D5CCC0;
+  --bg-primary: #E8E0D8;
+  --bg-secondary: #F5F0E8;
+  --bg-tertiary: #D8D0C0;
+  --bg-hover: #C8C0B0;
+  --bg-active: #B8B0A0;
 
   /* 文字：深棕 - 老字号的厚重感 */
-  --text-primary: #3A2A1A;
-  --text-secondary: #5A4A3A;
-  --text-tertiary: #7A6A5A;
+  --text-primary: #2A1A0A;
+  --text-secondary: #4A3A2A;
+  --text-tertiary: #6A5A4A;
 
   /* 边框：麦香 */
-  --border-primary: #E0D8D0;
-  --border-secondary: #D0C8C0;
-  --border-tertiary: #C0B8B0;
+  --border-primary: #D8D0C0;
+  --border-secondary: #C8C0B0;
+  --border-tertiary: #B8B0A0;
 
   /* 阴影：麦香棕光晕 */
-  --shadow-sm: 0 1px 2px 0 rgba(154, 107, 74, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(154, 107, 74, 0.08), 0 2px 4px -1px rgba(154, 107, 74, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(154, 107, 74, 0.1), 0 4px 6px -2px rgba(154, 107, 74, 0.05);
+  --shadow-sm: 0 1px 2px 0 rgba(154, 107, 74, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(154, 107, 74, 0.12), 0 2px 4px -1px rgba(154, 107, 74, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(154, 107, 74, 0.15), 0 4px 6px -2px rgba(154, 107, 74, 0.08);
 
-  --glow-primary: 0 0 20px rgba(154, 107, 74, 0.2);
-  --glow-secondary: 0 0 20px rgba(160, 82, 45, 0.15);
+  --glow-primary: 0 0 20px rgba(154, 107, 74, 0.25);
+  --glow-secondary: 0 0 20px rgba(160, 82, 45, 0.2);
 
   /* 
    * 渐变：模仿包子的层次感
    * 从面皮到肉馅的温暖渐变
    */
-  --gradient-primary: linear-gradient(135deg, #F8F6F0 0%, #FDFCFA 50%, #EDE8E0 100%);
+  --gradient-primary: linear-gradient(135deg, #E8E0D8 0%, #F5F0E8 50%, #D8D0C0 100%);
   --gradient-accent: linear-gradient(135deg, #9A6B4A 0%, #B88A6A 100%);
   --gradient-crust: linear-gradient(135deg, #D4A574 0%, #E8C090 100%);
   --gradient-baozi: linear-gradient(135deg, #F8F6F0 0%, #D4A574 50%, #A0522D 100%);

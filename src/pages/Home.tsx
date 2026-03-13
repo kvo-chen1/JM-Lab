@@ -6,6 +6,7 @@ import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { ExternalLink } from 'lucide-react';
 import { TianjinImage, TianjinButton, TianjinTag, TianjinAvatar } from '@/components/TianjinStyleComponents';
+import LazyVideo from '@/components/LazyVideo';
 import { llmService } from '@/services/llmService'
 import voiceService from '@/services/voiceService'
 import { workService, userService } from '@/services/apiService'
@@ -592,40 +593,49 @@ export default function Home() {
     </div>
   );
 
-  // Hero Image Loading State
+  // Hero Image/Video Loading State
   const [heroLoaded, setHeroLoaded] = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState(false);
 
   return (
     <div className={`relative min-h-screen w-full overflow-hidden ${isDark ? 'bg-gray-950' : 'bg-white'}`}>
       
       {/* Hero Section - Immersive Background */}
       <div className="relative h-[85vh] w-full flex flex-col justify-center items-center overflow-hidden bg-gray-900">
-        {/* Animated Gradient Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 z-0 animate-gradient-shift"></div>
-        
-        {/* Background Image with Parallax */}
+        {/* Background Video with Parallax */}
         <motion.div 
           style={{ y: heroY, opacity: heroOpacity }}
           className="absolute inset-0 z-0"
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-transparent z-10"></div>
-          <div className={`absolute inset-0 bg-gradient-to-t ${isDark ? 'from-gray-950' : 'from-white'} to-transparent z-10 h-32 bottom-0`}></div>
-          
-          <img 
-            src="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&q=80" 
-            alt="Tianjin Skyline" 
-            className={`w-full h-full object-cover transition-opacity duration-1000 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setHeroLoaded(true)}
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.onerror = null; // Prevent infinite loop
-              target.src = 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&q=80'; 
+          <video
+            src="https://videos.pexels.com/video-files/3129671/3129671-uhd_2560_1440_30fps.mp4"
+            poster="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&q=80"
+            className="w-full h-full object-cover"
+            onLoadedData={(e) => {
+              console.log('✅ Video loaded successfully!');
+              setHeroLoaded(true);
             }}
+            onError={(e) => {
+              console.error('❌ Video failed to load:', e);
+              setVideoLoadError(true);
+              setHeroLoaded(true);
+            }}
+            onPlay={() => console.log('▶️ Video started playing')}
+            autoPlay
+            muted
+            loop
+            controls={false}
+            playsInline
+            preload="auto"
+            style={{ display: 'block' }}
+            crossOrigin="anonymous"
           />
-          
-          {/* Simplified Background Effect - Performance Optimized */}
-        <div className="absolute inset-0 z-5 bg-gradient-to-b from-white/5 via-transparent to-transparent"></div>
         </motion.div>
+        
+        {/* Gradient Overlays */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/50 via-indigo-900/30 to-purple-900/50 z-[1]"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-transparent z-[2]"></div>
+        <div className={`absolute inset-0 bg-gradient-to-t ${isDark ? 'from-gray-950' : 'from-white'} to-transparent z-[2] h-32 bottom-0`}></div>
 
         {/* Hero Content */}
         <div className="relative z-20 max-w-5xl w-full px-4 sm:px-6 text-center overflow-hidden">
@@ -1578,7 +1588,7 @@ export default function Home() {
                          <i className="fas fa-heart text-red-400"></i> {item.likes}
                        </span>
                        <span className="bg-black/70 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
-                         <i className="fas fa-comment text-blue-400"></i> {item.comments}
+                         <i className="fas fa-comment text-blue-400"></i> {item.commentCount}
                        </span>
                     </div>
 

@@ -3,6 +3,7 @@
 
 // 导入各主题样式
 import './base.css';
+import './light.css';
 import './blue.css';
 import './green.css';
 import './pixel.css';

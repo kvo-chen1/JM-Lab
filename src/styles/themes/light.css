@@ -1,0 +1,60 @@
+/* 浅色主题 - 明亮清爽风格 */
+.light {
+  /* 主色调 */
+  --color-primary: #c21807;
+  --color-primary-light: #e8453a;
+  --color-primary-dark: #9a1506;
+  
+  --color-secondary: #6d28d9;
+  --color-secondary-light: #8b5cf6;
+  --color-secondary-dark: #5b21b6;
+  
+  --color-accent: #047857;
+  --color-accent-light: #059669;
+  --color-accent-dark: #065f46;
+  
+  --color-neutral: #78350f;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #3b82f6;
+  
+  /* 背景层次 */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f3f4f6;
+  --bg-hover: #e5e7eb;
+  --bg-active: #d1d5db;
+  --bg-muted: #f5f5f5;
+  
+  /* 文字层次 */
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-tertiary: #6b7280;
+  --text-muted: #9ca3af;
+  --text-inverse: #ffffff;
+  
+  /* 边框层次 */
+  --border-primary: #e5e7eb;
+  --border-secondary: #d1d5db;
+  --border-tertiary: #9ca3af;
+  --border-muted: #e5e7eb;
+  
+  /* 阴影效果 */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  
+  /* 发光效果 */
+  --glow-primary: 0 0 10px rgba(194, 24, 7, 0.2);
+  --glow-secondary: 0 0 15px rgba(109, 40, 217, 0.2);
+  --glow-accent: 0 0 20px rgba(4, 120, 87, 0.2);
+  
+  /* 渐变效果 */
+  --gradient-primary: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+  --gradient-secondary: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+  --gradient-accent: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
+  --gradient-button: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary) 100%);
+  --gradient-card: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+}

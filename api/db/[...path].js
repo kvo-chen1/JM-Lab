@@ -164,8 +164,30 @@ function verifyToken(req) {
     return null
   }
   try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
-    return payload
+    // 支持新的token格式: jm_timestamp_random_userPart
+    if (token.startsWith('jm_')) {
+      const parts = token.split('_')
+      if (parts.length >= 4) {
+        const userPart = parts.slice(3).join('_')
+        const payload = JSON.parse(Buffer.from(userPart.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString())
+        if (payload.exp && payload.exp < Date.now() / 1000) {
+          return null
+        }
+        return payload
+      }
+    }
+
+    // 兼容旧格式 (JWT格式)
+    const parts = token.split('.')
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString())
+      if (payload.exp && payload.exp < Date.now() / 1000) {
+        return null
+      }
+      return payload
+    }
+
+    return null
   } catch {
     return null
   }

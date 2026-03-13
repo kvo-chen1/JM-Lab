@@ -46,10 +46,27 @@ const BannerCarousel = memo(({ works, isDark }: { works: Work[]; isDark: boolean
   if (works.length === 0) {
     return (
       <div className="relative h-[42rem] w-full overflow-hidden">
-        <img
-          src="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80"
-          alt="津脉广场"
+        <video
+          src="https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-city-traffic-at-night-11-large.mp4"
+          poster="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80"
           className="w-full h-full object-cover"
+          muted
+          playsInline
+          autoPlay
+          loop
+          preload="auto"
+          onError={(e) => {
+            const video = e.target as HTMLVideoElement;
+            video.style.display = 'none';
+            const parent = video.parentElement;
+            if (parent) {
+              const img = document.createElement('img');
+              img.src = 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80';
+              img.className = 'w-full h-full object-cover';
+              img.alt = '津脉广场';
+              parent.insertBefore(img, video);
+            }
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/50" />
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
@@ -168,6 +185,7 @@ interface Work {
   creator_id?: string;
   likes?: number;
   created_at?: string;
+  isVideo?: boolean;
 }
 
 // 品牌类型
@@ -699,7 +717,7 @@ export default function MobileHome() {
       // 使用 supabaseAdmin 绕过 RLS 限制获取用户列表，按 likes_count 排序
       const { data, error } = await supabaseAdmin
         .from('users')
-        .select('id, username, avatar_url')
+        .select('id, username, avatar_url, likes_count')
         .order('created_at', { ascending: false })
         .limit(10);
 

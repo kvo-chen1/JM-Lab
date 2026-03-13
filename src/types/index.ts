@@ -533,3 +533,9 @@ export interface UserInteraction {
   hasLiked: boolean;
   userRating?: number | null;
 }
+
+// AI创作历史相关类型
+export * from './aiGenerationHistory';
+
+// 通知系统相关类型
+export * from './notification';

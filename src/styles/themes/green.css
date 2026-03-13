@@ -10,13 +10,13 @@
   --color-error: #ef4444;
   --color-info: #3b82f6;
   
-  /* 绿色主题背景层次 */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f0fdf4;
-  --bg-tertiary: #dcfce7;
-  --bg-hover: #bbf7d0;
-  --bg-active: #86efac;
-  --bg-muted: #f0fdf4;
+  /* 绿色主题背景层次 - 增强绿色调 */
+  --bg-primary: #DCFCE7;
+  --bg-secondary: #F0FDF4;
+  --bg-tertiary: #BBF7D0;
+  --bg-hover: #86EFAC;
+  --bg-active: #4ADE80;
+  --bg-muted: #F0FDF4;
   
   /* 绿色主题文字层次 */
   --text-primary: #15803d;

@@ -3,6 +3,7 @@
 
 /* 导入模块化主题样式 */
 @import './styles/themes/base.css';
+@import './styles/themes/light.css';
 @import './styles/themes/blue.css';
 @import './styles/themes/green.css';
 @import './styles/themes/pixel.css';
@@ -2698,6 +2699,78 @@ details p {
   padding-left: 1.5rem;
 }
 
+/* ============================================
+   全局主题应用规则 - 确保主题切换生效
+   ============================================ */
+
+/* 确保所有主题类都能正确应用到 html、body 和 #root 元素 */
+html,
+body,
+#root {
+  background-color: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #111827);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 覆盖硬编码的 Tailwind 背景类 - 让它们使用主题颜色 */
+.bg-white { background-color: var(--bg-primary, #ffffff) !important; }
+.bg-gray-50 { background-color: var(--bg-secondary, #f9fafb) !important; }
+.bg-gray-100 { background-color: var(--bg-tertiary, #f3f4f6) !important; }
+.bg-gray-900 { background-color: var(--bg-primary, #ffffff) !important; }
+.bg-gray-950 { background-color: var(--bg-primary, #ffffff) !important; }
+
+/* 覆盖硬编码的 Tailwind 文字类 - 让它们使用主题颜色 */
+.text-gray-900 { color: var(--text-primary, #111827) !important; }
+.text-gray-800 { color: var(--text-primary, #111827) !important; }
+.text-gray-700 { color: var(--text-secondary, #374151) !important; }
+.text-gray-600 { color: var(--text-secondary, #374151) !important; }
+.text-gray-500 { color: var(--text-tertiary, #6b7280) !important; }
+.text-gray-400 { color: var(--text-muted, #9ca3af) !important; }
+.text-white { color: var(--text-inverse, #ffffff) !important; }
+
+/* 覆盖硬编码的 Tailwind 边框类 - 让它们使用主题颜色 */
+.border-gray-200 { border-color: var(--border-primary, #e5e7eb) !important; }
+.border-gray-300 { border-color: var(--border-secondary, #d1d5db) !important; }
+.border-gray-700 { border-color: var(--border-primary, #e5e7eb) !important; }
+
+/* 覆盖硬编码的黑色背景类 */
+.bg-gray-900 { background-color: var(--bg-primary, #111827) !important; }
+.bg-gray-950 { background-color: var(--bg-primary, #030712) !important; }
+
+/* 覆盖硬编码的灰色背景类 */
+.bg-gray-800 { background-color: var(--bg-secondary, #1f2937) !important; }
+
+/* ============================================
+   覆盖半透明背景类 - 处理 bg-black/xx 和 bg-white/xx
+   ============================================ */
+
+/* 半透明黑色背景 - 使用主题背景色+透明度 */
+[class*="bg-black/"] {
+  background-color: color-mix(in srgb, var(--bg-primary, #000000) var(--tw-bg-opacity, 100%), transparent) !important;
+}
+
+/* 半透明白色背景 - 使用主题背景色+透明度 */
+[class*="bg-white/"] {
+  background-color: color-mix(in srgb, var(--bg-primary, #ffffff) var(--tw-bg-opacity, 100%), transparent) !important;
+}
+
+/* 确保所有主题类都能正确传播 CSS 变量 */
+.tianjin,
+.nirenzhang,
+.yangliuqing,
+.fengzhengwei,
+.guifaxiang,
+.goubuli,
+.tianjin-enhanced,
+.poizon,
+.dark,
+.blue,
+.green,
+.pixel,
+.light {
+  /* 空的，让各个主题文件自己定义 CSS 变量 */
+}
+
 .light li {
   margin-bottom: 0.75rem;
   line-height: 1.7;
@@ -4628,6 +4701,65 @@ html, body {
   background-color: var(--bg-primary, #ffffff);
   color: var(--text-primary, #111827);
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 确保所有主题类都正确应用 CSS 变量到 html 和 body */
+.light, .dark, .blue, .green, .pixel, .tianjin,
+.tianjin-nirenzhang, .tianjin-yangliuqing, .tianjin-fengzhengwei,
+.tianjin-guifaxiang, .tianjin-goubuli, .tianjin-shibajie,
+.tianjin-quanyechang, .tianjin-haihe, .tianjin-wudadao,
+.tianjin-jiefangqiao, .tianjin-tianhougong {
+  &, & * {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
+}
+
+/* 通用主题化规则 - 覆盖硬编码的 Tailwind 类 */
+.theme-wrapper {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* 确保主要容器使用主题颜色 */
+#root {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 覆盖硬编码的 Tailwind 背景类 - 让它们使用主题颜色 */
+.bg-white { background-color: var(--bg-primary, #ffffff) !important; }
+.bg-gray-50 { background-color: var(--bg-secondary, #f9fafb) !important; }
+.bg-gray-100 { background-color: var(--bg-tertiary, #f3f4f6) !important; }
+.bg-gray-900 { background-color: var(--bg-primary, #ffffff) !important; }
+.bg-gray-950 { background-color: var(--bg-primary, #ffffff) !important; }
+
+/* 覆盖硬编码的 Tailwind 文字类 - 让它们使用主题颜色 */
+.text-gray-900 { color: var(--text-primary, #111827) !important; }
+.text-gray-800 { color: var(--text-primary, #111827) !important; }
+.text-gray-700 { color: var(--text-secondary, #374151) !important; }
+.text-gray-600 { color: var(--text-secondary, #374151) !important; }
+.text-gray-500 { color: var(--text-tertiary, #6b7280) !important; }
+.text-gray-400 { color: var(--text-muted, #9ca3af) !important; }
+.text-white { color: var(--text-inverse, #ffffff) !important; }
+
+/* 覆盖硬编码的 Tailwind 边框类 - 让它们使用主题颜色 */
+.border-gray-200 { border-color: var(--border-primary, #e5e7eb) !important; }
+.border-gray-300 { border-color: var(--border-secondary, #d1d5db) !important; }
+.border-gray-700 { border-color: var(--border-primary, #e5e7eb) !important; }
+
+/* 确保所有主题类都能正确应用 */
+html[class*="tianjin"],
+html[class*="guifaxiang"],
+html[class*="goubuli"],
+html[class*="nirenzhang"],
+html[class*="yangliuqing"],
+html[class*="fengzhengwei"] {
+  &, & body, & #root {
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+  }
 }
 
 /* 确保body使用主题背景 */

@@ -350,11 +350,14 @@ function generateToken(user) {
   const randomPart = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   const userPart = Buffer.from(JSON.stringify({
     id: user.id,
+    userId: user.id,
+    sub: user.id,
     email: user.email,
+    username: user.username,
     iat: Math.floor(timestamp / 1000),
     exp: Math.floor(timestamp / 1000) + (7 * 24 * 60 * 60)
   })).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  
+
   return `jm_${timestamp}_${randomPart}_${userPart}`;
 }
 

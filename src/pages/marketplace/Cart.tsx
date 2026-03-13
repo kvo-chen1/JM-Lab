@@ -7,9 +7,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCart, useUpdateCartItem, useRemoveFromCart } from '@/hooks/useProducts';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
-import { Separator } from '@/components/ui/Separator';
-import { ArrowLeft, Trash2, Minus, Plus, ShoppingBag, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
+import { CartItemEnhanced, CheckoutPanelEnhanced } from '@/components/marketplace';
 
 const CartPage: React.FC = () => {
   const navigate = useNavigate();
@@ -129,7 +129,7 @@ const CartPage: React.FC = () => {
           {/* 商品列表 */}
           <div className="lg:col-span-2 space-y-4">
             {/* 全选栏 */}
-            <div className="bg-white rounded-xl p-4 flex items-center gap-4">
+            <div className="bg-white rounded-xl p-4 flex items-center gap-4 shadow-sm">
               <Checkbox
                 checked={allSelected}
                 onCheckedChange={handleSelectAll}
@@ -139,124 +139,41 @@ const CartPage: React.FC = () => {
             </div>
 
             {/* 购物车商品 */}
-            {cartItems.map((item) => (
-              <div
+            {cartItems.map((item, index) => (
+              <CartItemEnhanced
                 key={item.id}
-                className={`bg-white rounded-xl p-4 flex gap-4 ${
-                  !item.selected ? 'opacity-70' : ''
-                }`}
-              >
-                <Checkbox
-                  checked={item.selected}
-                  onCheckedChange={(checked) => handleSelectItem(item.id, checked as boolean)}
-                  className="mt-8"
-                />
-
-                {/* 商品图片 */}
-                <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                  {item.product?.cover_image ? (
-                    <img
-                      src={item.product.cover_image}
-                      alt={item.product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                      <span className="text-xs text-gray-400">暂无图片</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* 商品信息 */}
-                <div className="flex-1 min-w-0">
-                  <h3
-                    className="font-medium text-gray-800 line-clamp-2 cursor-pointer hover:text-[#C02C38]"
-                    onClick={() => navigate(`/marketplace/product/${item.product_id}`)}
-                  >
-                    {item.product?.name}
-                  </h3>
-                  {item.product?.brand && (
-                    <p className="text-sm text-gray-500 mt-1">{item.product.brand.name}</p>
-                  )}
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-lg font-bold text-[#C02C38]">
-                      ¥{(item.product?.price || 0).toLocaleString()}
-                    </span>
-
-                    {/* 数量控制 */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                        className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="w-10 text-center font-medium">{item.quantity}</span>
-                      <button
-                        onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                        className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 删除按钮 */}
-                <button
-                  onClick={() => handleRemove(item.id)}
-                  className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
+                item={{
+                  id: item.id,
+                  product: {
+                    id: item.product_id,
+                    name: item.product?.name || '',
+                    coverImage: item.product?.cover_image || '',
+                    price: item.product?.price || 0,
+                    originalPrice: (item.product?.price || 0) * 1.2,
+                    brand: item.product?.brand?.name || '',
+                    spec: '默认规格'
+                  },
+                  quantity: item.quantity,
+                  selected: item.selected
+                }}
+                index={index}
+                onSelect={(selected) => handleSelectItem(item.id, selected)}
+                onQuantityChange={(quantity) => handleQuantityChange(item.id, quantity)}
+                onRemove={() => handleRemove(item.id)}
+                onView={() => navigate(`/marketplace/product/${item.product_id}`)}
+              />
             ))}
           </div>
 
           {/* 结算栏 */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl p-6 sticky top-4">
-              <h3 className="font-semibold text-lg mb-4">订单结算</h3>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">商品总数</span>
-                  <span>{cartStats.selectedItems} 件</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">商品总价</span>
-                  <span>¥{(cartStats?.totalPrice || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">运费</span>
-                  <span className="text-green-600">包邮</span>
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div className="flex justify-between items-center mb-6">
-                <span className="font-semibold">合计</span>
-                <span className="text-2xl font-bold text-[#C02C38]">
-                  ¥{(cartStats?.totalPrice || 0).toLocaleString()}
-                </span>
-              </div>
-
-              <Button
-                onClick={handleCheckout}
-                disabled={cartStats.selectedItems === 0}
-                className="w-full h-12 bg-[#C02C38] hover:bg-[#991b1b] text-lg"
-              >
-                去结算 ({cartStats.selectedItems})
-              </Button>
-
-              {cartStats.selectedItems === 0 && (
-                <p className="text-sm text-gray-500 text-center mt-3 flex items-center justify-center gap-1">
-                  <AlertCircle className="w-4 h-4" />
-                  请选择要购买的商品
-                </p>
-              )}
-            </div>
+            <CheckoutPanelEnhanced
+              selectedItems={cartStats.selectedItems}
+              subtotal={cartStats.totalPrice || 0}
+              shipping={0}
+              discount={0}
+              onCheckout={handleCheckout}
+            />
           </div>
         </div>
       </div>

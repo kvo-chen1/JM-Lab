@@ -46,6 +46,7 @@ import { ScrollRestoration } from '@/components/ScrollRestoration';
 import Home from "@/pages/Home";
 import MobileHome from "@/pages/MobileHome";
 import ComponentShowcase from "@/pages/ComponentShowcase";
+import ThemeTestPage from "@/pages/ThemeTestPage";
 
 // 认证相关页面 - 懒加载减少初始包大小
 const Login = createLazyComponent(() => import(/* webpackChunkName: "pages-auth" */ "@/pages/Login"), {
@@ -272,6 +273,16 @@ const PointsMall = createLazyComponent(() => import(/* webpackChunkName: "pages-
 
 const PointsLottery = createLazyComponent(() => import(/* webpackChunkName: "pages-membership" */ "@/pages/PointsLottery"), {
   priority: ROUTE_PRIORITIES.MEDIUM
+});
+
+// 创作者认证页面 - 懒加载
+const Certification = createLazyComponent(() => import(/* webpackChunkName: "pages-certification" */ "@/pages/Certification"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'certification'
+});
+const CertificationAudit = createLazyComponent(() => import(/* webpackChunkName: "pages-admin" */ "@/pages/admin/CertificationAudit"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'certification-audit'
 });
 
 // 津币管理页面 - 懒加载
@@ -614,6 +625,10 @@ const UserCollection = createLazyComponent(() => import(/* webpackChunkName: "pa
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'collections'
 });
+const PublicCollectionPage = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/PublicCollectionPage"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'public-collection'
+});
 const Notifications = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Notifications"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'notifications'
@@ -625,6 +640,11 @@ const MessageCenter = createLazyComponent(() => import(/* webpackChunkName: "pag
 const HistoryPage = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/History/HistoryPage"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'history-page'
+});
+
+const AIGenerationHistoryPage = createLazyComponent(() => import(/* webpackChunkName: "pages-ai-history" */ "@/pages/AIGenerationHistory"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'ai-generation-history'
 });
 
 // 移动端瀑布流作品展示页面
@@ -1121,6 +1141,17 @@ export default function App() {
           } />
 
         
+        {/* 主题测试页面 */}
+        <Route path="/theme-test" element={
+          <AnimatedPage>
+            {isMobile ? (
+              <MobileLayout><LazyComponent><ThemeTestPage /></LazyComponent></MobileLayout>
+            ) : (
+              <SidebarLayout><LazyComponent><ThemeTestPage /></LazyComponent></SidebarLayout>
+            )}
+          </AnimatedPage>
+        } />
+        
         {/* 搜索结果页面 */}
         <Route path="/search" element={
           <AnimatedPage>
@@ -1203,6 +1234,7 @@ export default function App() {
 
           <Route path="/drafts" element={<LazyComponent><DesignPlatformGuard><Drafts /></DesignPlatformGuard></LazyComponent>} />
           <Route path="/history" element={<LazyComponent><PrivateRoute><HistoryPage /></PrivateRoute></LazyComponent>} />
+          <Route path="/ai-history" element={<LazyComponent><PrivateRoute><AIGenerationHistoryPage /></PrivateRoute></LazyComponent>} />
           <Route path="/my-works" element={<LazyComponent><DesignPlatformGuard><MyWorks /></DesignPlatformGuard></LazyComponent>} />
           <Route path="/settings" element={<LazyComponent><PrivateRoute><Settings /></PrivateRoute></LazyComponent>} />
           {/* 账户设置相关路由 */}
@@ -1212,6 +1244,7 @@ export default function App() {
           <Route path="/analytics" element={<LazyComponent><PrivateRoute><AnalyticsPage /></PrivateRoute></LazyComponent>} />
           <Route path="/collection" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
           <Route path="/collections" element={<LazyComponent><PrivateRoute><UserCollection /></PrivateRoute></LazyComponent>} />
+          <Route path="/collection/:shareCode" element={<LazyComponent><PublicCollectionPage /></LazyComponent>} />
           <Route path="/notifications" element={<LazyComponent><PrivateRoute><Notifications /></PrivateRoute></LazyComponent>} />
           <Route path="/messages" element={<LazyComponent><PrivateRoute><MessageCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/component-showcase" element={<ComponentShowcase />} />
@@ -1266,6 +1299,9 @@ export default function App() {
           <Route path="/membership/benefits" element={<LazyComponent><MembershipBenefits /></LazyComponent>} />
           <Route path="/membership/upgrade" element={<LazyComponent><PrivateRoute><Membership /></PrivateRoute></LazyComponent>} />
 
+          {/* 创作者认证路由 */}
+          <Route path="/certification" element={<LazyComponent><PrivateRoute><Certification /></PrivateRoute></LazyComponent>} />
+          
           {/* 津币管理路由 */}
           <Route path="/jinbi" element={<LazyComponent><PrivateRoute><JinbiManagement /></PrivateRoute></LazyComponent>} />
           
@@ -1377,6 +1413,7 @@ export default function App() {
         <Route path="/admin/templates" element={<LazyComponent><AdminRoute component={TemplateManagement} /></LazyComponent>} />
         <Route path="/admin/knowledge-base" element={<LazyComponent><AdminRoute component={KnowledgeBaseManagement} /></LazyComponent>} />
         <Route path="/admin/work-submissions" element={<LazyComponent><AdminRoute component={WorkSubmissionAudit} /></LazyComponent>} />
+        <Route path="/admin/certification" element={<LazyComponent><AdminRoute component={CertificationAudit} /></LazyComponent>} />
         <Route path="/admin/achievements" element={<LazyComponent><AdminRoute component={AchievementManagement} /></LazyComponent>} />
         <Route path="/admin/jinmai-community" element={<LazyComponent><AdminRoute component={JinmaiCommunityManagement} /></LazyComponent>} />
         <Route path="/admin/notifications" element={<LazyComponent><AdminRoute component={NotificationManagement} /></LazyComponent>} />

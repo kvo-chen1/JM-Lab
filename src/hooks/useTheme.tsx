@@ -108,10 +108,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       const allThemes = themeConfig.map(config => config.value);
       document.documentElement.classList.remove(...allThemes);
       
-      // 添加当前主题类（浅色主题不需要添加类，使用默认样式）
-      if (appliedTheme !== 'light') {
-        document.documentElement.classList.add(appliedTheme);
-      }
+      // 添加当前主题类（所有主题都需要添加类名，确保CSS变量正确应用）
+      document.documentElement.classList.add(appliedTheme);
       
       // 300ms后移除过渡效果类，避免影响其他动画
       setTimeout(() => {

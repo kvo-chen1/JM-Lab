@@ -28,6 +28,7 @@ import HeroBanner from '@/components/marketplace/HeroBanner';
 
 // 商品组件
 import ProductGridV2 from '@/components/marketplace/ProductGridV2';
+import ProductCardV3 from '@/components/marketplace/ProductCardV3';
 
 // Hooks
 import { 
@@ -345,7 +346,7 @@ const MarketplacePage: React.FC = () => {
           </motion.section>
         )}
 
-        {/* 精选商品 */}
+        {/* 精选商品 - 使用 ProductCardV3 */}
         {featuredProducts.length > 0 && (
           <motion.section
             initial={{ opacity: 0, y: 20 }}
@@ -357,14 +358,19 @@ const MarketplacePage: React.FC = () => {
               icon={<Sparkles className="w-4 h-4 text-white" />}
               iconBg="from-purple-500 to-pink-500"
             />
-            <ProductGridV2
-              products={featuredProducts}
-              columns={5}
-              onProductClick={handleProductClick}
-              onAddToCart={handleAddToCart}
-              onToggleFavorite={handleToggleFavorite}
-              favoriteProductIds={favoriteProductIds}
-            />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {featuredProducts.map((product, index) => (
+                <ProductCardV3
+                  key={product.id}
+                  product={product}
+                  index={index}
+                  onAddToCart={handleAddToCart}
+                  onToggleFavorite={handleToggleFavorite}
+                  onView={handleProductClick}
+                  isFavorite={favoriteProductIds.includes(product.id)}
+                />
+              ))}
+            </div>
           </motion.section>
         )}
 

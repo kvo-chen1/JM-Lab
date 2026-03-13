@@ -3,7 +3,7 @@
  * 展示用户所有订单，支持状态筛选和订单管理
  */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package,
@@ -63,6 +63,7 @@ const getStatusStyle = (status: string) => {
 
 const OrdersPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   // 状态
@@ -79,7 +80,7 @@ const OrdersPage: React.FC = () => {
   }, [user]);
 
   // 获取真实订单数据
-  useEffect(() => {
+  const fetchOrders = useCallback(async () => {
     if (!user?.id) {
       console.log('[Orders] 缺少 user.id，跳过请求');
       setLoading(false);
@@ -87,28 +88,52 @@ const OrdersPage: React.FC = () => {
     }
 
     console.log('[Orders] 开始获取订单，user.id:', user.id);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await getOrders({ customer_id: user.id });
+      console.log('[Orders] 获取订单结果:', result);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setOrders(result.data || []);
+      }
+    } catch (err: any) {
+      console.error('[Orders] 获取订单异常:', err);
+      setError(err.message || '获取订单失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
 
-    const fetchOrders = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await getOrders({ customer_id: user.id });
-        console.log('[Orders] 获取订单结果:', result);
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setOrders(result.data || []);
-        }
-      } catch (err: any) {
-        console.error('[Orders] 获取订单异常:', err);
-        setError(err.message || '获取订单失败');
-      } finally {
-        setLoading(false);
+  // 初始加载和页面重新获得焦点时刷新
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // 页面重新获得焦点时刷新数据
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Orders] 页面重新可见，刷新订单数据');
+        fetchOrders();
       }
     };
 
-    fetchOrders();
-  }, [user?.id]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [fetchOrders]);
+
+  // 监听 location state 变化（支付成功后跳转回来）
+  useEffect(() => {
+    if (location.state?.refresh) {
+      console.log('[Orders] 检测到刷新标记，重新获取订单数据');
+      fetchOrders();
+      // 清除 state 避免重复刷新
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, fetchOrders, navigate, location.pathname]);
 
   // 检查是否登录
   if (!user?.id) {
@@ -202,22 +227,9 @@ const OrdersPage: React.FC = () => {
   }, [navigate]);
 
   // 刷新订单列表
-  const handleRefresh = async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const result = await getOrders({ customer_id: user.id });
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setOrders(result.data || []);
-      }
-    } catch (err: any) {
-      setError(err.message || '获取订单失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleRefresh = useCallback(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   // 格式化日期
   const formatDate = (dateStr: string) => {

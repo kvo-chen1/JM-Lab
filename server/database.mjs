@@ -3621,7 +3621,7 @@ export const workDB = {
         values.push(workId)
         const query = `
           UPDATE works 
-          SET ${updates.join(', ')}, updated_at = extract(epoch from now())
+          SET ${updates.join(', ')}, updated_at = NOW()
           WHERE id = $${paramIndex}
           RETURNING *
         `

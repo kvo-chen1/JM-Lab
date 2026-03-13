@@ -377,18 +377,36 @@ class PromotionService {
         return [];
       }
 
-      return (works || []).map(work => ({
-        id: work.id,
-        title: work.title || '未命名作品',
-        thumbnail: work.thumbnail || work.cover_url || '',
-        videoUrl: work.video_url || '',
-        views: work.view_count || 0,
-        likes: work.likes || 0,
-        comments: work.comments || 0,
-        createdAt: work.created_at ? new Date(work.created_at * 1000).toISOString() : new Date().toISOString(),
-        type: work.type || 'image',
-        duration: work.video_url ? '03:45' : undefined,
-      }));
+      return (works || []).map(work => {
+        // 处理 created_at 时间戳，与 API 路径保持一致
+        let createdAt: string;
+        if (work.created_at) {
+          if (typeof work.created_at === 'string') {
+            // 如果是 ISO 字符串，直接使用
+            createdAt = new Date(work.created_at).toISOString();
+          } else if (typeof work.created_at === 'number') {
+            // 如果是数字时间戳，判断是秒还是毫秒
+            createdAt = new Date(work.created_at > 10000000000 ? work.created_at : work.created_at * 1000).toISOString();
+          } else {
+            createdAt = new Date().toISOString();
+          }
+        } else {
+          createdAt = new Date().toISOString();
+        }
+
+        return {
+          id: work.id,
+          title: work.title || '未命名作品',
+          thumbnail: work.thumbnail || work.cover_url || '',
+          videoUrl: work.video_url || '',
+          views: work.view_count || 0,
+          likes: work.likes || 0,
+          comments: work.comments || 0,
+          createdAt,
+          type: work.type || 'image',
+          duration: work.video_url ? '03:45' : undefined,
+        };
+      });
     } catch (err) {
       console.error('获取用户作品失败:', err);
       return [];

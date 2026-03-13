@@ -12,7 +12,7 @@ const DEFAULT_EXPIRES_IN = '7d'
 /**
  * 获取JWT密钥列表
  * 支持从环境变量中读取多个密钥，格式为 JWT_SECRET_1, JWT_SECRET_2, ...
- * 同时支持单个JWT_SECRET环境变量
+ * 同时支持单个JWT_SECRET环境变量和 SUPABASE_JWT_SECRET
  * @returns {Array<string>} 密钥列表
  */
 function getJwtSecrets() {
@@ -21,6 +21,11 @@ function getJwtSecrets() {
   // 检查单个密钥
   if (process.env.JWT_SECRET) {
     secrets.push(process.env.JWT_SECRET)
+  }
+  
+  // 检查 Supabase JWT Secret
+  if (process.env.SUPABASE_JWT_SECRET) {
+    secrets.push(process.env.SUPABASE_JWT_SECRET)
   }
   
   // 检查多个密钥

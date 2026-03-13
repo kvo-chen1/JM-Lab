@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 
 // 组件
 import { Button } from '@/components/ui/Button';
+import { payOrder, getOrderById, type Order } from '@/services/orderService';
 
 // 支付方式
 const paymentMethods = [
@@ -33,21 +34,42 @@ const OrderPayPage: React.FC = () => {
   const [selectedMethod, setSelectedMethod] = useState<string>('wechat');
   const [countdown, setCountdown] = useState(30 * 60); // 30分钟倒计时
   const [loading, setLoading] = useState(false);
-  const [order, setOrder] = useState<any>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
 
   // 获取订单信息
   useEffect(() => {
-    // 这里应该调用 API 获取订单信息
-    // 暂时使用模拟数据
-    setOrder({
-      id: orderId,
-      order_no: 'ORD' + orderId?.substring(0, 8).toUpperCase(),
-      total_amount: 1,
-      status: 'pending_payment',
-    });
-    setFetchLoading(false);
-  }, [orderId]);
+    const fetchOrder = async () => {
+      if (!orderId) return;
+      
+      setFetchLoading(true);
+      const { data, error } = await getOrderById(orderId);
+      
+      if (error) {
+        toast.error('获取订单信息失败：' + error);
+        navigate('/marketplace/orders');
+        return;
+      }
+      
+      if (!data) {
+        toast.error('订单不存在');
+        navigate('/marketplace/orders');
+        return;
+      }
+      
+      // 如果订单已支付，直接跳转到订单列表
+      if (data.status !== 'pending_payment') {
+        toast.info('该订单已支付或已关闭');
+        navigate('/marketplace/orders');
+        return;
+      }
+      
+      setOrder(data);
+      setFetchLoading(false);
+    };
+    
+    fetchOrder();
+  }, [orderId, navigate]);
 
   // 倒计时
   useEffect(() => {
@@ -75,13 +97,42 @@ const OrderPayPage: React.FC = () => {
 
   // 处理支付
   const handlePay = async () => {
+    if (!orderId) {
+      toast.error('订单ID不存在');
+      return;
+    }
+    
+    console.log('[OrderPay] 开始支付，订单ID:', orderId);
     setLoading(true);
     
-    // 模拟支付过程
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    toast.success('支付成功！');
-    navigate('/marketplace/orders');
+    try {
+      // 调用支付接口更新订单状态
+      const { data, error } = await payOrder(orderId, selectedMethod);
+      
+      console.log('[OrderPay] 支付结果:', { data, error });
+      
+      if (error) {
+        console.error('[OrderPay] 支付失败:', error);
+        toast.error('支付失败：' + error);
+        setLoading(false);
+        return;
+      }
+      
+      if (!data) {
+        console.error('[OrderPay] 支付返回数据为空');
+        toast.error('支付失败，请重试');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('[OrderPay] 支付成功，准备跳转');
+      toast.success('支付成功！');
+      navigate('/marketplace/orders', { state: { refresh: true } });
+    } catch (err) {
+      console.error('[OrderPay] 支付异常:', err);
+      toast.error('支付过程中发生错误');
+      setLoading(false);
+    }
   };
 
   // 取消支付

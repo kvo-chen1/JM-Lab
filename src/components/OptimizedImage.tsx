@@ -1,7 +1,5 @@
-// src/components/OptimizedImage.tsx
-
-import { useState, useEffect, useRef, ImgHTMLAttributes, useCallback } from 'react';
-import { resourceOptimizer } from '@/utils/performanceOptimization.tsx';
+import { useState, useEffect, useRef, ImgHTMLAttributes, useCallback, useMemo } from 'react';
+import { imageOptimizer, type OptimizedImageResult } from '@/utils/imageOptimization';
 
 interface OptimizedImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'loading'> {
   src: string;
@@ -13,9 +11,13 @@ interface OptimizedImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 
   sizes?: string;
   loading?: 'lazy' | 'eager';
   webp?: boolean;
+  avif?: boolean;
   cache?: boolean;
   blur?: number;
   transitionDuration?: number;
+  responsiveSizes?: number[];
+  fetchPriority?: 'high' | 'low' | 'auto';
+  blurDataURL?: string;
 }
 
 // 图片缓存
@@ -31,54 +33,64 @@ const OptimizedImage = ({
   sizes,
   loading = 'lazy',
   webp = true,
+  avif = true,
   cache = true,
   blur = 0,
   transitionDuration = 300,
   className,
   onError,
   onLoad,
+  responsiveSizes = [320, 640, 1024, 1600],
+  fetchPriority = 'auto',
+  blurDataURL,
   ...props
 }: OptimizedImageProps) => {
-  const [optimizedSrc, setOptimizedSrc] = useState<string | null>(null);
+  const [optimizedResult, setOptimizedResult] = useState<OptimizedImageResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  // 优化图片加载的回调函数
+  const formats = useMemo(() => {
+    const f: string[] = [];
+    if (avif) f.push('avif');
+    if (webp) f.push('webp');
+    f.push('jpg');
+    return f;
+  }, [avif, webp]);
+
   const optimizeImage = useCallback(async () => {
     try {
       setIsLoading(true);
       setIsError(false);
 
-      // 检查缓存
-      const cacheKey = `${src}-${quality}-${webp}`;
-      if (cache && imageCache.has(cacheKey)) {
-        setOptimizedSrc(imageCache.get(cacheKey)!);
-        return;
-      }
-
-      // 优化图片加载
-      const optimized = await resourceOptimizer.optimizeImage(src, {
+      const cacheKey = `${src}_${quality}_${formats.join('_')}_${responsiveSizes.join('_')}`;
+      
+      const result = await imageOptimizer.optimizeImage(src, alt, {
+        formats,
+        sizes: responsiveSizes,
         quality,
+        lazy: loading === 'lazy',
+        preload: priority,
+        responsive: true,
         priority: priority ? 'high' : 'medium',
-        formats: webp ? ['webp'] : undefined
+        placeholder: blurDataURL ? 'blur' : 'none',
+        blurDataURL,
+        aspectRatio: aspectRatio ? parseFloat(aspectRatio) : undefined
       });
 
-      // 缓存结果
-      if (cache) {
-        imageCache.set(cacheKey, optimized);
-      }
-
-      setOptimizedSrc(optimized);
+      setOptimizedResult(result);
     } catch (error) {
-      // 安全处理错误，避免输出大量内存地址信息
       console.error('Image optimization failed:', error instanceof Error ? error.message : String(error));
       setIsError(true);
-      setOptimizedSrc(src); // 降级到原始图片
+      setOptimizedResult({
+        src,
+        alt,
+        loading: loading as 'lazy' | 'eager'
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [src, quality, priority, webp, cache]);
+  }, [src, alt, quality, formats, responsiveSizes, loading, priority, blurDataURL, aspectRatio]);
 
   useEffect(() => {
     if (src) {
@@ -110,54 +122,60 @@ const OptimizedImage = ({
         overflow: 'hidden'
       }}
     >
-      {/* 占位符 */}
-      {isLoading && placeholder && (
+      {isLoading && (
         <div
           className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800"
-          style={{
-            filter: blur > 0 ? `blur(${blur}px)` : 'none'
-          }}
         >
-          {placeholder.includes('http') ? (
+          {blurDataURL ? (
             <img
-              src={placeholder}
-              alt="Placeholder"
+              src={blurDataURL}
+              alt=""
               className="w-full h-full object-cover"
+              style={{ filter: 'blur(20px)', transform: 'scale(1.1)' }}
             />
-          ) : (
-            <div className="text-gray-400 dark:text-gray-500">
-              {placeholder}
-            </div>
-          )}
+          ) : placeholder ? (
+              placeholder.includes('http') ? (
+                <img
+                  src={placeholder}
+                  alt="Placeholder"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="text-gray-400 dark:text-gray-500">
+                  {placeholder}
+                </div>
+              )
+            ) : null}
         </div>
       )}
 
-      {/* 图片 */}
-      {optimizedSrc && (
+      {optimizedResult && (
         <img
           ref={imgRef}
-          src={optimizedSrc}
-          alt={alt}
+          src={optimizedResult.src}
+          srcSet={optimizedResult.srcSet}
+          sizes={optimizedResult.sizes || sizes}
+          alt={optimizedResult.alt}
           className={`w-full h-full object-cover transition-opacity ${isLoading ? 'opacity-0' : 'opacity-100'}`}
           style={{
             transitionDuration: `${transitionDuration}ms`
           }}
-          loading={loading as 'eager' | 'lazy' | undefined}
-          sizes={sizes}
+          loading={optimizedResult.loading || loading}
+          decoding={optimizedResult.decoding || 'async'}
+          fetchPriority={priority ? 'high' : fetchPriority}
           onError={handleError}
           onLoad={handleLoad}
           {...props}
         />
       )}
 
-      {/* 错误状态 */}
-      {isError && !optimizedSrc && (
+      {isError && !optimizedResult?.src && (
         <div
           className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800"
         >
-          <div className="text-gray-400 dark:text-gray-500">
-            <i className="fas fa-image text-2xl"></i>
-            <p className="mt-2 text-sm">图片加载失败</p>
+          <div className="text-gray-400 dark:text-gray-500 text-center">
+            <i className="fas fa-image text-2xl mb-2"></i>
+            <p className="text-sm">图片加载失败</p>
           </div>
         </div>
       )}

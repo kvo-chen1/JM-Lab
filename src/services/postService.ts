@@ -190,7 +190,9 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
 
     // 获取当前用户的点赞和收藏列表（使用缓存）
     let userLikedWorkIds: Set<string> = new Set();
+    let userLikedPostIds: Set<string> = new Set();
     let userBookmarkedWorkIds: Set<string> = new Set();
+    let userBookmarkedPostIds: Set<string> = new Set();
     
     if (currentUserId && currentUserId !== 'anonymous' && currentUserId !== 'current-user') {
       // 并行获取点赞和收藏，减少等待时间
@@ -200,7 +202,9 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
       ]);
       
       userLikedWorkIds = likesResult.likedWorkIds;
+      userLikedPostIds = likesResult.likedPostIds;
       userBookmarkedWorkIds = bookmarksResult.bookmarkedWorkIds;
+      userBookmarkedPostIds = bookmarksResult.bookmarkedPostIds;
     }
 
     // 从后端 API 获取作品数据（主要数据源）

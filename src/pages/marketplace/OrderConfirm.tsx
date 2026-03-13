@@ -68,8 +68,17 @@ const OrderConfirmPage: React.FC = () => {
         product: directProduct,
       }];
     }
-    // 否则从购物车获取选中的商品
-    return cartItems.filter((item) => item.selected);
+    // 否则从购物车获取选中的商品，并映射为 OrderItem 格式
+    return cartItems
+      .filter((item) => item.selected)
+      .map((item) => ({
+        product_id: item.product_id,
+        product_name: item.product?.name || '',
+        product_image: item.product?.cover_image,
+        price: item.product?.price || 0,
+        quantity: item.quantity,
+        product: item.product,
+      }));
   }, [directProductId, directProduct, directQuantity, cartItems]);
 
   // 计算总价

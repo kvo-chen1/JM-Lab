@@ -3,6 +3,7 @@ import { Work } from '@/types';
 import { validationService } from './validationService';
 import { historyService } from './historyService';
 import { toast } from 'sonner';
+import apiOptimizer, { withOptimization } from '../utils/apiOptimizer';
 
 // 本地定义 User 类型以避免循环引用
 interface User {
@@ -76,12 +77,19 @@ class ApiService {
       ? { enabled: false } 
       : cacheOptions;
     
-    const response = await apiClient.get<T>(requestUrl, { cache: finalCacheOptions });
-    if (!response.ok) {
-      throw new Error(response.error || '请求失败');
-    }
-    // 确保返回的数据类型正确
-    return response.data as T;
+    // 使用API优化：去重 + 重试
+    return withOptimization<T>(
+      requestUrl,
+      async () => {
+        const response = await apiClient.get<T>(requestUrl, { cache: finalCacheOptions });
+        if (!response.ok) {
+          throw new Error(response.error || '请求失败');
+        }
+        // 确保返回的数据类型正确
+        return response.data as T;
+      },
+      { dedupe: true, retry: true, priority: 0 }
+    );
   }
 
   /**

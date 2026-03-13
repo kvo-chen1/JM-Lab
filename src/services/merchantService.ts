@@ -689,11 +689,11 @@ class MerchantService {
       return orders;
     }
 
-    // 注意：订单表中使用的是 seller_id 而不是 merchant_id
+    // 订单表中使用的是 merchant_id
     let query = supabase
       .from('orders')
       .select('*')
-      .eq('seller_id', merchantId);
+      .eq('merchant_id', merchantId);
 
     if (params?.status) query = query.eq('status', params.status);
     if (params?.startDate) query = query.gte('created_at', params.startDate);

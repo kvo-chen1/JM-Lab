@@ -437,6 +437,71 @@ export default async function handler(req, res) {
       return handleCommunities(req, res, path);
     }
 
+    // 津币(Jinbi)相关API
+    if (path.startsWith('/jinbi/') || path === '/jinbi') {
+      return handleJinbi(req, res, path);
+    }
+
+    // 品牌相关API
+    if (path.startsWith('/brands')) {
+      return handleBrands(req, res, path);
+    }
+
+    // 订单相关API
+    if (path.startsWith('/orders')) {
+      return handleOrders(req, res, path);
+    }
+
+    // 购物车相关API
+    if (path.startsWith('/cart')) {
+      return handleCart(req, res, path);
+    }
+
+    // 地址相关API
+    if (path.startsWith('/addresses')) {
+      return handleAddresses(req, res, path);
+    }
+
+    // 统计数据相关API
+    if (path.startsWith('/stats')) {
+      return handleStats(req, res, path);
+    }
+
+    // 分析数据相关API
+    if (path.startsWith('/analytics')) {
+      return handleAnalytics(req, res, path);
+    }
+
+    // 排行榜相关API
+    if (path.startsWith('/rankings')) {
+      return handleRankings(req, res, path);
+    }
+
+    // 推荐相关API
+    if (path.startsWith('/recommendations')) {
+      return handleRecommendations(req, res, path);
+    }
+
+    // 搜索相关API
+    if (path.startsWith('/search')) {
+      return handleSearch(req, res, path);
+    }
+
+    // 分类相关API
+    if (path.startsWith('/categories')) {
+      return handleCategories(req, res, path);
+    }
+
+    // 标签相关API
+    if (path.startsWith('/tags')) {
+      return handleTags(req, res, path);
+    }
+
+    // 通知相关API
+    if (path.startsWith('/notifications')) {
+      return handleNotifications(req, res, path);
+    }
+
     // 数据库代理 API (Supabase/Neon)
     if (path.startsWith('/db')) {
       return handleDbProxy(req, res, path);
@@ -1327,5 +1392,378 @@ function verifyAuthToken(req) {
     return null;
   } catch {
     return null;
+  }
+}
+
+// 处理津币(Jinbi)相关请求
+async function handleJinbi(req, res, path) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const pool = await getDbPool();
+    const userId = decoded.id || decoded.userId || decoded.sub;
+
+    // 获取余额
+    if (path === '/jinbi/balance' && req.method === 'GET') {
+      if (!pool) {
+        return res.status(200).json({ code: 0, data: { balance: 0, frozen: 0, total: 0 } });
+      }
+
+      await queryWithRetry(`
+        CREATE TABLE IF NOT EXISTS jinbi_balances (
+          user_id VARCHAR(255) PRIMARY KEY,
+          balance INTEGER DEFAULT 0,
+          frozen INTEGER DEFAULT 0,
+          total INTEGER DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      const result = await queryWithRetry(
+        'SELECT * FROM jinbi_balances WHERE user_id = $1',
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(200).json({ code: 0, data: { balance: 0, frozen: 0, total: 0 } });
+      }
+
+      return res.status(200).json({
+        code: 0,
+        data: {
+          balance: result.rows[0].balance || 0,
+          frozen: result.rows[0].frozen || 0,
+          total: result.rows[0].total || 0
+        }
+      });
+    }
+
+    // 获取记录
+    if (path === '/jinbi/records' && req.method === 'GET') {
+      if (!pool) {
+        return res.status(200).json({ code: 0, data: [] });
+      }
+
+      await queryWithRetry(`
+        CREATE TABLE IF NOT EXISTS jinbi_records (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          amount INTEGER NOT NULL,
+          description TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      const result = await queryWithRetry(
+        'SELECT * FROM jinbi_records WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
+        [userId]
+      );
+
+      return res.status(200).json({ code: 0, data: result.rows });
+    }
+
+    // 获取消费明细
+    if (path === '/jinbi/consumption' && req.method === 'GET') {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+
+    // 获取套餐
+    if (path === '/jinbi/packages' && req.method === 'GET') {
+      return res.status(200).json({
+        code: 0,
+        data: [
+          { id: 1, name: '基础套餐', price: 10, amount: 100, description: '100津币' },
+          { id: 2, name: '标准套餐', price: 50, amount: 550, description: '550津币（赠送50）' },
+          { id: 3, name: '高级套餐', price: 100, amount: 1200, description: '1200津币（赠送200）' }
+        ]
+      });
+    }
+
+    // 获取收费标准
+    if (path === '/jinbi/pricing' && req.method === 'GET') {
+      return res.status(200).json({
+        code: 0,
+        data: {
+          ai_generation: 10,
+          image_enhance: 5,
+          video_export: 20
+        }
+      });
+    }
+
+    // 获取月度统计
+    if (path === '/jinbi/monthly-stats' && req.method === 'GET') {
+      return res.status(200).json({
+        code: 0,
+        data: {
+          income: 0,
+          expense: 0,
+          balance: 0
+        }
+      });
+    }
+
+    return res.status(501).json({ code: 1, message: 'Jinbi endpoint not implemented: ' + path });
+  } catch (error) {
+    console.error('[Jinbi API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error', error: error.message });
+  }
+}
+
+// 处理品牌相关请求
+async function handleBrands(req, res, path) {
+  try {
+    if (req.method === 'GET') {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+    return res.status(501).json({ code: 1, message: 'Brands endpoint not implemented' });
+  } catch (error) {
+    console.error('[Brands API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理订单相关请求
+async function handleOrders(req, res, path) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    if (req.method === 'GET') {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+    return res.status(501).json({ code: 1, message: 'Orders endpoint not implemented' });
+  } catch (error) {
+    console.error('[Orders API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理购物车相关请求
+async function handleCart(req, res, path) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    if (req.method === 'GET') {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+    return res.status(501).json({ code: 1, message: 'Cart endpoint not implemented' });
+  } catch (error) {
+    console.error('[Cart API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理地址相关请求
+async function handleAddresses(req, res, path) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    if (req.method === 'GET') {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+    return res.status(501).json({ code: 1, message: 'Addresses endpoint not implemented' });
+  } catch (error) {
+    console.error('[Addresses API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理统计数据相关请求
+async function handleStats(req, res, path) {
+  try {
+    return res.status(200).json({ code: 0, data: {} });
+  } catch (error) {
+    console.error('[Stats API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理分析数据相关请求
+async function handleAnalytics(req, res, path) {
+  try {
+    // 流量分析
+    if (path === '/analytics/traffic') {
+      return res.status(200).json({
+        code: 0,
+        data: {
+          pv: 0,
+          uv: 0,
+          ip: 0
+        }
+      });
+    }
+
+    // 页面性能
+    if (path === '/analytics/performance') {
+      return res.status(200).json({
+        code: 0,
+        data: {
+          loadTime: 0,
+          renderTime: 0
+        }
+      });
+    }
+
+    return res.status(200).json({ code: 0, data: {} });
+  } catch (error) {
+    console.error('[Analytics API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理排行榜相关请求
+async function handleRankings(req, res, path) {
+  try {
+    return res.status(200).json({ code: 0, data: [] });
+  } catch (error) {
+    console.error('[Rankings API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理推荐相关请求
+async function handleRecommendations(req, res, path) {
+  try {
+    return res.status(200).json({ code: 0, data: [] });
+  } catch (error) {
+    console.error('[Recommendations API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理搜索相关请求
+async function handleSearch(req, res, path) {
+  try {
+    return res.status(200).json({ code: 0, data: [] });
+  } catch (error) {
+    console.error('[Search API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理分类相关请求
+async function handleCategories(req, res, path) {
+  try {
+    return res.status(200).json({
+      code: 0,
+      data: [
+        { id: 1, name: '创意设计', slug: 'creative' },
+        { id: 2, name: '非遗传承', slug: 'heritage' },
+        { id: 3, name: '品牌联名', slug: 'brand' },
+        { id: 4, name: '校园活动', slug: 'campus' },
+        { id: 5, name: '文旅推广', slug: 'tourism' },
+        { id: 6, name: '纹样设计', slug: 'pattern' },
+        { id: 7, name: '插画创作', slug: 'illustration' },
+        { id: 8, name: '工艺创新', slug: 'craft' },
+        { id: 9, name: '老字号品牌', slug: 'time-honored' },
+        { id: 10, name: 'IP设计', slug: 'ip-design' },
+        { id: 11, name: '包装设计', slug: 'packaging' },
+        { id: 12, name: '其他', slug: 'other' }
+      ]
+    });
+  } catch (error) {
+    console.error('[Categories API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理标签相关请求
+async function handleTags(req, res, path) {
+  try {
+    return res.status(200).json({ code: 0, data: [] });
+  } catch (error) {
+    console.error('[Tags API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理通知相关请求
+async function handleNotifications(req, res, path) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const pool = await getDbPool();
+
+    if (req.method === 'GET') {
+      if (!pool) {
+        return res.status(200).json({ code: 0, data: [], unreadCount: 0 });
+      }
+
+      await queryWithRetry(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          title VARCHAR(255),
+          content TEXT,
+          is_read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      const userId = decoded.id || decoded.userId || decoded.sub;
+      const result = await queryWithRetry(
+        'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
+        [userId]
+      );
+
+      const unreadResult = await queryWithRetry(
+        'SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND is_read = FALSE',
+        [userId]
+      );
+
+      return res.status(200).json({
+        code: 0,
+        data: result.rows,
+        unreadCount: parseInt(unreadResult.rows[0]?.count || 0)
+      });
+    }
+
+    // 标记已读
+    if (path === '/notifications/read' && req.method === 'POST') {
+      const body = await parseRequestBody(req);
+      const { ids } = body;
+
+      if (!pool) {
+        return res.status(200).json({ code: 0, message: 'Success' });
+      }
+
+      const userId = decoded.id || decoded.userId || decoded.sub;
+
+      if (ids && ids.length > 0) {
+        await queryWithRetry(
+          'UPDATE notifications SET is_read = TRUE WHERE id = ANY($1) AND user_id = $2',
+          [ids, userId]
+        );
+      } else {
+        await queryWithRetry(
+          'UPDATE notifications SET is_read = TRUE WHERE user_id = $1',
+          [userId]
+        );
+      }
+
+      return res.status(200).json({ code: 0, message: 'Success' });
+    }
+
+    return res.status(501).json({ code: 1, message: 'Notifications endpoint not implemented' });
+  } catch (error) {
+    console.error('[Notifications API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
   }
 }

@@ -1,40 +1,127 @@
-import { useCallback } from 'react';
-import { componentPreloader } from '@/utils/performanceOptimization';
-import { debounce } from '@/lib/utils';
+import { useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 
-export interface PrefetchOptions {
-  includeData?: boolean;
-  priority?: 'high' | 'medium' | 'low';
+interface PrefetchConfig {
+  prefetchOnHover?: boolean;
+  prefetchOnVisible?: boolean;
+  delay?: number;
 }
 
-const routeDataFetchers: Record<string, () => Promise<any>> = {};
-
-export function registerRouteDataFetcher(route: string, fetcher: () => Promise<any>) {
-  routeDataFetchers[route] = fetcher;
-}
-
-export function usePrefetch() {
-  const prefetch = useCallback((id: string, options?: PrefetchOptions) => {
-    if (!id) return;
-    
-    if (options?.includeData && routeDataFetchers[id]) {
-      routeDataFetchers[id]().catch(() => {});
-    }
-    
-    componentPreloader.preloadComponents([id]);
-  }, []);
-
-  const debouncedPrefetch = useCallback(debounce((id: string, options?: PrefetchOptions) => {
-    prefetch(id, options);
-  }, 300), [prefetch]);
+export function usePrefetch(config: PrefetchConfig = {}) {
+  const { prefetchOnHover = true, prefetchOnVisible = true, delay = 100 } = config;
+  const location = useLocation();
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const visibleObserverRef = useRef<IntersectionObserver | null>(null);
+  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
 
   const prefetchRoute = useCallback((route: string) => {
-    const routeKey = route.replace(/^\//, '');
-    if (routeDataFetchers[routeKey]) {
-      routeDataFetchers[routeKey]().catch(() => {});
+    if (prefetchedRoutesRef.current.has(route)) {
+      return;
     }
-    componentPreloader.preloadComponents([routeKey]).catch(() => {});
+
+    prefetchedRoutesRef.current.add(route);
+    
+    try {
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.as = 'script';
+      link.href = route;
+      document.head.appendChild(link);
+      console.log(`[usePrefetch] Prefetched route: ${route}`);
+    } catch (error) {
+      console.warn(`[usePrefetch] Failed to prefetch route ${route}:`, error);
+    }
   }, []);
 
-  return { prefetch, debouncedPrefetch, prefetchRoute, registerRouteDataFetcher };
+  const setupHoverPrefetch = useCallback((element: HTMLElement, route: string) => {
+    if (!prefetchOnHover) return;
+
+    const handleMouseEnter = () => {
+      hoverTimerRef.current = setTimeout(() => {
+        prefetchRoute(route);
+      }, delay);
+    };
+
+    const handleMouseLeave = () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+      }
+    };
+
+    element.addEventListener('mouseenter', handleMouseEnter);
+    element.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      element.removeEventListener('mouseenter', handleMouseEnter);
+      element.removeEventListener('mouseleave', handleMouseLeave);
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, [prefetchOnHover, delay, prefetchRoute]);
+
+  const setupVisiblePrefetch = useCallback((element: HTMLElement, route: string) => {
+    if (!prefetchOnVisible) return;
+
+    if (!visibleObserverRef.current) {
+      visibleObserverRef.current = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const targetRoute = entry.target.getAttribute('data-prefetch-route');
+              if (targetRoute) {
+                prefetchRoute(targetRoute);
+              }
+              visibleObserverRef.current?.unobserve(entry.target);
+            }
+          });
+        },
+        { rootMargin: '200px' }
+      );
+    }
+
+    element.setAttribute('data-prefetch-route', route);
+    visibleObserverRef.current.observe(element);
+
+    return () => {
+      visibleObserverRef.current?.unobserve(element);
+    };
+  }, [prefetchOnVisible, prefetchRoute]);
+
+  const prefetchRef = useCallback((element: HTMLElement | null, route: string) => {
+    if (!element) return;
+
+    const cleanupHover = setupHoverPrefetch(element, route);
+    const cleanupVisible = setupVisiblePrefetch(element, route);
+
+    return () => {
+      cleanupHover?.();
+      cleanupVisible?.();
+    };
+  }, [setupHoverPrefetch, setupVisiblePrefetch]);
+
+  useEffect(() => {
+    prefetchedRoutesRef.current.clear();
+  }, [location.pathname]);
+
+  useEffect(() => {
+    return () => {
+      if (visibleObserverRef.current) {
+        visibleObserverRef.current.disconnect();
+        visibleObserverRef.current = null;
+      }
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, []);
+
+  return {
+    prefetchRef,
+    prefetchRoute,
+    isPrefetched: (route: string) => prefetchedRoutesRef.current.has(route)
+  };
 }
+
+export default usePrefetch;

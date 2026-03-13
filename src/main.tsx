@@ -43,6 +43,7 @@ import('@fortawesome/fontawesome-free/css/all.min.css').catch(err => console.err
 // 加载工具模块
 import { setupApi } from './lib/setupApi';
 import { initPerformanceMonitor } from './utils/performanceMonitor';
+import { fontOptimizer } from './utils/fontOptimizer';
 
 // 导入 supabase 以暴露到 window 对象（用于调试）
 import './lib/supabase';
@@ -86,12 +87,16 @@ if ('requestIdleCallback' in window) {
     setupApi();
     initPerformanceMonitor();
     loadNonCriticalStyles(); // 加载非关键样式
+    fontOptimizer.addFontDisplaySwap();
+    fontOptimizer.optimizeFontLoading();
   }, { timeout: 3000 });
 } else {
   setTimeout(() => {
     setupApi();
     initPerformanceMonitor();
     loadNonCriticalStyles(); // 加载非关键样式
+    fontOptimizer.addFontDisplaySwap();
+    fontOptimizer.optimizeFontLoading();
   }, 2000);
 }
 

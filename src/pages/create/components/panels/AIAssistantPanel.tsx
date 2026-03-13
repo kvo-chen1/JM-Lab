@@ -1098,7 +1098,7 @@ export default function AIAssistantPanel() {
             </div>
 
             {/* 会话列表 */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-1">
               {sessions.length === 0 && (
                 <div className="text-center py-6 text-gray-400">
                   <i className="fas fa-inbox text-2xl mb-2" />
@@ -1397,7 +1397,7 @@ export default function AIAssistantPanel() {
                   ref={messagesContainerRef}
                   onScroll={handleScroll}
                   className={clsx(
-                    "flex-1 overflow-y-auto custom-scrollbar p-4 space-y-5 overscroll-contain",
+                    "flex-1 overflow-y-auto scrollbar-hide p-4 space-y-5 overscroll-contain",
                     isDark ? "scrollbar-thumb-gray-700 scrollbar-track-gray-800" : "scrollbar-thumb-gray-300 scrollbar-track-gray-100"
                   )}
                 >
@@ -2326,7 +2326,7 @@ export default function AIAssistantPanel() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
-                className="p-4 space-y-3 overflow-y-auto h-full custom-scrollbar"
+                className="p-4 space-y-3 overflow-y-auto h-full scrollbar-hide"
               >
                 {history.length === 0 ? (
                   <motion.div

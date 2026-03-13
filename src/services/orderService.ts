@@ -375,6 +375,8 @@ export async function payOrder(
   paymentMethod: string = 'online'
 ): Promise<{ data?: Order; error?: string }> {
   try {
+    console.log('[payOrder] 开始更新订单状态，订单ID:', orderId);
+    
     const { data, error } = await supabase
       .from('orders')
       .update({
@@ -387,10 +389,22 @@ export async function payOrder(
       .select('id, order_no, customer_id, seller_id, total_amount, status, shipping_address, remark, paid_at, created_at, updated_at')
       .single();
 
-    if (error) throw error;
+    console.log('[payOrder] Supabase 返回:', { data, error });
+
+    if (error) {
+      console.error('[payOrder] Supabase 错误:', error);
+      throw error;
+    }
+    
+    if (!data) {
+      console.warn('[payOrder] 更新成功但返回数据为空，可能订单状态已不是 pending_payment');
+      return { error: '订单更新失败，可能订单已支付或已关闭' };
+    }
+    
+    console.log('[payOrder] 订单状态更新成功:', data.status);
     return { data };
   } catch (err: any) {
-    console.error('支付订单失败:', err);
+    console.error('[payOrder] 支付订单失败:', err);
     return { error: err.message || '支付订单失败' };
   }
 }

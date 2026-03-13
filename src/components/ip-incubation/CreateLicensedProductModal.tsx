@@ -7,10 +7,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   X, ShoppingBag, Upload, Loader2, CheckCircle2, DollarSign,
-  Package, Image as ImageIcon, ChevronRight, Tag
+  Package, Image as ImageIcon, ChevronRight, Tag, Eye
 } from 'lucide-react';
 import { copyrightLicenseService } from '@/services/copyrightLicenseService';
-import type { LicenseApplication } from '@/types/copyright-license';
+import type { LicenseApplication, LicensedProduct } from '@/types/copyright-license';
 import { useTheme } from '@/hooks/useTheme';
 
 // 深色主题配色
@@ -79,6 +79,8 @@ export function CreateLicensedProductModal({
   const theme = useProductTheme(isDark);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [createdProduct, setCreatedProduct] = useState<LicensedProduct | null>(null);
+  const [showSuccessView, setShowSuccessView] = useState(false);
   const [formData, setFormData] = useState({
     productName: '',
     productDescription: '',
@@ -109,7 +111,7 @@ export function CreateLicensedProductModal({
 
     try {
       setLoading(true);
-      await copyrightLicenseService.createLicensedProduct({
+      const product = await copyrightLicenseService.createLicensedProduct({
         applicationId: application?.id || '',
         productName: formData.productName,
         productDescription: formData.productDescription,
@@ -119,9 +121,32 @@ export function CreateLicensedProductModal({
         productImages: formData.productImages,
       });
       toast.success('产品创建成功！');
+      setCreatedProduct(product);
+      setShowSuccessView(true);
       onSuccess?.();
-      onClose();
-      // 重置表单
+    } catch (error) {
+      toast.error('产品创建失败，请重试');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 查看产品详情
+  const handleViewProduct = () => {
+    if (createdProduct?.id) {
+      window.open(`/marketplace/products/${createdProduct.id}`, '_blank');
+    }
+    handleClose();
+  };
+
+  // 关闭弹窗并重置
+  const handleClose = () => {
+    onClose();
+    // 延迟重置，等待动画完成
+    setTimeout(() => {
+      setShowSuccessView(false);
+      setCreatedProduct(null);
       setStep(1);
       setFormData({
         productName: '',
@@ -131,12 +156,7 @@ export function CreateLicensedProductModal({
         stock: '',
         productImages: [],
       });
-    } catch (error) {
-      toast.error('产品创建失败，请重试');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
+    }, 300);
   };
 
   // 模拟图片上传
@@ -178,7 +198,7 @@ export function CreateLicensedProductModal({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
-            className={`w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border shadow-2xl ${theme.glass} ${theme.borderPrimary} ${isDark ? 'shadow-cyan-500/10' : 'shadow-cyan-500/5'}`}
+            className={`w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden rounded-2xl border shadow-2xl ${theme.glass} ${theme.borderPrimary} ${isDark ? 'shadow-cyan-500/10' : 'shadow-cyan-500/5'}`}
           >
             {/* 头部 */}
             <div className={`flex items-center justify-between p-6 border-b ${theme.borderPrimary}`}>
@@ -230,8 +250,52 @@ export function CreateLicensedProductModal({
             </div>
 
             {/* 内容区域 */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-220px)]">
-              {step === 1 && (
+            <div className="flex-1 p-6 overflow-y-auto min-h-0">
+              {showSuccessView ? (
+                <div className="flex flex-col items-center justify-center h-full space-y-6">
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20' : 'bg-gradient-to-br from-emerald-100 to-teal-100'}`}>
+                    <CheckCircle2 className={`w-10 h-10 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                  </div>
+                  <div className="text-center">
+                    <h3 className={`text-xl font-bold mb-2 ${theme.textPrimary}`}>产品创建成功！</h3>
+                    <p className={`text-sm ${theme.textMuted}`}>您的授权产品已创建，可以前往产品页面查看详情</p>
+                  </div>
+                  <div className={`p-4 rounded-xl border w-full max-w-sm ${theme.bgSecondary} ${theme.borderPrimary}`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      {formData.productImages.length > 0 ? (
+                        <img src={formData.productImages[0]} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                      ) : (
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${isDark ? 'bg-slate-800' : 'bg-gray-100'}`}>
+                          <Package className={`w-6 h-6 ${theme.textMuted}`} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium truncate ${theme.textPrimary}`}>{formData.productName}</p>
+                        <p className={`text-sm ${theme.textMuted}`}>{PRODUCT_CATEGORIES.find(c => c.id === formData.productCategory)?.name}</p>
+                      </div>
+                    </div>
+                    <div className={`flex justify-between text-sm ${theme.textSecondary}`}>
+                      <span>价格</span>
+                      <span className={`font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{parseFloat(formData.price).toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleClose}
+                      className={`px-6 py-2.5 rounded-xl transition-colors ${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
+                    >
+                      关闭
+                    </button>
+                    <button
+                      onClick={handleViewProduct}
+                      className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all flex items-center gap-2 ${isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:shadow-lg hover:shadow-cyan-500/25' : 'bg-gradient-to-r from-cyan-600 to-blue-700 hover:shadow-lg hover:shadow-cyan-500/15'}`}
+                    >
+                      <Eye className="w-4 h-4" />
+                      查看产品
+                    </button>
+                  </div>
+                </div>
+              ) : step === 1 && (
                 <div className="space-y-6">
                   {/* 授权信息卡片 */}
                   <div className={`p-4 rounded-xl border ${theme.bgSecondary} ${theme.borderPrimary}`}>
@@ -282,20 +346,31 @@ export function CreateLicensedProductModal({
                     </label>
                     <div className="grid grid-cols-4 gap-2">
                       {PRODUCT_CATEGORIES.map(category => (
-                        <button
+                        <div
                           key={category.id}
-                          onClick={() => setFormData(prev => ({ ...prev, productCategory: category.id }))}
-                          className={`p-3 rounded-xl border text-center transition-all ${
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            console.log('[CreateLicensedProductModal] 选择产品类别:', category.id, category.name);
+                            setFormData(prev => ({ ...prev, productCategory: category.id }));
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              setFormData(prev => ({ ...prev, productCategory: category.id }));
+                            }
+                          }}
+                          className={`p-3 rounded-xl border text-center transition-all cursor-pointer select-none ${
                             formData.productCategory === category.id
                               ? (isDark ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-cyan-400/50 bg-cyan-50')
-                              : `${theme.borderPrimary} ${theme.bgSecondary} ${isDark ? 'hover:border-slate-600' : 'hover:border-gray-300'}`
+                              : `${theme.borderPrimary} ${theme.bgSecondary} ${isDark ? 'hover:border-slate-600 hover:bg-slate-800' : 'hover:border-gray-300 hover:bg-gray-50'}`
                           }`}
                         >
                           <div className="text-2xl mb-1">{category.icon}</div>
                           <div className={`text-xs ${formData.productCategory === category.id ? (isDark ? 'text-cyan-400' : 'text-cyan-600') : theme.textSecondary}`}>
                             {category.name}
                           </div>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -425,21 +500,43 @@ export function CreateLicensedProductModal({
             </div>
 
             {/* 底部按钮 */}
-            <div className={`flex items-center justify-between p-6 border-t ${theme.borderPrimary}`}>
-              {step > 1 ? (
-                <button
-                  onClick={() => setStep(step - 1)}
-                  className={`px-6 py-2.5 rounded-xl transition-colors ${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
-                >
-                  上一步
-                </button>
-              ) : (
-                <div />
-              )}
+            {!showSuccessView && (
+              <div className={`flex items-center justify-between p-6 border-t ${theme.borderPrimary}`}>
+                {step > 1 ? (
+                  <button
+                    onClick={() => setStep(step - 1)}
+                    className={`px-6 py-2.5 rounded-xl transition-colors ${theme.bgSecondary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
+                  >
+                    上一步
+                  </button>
+                ) : (
+                  <div />
+                )}
 
-              {step < 3 ? (
+                {step < 3 ? (
                 <button
-                  onClick={() => setStep(step + 1)}
+                  onClick={() => {
+                    // 第1步验证
+                    if (step === 1) {
+                      if (!formData.productName.trim()) {
+                        toast.error('请输入产品名称');
+                        return;
+                      }
+                      if (!formData.productCategory) {
+                        toast.error('请选择产品类别');
+                        return;
+                      }
+                      if (!formData.price || parseFloat(formData.price) <= 0) {
+                        toast.error('请输入有效的价格');
+                        return;
+                      }
+                      if (!formData.stock || parseInt(formData.stock) < 0) {
+                        toast.error('请输入有效的库存数量');
+                        return;
+                      }
+                    }
+                    setStep(step + 1);
+                  }}
                   className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all flex items-center gap-2 ${isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:shadow-lg hover:shadow-cyan-500/25' : 'bg-gradient-to-r from-cyan-600 to-blue-700 hover:shadow-lg hover:shadow-cyan-500/15'}`}
                 >
                   下一步
@@ -464,7 +561,8 @@ export function CreateLicensedProductModal({
                   )}
                 </button>
               )}
-            </div>
+              </div>
+            )}
           </motion.div>
         </motion.div>
       )}

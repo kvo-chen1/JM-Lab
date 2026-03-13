@@ -1436,6 +1436,96 @@ async function createPostgreSQLTables(pool) {
       await createIndex('CREATE INDEX IF NOT EXISTS idx_event_favorites_user_id ON event_favorites(user_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_event_favorites_event_id ON event_favorites(event_id);')
 
+      // ==================== 版权授权相关表 ====================
+      
+      // 创建授权需求表 (copyright_license_requests)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS copyright_license_requests (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          brand_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          brand_name TEXT NOT NULL,
+          brand_logo TEXT,
+          title TEXT NOT NULL,
+          description TEXT,
+          requirements TEXT,
+          license_type TEXT DEFAULT 'non_exclusive',
+          license_scope JSONB DEFAULT '{}',
+          license_fee_min INTEGER,
+          license_fee_max INTEGER,
+          revenue_share_rate DECIMAL(5,2) DEFAULT 10,
+          ip_categories JSONB DEFAULT '[]',
+          valid_until TIMESTAMP WITH TIME ZONE,
+          contact_email TEXT,
+          contact_phone TEXT,
+          status TEXT DEFAULT 'open',
+          view_count INTEGER DEFAULT 0,
+          application_count INTEGER DEFAULT 0,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_copyright_requests_brand_id ON copyright_license_requests(brand_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_copyright_requests_status ON copyright_license_requests(status);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_copyright_requests_created_at ON copyright_license_requests(created_at);')
+
+      // 创建授权申请表 (copyright_applications)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS copyright_applications (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          request_id TEXT NOT NULL REFERENCES copyright_license_requests(id) ON DELETE CASCADE,
+          applicant_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          applicant_name TEXT,
+          ip_asset_id TEXT,
+          ip_asset_name TEXT,
+          ip_asset_thumbnail TEXT,
+          message TEXT,
+          proposed_usage TEXT,
+          expected_products JSONB DEFAULT '[]',
+          status TEXT DEFAULT 'pending',
+          actual_license_fee INTEGER,
+          revenue_share_rate DECIMAL(5,2),
+          license_start_date TIMESTAMP WITH TIME ZONE,
+          license_end_date TIMESTAMP WITH TIME ZONE,
+          brand_response TEXT,
+          contact_shared BOOLEAN DEFAULT FALSE,
+          brand_contact_email TEXT,
+          brand_contact_phone TEXT,
+          brand_contact_wechat TEXT,
+          reviewed_at TIMESTAMP WITH TIME ZONE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_copyright_applications_request_id ON copyright_applications(request_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_copyright_applications_applicant_id ON copyright_applications(applicant_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_copyright_applications_status ON copyright_applications(status);')
+
+      // 创建授权IP产品表 (licensed_ip_products)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS licensed_ip_products (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          application_id TEXT NOT NULL REFERENCES copyright_applications(id) ON DELETE CASCADE,
+          brand_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          creator_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          product_name TEXT NOT NULL,
+          product_description TEXT,
+          product_images JSONB DEFAULT '[]',
+          product_category TEXT,
+          price DECIMAL(10,2) NOT NULL,
+          stock INTEGER DEFAULT 0,
+          sales_count INTEGER DEFAULT 0,
+          revenue DECIMAL(10,2) DEFAULT 0,
+          brand_share DECIMAL(10,2) DEFAULT 0,
+          status TEXT DEFAULT 'draft',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_licensed_products_application_id ON licensed_ip_products(application_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_licensed_products_brand_id ON licensed_ip_products(brand_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_licensed_products_creator_id ON licensed_ip_products(creator_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_licensed_products_status ON licensed_ip_products(status);')
+
       // 插入默认设置
       const defaultSettings = [
         // 通用设置
@@ -3497,6 +3587,7 @@ export const workDB = {
             w.created_at,
             w.updated_at,
             w.views as view_count,
+            w.hidden_in_square,
             u.username,
             u.avatar_url,
             COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes
@@ -3540,6 +3631,7 @@ export const workDB = {
               w.created_at,
               w.updated_at,
               w.views as view_count,
+              w.hidden_in_square,
               u.username, 
               u.avatar_url,
               COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes
@@ -3656,6 +3748,7 @@ export const workDB = {
             w.created_at,
             w.updated_at,
             w.views as view_count,
+            w.hidden_in_square,
             u.username,
             u.avatar_url,
             COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes

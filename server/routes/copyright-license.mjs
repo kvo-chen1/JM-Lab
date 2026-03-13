@@ -740,40 +740,74 @@ async function createLicensedProduct(req, res) {
       stock
     } = body;
 
+    console.log('[createLicensedProduct] 收到请求:', { applicationId, productName, productCategory, price, stock });
+
+    // 验证必要参数
+    if (!applicationId) {
+      return sendJson(res, 400, { error: '缺少申请ID' });
+    }
+    if (!productName || productName.trim() === '') {
+      return sendJson(res, 400, { error: '缺少产品名称' });
+    }
+    if (!productCategory) {
+      return sendJson(res, 400, { error: '缺少产品类别' });
+    }
+    if (price === undefined || price === null || isNaN(parseFloat(price))) {
+      return sendJson(res, 400, { error: '缺少有效价格' });
+    }
+    if (stock === undefined || stock === null || isNaN(parseInt(stock))) {
+      return sendJson(res, 400, { error: '缺少有效库存' });
+    }
+
     const db = await getDB();
 
     // 获取申请信息
     const appResult = await db.query(
-      `SELECT a.*, r.brand_id, r.creator_id 
+      `SELECT a.*, r.brand_id, a.applicant_id as creator_id
        FROM copyright_applications a
        JOIN copyright_license_requests r ON a.request_id = r.id
        WHERE a.id = $1`,
       [applicationId]
     );
 
+    console.log('[createLicensedProduct] 查询申请结果:', appResult.rows.length > 0 ? '找到' : '未找到');
+
     if (appResult.rows.length === 0) {
       return sendJson(res, 404, { error: '授权申请不存在' });
     }
 
     const application = appResult.rows[0];
+    console.log('[createLicensedProduct] 申请信息:', { 
+      brand_id: application.brand_id, 
+      creator_id: application.creator_id || application.applicant_id 
+    });
 
     const result = await db.query(
       `INSERT INTO licensed_ip_products (
         application_id, brand_id, creator_id, product_name, product_description,
-        product_images, product_category, price, stock
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        product_images, product_category, price, stock, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
       [
-        applicationId, application.brand_id, application.applicant_id,
-        productName, productDescription, JSON.stringify(productImages || []),
-        productCategory, price, stock
+        applicationId, 
+        application.brand_id, 
+        application.creator_id || application.applicant_id,
+        productName, 
+        productDescription || '', 
+        JSON.stringify(productImages || []),
+        productCategory, 
+        parseFloat(price), 
+        parseInt(stock),
+        'draft'
       ]
     );
 
+    console.log('[createLicensedProduct] 产品创建成功:', result.rows[0].id);
     sendJson(res, 201, toCamelCase(result.rows[0]));
   } catch (error) {
-    console.error('创建授权产品失败:', error);
-    sendJson(res, 500, { error: '创建授权产品失败' });
+    console.error('[createLicensedProduct] 创建授权产品失败:', error);
+    console.error('[createLicensedProduct] 错误详情:', error.message);
+    sendJson(res, 500, { error: '创建授权产品失败: ' + error.message });
   }
 }
 

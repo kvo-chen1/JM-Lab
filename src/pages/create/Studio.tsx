@@ -277,13 +277,13 @@ export default function Studio() {
       {/* 左侧工具栏 - 内部处理响应式显示 */}
       <ToolSidebar isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} />
       
-      {/* Main Canvas Area - 主画布区域 */}
+      {/* 中间属性面板 - 内部处理响应式显示 */}
+      <PropertiesPanel />
+
+      {/* Main Canvas Area - 主画布区域（右侧预览） */}
       <div id="guide-step-create-canvas" className="flex-1 relative flex flex-col min-w-0 overflow-hidden">
         <CanvasArea isSidebarCollapsed={isSidebarCollapsed} setIsSidebarCollapsed={setIsSidebarCollapsed} />
       </div>
-
-      {/* 右侧属性面板 - 内部处理响应式显示 */}
-      <PropertiesPanel />
 
       {/* Modals / Overlays */}
       <AnimatePresence>

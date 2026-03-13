@@ -129,7 +129,7 @@ export default function PropertiesPanel() {
       {/* 手机端和平板端属性面板切换按钮 */}
       <motion.button
         onClick={() => updateState({ showPropertiesPanel: !showPropertiesPanel })}
-        className={`md:hidden fixed top-28 right-2 z-40 p-3 rounded-full shadow-lg transition-all duration-300 text-white`}
+        className={`md:hidden fixed top-28 left-2 z-40 p-3 rounded-full shadow-lg transition-all duration-300 text-white`}
         style={{ backgroundColor: toolColor }}
         aria-label={showPropertiesPanel ? '关闭属性面板' : '打开属性面板'}
         whileHover={{ scale: 1.1, boxShadow: `0 8px 25px ${toolColor}40` }}
@@ -146,8 +146,8 @@ export default function PropertiesPanel() {
         <i className="fas fa-sliders-h text-xl"></i>
       </motion.button>
 
-      {/* 电脑端右侧属性面板 */}
-      <div id="guide-step-create-properties" className={`hidden lg:block w-[480px] xl:w-[560px] h-full flex flex-col border-l backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-30`}>
+      {/* 电脑端中间属性面板 */}
+      <div id="guide-step-create-properties" className={`hidden lg:block w-[400px] xl:w-[480px] h-full flex flex-col border-r backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} z-30`}>
         {/* Glass Header */}
         <motion.div
           className={`h-16 px-6 flex items-center justify-between border-b backdrop-blur-md flex-shrink-0 ${isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 border-gray-100'}`}
@@ -226,13 +226,13 @@ export default function PropertiesPanel() {
         </div>
       </div>
 
-      {/* 平板端和手机端：可切换的右侧抽屉 */}
+      {/* 平板端和手机端：可切换的左侧抽屉 */}
       <AnimatePresence>
         {showPropertiesPanel && (
           <motion.div
             key="mobile-drawer"
             initial={{
-              x: '100%',
+              x: '-100%',
               opacity: 0,
               scale: 0.98
             }}
@@ -248,7 +248,7 @@ export default function PropertiesPanel() {
               }
             }}
             exit={{
-              x: '100%',
+              x: '-100%',
               opacity: 0,
               scale: 0.98,
               transition: {
@@ -257,8 +257,8 @@ export default function PropertiesPanel() {
               }
             }}
             className={`${isDark ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-gray-200'} transition-colors relative z-30
-              /* 通用定位：固定在右侧，全高 */
-              fixed top-0 right-0 bottom-0 h-full shadow-2xl border-l lg:hidden
+              /* 通用定位：固定在左侧，全高 */
+              fixed top-0 left-0 bottom-0 h-full shadow-2xl border-r lg:hidden
               /* 手机端宽度 */
               w-[85%] max-w-xs
               /* 平板端宽度 */

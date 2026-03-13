@@ -33,9 +33,12 @@ const OrderManager: React.FC = () => {
       try {
         setLoading(true);
         const merchant = await merchantService.getCurrentMerchant();
+        console.log('[OrderManager] 当前商户:', merchant);
         if (merchant) {
           setMerchantId(merchant.id);
+          console.log('[OrderManager] 商户ID:', merchant.id);
           const merchantOrders = await merchantService.getOrders(merchant.id);
+          console.log('[OrderManager] 获取到的订单:', merchantOrders);
           setOrders(merchantOrders);
         }
       } catch (error) {

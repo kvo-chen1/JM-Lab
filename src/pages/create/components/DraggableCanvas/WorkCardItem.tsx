@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, X, Star } from 'lucide-react';
+import { Play, X, Star, Loader2 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import type { GeneratedResult } from '../../types';
 import type { WorkPosition } from './hooks';
@@ -30,6 +30,8 @@ export default function WorkCardItem({
 }: WorkCardItemProps) {
   const { isDark } = useTheme();
   const isVideo = work.type === 'video' || work.video;
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   return (
     <motion.div
@@ -61,25 +63,6 @@ export default function WorkCardItem({
       }}
       onDoubleClick={onDoubleClick}
     >
-      {/* 选中状态边框 */}
-      {isSelected && (
-        <motion.div
-          layoutId={`selection-${work.id}`}
-          className="absolute -inset-2 rounded-2xl border-2 border-blue-500 pointer-events-none"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          style={{
-            boxShadow: '0 0 0 4px rgba(59, 130, 246, 0.2)',
-          }}
-        >
-          {/* 控制点 */}
-          <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full" />
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full" />
-          <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full" />
-          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full" />
-        </motion.div>
-      )}
-
       {/* 卡片主体 */}
       <div
         className={`relative w-full h-full rounded-xl overflow-hidden shadow-2xl transition-shadow duration-200 ${
@@ -95,7 +78,7 @@ export default function WorkCardItem({
           <>
             <video
               src={work.video || work.thumbnail}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover bg-gray-800"
               preload="metadata"
               muted
               playsInline
@@ -109,15 +92,39 @@ export default function WorkCardItem({
             </div>
           </>
         ) : (
-          <img
-            src={work.thumbnail || 'https://via.placeholder.com/280x200?text=No+Image'}
-            alt=""
-            className="w-full h-full object-cover"
-            draggable={false}
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/280x200?text=No+Image';
-            }}
-          />
+          <>
+            {/* 加载指示器 */}
+            {isLoading && !hasError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-10">
+                <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+              </div>
+            )}
+            {/* 图片加载失败时的占位符 */}
+            {hasError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 z-5">
+                <i className="fas fa-image text-4xl text-gray-600 mb-2"></i>
+                <span className="text-xs text-gray-500">图片加载失败</span>
+              </div>
+            )}
+            <img
+              src={work.thumbnail || 'https://via.placeholder.com/280x200?text=No+Image'}
+              alt=""
+              className="w-full h-full object-contain bg-gray-800"
+              crossOrigin="anonymous"
+              draggable={false}
+              style={{ display: hasError ? 'none' : 'block' }}
+              onError={(e) => {
+                console.error('[WorkCardItem] Image load error for work', work.id, ':', work.thumbnail);
+                setIsLoading(false);
+                setHasError(true);
+              }}
+              onLoad={() => {
+                console.log('[WorkCardItem] Image loaded for work', work.id);
+                setIsLoading(false);
+                setHasError(false);
+              }}
+            />
+          </>
         )}
 
         {/* 悬停遮罩 */}

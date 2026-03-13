@@ -200,9 +200,23 @@ const OrdersPage: React.FC = () => {
   }, []);
 
   // 支付订单
-  const handlePayOrder = useCallback((orderId: string) => {
-    navigate(`/marketplace/order/pay/${orderId}`);
-  }, [navigate]);
+  const handlePayOrder = useCallback(async (orderId: string) => {
+    console.log('[Orders] 点击支付，订单ID:', orderId);
+    
+    // 直接调用支付 API 测试
+    const { payOrder } = await import('@/services/orderService');
+    const { data, error } = await payOrder(orderId, 'wechat');
+    
+    console.log('[Orders] 支付结果:', { data, error });
+    
+    if (error) {
+      toast.error('支付失败：' + error);
+    } else {
+      toast.success('支付成功！');
+      // 刷新订单列表
+      fetchOrders();
+    }
+  }, [fetchOrders]);
 
   // 确认收货
   const handleConfirmReceipt = useCallback(async (orderId: string) => {

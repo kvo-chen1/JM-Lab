@@ -270,6 +270,8 @@ export async function getOrders(
 
     if (error) throw error;
 
+    console.log('[getOrders] 查询到的订单:', orders?.map((o: any) => ({ id: o.id, order_no: o.order_no })));
+
     // 获取所有订单ID
     const orderIds = orders?.map((o: any) => o.id) || [];
 
@@ -377,6 +379,36 @@ export async function payOrder(
   try {
     console.log('[payOrder] 开始更新订单状态，订单ID:', orderId);
     
+    // 先检查订单当前状态
+    const { data: currentOrder, error: checkError } = await supabase
+      .from('orders')
+      .select('id, status')
+      .eq('id', orderId)
+      .single();
+    
+    console.log('[payOrder] 查询订单结果:', { currentOrder, checkError });
+    
+    if (checkError) {
+      console.error('[payOrder] 查询订单失败:', checkError);
+      return { error: '查询订单失败: ' + checkError.message };
+    }
+    
+    // Supabase .single() 返回空数组表示没找到数据
+    if (!currentOrder || (Array.isArray(currentOrder) && currentOrder.length === 0)) {
+      console.error('[payOrder] 订单不存在，ID:', orderId);
+      return { error: '订单不存在' };
+    }
+    
+    // 处理返回数组的情况
+    const orderData = Array.isArray(currentOrder) ? currentOrder[0] : currentOrder;
+    
+    console.log('[payOrder] 当前订单状态:', orderData.status);
+    
+    if (orderData.status !== 'pending_payment') {
+      return { error: '订单状态不是待付款，无法支付' };
+    }
+    
+    // 更新订单状态
     const { data, error } = await supabase
       .from('orders')
       .update({
@@ -385,7 +417,6 @@ export async function payOrder(
         updated_at: new Date().toISOString(),
       })
       .eq('id', orderId)
-      .eq('status', 'pending_payment')
       .select('id, order_no, customer_id, seller_id, total_amount, status, shipping_address, remark, paid_at, created_at, updated_at')
       .single();
 
@@ -397,8 +428,8 @@ export async function payOrder(
     }
     
     if (!data) {
-      console.warn('[payOrder] 更新成功但返回数据为空，可能订单状态已不是 pending_payment');
-      return { error: '订单更新失败，可能订单已支付或已关闭' };
+      console.warn('[payOrder] 更新成功但返回数据为空');
+      return { error: '订单更新失败' };
     }
     
     console.log('[payOrder] 订单状态更新成功:', data.status);

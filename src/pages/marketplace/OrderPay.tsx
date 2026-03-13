@@ -97,6 +97,8 @@ const OrderPayPage: React.FC = () => {
 
   // 处理支付
   const handlePay = async () => {
+    alert('点击了支付按钮！');
+    
     if (!orderId) {
       toast.error('订单ID不存在');
       return;
@@ -235,10 +237,11 @@ const OrderPayPage: React.FC = () => {
         {/* 支付按钮 */}
         {countdown > 0 && (
           <div className="space-y-3">
-            <Button
-              className="w-full h-14 text-lg bg-[#C02C38] hover:bg-[#991b1b]"
+            <button
+              className="w-full h-14 text-lg bg-[#C02C38] hover:bg-[#991b1b] text-white rounded-lg flex items-center justify-center disabled:opacity-50"
               onClick={handlePay}
               disabled={loading}
+              type="button"
             >
               {loading ? (
                 <>
@@ -251,15 +254,15 @@ const OrderPayPage: React.FC = () => {
                   确认支付 ¥{order?.total_amount?.toFixed(2)}
                 </>
               )}
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full h-12"
+            </button>
+            <button
+              className="w-full h-12 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               onClick={handleCancel}
               disabled={loading}
+              type="button"
             >
               取消支付
-            </Button>
+            </button>
           </div>
         )}
 

@@ -675,7 +675,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   }
 
   // Use prefetch hook
-  const { debouncedPrefetch, prefetch: prefetchRoute } = usePrefetch();
+  const { debouncedPrefetch, prefetchRoute } = usePrefetch();
 
   // 移除空闲时预加载逻辑，减少不必要的资源加载
   // useEffect(() => {

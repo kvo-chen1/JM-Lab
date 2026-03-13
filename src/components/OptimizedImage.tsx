@@ -100,7 +100,6 @@ const OptimizedImage = ({
 
   const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     setIsError(true);
-    setOptimizedSrc(src); // 降级到原始图片
     if (onError) {
       onError(e);
     }

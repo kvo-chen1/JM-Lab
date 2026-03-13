@@ -779,11 +779,22 @@ const CopyrightLicenseManager: React.FC = () => {
   // 同意申请
   const handleApproveApplication = async (id: string, data: any) => {
     try {
-      await copyrightLicenseService.approveApplication(id, data);
+      const result = await copyrightLicenseService.approveApplication(id, data);
+      console.log('[handleApproveApplication] 同意申请结果:', result);
+      
+      // 立即更新本地状态，避免等待重新加载
+      setApplications(prev => prev.map(app => 
+        app.id === id ? { ...app, ...result, status: 'approved' as const } : app
+      ));
+      
       toast.success('已同意申请');
       setIsApplicationModalOpen(false);
-      loadData();
+      setSelectedApplication(null);
+      
+      // 延迟重新加载数据以确保数据同步
+      setTimeout(() => loadData(), 300);
     } catch (error) {
+      console.error('[handleApproveApplication] 同意申请失败:', error);
       toast.error('操作失败');
     }
   };
@@ -791,11 +802,21 @@ const CopyrightLicenseManager: React.FC = () => {
   // 拒绝申请
   const handleRejectApplication = async (id: string, reason: string) => {
     try {
-      await copyrightLicenseService.rejectApplication(id, reason);
+      const result = await copyrightLicenseService.rejectApplication(id, reason);
+      console.log('[handleRejectApplication] 拒绝申请结果:', result);
+      
+      // 立即更新本地状态
+      setApplications(prev => prev.map(app => 
+        app.id === id ? { ...app, ...result, status: 'rejected' as const } : app
+      ));
+      
       toast.success('已拒绝申请');
       setIsApplicationModalOpen(false);
-      loadData();
+      setSelectedApplication(null);
+      
+      setTimeout(() => loadData(), 300);
     } catch (error) {
+      console.error('[handleRejectApplication] 拒绝申请失败:', error);
       toast.error('操作失败');
     }
   };
@@ -803,11 +824,21 @@ const CopyrightLicenseManager: React.FC = () => {
   // 分享联系方式
   const handleShareContact = async (id: string, contactInfo: any) => {
     try {
-      await copyrightLicenseService.shareContact(id, contactInfo);
+      const result = await copyrightLicenseService.shareContact(id, contactInfo);
+      console.log('[handleShareContact] 分享联系方式结果:', result);
+      
+      // 立即更新本地状态
+      setApplications(prev => prev.map(app => 
+        app.id === id ? { ...app, ...result, status: 'contacted' as const } : app
+      ));
+      
       toast.success('联系方式已分享');
       setIsApplicationModalOpen(false);
-      loadData();
+      setSelectedApplication(null);
+      
+      setTimeout(() => loadData(), 300);
     } catch (error) {
+      console.error('[handleShareContact] 分享联系方式失败:', error);
       toast.error('操作失败');
     }
   };

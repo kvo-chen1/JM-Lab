@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 
 interface PrefetchConfig {
@@ -101,6 +101,19 @@ export function usePrefetch(config: PrefetchConfig = {}) {
     };
   }, [setupHoverPrefetch, setupVisiblePrefetch]);
 
+  // 防抖预加载函数
+  const debouncedPrefetch = useMemo(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    return (route: string) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        prefetchRoute(route);
+      }, delay);
+    };
+  }, [prefetchRoute, delay]);
+
   useEffect(() => {
     prefetchedRoutesRef.current.clear();
   }, [location.pathname]);
@@ -120,6 +133,7 @@ export function usePrefetch(config: PrefetchConfig = {}) {
   return {
     prefetchRef,
     prefetchRoute,
+    debouncedPrefetch,
     isPrefetched: (route: string) => prefetchedRoutesRef.current.has(route)
   };
 }

@@ -95,16 +95,16 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
         gridTemplateColumns: layoutRecommendation!.layoutStyle.gridTemplateColumns,
         flexWrap: layoutRecommendation!.layoutStyle.flexWrap as any,
         width: '100%',
-        height: '100%',
-        maxHeight: '55vh',
-        overflow: 'hidden',
+        height: 'auto',
+        maxHeight: '65vh',
+        overflow: 'visible',
         borderRadius: '16px',
       }
     : {
         width: '100%',
-        height: '100%',
-        maxHeight: '55vh',
-        overflow: 'hidden',
+        height: 'auto',
+        maxHeight: '65vh',
+        overflow: 'visible',
         borderRadius: '16px',
       };
 
@@ -112,16 +112,16 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
   const imageStyle: React.CSSProperties = hasSmartLayout
     ? {
         width: '100%',
-        height: '100%',
-        maxHeight: '55vh',
+        height: 'auto',
+        maxHeight: '60vh',
         objectFit: 'contain',
         borderRadius: '16px',
         filter: getFilterStyle(),
       }
     : {
         width: '100%',
-        height: '100%',
-        maxHeight: '55vh',
+        height: 'auto',
+        maxHeight: '60vh',
         objectFit: 'contain',
         borderRadius: '16px',
         filter: getFilterStyle(),

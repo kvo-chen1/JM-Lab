@@ -33,40 +33,105 @@ export default function DraggableCanvas({
 
   // 初始化作品位置
   useEffect(() => {
-    setWorkPositions(prev => {
-      const newPositions = new Map(prev);
-      const containerWidth = containerRef.current?.clientWidth || 1200;
-      const containerHeight = containerRef.current?.clientHeight || 800;
+    const calculatePositions = () => {
+      const container = containerRef.current;
+      if (!container) return;
+      
+      const containerWidth = container.clientWidth || 800;
+      const containerHeight = container.clientHeight || 600;
+      
+      // 如果容器尺寸为0，延迟重试
+      if (containerWidth === 0 || containerHeight === 0) {
+        setTimeout(calculatePositions, 100);
+        return;
+      }
 
-      works.forEach((work, index) => {
-        if (!newPositions.has(work.id)) {
-          // 网格布局计算
-          const cols = Math.floor(containerWidth / 320);
-          const col = index % Math.max(1, cols);
-          const row = Math.floor(index / Math.max(1, cols));
-          const startX = (containerWidth - Math.min(cols, works.length) * 320 + 40) / 2;
+      setWorkPositions(prev => {
+        const newPositions = new Map(prev);
 
-          newPositions.set(work.id, {
-            x: startX + col * 320,
-            y: 100 + row * 240,
-            rotation: 0,
-            scale: 1,
-          });
-        }
+        works.forEach((work, index) => {
+          if (!newPositions.has(work.id)) {
+            // 网格布局计算 - 居中显示
+            const cardWidth = 280;
+            const cardHeight = 200;
+            const gap = 40;
+            const cols = Math.max(1, Math.floor(containerWidth / (cardWidth + gap)));
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+
+            // 计算总宽度和起始位置，使作品居中
+            const totalWidth = Math.min(cols, works.length) * (cardWidth + gap) - gap;
+            const startX = (containerWidth - totalWidth) / 2;
+            const startY = (containerHeight - cardHeight) / 2;
+
+            newPositions.set(work.id, {
+              x: startX + col * (cardWidth + gap),
+              y: startY + row * (cardHeight + gap),
+              rotation: 0,
+              scale: 1,
+            });
+          }
+        });
+
+        return newPositions;
       });
+    };
 
-      return newPositions;
+    calculatePositions();
+  }, [works]);
+
+  // 监听容器尺寸变化，重新计算位置
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        const { width, height } = entry.contentRect;
+        
+        // 如果容器尺寸为0，跳过
+        if (width === 0 || height === 0) return;
+        
+        setWorkPositions(prev => {
+          const newPositions = new Map(prev);
+          
+          // 重新计算所有作品位置，使其居中
+          const cardWidth = 280;
+          const cardHeight = 200;
+          const gap = 40;
+          const cols = Math.max(1, Math.floor(width / (cardWidth + gap)));
+          
+          works.forEach((work, index) => {
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+            
+            const totalWidth = Math.min(cols, works.length) * (cardWidth + gap) - gap;
+            const startX = (width - totalWidth) / 2;
+            const startY = (height - cardHeight) / 2;
+
+            newPositions.set(work.id, {
+              x: startX + col * (cardWidth + gap),
+              y: startY + row * (cardHeight + gap),
+              rotation: 0,
+              scale: 1,
+            });
+          });
+
+          return newPositions;
+        });
+      }
     });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
   }, [works]);
 
   // 画布缩放
   const { scale, zoomIn, zoomOut, resetZoom, handleWheelZoom } = useCanvasZoom(1);
 
-  // 画布平移
-  const { position, isPanning, startPan, updatePan, endPan, resetPosition, setPosition, isSpacePressed } = useCanvasPan(
-    (containerRef.current?.clientWidth || 1200) / 2 - 600,
-    (containerRef.current?.clientHeight || 800) / 2 - 300
-  );
+  // 画布平移 - 初始位置居中
+  const { position, isPanning, startPan, updatePan, endPan, resetPosition, setPosition, isSpacePressed } = useCanvasPan(0, 0);
 
   // 作品拖拽
   const { dragState, startDrag, updateDrag, endDrag } = useWorkDrag(scale);
@@ -196,6 +261,12 @@ export default function DraggableCanvas({
     onDoubleClickWork?.(work);
   }, [onDoubleClickWork]);
 
+  // 调试日志
+  useEffect(() => {
+    console.log('[DraggableCanvas] works:', works.length, 'workPositions:', workPositions.size);
+    console.log('[DraggableCanvas] container size:', containerRef.current?.clientWidth, 'x', containerRef.current?.clientHeight);
+  }, [works, workPositions]);
+
   return (
     <div
       ref={containerRef}
@@ -232,6 +303,7 @@ export default function DraggableCanvas({
         {/* 作品卡片 */}
         {works.map((work) => {
           const position = workPositions.get(work.id);
+          console.log('[DraggableCanvas] Rendering work:', work.id, 'position:', position, 'thumbnail:', work.thumbnail?.substring(0, 50));
           if (!position) return null;
 
           return (

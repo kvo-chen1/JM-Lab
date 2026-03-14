@@ -55,7 +55,7 @@ export const AchievementIcon: React.FC<AchievementIconProps> = ({
   const iconName = iconNameMapping[icon || 'star'];
   
   if (iconName) {
-    const IconComponent = (LucideIcons as Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>>)[iconName];
+    const IconComponent = (LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>>)[iconName];
     if (IconComponent) {
       return <IconComponent className={className} style={style} />;
     }

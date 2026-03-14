@@ -1,691 +1,475 @@
-/**
- * 数据分析服务
- * 用于收集和上报用户行为数据
- */
-
 import { supabase } from '@/lib/supabase';
 
-// 导出类型定义
-export type MetricType = 'views' | 'likes' | 'comments' | 'shares' | 'favorites' | 'followers' | 'engagement';
-export type TimeRange = 'day' | 'week' | 'month' | 'quarter' | 'year';
-export type GroupBy = 'hour' | 'day' | 'week' | 'month';
-export type ExportFormat = 'json' | 'csv' | 'pdf';
+// 用户行为事件类型
+export type AnalyticsEventType = 
+  | 'page_view'
+  | 'click'
+  | 'scroll'
+  | 'hover'
+  | 'form_submit'
+  | 'search'
+  | 'error'
+  | 'performance';
 
-export interface AnalyticsQueryParams {
-  metric: MetricType;
-  timeRange: TimeRange;
-  groupBy: GroupBy;
-  filters?: {
-    userId?: string;
-    workId?: string;
-    theme?: string;
-  };
-}
-
-export interface WorkPerformance {
-  workId: string;
-  title: string;
-  thumbnail: string;
-  type: 'image' | 'video';
-  videoUrl?: string;
-  author: string;
-  metrics: {
-    views: number;
-    likes: number;
-    comments: number;
-    shares: number;
-    favorites: number;
-  };
-  trend: 'up' | 'down' | 'stable';
-  growth: number;
-}
-
-export interface UserActivity {
-  userId: string;
-  username: string;
-  avatar: string;
-  engagementScore: number;
-  metrics: {
-    worksCreated: number;
-    totalViews: number;
-    totalLikes: number;
-    followers: number;
-  };
-}
-
-export interface ThemeTrend {
-  theme: string;
-  worksCount: number;
-  viewsCount: number;
-  growth: number;
-}
-
-export interface DataPoint {
+// 用户行为事件数据
+export interface AnalyticsEvent {
+  id?: string;
+  user_id?: string;
+  session_id: string;
+  event_type: AnalyticsEventType;
+  page_url: string;
+  element_selector?: string;
+  metadata?: Record<string, any>;
   timestamp: string;
-  value: number;
-  label?: string;
+  device_info?: {
+    userAgent: string;
+    platform: string;
+    screenWidth: number;
+    screenHeight: number;
+  };
 }
 
-export interface DataStats {
-  total: number;
-  average: number;
-  growth: number;
-  peak: number;
-  trough: number;
-  trend: 'up' | 'down' | 'stable';
+// 页面性能数据
+export interface PerformanceData {
+  user_id?: string;
+  session_id: string;
+  page_url: string;
+  load_time: number;
+  dom_content_loaded: number;
+  first_paint?: number;
+  first_contentful_paint?: number;
+  largest_contentful_paint?: number;
+  time_to_interactive?: number;
+  timestamp: string;
+}
+
+// 用户会话信息
+export interface UserSession {
+  session_id: string;
+  user_id?: string;
+  start_time: string;
+  end_time?: string;
+  page_views: number;
+  duration?: number;
+  referrer?: string;
+  landing_page: string;
+  exit_page?: string;
 }
 
 class AnalyticsService {
+  private readonly EVENTS_TABLE = 'analytics_events';
+  private readonly PERFORMANCE_TABLE = 'performance_metrics';
+  private readonly SESSIONS_TABLE = 'user_sessions';
   private sessionId: string;
-  private deviceType: string;
-  private browser: string;
-  private os: string;
+  private flushInterval: NodeJS.Timeout | null = null;
+  private eventQueue: AnalyticsEvent[] = [];
+  private isTracking: boolean = false;
 
   constructor() {
     this.sessionId = this.generateSessionId();
-    this.deviceType = this.detectDeviceType();
-    this.browser = this.detectBrowser();
-    this.os = this.detectOS();
-
-    // 延迟初始化，确保 localStorage 可用
-    if (typeof window !== 'undefined') {
-      setTimeout(() => {
-        // 初始化时记录设备信息
-        this.recordDeviceInfo();
-
-        // 记录页面浏览
-        this.recordPageView();
-
-        // 记录流量来源
-        this.trackTrafficSource();
-      }, 100);
-    }
-
-    // 监听页面离开
-    this.setupPageLeaveTracking();
+    this.initSession();
   }
 
-  // 获取认证请求头
-  private getAuthHeaders(): HeadersInit {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    return headers;
-  }
-
-  // 生成会话ID
+  /**
+   * 生成会话ID
+   */
   private generateSessionId(): string {
-    return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  // 检测设备类型
-  private detectDeviceType(): string {
-    const ua = navigator.userAgent.toLowerCase();
-    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
-      return 'tablet';
-    }
-    if (/mobile|android|iphone|ipad|ipod|windows phone/i.test(ua)) {
-      return 'mobile';
-    }
-    return 'desktop';
-  }
+  /**
+   * 初始化会话
+   */
+  private async initSession() {
+    if (typeof window === 'undefined') return;
 
-  // 检测浏览器
-  private detectBrowser(): string {
-    const ua = navigator.userAgent;
-    if (ua.includes('Chrome')) return 'Chrome';
-    if (ua.includes('Firefox')) return 'Firefox';
-    if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Safari';
-    if (ua.includes('Edge')) return 'Edge';
-    if (ua.includes('Opera')) return 'Opera';
-    return 'Unknown';
-  }
+    const session: UserSession = {
+      session_id: this.sessionId,
+      user_id: this.getUserId(),
+      start_time: new Date().toISOString(),
+      page_views: 0,
+      referrer: document.referrer,
+      landing_page: window.location.href
+    };
 
-  // 检测操作系统
-  private detectOS(): string {
-    const ua = navigator.userAgent;
-    if (ua.includes('Windows')) return 'Windows';
-    if (ua.includes('Mac')) return 'MacOS';
-    if (ua.includes('Linux')) return 'Linux';
-    if (ua.includes('Android')) return 'Android';
-    if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
-    return 'Unknown';
-  }
-
-  // 记录设备信息
-  private async recordDeviceInfo(): Promise<void> {
     try {
-      const response = await fetch('/api/analytics/device', {
-        method: 'POST',
-        headers: this.getAuthHeaders(),
-        body: JSON.stringify({
-          device_type: this.deviceType,
-          device_name: navigator.platform,
-          user_agent: navigator.userAgent,
-        }),
-      });
-      
-      if (!response.ok) {
-        console.warn('记录设备信息失败:', response.status, response.statusText);
-      }
+      await supabase.from(this.SESSIONS_TABLE).insert(session);
     } catch (error) {
-      console.warn('记录设备信息失败:', error);
+      console.error('[Analytics] 初始化会话失败:', error);
     }
+
+    // 启动定期刷新
+    this.startFlushInterval();
+
+    // 监听页面卸载
+    window.addEventListener('beforeunload', () => this.endSession());
   }
 
-  // 记录页面浏览
-  private async recordPageView(): Promise<void> {
-    try {
-      const response = await fetch('/api/analytics/pageview', {
-        method: 'POST',
-        headers: this.getAuthHeaders(),
-        body: JSON.stringify({
-          page_path: window.location.pathname,
-          page_title: document.title,
-          referrer: document.referrer,
-          session_id: this.sessionId,
-          device_type: this.deviceType,
-          browser: this.browser,
-          os: this.os,
-        }),
-      });
-      
-      if (!response.ok) {
-        console.warn('记录页面浏览失败:', response.status, response.statusText);
-      }
-    } catch (error) {
-      console.warn('记录页面浏览失败:', error);
-    }
-  }
-
-  // 设置页面离开追踪
-  private setupPageLeaveTracking(): void {
-    let startTime = Date.now();
+  /**
+   * 获取用户ID
+   */
+  private getUserId(): string | undefined {
+    if (typeof window === 'undefined') return undefined;
     
-    // 页面可见性变化时记录停留时间
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        const duration = Math.round((Date.now() - startTime) / 1000);
-        this.updatePageDuration(duration);
-      } else {
-        startTime = Date.now();
-      }
-    });
-
-    // 页面卸载时记录
-    window.addEventListener('beforeunload', () => {
-      const duration = Math.round((Date.now() - startTime) / 1000);
-      this.updatePageDuration(duration);
-    });
-  }
-
-  // 更新页面停留时间
-  private async updatePageDuration(duration: number): Promise<void> {
-    // 这里可以实现一个批量上报机制
-    // 暂时使用 sendBeacon 确保数据在页面关闭时也能发送
-    if (navigator.sendBeacon) {
-      const data = JSON.stringify({
-        page_path: window.location.pathname,
-        duration: duration,
-        session_id: this.sessionId,
-      });
-      navigator.sendBeacon('/api/analytics/pageview/duration', new Blob([data], { type: 'application/json' }));
-    }
-  }
-
-  // 记录用户活动
-  public async trackActivity(
-    activityType: string,
-    activityName: string,
-    description?: string,
-    metadata?: Record<string, any>
-  ): Promise<void> {
     try {
-      await fetch('/api/analytics/activity', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          activity_type: activityType,
-          activity_name: activityName,
-          description: description || null,
-          metadata: metadata || null,
-        }),
-      });
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.id;
+      }
+    } catch (e) {
+      console.error('[Analytics] 获取用户ID失败:', e);
+    }
+    return undefined;
+  }
+
+  /**
+   * 开始定期刷新
+   */
+  private startFlushInterval() {
+    this.flushInterval = setInterval(() => {
+      this.flushEvents();
+    }, 5000); // 每5秒刷新一次
+  }
+
+  /**
+   * 结束会话
+   */
+  private async endSession() {
+    if (this.flushInterval) {
+      clearInterval(this.flushInterval);
+    }
+
+    // 刷新剩余事件
+    await this.flushEvents();
+
+    // 更新会话结束信息
+    try {
+      await supabase
+        .from(this.SESSIONS_TABLE)
+        .update({
+          end_time: new Date().toISOString(),
+          exit_page: window.location.href
+        })
+        .eq('session_id', this.sessionId);
     } catch (error) {
-      console.warn('记录用户活动失败:', error);
+      console.error('[Analytics] 结束会话失败:', error);
     }
   }
 
-  // 记录流量来源
-  public async trackTrafficSource(): Promise<void> {
+  /**
+   * 刷新事件队列
+   */
+  private async flushEvents() {
+    if (this.eventQueue.length === 0) return;
+
+    const events = [...this.eventQueue];
+    this.eventQueue = [];
+
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const utmSource = urlParams.get('utm_source');
-      const utmMedium = urlParams.get('utm_medium');
-      const utmCampaign = urlParams.get('utm_campaign');
+      const { error } = await supabase.from(this.EVENTS_TABLE).insert(events);
+      if (error) throw error;
+    } catch (error) {
+      console.error('[Analytics] 刷新事件失败:', error);
+      // 失败时重新加入队列
+      this.eventQueue.unshift(...events);
+    }
+  }
 
-      // 判断来源类型
-      let sourceType = 'direct';
-      let sourceName = '直接访问';
+  /**
+   * 追踪事件
+   */
+  trackEvent(eventType: AnalyticsEventType, metadata?: Record<string, any>, elementSelector?: string) {
+    if (typeof window === 'undefined') return;
 
-      if (utmSource) {
-        sourceName = utmSource;
-        if (utmSource.includes('google') || utmSource.includes('baidu')) {
-          sourceType = 'search';
-        } else if (utmSource.includes('wechat') || utmSource.includes('weibo') || utmSource.includes('douyin')) {
-          sourceType = 'social';
-        } else {
-          sourceType = 'other';
-        }
-      } else if (document.referrer) {
-        const referrer = document.referrer.toLowerCase();
-        if (referrer.includes('google') || referrer.includes('baidu')) {
-          sourceType = 'search';
-          sourceName = '搜索引擎';
-        } else if (referrer.includes('wechat') || referrer.includes('weibo') || referrer.includes('douyin')) {
-          sourceType = 'social';
-          sourceName = '社交媒体';
-        } else if (referrer) {
-          sourceType = 'referral';
-          sourceName = '外部链接';
+    const event: AnalyticsEvent = {
+      user_id: this.getUserId(),
+      session_id: this.sessionId,
+      event_type: eventType,
+      page_url: window.location.href,
+      element_selector: elementSelector,
+      metadata,
+      timestamp: new Date().toISOString(),
+      device_info: {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height
+      }
+    };
+
+    this.eventQueue.push(event);
+
+    // 如果队列过大，立即刷新
+    if (this.eventQueue.length >= 10) {
+      this.flushEvents();
+    }
+  }
+
+  /**
+   * 追踪页面浏览
+   */
+  trackPageView(pageUrl?: string, metadata?: Record<string, any>) {
+    this.trackEvent('page_view', {
+      ...metadata,
+      title: document.title,
+      url: pageUrl || window.location.href
+    });
+  }
+
+  /**
+   * 追踪点击
+   */
+  trackClick(elementSelector: string, metadata?: Record<string, any>) {
+    this.trackEvent('click', metadata, elementSelector);
+  }
+
+  /**
+   * 追踪搜索
+   */
+  trackSearch(query: string, resultsCount?: number, metadata?: Record<string, any>) {
+    this.trackEvent('search', {
+      query,
+      resultsCount,
+      ...metadata
+    });
+  }
+
+  /**
+   * 追踪错误
+   */
+  trackError(error: Error, metadata?: Record<string, any>) {
+    this.trackEvent('error', {
+      message: error.message,
+      stack: error.stack,
+      ...metadata
+    });
+  }
+
+  /**
+   * 追踪性能指标
+   */
+  async trackPerformance() {
+    if (typeof window === 'undefined') return;
+
+    // 等待性能数据可用
+    if ('performance' in window) {
+      const timing = performance.timing;
+      const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+
+      if (navigation) {
+        const data: PerformanceData = {
+          user_id: this.getUserId(),
+          session_id: this.sessionId,
+          page_url: window.location.href,
+          load_time: navigation.loadEventEnd - navigation.startTime,
+          dom_content_loaded: navigation.domContentLoadedEventEnd - navigation.startTime,
+          timestamp: new Date().toISOString()
+        };
+
+        // 获取 paint 数据
+        const paints = performance.getEntriesByType('paint');
+        paints.forEach(paint => {
+          if (paint.name === 'first-paint') {
+            data.first_paint = paint.startTime;
+          }
+          if (paint.name === 'first-contentful-paint') {
+            data.first_contentful_paint = paint.startTime;
+          }
+        });
+
+        try {
+          await supabase.from(this.PERFORMANCE_TABLE).insert(data);
+        } catch (error) {
+          console.error('[Analytics] 追踪性能失败:', error);
         }
       }
+    }
+  }
 
-      const response = await fetch('/api/analytics/traffic', {
-        method: 'POST',
-        headers: this.getAuthHeaders(),
-        body: JSON.stringify({
-          source_type: sourceType,
-          source_name: sourceName,
-          utm_source: utmSource,
-          utm_medium: utmMedium,
-          utm_campaign: utmCampaign,
-          referrer_url: document.referrer || null,
-          landing_page: window.location.pathname,
-        }),
+  /**
+   * 开始自动追踪
+   */
+  startAutoTracking() {
+    if (this.isTracking || typeof window === 'undefined') return;
+    this.isTracking = true;
+
+    // 追踪页面浏览
+    this.trackPageView();
+
+    // 监听点击事件
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const selector = this.getElementSelector(target);
+      this.trackClick(selector, {
+        tagName: target.tagName,
+        text: target.textContent?.substring(0, 50),
+        id: target.id,
+        className: target.className
       });
+    });
+
+    // 监听滚动
+    let scrollTimeout: NodeJS.Timeout;
+    window.addEventListener('scroll', () => {
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        this.trackEvent('scroll', {
+          scrollY: window.scrollY,
+          scrollX: window.scrollX,
+          documentHeight: document.documentElement.scrollHeight
+        });
+      }, 500);
+    });
+
+    // 追踪性能
+    window.addEventListener('load', () => {
+      setTimeout(() => this.trackPerformance(), 0);
+    });
+
+    // 监听路由变化（用于SPA）
+    let lastUrl = window.location.href;
+    const observer = new MutationObserver(() => {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        this.trackPageView();
+      }
+    });
+    observer.observe(document, { subtree: true, childList: true });
+  }
+
+  /**
+   * 获取元素选择器
+   */
+  private getElementSelector(element: HTMLElement): string {
+    const parts: string[] = [];
+    let current: HTMLElement | null = element;
+
+    while (current && parts.length < 5) {
+      let selector = current.tagName.toLowerCase();
       
-      if (!response.ok) {
-        console.warn('记录流量来源失败:', response.status, response.statusText);
+      if (current.id) {
+        selector += `#${current.id}`;
+        parts.unshift(selector);
+        break;
       }
-    } catch (error) {
-      console.warn('记录流量来源失败:', error);
+      
+      if (current.className) {
+        const classes = current.className.split(' ').filter(c => c).slice(0, 3);
+        if (classes.length > 0) {
+          selector += `.${classes.join('.')}`;
+        }
+      }
+      
+      parts.unshift(selector);
+      current = current.parentElement;
     }
+
+    return parts.join(' > ');
   }
 
-  // 追踪事件
-  public trackEvent(eventName: string, eventData?: Record<string, any>): void {
-    this.trackActivity('event', eventName, undefined, eventData);
-  }
+  /**
+   * 获取统计数据
+   */
+  async getStats(days: number = 7): Promise<{
+    pageViews: number;
+    uniqueVisitors: number;
+    avgSessionDuration: number;
+    topPages: Array<{ page: string; views: number }>;
+  }> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
 
-  // 追踪页面浏览
-  public trackPageView(pagePath?: string, pageTitle?: string): void {
-    this.recordPageView();
-  }
-
-  // 获取作品表现数据
-  public async getWorksPerformance(limit: number = 5): Promise<WorkPerformance[]> {
     try {
-      const response = await fetch(`/api/analytics/works-performance?limit=${limit}`, {
-        headers: this.getAuthHeaders(),
+      // 页面浏览量
+      const { count: pageViews } = await supabase
+        .from(this.EVENTS_TABLE)
+        .select('*', { count: 'exact', head: true })
+        .eq('event_type', 'page_view')
+        .gte('timestamp', startDate.toISOString());
+
+      // 独立访客
+      const { data: sessions } = await supabase
+        .from(this.SESSIONS_TABLE)
+        .select('session_id')
+        .gte('start_time', startDate.toISOString());
+
+      const uniqueVisitors = new Set(sessions?.map(s => s.session_id)).size;
+
+      // 平均会话时长
+      const { data: sessionDurations } = await supabase
+        .from(this.SESSIONS_TABLE)
+        .select('duration')
+        .gte('start_time', startDate.toISOString())
+        .not('duration', 'is', null);
+
+      const avgSessionDuration = sessionDurations && sessionDurations.length > 0
+        ? sessionDurations.reduce((sum, s) => sum + (s.duration || 0), 0) / sessionDurations.length
+        : 0;
+
+      // 热门页面
+      const { data: topPagesData } = await supabase
+        .from(this.EVENTS_TABLE)
+        .select('page_url')
+        .eq('event_type', 'page_view')
+        .gte('timestamp', startDate.toISOString());
+
+      const pageCount: Record<string, number> = {};
+      topPagesData?.forEach(event => {
+        pageCount[event.page_url] = (pageCount[event.page_url] || 0) + 1;
       });
-      if (!response.ok) {
-        throw new Error('Failed to fetch works performance');
-      }
-      const data = await response.json();
-      return data.data || [];
+
+      const topPages = Object.entries(pageCount)
+        .map(([page, views]) => ({ page, views }))
+        .sort((a, b) => b.views - a.views)
+        .slice(0, 10);
+
+      return {
+        pageViews: pageViews || 0,
+        uniqueVisitors,
+        avgSessionDuration,
+        topPages
+      };
     } catch (error) {
-      console.warn('获取作品表现数据失败:', error);
-      // 返回模拟数据作为后备
-      return this.getMockWorksPerformance(limit);
+      console.error('[Analytics] 获取统计失败:', error);
+      return {
+        pageViews: 0,
+        uniqueVisitors: 0,
+        avgSessionDuration: 0,
+        topPages: []
+      }
     }
   }
 
-  // 获取用户活动数据
-  public async getUserActivity(limit: number = 5): Promise<UserActivity[]> {
+  /**
+   * 增加作品浏览次数
+   */
+  async incrementWorkViewCount(workId: string): Promise<void> {
     try {
-      const response = await fetch(`/api/analytics/user-activity?limit=${limit}`, {
-        headers: this.getAuthHeaders(),
+      // 调用 Supabase RPC 函数增加浏览次数
+      const { error } = await supabase.rpc('increment_work_view_count', {
+        work_id: workId
       });
-      if (!response.ok) {
-        throw new Error('Failed to fetch user activity');
-      }
-      const data = await response.json();
-      return data.data || [];
-    } catch (error) {
-      console.warn('获取用户活动数据失败:', error);
-      // 返回模拟数据作为后备
-      return this.getMockUserActivity(limit);
-    }
-  }
-
-  // 获取主题趋势数据
-  public async getThemeTrends(limit: number = 5): Promise<ThemeTrend[]> {
-    try {
-      const response = await fetch(`/api/analytics/theme-trends?limit=${limit}`, {
-        headers: this.getAuthHeaders(),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch theme trends');
-      }
-      const data = await response.json();
-      return data.data || [];
-    } catch (error) {
-      console.warn('获取主题趋势数据失败:', error);
-      // 返回模拟数据作为后备
-      return this.getMockThemeTrends(limit);
-    }
-  }
-
-  // 获取指标数据（用于图表）
-  public async getMetricsData(params: AnalyticsQueryParams): Promise<DataPoint[]> {
-    try {
-      const queryString = new URLSearchParams({
-        metric: params.metric,
-        timeRange: params.timeRange,
-        groupBy: params.groupBy,
-        ...(params.filters?.userId && { userId: params.filters.userId }),
-        ...(params.filters?.workId && { workId: params.filters.workId }),
-        ...(params.filters?.theme && { theme: params.filters.theme }),
-      }).toString();
-
-      const response = await fetch(`/api/analytics/metrics?${queryString}`, {
-        headers: this.getAuthHeaders(),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch metrics data');
-      }
-      const data = await response.json();
-      return data.data || [];
-    } catch (error) {
-      console.warn('获取指标数据失败:', error);
-      // 返回模拟数据作为后备
-      return this.getMockMetricsData(params);
-    }
-  }
-
-  // 获取用户分析数据（包含正确的总计）
-  public async getUserAnalytics(): Promise<{ totalWorks: number; totalViews: number; totalLikes: number; totalComments: number } | null> {
-    try {
-      const response = await fetch('/api/user/analytics', {
-        headers: this.getAuthHeaders(),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch user analytics');
-      }
-      const data = await response.json();
-      return data.data || null;
-    } catch (error) {
-      console.warn('获取用户分析数据失败:', error);
-      return null;
-    }
-  }
-
-  // 增加作品浏览量
-  public async incrementWorkViewCount(workId: string): Promise<number | null> {
-    try {
-      const { data, error } = await supabase
-        .rpc('increment_work_view_count', { work_id: workId });
       
       if (error) {
-        console.warn('增加浏览量失败:', error);
-        return null;
+        console.error('[Analytics] 增加作品浏览次数失败:', error);
       }
-      
-      return data;
     } catch (error) {
-      console.warn('增加浏览量失败:', error);
-      return null;
+      console.error('[Analytics] 增加作品浏览次数异常:', error);
     }
-  }
-
-  // 计算指标统计
-  public getMetricsStats(data: DataPoint[], metric: MetricType): DataStats {
-    if (!data || data.length === 0) {
-      return {
-        total: 0,
-        average: 0,
-        growth: 0,
-        peak: 0,
-        trough: 0,
-        trend: 'stable'
-      };
-    }
-
-    const values = data.map(d => d.value);
-    const total = values.reduce((sum, val) => sum + val, 0);
-    const average = total / values.length;
-    const peak = Math.max(...values);
-    const trough = Math.min(...values);
-
-    // 计算增长率（比较前半段和后半段）
-    const half = Math.floor(values.length / 2);
-    const firstHalf = values.slice(0, half).reduce((sum, val) => sum + val, 0);
-    const secondHalf = values.slice(half).reduce((sum, val) => sum + val, 0);
-    const growth = firstHalf > 0 ? ((secondHalf - firstHalf) / firstHalf) * 100 : 0;
-
-    // 判断趋势
-    let trend: 'up' | 'down' | 'stable' = 'stable';
-    if (values.length >= 2) {
-      const recent = values.slice(-3);
-      const avgRecent = recent.reduce((sum, val) => sum + val, 0) / recent.length;
-      if (avgRecent > average * 1.1) {
-        trend = 'up';
-      } else if (avgRecent < average * 0.9) {
-        trend = 'down';
-      }
-    }
-
-    return {
-      total,
-      average,
-      growth,
-      peak,
-      trough,
-      trend
-    };
-  }
-
-  // 下载导出数据
-  public async downloadExport(params: AnalyticsQueryParams, format: ExportFormat): Promise<void> {
-    try {
-      const queryString = new URLSearchParams({
-        metric: params.metric,
-        timeRange: params.timeRange,
-        groupBy: params.groupBy,
-        format: format,
-        ...(params.filters?.userId && { userId: params.filters.userId }),
-        ...(params.filters?.workId && { workId: params.filters.workId }),
-        ...(params.filters?.theme && { theme: params.filters.theme }),
-      }).toString();
-
-      const response = await fetch(`/api/analytics/export?${queryString}`, {
-        headers: this.getAuthHeaders(),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to export data');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `analytics-export-${Date.now()}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.warn('导出数据失败:', error);
-      throw error;
-    }
-  }
-
-  // 模拟数据生成方法
-  private getMockWorksPerformance(limit: number): WorkPerformance[] {
-    const mockData: WorkPerformance[] = [
-      {
-        workId: '1',
-        title: '津脉广场夜景',
-        thumbnail: 'https://picsum.photos/seed/work1/100/100',
-        type: 'image',
-        author: '摄影师小王',
-        metrics: { views: 12580, likes: 892, comments: 156, shares: 89, favorites: 234 },
-        trend: 'up',
-        growth: 23.5,
-      },
-      {
-        workId: '2',
-        title: '海河风光',
-        thumbnail: 'https://picsum.photos/seed/work2/100/100',
-        type: 'video',
-        videoUrl: 'https://example.com/video1.mp4',
-        author: '旅行达人',
-        metrics: { views: 9876, likes: 654, comments: 98, shares: 67, favorites: 189 },
-        trend: 'up',
-        growth: 15.2,
-      },
-      {
-        workId: '3',
-        title: '天津美食探店',
-        thumbnail: 'https://picsum.photos/seed/work3/100/100',
-        type: 'image',
-        author: '吃货小李',
-        metrics: { views: 8654, likes: 543, comments: 87, shares: 45, favorites: 156 },
-        trend: 'stable',
-        growth: 2.1,
-      },
-      {
-        workId: '4',
-        title: '意式风情街',
-        thumbnail: 'https://picsum.photos/seed/work4/100/100',
-        type: 'image',
-        author: '城市探索者',
-        metrics: { views: 7234, likes: 432, comments: 65, shares: 34, favorites: 123 },
-        trend: 'down',
-        growth: -5.3,
-      },
-      {
-        workId: '5',
-        title: '五大道漫步',
-        thumbnail: 'https://picsum.photos/seed/work5/100/100',
-        type: 'video',
-        videoUrl: 'https://example.com/video2.mp4',
-        author: '历史爱好者',
-        metrics: { views: 6543, likes: 387, comments: 54, shares: 28, favorites: 98 },
-        trend: 'up',
-        growth: 8.7,
-      },
-    ];
-    return mockData.slice(0, limit);
-  }
-
-  private getMockUserActivity(limit: number): UserActivity[] {
-    const mockData: UserActivity[] = [
-      {
-        userId: '1',
-        username: '创作者小明',
-        avatar: 'https://picsum.photos/seed/user1/100/100',
-        engagementScore: 95,
-        metrics: { worksCreated: 45, totalViews: 125000, totalLikes: 8900, followers: 2300 },
-      },
-      {
-        userId: '2',
-        username: '摄影师阿华',
-        avatar: 'https://picsum.photos/seed/user2/100/100',
-        engagementScore: 88,
-        metrics: { worksCreated: 32, totalViews: 98000, totalLikes: 6500, followers: 1800 },
-      },
-      {
-        userId: '3',
-        username: '美食博主',
-        avatar: 'https://picsum.photos/seed/user3/100/100',
-        engagementScore: 82,
-        metrics: { worksCreated: 28, totalViews: 87000, totalLikes: 5400, followers: 1500 },
-      },
-      {
-        userId: '4',
-        username: '旅行家',
-        avatar: 'https://picsum.photos/seed/user4/100/100',
-        engagementScore: 76,
-        metrics: { worksCreated: 25, totalViews: 72000, totalLikes: 4300, followers: 1200 },
-      },
-      {
-        userId: '5',
-        username: '城市记录者',
-        avatar: 'https://picsum.photos/seed/user5/100/100',
-        engagementScore: 71,
-        metrics: { worksCreated: 22, totalViews: 65000, totalLikes: 3800, followers: 980 },
-      },
-    ];
-    return mockData.slice(0, limit);
-  }
-
-  private getMockThemeTrends(limit: number): ThemeTrend[] {
-    const mockData: ThemeTrend[] = [
-      { theme: '津脉广场', worksCount: 1234, viewsCount: 567000, growth: 23.5 },
-      { theme: '海河风光', worksCount: 987, viewsCount: 432000, growth: 18.2 },
-      { theme: '天津美食', worksCount: 876, viewsCount: 389000, growth: 15.7 },
-      { theme: '五大道', worksCount: 654, viewsCount: 298000, growth: 12.3 },
-      { theme: '意式风情', worksCount: 543, viewsCount: 234000, growth: -3.2 },
-    ];
-    return mockData.slice(0, limit);
-  }
-
-  // 生成模拟指标数据
-  private getMockMetricsData(params: AnalyticsQueryParams): DataPoint[] {
-    const { timeRange, groupBy } = params;
-    const now = new Date();
-    const data: DataPoint[] = [];
-
-    // 根据时间范围和分组确定数据点数量
-    let points = 30;
-    if (timeRange === 'day') points = 24; // 24小时
-    else if (timeRange === 'week') points = 7; // 7天
-    else if (timeRange === 'month') points = 30; // 30天
-    else if (timeRange === 'quarter') points = 12; // 12周
-    else if (timeRange === 'year') points = 12; // 12个月
-
-    // 生成趋势数据
-    const baseValue = 100;
-    for (let i = 0; i < points; i++) {
-      const date = new Date(now);
-      if (groupBy === 'hour') {
-        date.setHours(date.getHours() - (points - i));
-      } else {
-        date.setDate(date.getDate() - (points - i));
-      }
-
-      // 添加一些随机波动和趋势
-      const trend = Math.sin(i / points * Math.PI) * 50;
-      const random = (Math.random() - 0.5) * 30;
-      const value = Math.max(0, Math.round(baseValue + trend + random));
-
-      data.push({
-        timestamp: date.toISOString(),
-        value,
-        label: groupBy === 'hour'
-          ? `${date.getHours()}:00`
-          : `${date.getMonth() + 1}/${date.getDate()}`
-      });
-    }
-
-    return data;
   }
 }
 
-// 创建单例实例
+// 创建单例
 export const analyticsService = new AnalyticsService();
 
-// 导出独立的增加浏览量函数
-export const incrementWorkViewCount = (workId: string): Promise<number | null> => {
-  return analyticsService.incrementWorkViewCount(workId);
-};
+// 自动启动追踪（如果在浏览器环境）
+if (typeof window !== 'undefined') {
+  analyticsService.startAutoTracking();
+}
+
+// 导出独立的 incrementWorkViewCount 函数
+export const incrementWorkViewCount = (workId: string) => 
+  analyticsService.incrementWorkViewCount(workId);
 
 export default analyticsService;

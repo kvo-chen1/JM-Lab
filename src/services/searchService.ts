@@ -3,6 +3,7 @@ import { workService } from '@/services/apiService'
 import { behaviorAnalysisService } from '@/services/behaviorAnalysisService'
 import { eventService, Event } from '@/services/eventService'
 import { communityService } from '@/services/communityService'
+import { getProducts, getMerchantProducts, Product } from '@/services/productService'
 import { supabase } from '@/lib/supabase'
 
 // 搜索结果类型
@@ -261,15 +262,18 @@ class SearchService {
     events: Event[]
     communities: any[]
     brands: any[]
+    products: Product[]
+    games: any[]
   }> {
     const lowerQuery = query.toLowerCase().trim()
 
     try {
       // 并行获取所有数据
-      const [worksData, eventsData, communitiesData] = await Promise.all([
+      const [worksData, eventsData, communitiesData, productsData] = await Promise.all([
         workService.getWorks(),
         eventService.getAllPublicEvents(),
-        communityService.getCommunities()
+        communityService.getCommunities(),
+        getMerchantProducts({ searchQuery: query, status: 'on_sale', limit: 50 })
       ]);
 
       // 从数据库搜索品牌 (使用 brand_partnerships 表)
@@ -351,6 +355,47 @@ class SearchService {
       // 品牌数据
       const brands = brandsData || [];
 
+      // 商品数据
+      const products = productsData.data || [];
+
+      // 搜索游戏数据（从 games 表）
+      const { data: gamesData, error: gamesError } = await supabase
+        .from('games')
+        .select('*')
+        .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (gamesError) {
+        console.error('Failed to fetch games:', gamesError);
+      }
+
+      // 游戏数据 - 如果数据库查询失败，使用本地游戏列表过滤
+      let games: any[] = [];
+      if (gamesData && gamesData.length > 0) {
+        games = gamesData;
+      } else {
+        // 本地游戏列表作为回退
+        const localGames = [
+          { id: 'cultural-knowledge', title: '文化知识挑战', description: '测试你对天津地方文化和中国传统文化的了解', category: 'quiz', difficulty: 'medium', players: 12580, rating: 4.8 },
+          { id: 'cultural-memory', title: '文化记忆游戏', description: '翻牌匹配相同的文化元素，挑战你的记忆力和文化知识', category: 'memory', difficulty: 'easy', players: 8920, rating: 4.6 },
+          { id: 'matching-game', title: '文化连连看', description: '连接相同的文化图案，在限定时间内完成所有配对', category: 'matching', difficulty: 'easy', players: 7560, rating: 4.5 },
+          { id: 'puzzle-game', title: '文化拼图', description: '将打乱的天津文化图片拼回原样，锻炼你的观察力和耐心', category: 'puzzle', difficulty: 'medium', players: 6230, rating: 4.7 },
+          { id: 'sorting-game', title: '文化排序', description: '按照时间顺序或重要性排序文化事件和人物', category: 'sorting', difficulty: 'hard', players: 4890, rating: 4.4 },
+          { id: 'riddle-game', title: '文化猜谜', description: '根据提示猜出天津文化相关的谜语，考验你的文化积累', category: 'riddle', difficulty: 'medium', players: 5670, rating: 4.3 },
+          { id: 'timeline-game', title: '文化时间轴', description: '将历史事件按照正确的时间顺序排列，了解天津文化的发展历程', category: 'timeline', difficulty: 'hard', players: 3450, rating: 4.5 },
+          { id: 'spot-difference', title: '文化找茬', description: '找出两幅天津文化图片中的不同之处，锻炼你的观察力', category: 'spot', difficulty: 'easy', players: 9120, rating: 4.6 },
+          { id: 'pair-matching', title: '文化配对', description: '将相关的文化元素进行配对，考验你的文化知识关联能力', category: 'pair', difficulty: 'easy', players: 7650, rating: 4.5 },
+          { id: 'wordchain-game', title: '成语接龙', description: '经典成语接龙游戏，考验你的成语积累和反应速度', category: 'wordchain', difficulty: 'medium', players: 6780, rating: 4.7 },
+        ];
+        const lowerQuery = query.toLowerCase().trim();
+        games = localGames.filter(game =>
+          game.title.toLowerCase().includes(lowerQuery) ||
+          game.description.toLowerCase().includes(lowerQuery)
+        );
+      }
+
       return {
         works,
         users,
@@ -358,7 +403,9 @@ class SearchService {
         tags,
         events,
         communities,
-        brands
+        brands,
+        products,
+        games
       };
     } catch (error) {
       console.error('搜索失败:', error);
@@ -369,7 +416,9 @@ class SearchService {
         tags: [],
         events: [],
         communities: [],
-        brands: []
+        brands: [],
+        products: [],
+        games: []
       };
     }
   }

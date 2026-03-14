@@ -1,160 +1,370 @@
-import * as React from 'react';
+import { useState, useRef, useCallback, useEffect, ReactNode } from 'react';
+import { useTheme } from '@/hooks/useTheme';
 
 interface VirtualListProps<T> {
   items: T[];
-  renderItem: (item: T, index: number) => React.ReactNode;
-  columns?: number;
-  isDark: boolean;
-  height?: number | string;
-  itemHeight?: number;
+  renderItem: (item: T, index: number) => ReactNode;
+  itemHeight: number;
   overscan?: number;
+  className?: string;
+  onScrollEnd?: () => void;
+  emptyComponent?: ReactNode;
+  loadingComponent?: ReactNode;
+  isLoading?: boolean;
 }
 
-// 真正的虚拟滚动组件，只渲染可见区域的项目
-export default function VirtualList<T>({
+/**
+ * 虚拟滚动列表组件
+ * 用于优化长列表渲染性能
+ */
+export function VirtualList<T>({
   items,
   renderItem,
-  columns = 3,
-  isDark,
-  height = 'auto',
-  itemHeight = 250,
+  itemHeight,
   overscan = 5,
+  className = '',
+  onScrollEnd,
+  emptyComponent,
+  loadingComponent,
+  isLoading = false
 }: VirtualListProps<T>) {
-  // 使用状态跟踪响应式列数
-  const [columnCount, setColumnCount] = React.useState(columns);
-  
-  // 虚拟滚动相关状态和Refs
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const contentRef = React.useRef<HTMLDivElement>(null);
-  const scrollTopRef = React.useRef(0);
-  const [visibleItems, setVisibleItems] = React.useState<{ start: number; end: number }>({ start: 0, end: overscan });
-  
-  // 响应式列数处理
-  React.useEffect(() => {
-    const handleResize = () => {
-      if (typeof window === 'undefined') return;
-      
-      let newColumns = columns;
-      if (window.innerWidth < 640) {
-        newColumns = 1;
-      } else if (window.innerWidth < 768) {
-        newColumns = 2;
-      } else if (window.innerWidth < 1024) {
-        newColumns = 3;
-      } else if (window.innerWidth < 1280) {
-        newColumns = 4;
-      } else {
-        newColumns = Math.min(columns, 5);
-      }
-      
-      setColumnCount(newColumns);
-    };
+  const { isDark } = useTheme();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
 
-    // 初始设置
-    handleResize();
-    
-    // 监听窗口大小变化
-    window.addEventListener('resize', handleResize);
-    
-    return () => window.removeEventListener('resize', handleResize);
-  }, [columns]);
-  
-  // 计算可见区域的项目
-  const calculateVisibleItems = React.useCallback(() => {
-    if (!containerRef.current) return;
-    
-    const containerHeight = containerRef.current.clientHeight;
-    const scrollTop = scrollTopRef.current;
-    
-    // 计算可见区域的起始和结束索引（考虑列数）
-    const itemsPerRow = columnCount;
-    const rowsPerPage = Math.ceil(containerHeight / itemHeight);
-    
-    const startRow = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
-    const endRow = Math.min(Math.ceil(items.length / itemsPerRow), startRow + rowsPerPage + overscan * 2);
-    
-    const startIndex = startRow * itemsPerRow;
-    const endIndex = Math.min(items.length, endRow * itemsPerRow);
-    
-    setVisibleItems({ start: startIndex, end: endIndex });
-  }, [columnCount, items.length, itemHeight, overscan]);
-  
-  // 处理滚动事件
-  const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    scrollTopRef.current = e.currentTarget.scrollTop;
-    calculateVisibleItems();
-  }, [calculateVisibleItems]);
-  
-  // 初始计算可见区域
-  React.useEffect(() => {
-    calculateVisibleItems();
-  }, [calculateVisibleItems, columnCount, items.length]);
-  
-  // 计算总高度
-  const totalHeight = Math.ceil(items.length / columnCount) * itemHeight;
-  
-  // 获取可见区域的项目
-  const visibleItemsArray = items.slice(visibleItems.start, visibleItems.end);
-  
-  // 计算偏移量
-  const offsetY = Math.floor(visibleItems.start / columnCount) * itemHeight;
-  
-  return (
-    <div 
-      ref={containerRef}
-      className={`${isDark ? 'bg-gray-900' : 'bg-white'} overflow-y-auto`}
-      style={{
-        height: height,
-        scrollbarWidth: 'thin',
-        scrollbarColor: isDark ? '#4a5568 #1f2937' : '#d1d5db #f3f4f6',
-        WebkitOverflowScrolling: 'touch', // 启用原生触摸滚动优化
-        scrollBehavior: 'smooth', // 平滑滚动
-      }}
-      onScroll={handleScroll}
-      data-virtual-list
-    >
-      {/* 占位元素，用于创建滚动条 */}
-      <div 
-        ref={contentRef}
-        style={{ 
-          height: totalHeight,
-          position: 'relative'
-        }}
+  // 计算可见区域
+  const totalHeight = items.length * itemHeight;
+  const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
+  const visibleCount = Math.ceil(containerHeight / itemHeight) + overscan * 2;
+  const endIndex = Math.min(items.length, startIndex + visibleCount);
+  const visibleItems = items.slice(startIndex, endIndex);
+
+  // 监听容器大小变化
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height);
+      }
+    });
+
+    resizeObserver.observe(container);
+    setContainerHeight(container.clientHeight);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  // 处理滚动
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    setScrollTop(target.scrollTop);
+
+    // 检测是否滚动到底部
+    if (onScrollEnd) {
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        onScrollEnd();
+      }
+    }
+  }, [onScrollEnd]);
+
+  // 空状态
+  if (items.length === 0 && !isLoading) {
+    return (
+      <div
+        ref={containerRef}
+        className={`
+          overflow-auto
+          ${isDark ? 'bg-slate-900' : 'bg-white'}
+          ${className}
+        `}
       >
-        {/* 可见区域的项目 */}
-        <div 
-          className="grid gap-4 p-2 absolute top-0 left-0 right-0"
-          style={{
-            gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
-            transform: `translateY(${offsetY}px)`,
-          }}
-        >
-          {visibleItemsArray.map((item, index) => (
-            <React.Fragment key={visibleItems.start + index}>
-              {renderItem(item, visibleItems.start + index)}
-            </React.Fragment>
-          ))}
-        </div>
+        {emptyComponent || (
+          <div className="flex items-center justify-center h-40 text-gray-500">
+            暂无数据
+          </div>
+        )}
       </div>
-      
-      {/* 自定义滚动条样式 - 只影响当前组件 */}
-      <style>{`
-        /* 滚动条样式 - 只影响当前组件 */
-        [data-virtual-list]::-webkit-scrollbar {
-          width: 8px;
-        }
-        [data-virtual-list]::-webkit-scrollbar-track {
-          background: ${isDark ? '#1f2937' : '#f3f4f6'};
-          border-radius: 4px;
-        }
-        [data-virtual-list]::-webkit-scrollbar-thumb {
-          background: ${isDark ? '#4a5568' : '#d1d5db'};
-          border-radius: 4px;
-        }
-        [data-virtual-list]::-webkit-scrollbar-thumb:hover {
-          background: ${isDark ? '#718096' : '#9ca3af'};
-        }
-      `}</style>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className={`
+        overflow-auto relative
+        ${isDark ? 'bg-slate-900' : 'bg-white'}
+        ${className}
+      `}
+      style={{ willChange: 'transform' }}
+    >
+      {/* 占位容器 */}
+      <div style={{ height: totalHeight, position: 'relative' }}>
+        {/* 可见项目 */}
+        {visibleItems.map((item, index) => {
+          const actualIndex = startIndex + index;
+          const top = actualIndex * itemHeight;
+
+          return (
+            <div
+              key={actualIndex}
+              className="absolute left-0 right-0"
+              style={{
+                top,
+                height: itemHeight,
+                willChange: 'transform'
+              }}
+            >
+              {renderItem(item, actualIndex)}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 加载更多指示器 */}
+      {isLoading && loadingComponent}
     </div>
   );
 }
+
+/**
+ * 虚拟网格组件
+ * 用于优化网格布局的长列表
+ */
+interface VirtualGridProps<T> {
+  items: T[];
+  renderItem: (item: T, index: number) => ReactNode;
+  columnCount: number;
+  itemHeight: number;
+  gap?: number;
+  overscan?: number;
+  className?: string;
+  onScrollEnd?: () => void;
+}
+
+export function VirtualGrid<T>({
+  items,
+  renderItem,
+  columnCount,
+  itemHeight,
+  gap = 16,
+  overscan = 2,
+  className = '',
+  onScrollEnd
+}: VirtualGridProps<T>) {
+  const { isDark } = useTheme();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
+
+  const rowCount = Math.ceil(items.length / columnCount);
+  const totalHeight = rowCount * itemHeight + (rowCount - 1) * gap;
+
+  const startRow = Math.max(0, Math.floor(scrollTop / (itemHeight + gap)) - overscan);
+  const visibleRowCount = Math.ceil(containerHeight / (itemHeight + gap)) + overscan * 2;
+  const endRow = Math.min(rowCount, startRow + visibleRowCount);
+
+  // 监听容器大小
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height);
+      }
+    });
+
+    resizeObserver.observe(container);
+    setContainerHeight(container.clientHeight);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  // 处理滚动
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    setScrollTop(target.scrollTop);
+
+    if (onScrollEnd) {
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        onScrollEnd();
+      }
+    }
+  }, [onScrollEnd]);
+
+  // 生成可见项目
+  const visibleItems: Array<{ item: T; index: number; row: number; col: number }> = [];
+  for (let row = startRow; row < endRow; row++) {
+    for (let col = 0; col < columnCount; col++) {
+      const index = row * columnCount + col;
+      if (index < items.length) {
+        visibleItems.push({ item: items[index], index, row, col });
+      }
+    }
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className={`
+        overflow-auto
+        ${isDark ? 'bg-slate-900' : 'bg-white'}
+        ${className}
+      `}
+    >
+      <div style={{ height: totalHeight, position: 'relative' }}>
+        <div
+          className="grid absolute inset-x-0"
+          style={{
+            gridTemplateColumns: `repeat(${columnCount}, 1fr)`,
+            gap,
+            top: startRow * (itemHeight + gap)
+          }}
+        >
+          {visibleItems.map(({ item, index }) => (
+            <div key={index} style={{ height: itemHeight }}>
+              {renderItem(item, index)}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 动态高度虚拟列表
+ * 用于项目高度不固定的场景
+ */
+interface DynamicVirtualListProps<T> {
+  items: T[];
+  renderItem: (item: T, index: number, style: React.CSSProperties) => ReactNode;
+  estimateItemHeight: (item: T, index: number) => number;
+  overscan?: number;
+  className?: string;
+  onScrollEnd?: () => void;
+}
+
+export function DynamicVirtualList<T>({
+  items,
+  renderItem,
+  estimateItemHeight,
+  overscan = 5,
+  className = '',
+  onScrollEnd
+}: DynamicVirtualListProps<T>) {
+  const { isDark } = useTheme();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
+  const itemPositionsRef = useRef<Array<{ top: number; height: number }>>([]);
+
+  // 计算项目位置
+  const calculatePositions = useCallback(() => {
+    const positions: Array<{ top: number; height: number }> = [];
+    let currentTop = 0;
+
+    items.forEach((item, index) => {
+      const height = estimateItemHeight(item, index);
+      positions.push({ top: currentTop, height });
+      currentTop += height;
+    });
+
+    itemPositionsRef.current = positions;
+    return currentTop;
+  }, [items, estimateItemHeight]);
+
+  const totalHeight = calculatePositions();
+
+  // 计算可见范围
+  const positions = itemPositionsRef.current;
+  let startIndex = 0;
+  for (let i = 0; i < positions.length; i++) {
+    if (positions[i].top + positions[i].height > scrollTop) {
+      startIndex = Math.max(0, i - overscan);
+      break;
+    }
+  }
+
+  let endIndex = positions.length;
+  for (let i = startIndex; i < positions.length; i++) {
+    if (positions[i].top > scrollTop + containerHeight) {
+      endIndex = Math.min(positions.length, i + overscan);
+      break;
+    }
+  }
+
+  // 监听容器大小
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height);
+      }
+    });
+
+    resizeObserver.observe(container);
+    setContainerHeight(container.clientHeight);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  // 处理滚动
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    setScrollTop(target.scrollTop);
+
+    if (onScrollEnd) {
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        onScrollEnd();
+      }
+    }
+  }, [onScrollEnd]);
+
+  return (
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className={`
+        overflow-auto
+        ${isDark ? 'bg-slate-900' : 'bg-white'}
+        ${className}
+      `}
+    >
+      <div style={{ height: totalHeight, position: 'relative' }}>
+        {positions.slice(startIndex, endIndex).map((position, idx) => {
+          const actualIndex = startIndex + idx;
+          return (
+            <div
+              key={actualIndex}
+              className="absolute left-0 right-0"
+              style={{
+                top: position.top,
+                minHeight: position.height
+              }}
+            >
+              {renderItem(items[actualIndex], actualIndex, {
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default VirtualList;

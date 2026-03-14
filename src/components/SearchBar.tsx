@@ -12,7 +12,9 @@ export const SearchResultType = {
   CATEGORY: 'category',
   TAG: 'tag',
   PAGE: 'page',
-  HISTORY: 'history'
+  HISTORY: 'history',
+  PRODUCT: 'product',
+  GAME: 'game'
 } as const;
 
 export type SearchResultType = typeof SearchResultType[keyof typeof SearchResultType];

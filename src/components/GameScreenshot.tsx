@@ -1,8 +1,15 @@
 import React, { useRef } from 'react';
-// @ts-ignore - html2canvas类型声明缺失，但不影响功能
-import html2canvas from 'html2canvas';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
+
+// 动态导入 html2canvas
+let html2canvas: typeof import('html2canvas') | null = null;
+const getHtml2canvas = async () => {
+  if (!html2canvas) {
+    html2canvas = await import('html2canvas');
+  }
+  return html2canvas;
+};
 
 // 截图组件属性
 interface GameScreenshotProps {
@@ -27,8 +34,16 @@ const GameScreenshot: React.FC<GameScreenshotProps> = ({
     if (!screenshotRef.current) return;
 
     try {
+      // 动态导入并使用 html2canvas
+      const html2canvasModule = await getHtml2canvas();
+      if (!html2canvasModule) {
+        console.error('html2canvas 加载失败');
+        return null;
+      }
+      const html2canvasFn = html2canvasModule.default || html2canvasModule;
+      
       // 使用html2canvas生成截图
-      const canvas = await html2canvas(screenshotRef.current, {
+      const canvas = await html2canvasFn(screenshotRef.current, {
         backgroundColor: isDark ? '#1f2937' : '#ffffff',
         scale: 2, // 提高分辨率
         logging: false,

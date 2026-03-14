@@ -5,6 +5,10 @@ import * as ReactDOMClient from "react-dom/client";
 import "./index.css";
 import "./styles/themes/index.ts";
 
+// 初始化 Sentry 错误监控（在应用启动前初始化）
+import { initSentry } from './lib/sentry';
+initSentry();
+
 // 加载路由和核心组件
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.tsx";

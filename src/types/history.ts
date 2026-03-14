@@ -1,4 +1,4 @@
-export type HistoryItemType = 'work' | 'template' | 'post';
+export type HistoryItemType = 'work' | 'template' | 'post' | 'product' | 'game';
 export type HistoryMediaType = 'image' | 'video';
 
 export interface HistoryItem {

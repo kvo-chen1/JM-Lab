@@ -62,7 +62,7 @@ export const ThemeContext = createContext<ThemeContextType>({
   customThemes: [],
   exportThemeConfig: () => '',
   importThemeConfig: () => false,
-  recommendedThemes: ['light', 'dark', 'blue', 'green']
+  recommendedThemes: ['light', 'dark', 'blue', 'green', 'delta-force']
 });
 
 interface ThemeProviderProps {
@@ -244,13 +244,13 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const isDark = useMemo(() => {
     const currentTheme = previewingTheme || theme;
     const appliedTheme = getAppliedTheme(currentTheme);
-    const darkThemes = ['dark', 'pixel', 'cyber', 'neon', 'cosmic'];
+    const darkThemes = ['dark', 'pixel', 'cyber', 'neon', 'cosmic', 'delta-force'];
     return darkThemes.includes(appliedTheme);
   }, [theme, previewingTheme]);
 
   // 推荐主题
   const recommendedThemes = useMemo(() => {
-    return ['light', 'dark', 'blue', 'green'] as Theme[];
+    return ['light', 'dark', 'blue', 'green', 'delta-force'] as Theme[];
   }, []);
 
   // 优化上下文值，减少组件重新渲染

@@ -6,7 +6,9 @@ import {
   Calendar,
   Target,
   Share2,
-  Sparkles
+  Sparkles,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import type { Achievement } from '../types';
 import { rarityConfig } from '../hooks/useAchievements';

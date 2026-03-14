@@ -37,6 +37,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/Dialog';
 
 interface BatchOperationsProps {
@@ -108,7 +109,7 @@ const removeSectionById = (sections: OutlineSection[], id: string): OutlineSecti
 const duplicateSection = (section: OutlineSection, newId: string): OutlineSection => ({
   ...section,
   id: newId,
-  title: `${section.title} (副本)`,
+  name: `${section.name} (副本)`,
   children: section.children?.map(child => duplicateSection(child, `${newId}-${child.id}`))
 });
 
@@ -147,8 +148,8 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
   const filteredSections = useMemo(() => {
     return flattenedSections.filter(section => {
       const matchesSearch = !searchQuery || 
-        section.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (section.content && section.content.toLowerCase().includes(searchQuery.toLowerCase()));
+        section.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (section.description && section.description.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesLevel = filterLevel === null || section.level === filterLevel;
       return matchesSearch && matchesLevel;
     });
@@ -361,7 +362,7 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
           <div className="flex items-center gap-2">
             {selectedIds.size > 0 && (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={deselectAll}
                 className="gap-2"
@@ -391,7 +392,7 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="secondary" className="gap-2">
                   <Filter className="w-4 h-4" />
                   {filterLevel ? getLevelName(filterLevel) : '全部层级'}
                 </Button>
@@ -400,7 +401,7 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
                 <DropdownMenuItem onClick={() => setFilterLevel(null)}>
                   全部层级
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
                 {[1, 2, 3, 4, 5].map(level => (
                   <DropdownMenuItem key={level} onClick={() => setFilterLevel(level)}>
                     <div className={`w-3 h-3 rounded-full ${getLevelColor(level)} mr-2`} />
@@ -415,7 +416,7 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={selectAll}
                 className="gap-2"
@@ -424,7 +425,7 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
                 全选
               </Button>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={invertSelection}
                 className="gap-2"
@@ -442,7 +443,7 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         onClick={() => executeBatchAction(action)}
                         disabled={selectedIds.size === 0 || !!actionProgress}
@@ -534,30 +535,14 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
                 {/* Title */}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-gray-900 dark:text-white truncate">
-                    {section.title}
+                    {section.name}
                   </div>
-                  {section.content && (
+                  {section.description && (
                     <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {section.content.slice(0, 100)}
+                      {section.description.slice(0, 100)}
                     </div>
                   )}
                 </div>
-                
-                {/* Tags */}
-                {section.tags && section.tags.length > 0 && (
-                  <div className="flex items-center gap-1">
-                    {section.tags.slice(0, 3).map((tag, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                    {section.tags.length > 3 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{section.tags.length - 3}
-                      </Badge>
-                    )}
-                  </div>
-                )}
                 
                 {/* Actions */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -603,7 +588,7 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
               共 {flattenedSections.length} 个章节，已选择 {selectedIds.size} 个
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={onClose}>
+              <Button variant="secondary" onClick={onClose}>
                 关闭
               </Button>
               {selectedIds.size > 0 && (
@@ -634,10 +619,10 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+            <Button variant="secondary" onClick={() => setShowConfirmDialog(false)}>
               取消
             </Button>
-            <Button variant="destructive" onClick={confirmDelete} className="gap-2">
+            <Button variant="danger" onClick={confirmDelete} className="gap-2">
               <Trash2 className="w-4 h-4" />
               确认删除
             </Button>

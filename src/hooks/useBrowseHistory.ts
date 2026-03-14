@@ -86,6 +86,8 @@ export function useBrowseHistory() {
   const workCount = useMemo(() => history.filter(h => h.type === 'work').length, [history]);
   const templateCount = useMemo(() => history.filter(h => h.type === 'template').length, [history]);
   const postCount = useMemo(() => history.filter(h => h.type === 'post').length, [history]);
+  const productCount = useMemo(() => history.filter(h => h.type === 'product').length, [history]);
+  const gameCount = useMemo(() => history.filter(h => h.type === 'game').length, [history]);
 
   return {
     history,
@@ -98,6 +100,8 @@ export function useBrowseHistory() {
     totalCount,
     workCount,
     templateCount,
-    postCount
+    postCount,
+    productCount,
+    gameCount
   };
 }

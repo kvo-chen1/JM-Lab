@@ -1,0 +1,1092 @@
+/* ============================================
+   三角洲行动主题 - Delta Force Theme
+   设计理念：军事科技、战术风格、未来感
+   主色调：#00FF88军事绿
+   更新时间：2026-03-14
+   ============================================ */
+
+.delta-force {
+  /* ============================================
+     核心色彩系统 - Core Color System
+     ============================================ */
+
+  /* 主色调 - 军事绿 */
+  --color-primary: #00FF88;
+  --color-primary-hover: #00CC6A;
+  --color-primary-light: #66FFBB;
+  --color-primary-dark: #009952;
+  --color-primary-rgb: 0, 255, 136;
+
+  /* 辅助色 - 科技蓝 */
+  --color-secondary: #0088FF;
+  --color-secondary-hover: #0066CC;
+  --color-secondary-light: #66BBFF;
+  --color-secondary-dark: #0055AA;
+  --color-secondary-rgb: 0, 136, 255;
+
+  /* 强调色 - 警告橙 */
+  --color-accent: #FF8800;
+  --color-accent-hover: #CC6A00;
+  --color-accent-light: #FFBB66;
+  --color-accent-dark: #AA5500;
+  --color-accent-rgb: 255, 136, 0;
+
+  /* 功能色 */
+  --color-success: #00FF88;
+  --color-success-light: #66FFBB;
+  --color-success-dark: #00CC6A;
+  --color-success-rgb: 0, 255, 136;
+
+  --color-warning: #FF8800;
+  --color-warning-light: #FFBB66;
+  --color-warning-dark: #CC6A00;
+  --color-warning-rgb: 255, 136, 0;
+
+  --color-error: #FF3366;
+  --color-error-light: #FF6699;
+  --color-error-dark: #CC2952;
+  --color-error-rgb: 255, 51, 102;
+
+  --color-info: #0088FF;
+  --color-info-light: #66BBFF;
+  --color-info-dark: #0066CC;
+  --color-info-rgb: 0, 136, 255;
+
+  /* 物品等级颜色体系 */
+  --item-common: #9CA3AF;
+  --item-uncommon: #10B981;
+  --item-rare: #3B82F6;
+  --item-epic: #8B5CF6;
+  --item-legendary: #F59E0B;
+  --item-mythic: #EC4899;
+
+  /* ============================================
+     背景层级系统 - Background Hierarchy
+     ============================================ */
+
+  /* 主背景 */
+  --bg-primary: #0a0f0a;
+  --bg-primary-rgb: 10, 15, 10;
+
+  /* 二级背景 */
+  --bg-secondary: #1a1f1a;
+  --bg-secondary-rgb: 26, 31, 26;
+
+  /* 三级背景 */
+  --bg-tertiary: #2a2f2a;
+  --bg-tertiary-rgb: 42, 47, 42;
+
+  /* 四级背景 */
+  --bg-active: #3a3f3a;
+  --bg-active-rgb: 58, 63, 58;
+
+  /* 悬浮背景 */
+  --bg-hover: #4a4f4a;
+  --bg-hover-rgb: 74, 79, 74;
+
+  /* 遮罩背景 */
+  --bg-overlay: rgba(10, 15, 10, 0.92);
+  --bg-overlay-light: rgba(10, 15, 10, 0.7);
+
+  /* 高亮背景 */
+  --bg-highlight: rgba(0, 255, 136, 0.08);
+
+  /* ============================================
+     文本层级系统 - Text Hierarchy
+     ============================================ */
+
+  /* 主文本 */
+  --text-primary: #FFFFFF;
+  --text-primary-rgb: 255, 255, 255;
+
+  /* 二级文本 */
+  --text-secondary: #D0D0D0;
+  --text-secondary-rgb: 208, 208, 208;
+
+  /* 三级文本 */
+  --text-tertiary: #A0A0A0;
+  --text-tertiary-rgb: 160, 160, 160;
+
+  /* 弱化文本 */
+  --text-muted: #808080;
+  --text-muted-rgb: 128, 128, 128;
+
+  /* 禁用文本 */
+  --text-disabled: #505050;
+  --text-disabled-rgb: 80, 80, 80;
+
+  /* 反色文本 */
+  --text-inverse: #0a0f0a;
+  --text-inverse-rgb: 10, 15, 10;
+
+  /* 链接文本 */
+  --text-link: #66FFBB;
+  --text-link-hover: #00FF88;
+
+  /* ============================================
+     边框系统 - Border System
+     ============================================ */
+
+  --border-primary: #2a2f2a;
+  --border-primary-rgb: 42, 47, 42;
+
+  --border-secondary: #3a3f3a;
+  --border-secondary-rgb: 58, 63, 58;
+
+  --border-tertiary: #4a4f4a;
+  --border-tertiary-rgb: 74, 79, 74;
+
+  --border-accent: #00FF88;
+  --border-accent-rgb: 0, 255, 136;
+
+  --border-focus: rgba(0, 255, 136, 0.6);
+
+  /* ============================================
+     阴影系统 - Shadow System
+     ============================================ */
+
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.65), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 24px -6px rgba(0, 0, 0, 0.75), 0 4px 8px -4px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 24px 48px -12px rgba(0, 0, 0, 0.85), 0 8px 16px -8px rgba(0, 0, 0, 0.7);
+  --shadow-2xl: 0 32px 64px -16px rgba(0, 0, 0, 0.95);
+
+  /* 内阴影 */
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
+
+  /* ============================================
+     发光效果 - Glow Effects
+     ============================================ */
+
+  /* 主色调发光 */
+  --glow-primary: 0 0 24px rgba(0, 255, 136, 0.5);
+  --glow-primary-sm: 0 0 12px rgba(0, 255, 136, 0.3);
+  --glow-primary-lg: 0 0 40px rgba(0, 255, 136, 0.6);
+
+  /* 辅助色发光 */
+  --glow-secondary: 0 0 24px rgba(0, 136, 255, 0.5);
+  --glow-accent: 0 0 24px rgba(255, 136, 0, 0.5);
+
+  /* 功能色发光 */
+  --glow-success: 0 0 20px rgba(0, 255, 136, 0.4);
+  --glow-warning: 0 0 20px rgba(255, 136, 0, 0.4);
+  --glow-error: 0 0 20px rgba(255, 51, 102, 0.4);
+  --glow-info: 0 0 20px rgba(0, 136, 255, 0.4);
+
+  /* 聚焦发光 */
+  --focus-ring: 0 0 0 3px rgba(0, 255, 136, 0.25);
+  --focus-ring-error: 0 0 0 3px rgba(255, 51, 102, 0.25);
+
+  /* ============================================
+     渐变效果 - Gradients
+     ============================================ */
+
+  /* 主渐变 */
+  --gradient-primary: linear-gradient(135deg, #00FF88 0%, #0088FF 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #66FFBB 0%, #66BBFF 100%);
+  --gradient-primary-reverse: linear-gradient(135deg, #0088FF 0%, #00FF88 100%);
+
+  /* 辅助渐变 */
+  --gradient-secondary: linear-gradient(135deg, #0088FF 0%, #0066CC 100%);
+  --gradient-accent: linear-gradient(135deg, #FF8800 0%, #CC6A00 100%);
+
+  /* 战术渐变 */
+  --gradient-tactical: linear-gradient(135deg, #0a0f0a 0%, #1a1f1a 50%, #0a0f0a 100%);
+  --gradient-tactical-subtle: linear-gradient(135deg, rgba(0, 255, 136, 0.1) 0%, rgba(0, 136, 255, 0.08) 50%, rgba(255, 136, 0, 0.05) 100%);
+
+  /* 背景渐变 */
+  --gradient-bg-subtle: linear-gradient(180deg, #0a0f0a 0%, #1a1f1a 100%);
+  --gradient-bg-card: linear-gradient(145deg, #1a1f1a 0%, #2a2f2a 100%);
+  --gradient-bg-elevated: linear-gradient(145deg, #2a2f2a 0%, #3a3f3a 100%);
+
+  /* 文本渐变 */
+  --gradient-text: linear-gradient(135deg, #E5E5E5 0%, #B0B0B0 100%);
+  --gradient-text-primary: linear-gradient(135deg, #66FFBB 0%, #00FF88 100%);
+  --gradient-text-accent: linear-gradient(135deg, #FF8800 0%, #FFBB66 100%);
+
+  /* 按钮渐变 */
+  --gradient-button-primary: linear-gradient(135deg, #00FF88 0%, #00CC6A 100%);
+  --gradient-button-secondary: linear-gradient(135deg, #0088FF 0%, #0066CC 100%);
+  --gradient-button-accent: linear-gradient(135deg, #FF8800 0%, #CC6A00 100%);
+
+  /* ============================================
+     圆角系统 - Border Radius
+     ============================================ */
+
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* ============================================
+     过渡动画 - Transitions
+     ============================================ */
+
+  --transition-fast: 100ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ============================================
+     间距系统 - Spacing System
+     ============================================ */
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+
+  /* ============================================
+     字体系统 - Typography System
+     ============================================ */
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* ============================================
+     三角洲行动特色变量
+     ============================================ */
+
+  /* HUD元素 */
+  --hud-corner-size: 8px;
+  --hud-border-color: rgba(0, 255, 136, 0.6);
+  --hud-scanline-opacity: 0.08;
+
+  /* 战术网格 */
+  --tactical-grid-size: 40px;
+  --tactical-grid-color: rgba(0, 255, 136, 0.05);
+
+  /* 扫描动画 */
+  --scan-duration: 3s;
+}
+
+/* ============================================
+   三角洲行动特色效果 - Delta Force Effects
+   ============================================ */
+
+/* 1. 扫描线效果 */
+.delta-force::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 50%,
+    rgba(0, 0, 0, 0.15) 50%
+  );
+  background-size: 100% 4px;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: var(--hud-scanline-opacity);
+}
+
+/* 2. 战术网格背景 */
+.delta-force::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: 
+    linear-gradient(var(--tactical-grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--tactical-grid-color) 1px, transparent 1px);
+  background-size: var(--tactical-grid-size) var(--tactical-grid-size);
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.1;
+}
+
+/* 3. HUD风格边框 */
+.delta-force .hud-border {
+  position: relative;
+  border: 1px solid var(--hud-border-color);
+}
+
+.delta-force .hud-border::before,
+.delta-force .hud-border::after {
+  content: '';
+  position: absolute;
+  width: var(--hud-corner-size);
+  height: var(--hud-corner-size);
+  border: 2px solid var(--color-primary);
+}
+
+.delta-force .hud-border::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.delta-force .hud-border::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
+}
+
+/* 4. 发光效果 */
+.delta-force .glow-green {
+  box-shadow: var(--glow-primary);
+}
+
+.delta-force .glow-blue {
+  box-shadow: var(--glow-secondary);
+}
+
+.delta-force .glow-orange {
+  box-shadow: var(--glow-accent);
+}
+
+/* 5. 脉冲动画 */
+@keyframes tactical-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: var(--glow-primary-sm);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: var(--glow-primary);
+  }
+}
+
+.delta-force .tactical-pulse {
+  animation: tactical-pulse 2s ease-in-out infinite;
+}
+
+/* 6. 扫描动画 */
+@keyframes scan-line {
+  0% {
+    top: -100%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+.delta-force .scan-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.delta-force .scan-effect::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+  animation: scan-line var(--scan-duration) linear infinite;
+  z-index: 1;
+}
+
+/* ============================================
+   全局样式覆盖 - Global Overrides
+   ============================================ */
+
+/* 文本选中效果 */
+.delta-force ::selection {
+  background: rgba(0, 255, 136, 0.35);
+  color: #E5E5E5;
+}
+
+/* 滚动条样式 */
+.delta-force ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.delta-force ::-webkit-scrollbar-track {
+  background: #0a0f0a;
+  border-radius: 5px;
+}
+
+.delta-force ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2a2f2a 0%, #4a4f4a 100%);
+  border-radius: 5px;
+  border: 2px solid #0a0f0a;
+}
+
+.delta-force ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #3a3f3a 0%, #5a5f5a 100%);
+  box-shadow: var(--glow-primary-sm);
+}
+
+.delta-force ::-webkit-scrollbar-corner {
+  background: #0a0f0a;
+}
+
+/* Firefox 滚动条 */
+.delta-force * {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2f2a #0a0f0a;
+}
+
+/* ============================================
+   组件样式覆盖 - Component Overrides
+   ============================================ */
+
+/* 主按钮样式 */
+.delta-force button[class*="bg-primary"],
+.delta-force button.bg-primary {
+  background: var(--gradient-button-primary) !important;
+  color: #0a0f0a !important;
+  border: none !important;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-normal);
+  border-radius: var(--radius-md);
+  position: relative;
+  overflow: hidden;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.delta-force button[class*="bg-primary"]:hover,
+.delta-force button.bg-primary:hover {
+  background: var(--gradient-primary-hover) !important;
+  box-shadow: var(--glow-primary), var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.delta-force button[class*="bg-primary"]:active,
+.delta-force button.bg-primary:active {
+  transform: translateY(0);
+  box-shadow: var(--glow-primary-sm), var(--shadow-md);
+}
+
+/* 次要按钮 */
+.delta-force button[class*="bg-secondary"],
+.delta-force button.bg-secondary {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--border-secondary) !important;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-normal);
+}
+
+.delta-force button[class*="bg-secondary"]:hover,
+.delta-force button.bg-secondary:hover {
+  background: var(--bg-active) !important;
+  border-color: var(--border-tertiary) !important;
+  color: var(--text-primary) !important;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* 危险按钮 */
+.delta-force button[class*="bg-red"],
+.delta-force button.bg-red-500,
+.delta-force button.bg-red-600 {
+  background: var(--color-error) !important;
+  color: #E5E5E5 !important;
+  border-radius: var(--radius-md);
+  border: none !important;
+}
+
+.delta-force button[class*="bg-red"]:hover,
+.delta-force button.bg-red-500:hover,
+.delta-force button.bg-red-600:hover {
+  background: var(--color-error-dark) !important;
+  box-shadow: var(--glow-error);
+  transform: translateY(-1px);
+}
+
+/* 轮廓按钮 */
+.delta-force button[class*="border"],
+.delta-force button.border-primary {
+  border-color: var(--border-accent) !important;
+  color: var(--color-primary-light) !important;
+  background: transparent !important;
+  border-radius: var(--radius-md);
+}
+
+.delta-force button[class*="border"]:hover,
+.delta-force button.border-primary:hover {
+  background: rgba(0, 255, 136, 0.1) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--glow-primary-sm);
+}
+
+/* 输入框样式 */
+.delta-force input,
+.delta-force textarea,
+.delta-force select {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-secondary) !important;
+  color: var(--text-primary) !important;
+  transition: all var(--transition-normal);
+  border-radius: var(--radius-sm);
+  font-family: 'Courier New', monospace;
+}
+
+.delta-force input::placeholder,
+.delta-force textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+.delta-force input:focus,
+.delta-force textarea:focus,
+.delta-force select:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--focus-ring) !important;
+  outline: none !important;
+  background-color: var(--bg-secondary) !important;
+}
+
+/* 卡片样式 */
+.delta-force .card,
+.delta-force [class*="rounded-lg"][class*="bg-white"],
+.delta-force [class*="rounded-xl"][class*="bg-white"] {
+  background: var(--gradient-bg-card) !important;
+  border: 1px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-normal);
+}
+
+.delta-force .card:hover,
+.delta-force [class*="rounded-lg"][class*="bg-white"]:hover,
+.delta-force [class*="rounded-xl"][class*="bg-white"]:hover {
+  box-shadow: var(--shadow-xl);
+  border-color: var(--border-secondary);
+  transform: translateY(-2px);
+}
+
+/* 侧边栏样式 */
+.delta-force aside,
+.delta-force [class*="sidebar"] {
+  background: var(--gradient-tactical) !important;
+  border-color: var(--border-primary) !important;
+  box-shadow: 0 0 30px rgba(0, 255, 136, 0.1) !important;
+}
+
+.delta-force aside [class*="active"],
+.delta-force [class*="sidebar"] [class*="active"] {
+  background: linear-gradient(90deg, rgba(0, 255, 136, 0.25) 0%, rgba(0, 136, 255, 0.1) 50%, transparent 100%) !important;
+  color: var(--color-primary-light) !important;
+  border-left: 3px solid var(--color-primary) !important;
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.25) !important;
+}
+
+.delta-force aside [class*="nav-item"]:hover,
+.delta-force [class*="sidebar"] [class*="nav-item"]:hover {
+  background: linear-gradient(90deg, rgba(0, 255, 136, 0.15) 0%, rgba(0, 255, 136, 0.05) 100%) !important;
+  color: var(--color-primary) !important;
+}
+
+/* 侧边栏文字颜色 */
+.delta-force aside *,
+.delta-force [class*="sidebar"] * {
+  color: var(--text-primary) !important;
+}
+
+.delta-force aside [class*="active"] *,
+.delta-force [class*="sidebar"] [class*="active"] * {
+  color: var(--color-primary-light) !important;
+}
+
+/* 导航栏样式 */
+.delta-force nav,
+.delta-force header {
+  background: linear-gradient(90deg, rgba(26, 31, 26, 0.98) 0%, rgba(42, 47, 42, 0.95) 50%, rgba(26, 31, 26, 0.98) 100%) !important;
+  border-color: var(--border-primary) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 30px rgba(0, 255, 136, 0.12) !important;
+}
+
+/* 下拉菜单 */
+.delta-force [role="menu"],
+.delta-force [role="listbox"],
+.delta-force .dropdown-menu {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-secondary) !important;
+  box-shadow: var(--shadow-2xl) !important;
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.delta-force [role="menuitem"],
+.delta-force [role="option"] {
+  border-radius: var(--radius-sm);
+  margin: 2px 4px;
+  transition: all var(--transition-fast);
+}
+
+.delta-force [role="menuitem"]:hover,
+.delta-force [role="option"]:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+.delta-force [role="menuitem"][aria-selected="true"],
+.delta-force [role="option"][aria-selected="true"] {
+  background-color: rgba(0, 255, 136, 0.15) !important;
+  color: var(--color-primary-light) !important;
+}
+
+/* 下拉菜单文字颜色增强 */
+.delta-force [role="menu"] *,
+.delta-force [role="listbox"] *,
+.delta-force .dropdown-menu *,
+.delta-force [class*="dropdown"] * {
+  color: var(--text-primary) !important;
+}
+
+/* 用户菜单项文字 */
+.delta-force [class*="user-menu"] *,
+.delta-force [class*="profile-menu"] *,
+.delta-force [class*="account-menu"] * {
+  color: var(--text-primary) !important;
+}
+
+/* 导航项文字 */
+.delta-force nav a,
+.delta-force [class*="nav"] a,
+.delta-force [class*="menu"] a,
+.delta-force [class*="dropdown"] a {
+  color: var(--text-primary) !important;
+}
+
+.delta-force nav a:hover,
+.delta-force [class*="nav"] a:hover,
+.delta-force [class*="menu"] a:hover {
+  color: var(--color-primary-light) !important;
+}
+
+/* 模态框 */
+.delta-force [role="dialog"],
+.delta-force .modal,
+.delta-force [class*="modal"] {
+  background: var(--gradient-bg-card) !important;
+  border: 1px solid var(--border-secondary) !important;
+  box-shadow: var(--shadow-2xl) !important;
+  border-radius: var(--radius-xl);
+}
+
+.delta-force [class*="modal-overlay"],
+.delta-force [class*="backdrop"] {
+  background-color: var(--bg-overlay) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* 表格样式 */
+.delta-force table {
+  background-color: var(--bg-secondary) !important;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.delta-force th {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-primary) !important;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.delta-force td {
+  border-color: var(--border-primary) !important;
+  color: var(--text-secondary) !important;
+}
+
+.delta-force tr:hover td {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* 标签/徽章 */
+.delta-force [class*="badge"],
+.delta-force .tag {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--border-secondary) !important;
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.75rem;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.delta-force [class*="badge-primary"],
+.delta-force .tag-primary {
+  background-color: rgba(0, 255, 136, 0.15) !important;
+  color: var(--color-primary-light) !important;
+  border-color: rgba(0, 255, 136, 0.3) !important;
+}
+
+/* 物品等级徽章 */
+.delta-force .item-common {
+  background-color: rgba(156, 163, 175, 0.15) !important;
+  color: var(--item-common) !important;
+  border-color: rgba(156, 163, 175, 0.3) !important;
+}
+
+.delta-force .item-uncommon {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: var(--item-uncommon) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.delta-force .item-rare {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: var(--item-rare) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+.delta-force .item-epic {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+  color: var(--item-epic) !important;
+  border-color: rgba(139, 92, 246, 0.3) !important;
+}
+
+.delta-force .item-legendary {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: var(--item-legendary) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  animation: tactical-pulse 2s ease-in-out infinite;
+}
+
+.delta-force .item-mythic {
+  background-color: rgba(236, 72, 153, 0.15) !important;
+  color: var(--item-mythic) !important;
+  border-color: rgba(236, 72, 153, 0.3) !important;
+  animation: tactical-pulse 1.5s ease-in-out infinite;
+}
+
+/* 分割线 */
+.delta-force hr,
+.delta-force [class*="divider"] {
+  border-color: var(--border-primary) !important;
+}
+
+/* 链接样式 */
+.delta-force a:not([class*="button"]):not([class*="nav"]):not(nav a) {
+  color: var(--color-primary-light);
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.delta-force a:not([class*="button"]):not([class*="nav"]):not(nav a):hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 侧边栏导航链接样式 */
+.delta-force aside a,
+.delta-force nav a,
+.delta-force [class*="sidebar"] a,
+.delta-force [class*="nav-item"] {
+  color: #E5E5E5 !important;
+}
+
+.delta-force aside a:hover,
+.delta-force nav a:hover,
+.delta-force [class*="sidebar"] a:hover,
+.delta-force [class*="nav-item"]:hover {
+  color: #E5E5E5 !important;
+}
+
+/* Toast 通知 */
+.delta-force [data-sonner-toast] {
+  background: var(--gradient-bg-card) !important;
+  border: 1px solid var(--border-secondary) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-2xl) !important;
+  border-radius: var(--radius-md) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.delta-force [data-sonner-toast][data-type="success"] {
+  border-color: var(--color-success) !important;
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.15) 0%, var(--bg-secondary) 100%) !important;
+}
+
+.delta-force [data-sonner-toast][data-type="error"] {
+  border-color: var(--color-error) !important;
+  background: linear-gradient(135deg, rgba(255, 51, 102, 0.15) 0%, var(--bg-secondary) 100%) !important;
+}
+
+.delta-force [data-sonner-toast][data-type="warning"] {
+  border-color: var(--color-warning) !important;
+  background: linear-gradient(135deg, rgba(255, 136, 0, 0.15) 0%, var(--bg-secondary) 100%) !important;
+}
+
+.delta-force [data-sonner-toast][data-type="info"] {
+  border-color: var(--color-info) !important;
+  background: linear-gradient(135deg, rgba(0, 136, 255, 0.15) 0%, var(--bg-secondary) 100%) !important;
+}
+
+/* Switch 开关 */
+.delta-force [role="switch"] {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-secondary) !important;
+  transition: all var(--transition-normal);
+}
+
+.delta-force [role="switch"][aria-checked="true"] {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--glow-primary-sm);
+}
+
+.delta-force [role="switch"] span {
+  background-color: var(--text-primary) !important;
+  transition: all var(--transition-normal);
+}
+
+/* 进度条 */
+.delta-force progress,
+.delta-force [class*="progress"] {
+  background-color: var(--bg-tertiary) !important;
+  border-radius: var(--radius-sm);
+}
+
+.delta-force progress::-webkit-progress-bar,
+.delta-force [class*="progress-bar"] {
+  background-color: var(--bg-tertiary) !important;
+  border-radius: var(--radius-sm);
+}
+
+.delta-force progress::-webkit-progress-value,
+.delta-force [class*="progress-fill"] {
+  background: var(--gradient-primary) !important;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--glow-primary-sm);
+}
+
+/* 滑块 */
+.delta-force input[type="range"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+.delta-force input[type="range"]::-webkit-slider-thumb {
+  background-color: var(--color-primary) !important;
+  box-shadow: var(--glow-primary-sm) !important;
+  transition: all var(--transition-fast);
+}
+
+.delta-force input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: var(--glow-primary) !important;
+  transform: scale(1.1);
+}
+
+/* Tooltip */
+.delta-force [role="tooltip"],
+.delta-force .tooltip {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-secondary) !important;
+  box-shadow: var(--shadow-lg) !important;
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  font-size: var(--font-size-sm);
+}
+
+/* 代码块 */
+.delta-force pre,
+.delta-force code {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-secondary) !important;
+  font-family: 'Courier New', monospace;
+}
+
+.delta-force pre {
+  border-radius: var(--radius-md);
+  padding: 1rem;
+}
+
+.delta-force code {
+  border-radius: var(--radius-xs);
+  padding: 0.125rem 0.375rem;
+  font-size: 0.9em;
+}
+
+/* 引用块 */
+.delta-force blockquote {
+  border-left-color: var(--color-primary) !important;
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 1rem 1.5rem;
+}
+
+/* 空状态 */
+.delta-force [class*="empty-state"],
+.delta-force .empty {
+  color: var(--text-muted) !important;
+}
+
+/* 加载骨架屏 */
+.delta-force [class*="skeleton"],
+.delta-force .skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 25%,
+    var(--bg-active) 50%,
+    var(--bg-tertiary) 75%
+  ) !important;
+  background-size: 200% 100% !important;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================
+   特定组件覆盖 - Specific Component Overrides
+   ============================================ */
+
+/* 修复白色背景元素 */
+.delta-force [class*="bg-white"] {
+  background-color: var(--bg-secondary) !important;
+}
+
+.delta-force [class*="bg-gray-50"],
+.delta-force [class*="bg-gray-100"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* 修复灰色文本 */
+.delta-force [class*="text-gray-900"],
+.delta-force [class*="text-gray-800"] {
+  color: var(--text-primary) !important;
+}
+
+.delta-force [class*="text-gray-700"],
+.delta-force [class*="text-gray-600"] {
+  color: var(--text-secondary) !important;
+}
+
+.delta-force [class*="text-gray-500"],
+.delta-force [class*="text-gray-400"] {
+  color: var(--text-tertiary) !important;
+}
+
+/* 修复边框 */
+.delta-force [class*="border-gray-200"],
+.delta-force [class*="border-gray-300"] {
+  border-color: var(--border-primary) !important;
+}
+
+/* 修复阴影 */
+.delta-force [class*="shadow-sm"] {
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.delta-force [class*="shadow-md"] {
+  box-shadow: var(--shadow-md) !important;
+}
+
+.delta-force [class*="shadow-lg"] {
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.delta-force [class*="shadow-xl"] {
+  box-shadow: var(--shadow-xl) !important;
+}
+
+/* 焦点可见性增强 */
+.delta-force :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ============================================
+   特殊效果 - Special Effects
+   ============================================ */
+
+/* 玻璃态效果 */
+.delta-force .glass {
+  background: rgba(26, 31, 26, 0.7) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 255, 136, 0.15) !important;
+}
+
+/* 发光边框效果 */
+.delta-force .glow-border {
+  position: relative;
+}
+
+.delta-force .glow-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #00FF88, #0088FF, #FF8800);
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* 渐变文本 */
+.delta-force .gradient-text {
+  background: var(--gradient-text-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 悬浮发光效果 */
+.delta-force .hover-glow {
+  transition: all var(--transition-normal);
+}
+
+.delta-force .hover-glow:hover {
+  box-shadow: var(--glow-primary);
+}
+
+/* 脉冲发光动画 */
+.delta-force .pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
+  }
+}

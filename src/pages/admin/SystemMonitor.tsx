@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { supabaseAdmin } from '@/lib/supabaseClient';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import LogViewer from '@/components/LogViewer';
 
 interface SystemStatus {
   cpu: number;
@@ -563,9 +564,15 @@ export default function SystemMonitor() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4"
         >
-          {/* 筛选栏 */}
+          {/* 使用 LogViewer 组件 */}
+          <LogViewer maxVisibleLogs={100} autoRefresh={true} refreshInterval={5000} />
+
+          {/* 原有的系统日志列表 */}
           <div className={`p-4 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
-            <div className="flex flex-wrap gap-4">
+            <h3 className={`font-medium mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>系统事件日志</h3>
+
+            {/* 筛选栏 */}
+            <div className="flex flex-wrap gap-4 mb-4">
               <div className="flex-1 min-w-[200px]">
                 <div className={`relative ${isDark ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
                   <input
@@ -591,44 +598,44 @@ export default function SystemMonitor() {
                 <option value="critical">严重</option>
               </select>
             </div>
-          </div>
 
-          {/* 日志列表 */}
-          <div className={`rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm overflow-hidden`}>
-            <div className="max-h-[600px] overflow-y-auto">
-              {filteredLogs.length === 0 ? (
-                <div className="p-8 text-center text-gray-400">
-                  <i className="fas fa-inbox text-4xl mb-2"></i>
-                  <p>暂无日志数据</p>
-                  <p className="text-sm mt-2">系统日志将显示用户的操作记录和系统事件</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredLogs.map((log) => (
-                    <div key={log.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <div className="flex items-start gap-4">
-                        <span className={`px-2 py-1 rounded-full text-xs ${getLevelColor(log.level)}`}>
-                          {getLevelLabel(log.level)}
-                        </span>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">{log.source}</span>
-                            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                              {formatTime(log.timestamp)}
-                            </span>
+            {/* 日志列表 */}
+            <div className={`rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'} overflow-hidden`}>
+              <div className="max-h-[400px] overflow-y-auto">
+                {filteredLogs.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400">
+                    <i className="fas fa-inbox text-4xl mb-2"></i>
+                    <p>暂无日志数据</p>
+                    <p className="text-sm mt-2">系统日志将显示用户的操作记录和系统事件</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredLogs.map((log) => (
+                      <div key={log.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <div className="flex items-start gap-4">
+                          <span className={`px-2 py-1 rounded-full text-xs ${getLevelColor(log.level)}`}>
+                            {getLevelLabel(log.level)}
+                          </span>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium">{log.source}</span>
+                              <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {formatTime(log.timestamp)}
+                              </span>
+                            </div>
+                            <p className="text-sm">{log.message}</p>
+                            {log.details && (
+                              <p className={`text-xs mt-2 p-2 rounded ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                                {log.details}
+                              </p>
+                            )}
                           </div>
-                          <p className="text-sm">{log.message}</p>
-                          {log.details && (
-                            <p className={`text-xs mt-2 p-2 rounded ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
-                              {log.details}
-                            </p>
-                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </motion.div>

@@ -8,7 +8,9 @@ const FILTER_TABS: { key: HistoryFilter; label: string; icon: string }[] = [
   { key: 'all', label: '全部', icon: 'fa-globe' },
   { key: 'work', label: '作品', icon: 'fa-palette' },
   { key: 'template', label: '模板', icon: 'fa-file-alt' },
-  { key: 'post', label: '帖子', icon: 'fa-comments' }
+  { key: 'post', label: '帖子', icon: 'fa-comments' },
+  { key: 'product', label: '商品', icon: 'fa-shopping-bag' },
+  { key: 'game', label: '游戏', icon: 'fa-gamepad' }
 ];
 
 export default function HistoryPage() {
@@ -21,6 +23,8 @@ export default function HistoryPage() {
     workCount,
     templateCount,
     postCount,
+    productCount,
+    gameCount,
     totalCount,
     isLoaded
   } = useBrowseHistory();
@@ -36,7 +40,7 @@ export default function HistoryPage() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const type = params.get('type') as HistoryFilter;
-    if (type && ['all', 'work', 'template', 'post'].includes(type)) {
+    if (type && ['all', 'work', 'template', 'post', 'product', 'game'].includes(type)) {
       setActiveFilter(type);
     }
   }, [location.search]);
@@ -60,8 +64,10 @@ export default function HistoryPage() {
     all: totalCount,
     work: workCount,
     template: templateCount,
-    post: postCount
-  }), [totalCount, workCount, templateCount, postCount]);
+    post: postCount,
+    product: productCount,
+    game: gameCount
+  }), [totalCount, workCount, templateCount, postCount, productCount, gameCount]);
 
   const displayGroups = useMemo((): HistoryGroup[] => {
     let items = history;
@@ -163,6 +169,8 @@ export default function HistoryPage() {
       case 'work': return 'fa-palette';
       case 'template': return 'fa-file-alt';
       case 'post': return 'fa-comments';
+      case 'product': return 'fa-shopping-bag';
+      case 'game': return 'fa-gamepad';
       default: return 'fa-file';
     }
   };
@@ -172,6 +180,8 @@ export default function HistoryPage() {
       case 'work': return isDark ? 'text-purple-400 bg-purple-500/20' : 'text-purple-600 bg-purple-100';
       case 'template': return isDark ? 'text-amber-400 bg-amber-500/20' : 'text-amber-600 bg-amber-100';
       case 'post': return isDark ? 'text-cyan-400 bg-cyan-500/20' : 'text-cyan-600 bg-cyan-100';
+      case 'product': return isDark ? 'text-pink-400 bg-pink-500/20' : 'text-pink-600 bg-pink-100';
+      case 'game': return isDark ? 'text-green-400 bg-green-500/20' : 'text-green-600 bg-green-100';
       default: return isDark ? 'text-gray-400 bg-gray-500/20' : 'text-gray-600 bg-gray-100';
     }
   };
@@ -420,7 +430,7 @@ export default function HistoryPage() {
 
                           <div className="flex items-center gap-2">
                             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getTypeColor(item.type, isDark)}`}>
-                              {item.type === 'work' ? '作品' : item.type === 'template' ? '模板' : '帖子'}
+                              {item.type === 'work' ? '作品' : item.type === 'template' ? '模板' : item.type === 'post' ? '帖子' : item.type === 'product' ? '商品' : '游戏'}
                             </span>
                             <button
                               onClick={(e) => {

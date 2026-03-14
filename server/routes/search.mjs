@@ -127,14 +127,19 @@ export async function saveSearchHistory(req, res) {
           return;
         }
 
-        // 使用数据库函数记录搜索历史
-        const { data, error } = await supabaseServer.rpc('record_search_history', {
-          p_user_id: user.userId,
-          p_query: query.trim(),
-          p_search_type: searchType || 'general',
-          p_result_count: resultCount || 0,
-          p_filters: filters || {}
-        });
+        // 直接插入搜索历史记录
+        const { data, error } = await supabaseServer
+          .from('user_search_history')
+          .insert({
+            user_id: user.userId,
+            query: query.trim(),
+            search_type: searchType || 'general',
+            result_count: resultCount || 0,
+            filters: filters || {},
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
 
         if (error) {
           console.error('[Search] Save history error:', error);
@@ -149,7 +154,7 @@ export async function saveSearchHistory(req, res) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
-          data: { historyId: data }
+          data: { historyId: data?.id }
         }));
       } catch (error) {
         console.error('[Search] Save history error:', error);

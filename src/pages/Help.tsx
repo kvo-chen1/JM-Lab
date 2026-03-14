@@ -32,7 +32,17 @@ import {
   Plus,
   Eye,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Play,
+  Pause,
+  Video,
+  GraduationCap,
+  StepForward,
+  LayoutDashboard,
+  Smartphone,
+  MonitorPlay,
+  Maximize2,
+  Minimize2
 } from 'lucide-react'
 import { feedbackService, FeedbackType } from '@/services/feedbackService'
 import ticketService from '@/services/ticketService'
@@ -49,6 +59,32 @@ interface FAQItem {
   category: FAQCategory
   views?: number
   helpful?: number
+}
+
+// 视频教程类型
+interface VideoTutorial {
+  id: string
+  title: string
+  description: string
+  duration: string
+  thumbnail: string
+  category: string
+  views: number
+}
+
+// 新手引导步骤类型
+interface OnboardingStep {
+  id: string
+  title: string
+  description: string
+  icon: React.ElementType
+  color: string
+}
+
+// 工单详情视图状态
+interface TicketDetailView {
+  isOpen: boolean
+  ticketId: string | null
 }
 
 // 分类配置
@@ -85,6 +121,7 @@ export default function Help() {
   const [showTicketModal, setShowTicketModal] = useState(false)
   const [searchHistory, setSearchHistory] = useState<string[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [activeTab, setActiveTab] = useState<'faq' | 'videos' | 'onboarding' | 'tickets'>('faq')
 
   // 工单相关状态
   const [tickets, setTickets] = useState<any[]>([])
@@ -94,12 +131,88 @@ export default function Help() {
     description: '',
     priority: 'medium' as 'low' | 'medium' | 'high'
   })
+  const [ticketDetailView, setTicketDetailView] = useState<TicketDetailView>({
+    isOpen: false,
+    ticketId: null
+  })
 
   // 反馈表单状态
   const [feedbackType, setFeedbackType] = useState<FeedbackType>('inquiry')
   const [feedbackContent, setFeedbackContent] = useState('')
   const [feedbackEmail, setFeedbackEmail] = useState('')
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
+
+  // 视频教程数据
+  const videoTutorials: VideoTutorial[] = [
+    {
+      id: 'video-1',
+      title: '快速开始：首次使用指南',
+      description: '5分钟了解平台核心功能，快速上手创作',
+      duration: '5:30',
+      thumbnail: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600&h=400&fit=crop',
+      category: '基础使用',
+      views: 12580
+    },
+    {
+      id: 'video-2',
+      title: 'AI创作工具详解',
+      description: '深入了解AI创作工具的各项功能和参数设置',
+      duration: '12:45',
+      thumbnail: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=600&h=400&fit=crop',
+      category: 'AI创作',
+      views: 8920
+    },
+    {
+      id: 'video-3',
+      title: '作品管理与分享',
+      description: '学习如何管理、导出和分享你的创作作品',
+      duration: '7:20',
+      thumbnail: 'https://images.unsplash.com/photo-1522542550221-31fd8575f8d5?w=600&h=400&fit=crop',
+      category: '作品管理',
+      views: 7650
+    },
+    {
+      id: 'video-4',
+      title: '社区互动指南',
+      description: '探索社区功能，与其他创作者交流互动',
+      duration: '8:15',
+      thumbnail: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=400&fit=crop',
+      category: '社区互动',
+      views: 6540
+    }
+  ]
+
+  // 新手引导步骤
+  const onboardingSteps: OnboardingStep[] = [
+    {
+      id: 'step-1',
+      title: '注册账号',
+      description: '使用邮箱或第三方账号快速注册，开启创作之旅',
+      icon: User,
+      color: 'from-blue-500 to-cyan-500'
+    },
+    {
+      id: 'step-2',
+      title: '探索平台',
+      description: '熟悉界面布局，了解各项功能的位置和使用方法',
+      icon: LayoutDashboard,
+      color: 'from-purple-500 to-pink-500'
+    },
+    {
+      id: 'step-3',
+      title: '开始创作',
+      description: '使用AI创作工具，尝试创建你的第一个作品',
+      icon: Sparkles,
+      color: 'from-amber-500 to-orange-500'
+    },
+    {
+      id: 'step-4',
+      title: '分享互动',
+      description: '发布作品到社区，与其他创作者交流学习',
+      icon: Users,
+      color: 'from-emerald-500 to-teal-500'
+    }
+  ]
 
   // 分类配置
   const categories: CategoryConfig[] = [
@@ -209,6 +322,24 @@ export default function Help() {
     setTickets(ticketService.getAllTickets())
   }, [])
 
+  // 模糊匹配函数
+  const fuzzyMatch = useCallback((text: string, query: string): boolean => {
+    if (!query.trim()) return true
+    const normalizedText = text.toLowerCase()
+    const normalizedQuery = query.toLowerCase().trim()
+    
+    // 完全匹配
+    if (normalizedText.includes(normalizedQuery)) return true
+    
+    // 分词匹配
+    const queryWords = normalizedQuery.split(/\s+/)
+    const textWords = normalizedText.split(/\s+/)
+    
+    return queryWords.every(qWord => 
+      textWords.some(tWord => tWord.includes(qWord) || qWord.includes(tWord))
+    )
+  }, [])
+
   // 搜索和过滤
   const filteredFAQs = useMemo(() => {
     let result = faqs
@@ -218,17 +349,16 @@ export default function Help() {
       result = result.filter(faq => faq.category === activeCategory)
     }
 
-    // 按搜索词过滤
+    // 按搜索词模糊匹配过滤
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
       result = result.filter(faq =>
-        faq.question.toLowerCase().includes(query) ||
-        faq.answer.toLowerCase().includes(query)
+        fuzzyMatch(faq.question, searchQuery) ||
+        fuzzyMatch(faq.answer, searchQuery)
       )
     }
 
     return result
-  }, [activeCategory, searchQuery, faqs])
+  }, [activeCategory, searchQuery, faqs, fuzzyMatch])
 
   // 热门问题（按浏览量排序）
   const hotFAQs = useMemo(() => {
@@ -557,435 +687,744 @@ export default function Help() {
               className="mb-8"
             >
               <div className="flex items-center gap-3 mb-4">
-                {currentCategory && (
+                {currentCategory && activeTab === 'faq' && (
                   <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${currentCategory.color} flex items-center justify-center shadow-lg`}>
                     <currentCategory.icon size={24} className="text-white" />
                   </div>
                 )}
+                {activeTab === 'videos' && (
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg">
+                    <Video size={24} className="text-white" />
+                  </div>
+                )}
+                {activeTab === 'onboarding' && (
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
+                    <GraduationCap size={24} className="text-white" />
+                  </div>
+                )}
+                {activeTab === 'tickets' && (
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg">
+                    <Ticket size={24} className="text-white" />
+                  </div>
+                )}
                 <div>
                   <h1 className={`text-2xl lg:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {currentCategory?.label || '全部问题'}
+                    {activeTab === 'faq' && (currentCategory?.label || '全部问题')}
+                    {activeTab === 'videos' && '视频教程'}
+                    {activeTab === 'onboarding' && '新手引导'}
+                    {activeTab === 'tickets' && '工单中心'}
                   </h1>
                   <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'} mt-1`}>
-                    {currentCategory?.description || '浏览所有常见问题与使用指南'}
+                    {activeTab === 'faq' && (currentCategory?.description || '浏览所有常见问题与使用指南')}
+                    {activeTab === 'videos' && '通过视频学习快速掌握各项功能'}
+                    {activeTab === 'onboarding' && '一步步带你了解如何使用平台'}
+                    {activeTab === 'tickets' && '查看和管理您提交的支持工单'}
                   </p>
                 </div>
               </div>
 
-              {/* 搜索框 */}
-              <div className="relative">
-                <div className={`
-                  relative flex items-center rounded-2xl overflow-hidden transition-all duration-200
-                  ${isDark
-                    ? 'bg-slate-800/50 border border-slate-700/50 focus-within:border-indigo-500/50 focus-within:ring-2 focus-within:ring-indigo-500/20'
-                    : 'bg-white border border-gray-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100'
-                  }
-                `}>
-                  <Search size={20} className={`absolute left-4 ${isDark ? 'text-slate-400' : 'text-gray-400'}`} />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    onFocus={() => setShowHistory(true)}
-                    placeholder="搜索问题或关键词..."
+              {/* 标签页导航 */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                {[
+                  { value: 'faq', label: '常见问题', icon: BookOpen },
+                  { value: 'videos', label: '视频教程', icon: MonitorPlay },
+                  { value: 'onboarding', label: '新手引导', icon: GraduationCap },
+                  { value: 'tickets', label: '工单中心', icon: Ticket }
+                ].map((tab) => (
+                  <button
+                    key={tab.value}
+                    onClick={() => setActiveTab(tab.value as any)}
                     className={`
-                      w-full pl-12 pr-4 py-4 bg-transparent outline-none text-base
-                      ${isDark ? 'text-white placeholder-slate-500' : 'text-gray-900 placeholder-gray-400'}
-                    `}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery('')}
-                      className={`absolute right-4 p-1 rounded-full ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}
-                    >
-                      <X size={16} className={isDark ? 'text-slate-400' : 'text-gray-400'} />
-                    </button>
-                  )}
-                </div>
-
-                {/* 搜索历史 */}
-                <AnimatePresence>
-                  {showHistory && searchHistory.length > 0 && !searchQuery && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className={`
-                        absolute top-full left-0 right-0 mt-2 p-3 rounded-xl z-20
-                        ${isDark ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}
-                        shadow-xl
-                      `}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>搜索历史</span>
-                        <button
-                          onClick={() => setSearchHistory([])}
-                          className={`text-xs ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-gray-400 hover:text-gray-600'}`}
-                        >
-                          清除
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {searchHistory.map((term, i) => (
-                          <button
-                            key={i}
-                            onClick={() => {
-                              setSearchQuery(term)
-                              setShowHistory(false)
-                            }}
-                            className={`
-                              px-3 py-1.5 rounded-lg text-sm transition-colors
-                              ${isDark
-                                ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                              }
-                            `}
-                          >
-                            <Clock size={12} className="inline mr-1" />
-                            {term}
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-
-            {/* 操作栏 */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.1 }}
-              className="flex items-center justify-between mb-6"
-            >
-              <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                共 <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{filteredFAQs.length}</span> 个问题
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={expandAll}
-                  className={`
-                    px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-                    ${isDark
-                      ? 'text-slate-300 hover:bg-slate-800'
-                      : 'text-gray-600 hover:bg-gray-100'
-                    }
-                  `}
-                >
-                  展开全部
-                </button>
-                <button
-                  onClick={collapseAll}
-                  className={`
-                    px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-                    ${isDark
-                      ? 'text-slate-300 hover:bg-slate-800'
-                      : 'text-gray-600 hover:bg-gray-100'
-                    }
-                  `}
-                >
-                  收起全部
-                </button>
-              </div>
-            </motion.div>
-
-            {/* FAQ列表 */}
-            <motion.div
-              variants={staggerContainer}
-              initial="initial"
-              animate="animate"
-              className="space-y-3"
-            >
-              <AnimatePresence mode="popLayout">
-                {filteredFAQs.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className={`
-                      text-center py-16 rounded-2xl
-                      ${isDark ? 'bg-slate-800/50 border border-slate-700/50' : 'bg-white border border-gray-200'}
+                      flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200
+                      ${activeTab === tab.value
+                        ? isDark
+                          ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25'
+                          : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25'
+                        : isDark
+                          ? 'bg-slate-800/50 text-slate-300 hover:bg-slate-700'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }
                     `}
                   >
-                    <div className={`
-                      w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4
-                      ${isDark ? 'bg-slate-800' : 'bg-gray-100'}
-                    `}>
-                      <Search size={28} className={isDark ? 'text-slate-500' : 'text-gray-400'} />
-                    </div>
-                    <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      未找到匹配的问题
-                    </h3>
-                    <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'} mb-4`}>
-                      尝试使用其他关键词搜索，或浏览其他分类
-                    </p>
-                    <button
-                      onClick={() => {
-                        setActiveCategory('all')
-                        setSearchQuery('')
-                      }}
+                    <tab.icon size={16} />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 搜索框 - 仅在FAQ和视频教程标签页显示 */}
+              {(activeTab === 'faq' || activeTab === 'videos') && (
+                <div className="relative">
+                  <div className={`
+                    relative flex items-center rounded-2xl overflow-hidden transition-all duration-200
+                    ${isDark
+                      ? 'bg-slate-800/50 border border-slate-700/50 focus-within:border-indigo-500/50 focus-within:ring-2 focus-within:ring-indigo-500/20'
+                      : 'bg-white border border-gray-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100'
+                    }
+                  `}>
+                    <Search size={20} className={`absolute left-4 ${isDark ? 'text-slate-400' : 'text-gray-400'}`} />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      onFocus={() => setShowHistory(true)}
+                      placeholder={`搜索${activeTab === 'faq' ? '问题' : '视频'}或关键词...`}
                       className={`
-                        px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                        w-full pl-12 pr-4 py-4 bg-transparent outline-none text-base
+                        ${isDark ? 'text-white placeholder-slate-500' : 'text-gray-900 placeholder-gray-400'}
+                      `}
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className={`absolute right-4 p-1 rounded-full ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}
+                      >
+                        <X size={16} className={isDark ? 'text-slate-400' : 'text-gray-400'} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 搜索历史 */}
+                  <AnimatePresence>
+                    {showHistory && searchHistory.length > 0 && !searchQuery && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className={`
+                          absolute top-full left-0 right-0 mt-2 p-3 rounded-xl z-20
+                          ${isDark ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}
+                          shadow-xl
+                        `}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>搜索历史</span>
+                          <button
+                            onClick={() => setSearchHistory([])}
+                            className={`text-xs ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-gray-400 hover:text-gray-600'}`}
+                          >
+                            清除
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {searchHistory.map((term, i) => (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                setSearchQuery(term)
+                                setShowHistory(false)
+                              }}
+                              className={`
+                                px-3 py-1.5 rounded-lg text-sm transition-colors
+                                ${isDark
+                                  ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }
+                              `}
+                            >
+                              <Clock size={12} className="inline mr-1" />
+                              {term}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </motion.div>
+
+            {/* 标签页内容 */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {/* FAQ标签页内容 */}
+                {activeTab === 'faq' && (
+                  <>
+                    {/* 操作栏 */}
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.1 }}
+                      className="flex items-center justify-between mb-6"
+                    >
+                      <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                        共 <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{filteredFAQs.length}</span> 个问题
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={expandAll}
+                          className={`
+                            px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+                            ${isDark
+                              ? 'text-slate-300 hover:bg-slate-800'
+                              : 'text-gray-600 hover:bg-gray-100'
+                            }
+                          `}
+                        >
+                          展开全部
+                        </button>
+                        <button
+                          onClick={collapseAll}
+                          className={`
+                            px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+                            ${isDark
+                              ? 'text-slate-300 hover:bg-slate-800'
+                              : 'text-gray-600 hover:bg-gray-100'
+                            }
+                          `}
+                        >
+                          收起全部
+                        </button>
+                      </div>
+                    </motion.div>
+
+                    {/* FAQ列表 */}
+                    <motion.div
+                      variants={staggerContainer}
+                      initial="initial"
+                      animate="animate"
+                      className="space-y-3"
+                    >
+                      <AnimatePresence mode="popLayout">
+                        {filteredFAQs.length === 0 ? (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className={`
+                              text-center py-16 rounded-2xl
+                              ${isDark ? 'bg-slate-800/50 border border-slate-700/50' : 'bg-white border border-gray-200'}
+                            `}
+                          >
+                            <div className={`
+                              w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4
+                              ${isDark ? 'bg-slate-800' : 'bg-gray-100'}
+                            `}>
+                              <Search size={28} className={isDark ? 'text-slate-500' : 'text-gray-400'} />
+                            </div>
+                            <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              未找到匹配的问题
+                            </h3>
+                            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'} mb-4`}>
+                              尝试使用其他关键词搜索，或浏览其他分类
+                            </p>
+                            <button
+                              onClick={() => {
+                                setActiveCategory('all')
+                                setSearchQuery('')
+                              }}
+                              className={`
+                                px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                                ${isDark
+                                  ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
+                                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                                }
+                              `}
+                            >
+                              查看所有问题
+                            </button>
+                          </motion.div>
+                        ) : (
+                          filteredFAQs.map((faq, index) => {
+                            const isExpanded = expandedIds.includes(faq.id)
+                            const category = categories.find(c => c.value === faq.category)
+
+                            return (
+                              <motion.div
+                                key={faq.id}
+                                layout
+                                variants={fadeInUp}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ delay: index * 0.03 }}
+                                className={`
+                                  rounded-2xl border overflow-hidden transition-all duration-300
+                                  ${isExpanded
+                                    ? isDark
+                                      ? 'bg-slate-800/80 border-slate-700 shadow-xl shadow-black/20'
+                                      : 'bg-white border-gray-200 shadow-lg shadow-gray-200/50'
+                                    : isDark
+                                      ? 'bg-slate-900/40 border-slate-800/50 hover:border-slate-700/50'
+                                      : 'bg-white/70 border-gray-200/70 hover:border-gray-300 hover:bg-white'
+                                  }
+                                `}
+                              >
+                                <button
+                                  onClick={() => toggleFAQ(faq.id)}
+                                  className="w-full flex items-start gap-4 p-5 text-left"
+                                >
+                                  <div className={`
+                                    w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all
+                                    ${isExpanded
+                                      ? `bg-gradient-to-br ${category?.color || 'from-gray-500 to-gray-600'} shadow-lg`
+                                      : isDark
+                                        ? 'bg-slate-800'
+                                        : 'bg-gray-100'
+                                    }
+                                  `}>
+                                    {category ? (
+                                      <category.icon size={18} className={isExpanded ? 'text-white' : isDark ? 'text-slate-400' : 'text-gray-500'} />
+                                    ) : (
+                                      <HelpCircle size={18} className={isExpanded ? 'text-white' : isDark ? 'text-slate-400' : 'text-gray-500'} />
+                                    )}
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className={`font-semibold text-base mb-1 ${isDark ? 'text-slate-200' : 'text-gray-900'}`}>
+                                      {highlightText(faq.question, searchQuery)}
+                                    </h3>
+                                    <div className={`flex items-center gap-3 text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                                      <span className="flex items-center gap-1">
+                                        <TrendingUp size={12} />
+                                        {(faq.views || 0).toLocaleString()} 次浏览
+                                      </span>
+                                      {faq.helpful && (
+                                        <span className="flex items-center gap-1">
+                                          <CheckCircle2 size={12} className="text-emerald-500" />
+                                          {faq.helpful}% 有帮助
+                                        </span>
+                                      )}
+                                      <span className={`
+                                        px-2 py-0.5 rounded-full text-xs
+                                        ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-gray-100 text-gray-500'}
+                                      `}>
+                                        {category?.label}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <motion.div
+                                    animate={{ rotate: isExpanded ? 180 : 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className={`
+                                      w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors
+                                      ${isExpanded
+                                        ? isDark
+                                          ? 'bg-indigo-500/20'
+                                          : 'bg-indigo-100'
+                                        : isDark
+                                          ? 'bg-slate-800'
+                                          : 'bg-gray-100'
+                                      }
+                                    `}
+                                  >
+                                    <ChevronDown
+                                      size={18}
+                                      className={isExpanded ? 'text-indigo-500' : isDark ? 'text-slate-500' : 'text-gray-500'}
+                                    />
+                                  </motion.div>
+                                </button>
+
+                                <AnimatePresence>
+                                  {isExpanded && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.25, ease: [0.25, 0.8, 0.25, 1] }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className={`
+                                        px-5 pb-5
+                                        ${isDark ? 'text-slate-400' : 'text-gray-600'}
+                                      `}>
+                                        <div className={`
+                                          pl-14 pt-2 border-t
+                                          ${isDark ? 'border-slate-700/50' : 'border-gray-100'}
+                                        `}>
+                                          <p className="text-sm leading-relaxed whitespace-pre-line">
+                                            {highlightText(faq.answer, searchQuery)}
+                                          </p>
+
+                                          {/* 反馈按钮 */}
+                                          <div className="flex items-center gap-3 mt-4">
+                                            <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>这个回答有帮助吗？</span>
+                                            <div className="flex items-center gap-2">
+                                              <button className={`
+                                                px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1
+                                                ${isDark
+                                                  ? 'bg-slate-800 text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-400'
+                                                  : 'bg-gray-100 text-gray-600 hover:bg-emerald-50 hover:text-emerald-600'
+                                                }
+                                              `}>
+                                                <CheckCircle2 size={12} />
+                                                有帮助
+                                              </button>
+                                              <button className={`
+                                                px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1
+                                                ${isDark
+                                                  ? 'bg-slate-800 text-slate-400 hover:bg-red-500/20 hover:text-red-400'
+                                                  : 'bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600'
+                                                }
+                                              `}>
+                                                <X size={12} />
+                                                没帮助
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </motion.div>
+                            )
+                          })
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  </>
+                )}
+
+                {/* 视频教程标签页内容 */}
+                {activeTab === 'videos' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {videoTutorials.map((video, index) => (
+                        <motion.div
+                          key={video.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className={`
+                            rounded-2xl overflow-hidden border cursor-pointer transition-all duration-300 group
+                            ${isDark
+                              ? 'bg-slate-900/40 border-slate-800/50 hover:border-slate-700 hover:shadow-xl'
+                              : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-lg'
+                            }
+                          `}
+                        >
+                          {/* 视频缩略图 */}
+                          <div className="relative aspect-video bg-gradient-to-br from-slate-700 to-slate-800 overflow-hidden">
+                            <img
+                              src={video.thumbnail}
+                              alt={video.title}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            />
+                            {/* 播放按钮覆盖层 */}
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                              <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                                <Play size={32} className="text-gray-900 ml-1" />
+                              </div>
+                            </div>
+                            {/* 时长标签 */}
+                            <div className="absolute bottom-3 right-3 px-2 py-1 rounded-lg bg-black/70 text-white text-xs font-medium">
+                              {video.duration}
+                            </div>
+                          </div>
+                          {/* 视频信息 */}
+                          <div className="p-4">
+                            <span className={`
+                              inline-block px-2 py-0.5 rounded-full text-xs font-medium mb-2
+                              ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-gray-100 text-gray-600'}
+                            `}>
+                              {video.category}
+                            </span>
+                            <h3 className={`font-semibold text-base mb-1 ${isDark ? 'text-slate-200' : 'text-gray-900'}`}>
+                              {video.title}
+                            </h3>
+                            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'} mb-3`}>
+                              {video.description}
+                            </p>
+                            <div className={`flex items-center text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                              <TrendingUp size={14} className="mr-1" />
+                              {video.views.toLocaleString()} 次观看
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 新手引导标签页内容 */}
+                {activeTab === 'onboarding' && (
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      {onboardingSteps.map((step, index) => (
+                        <motion.div
+                          key={step.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.15 }}
+                          className="relative"
+                        >
+                          {/* 连接线 */}
+                          {index < onboardingSteps.length - 1 && (
+                            <div className={`
+                              absolute left-6 top-12 bottom-0 w-0.5
+                              ${isDark ? 'bg-slate-700' : 'bg-gray-200'}
+                            `} />
+                          )}
+                          
+                          <div className="flex gap-4">
+                            {/* 步骤图标 */}
+                            <div className={`
+                              w-12 h-12 rounded-2xl bg-gradient-to-br ${step.color} flex items-center justify-center flex-shrink-0 shadow-lg z-10
+                            `}>
+                              <step.icon size={24} className="text-white" />
+                            </div>
+                            
+                            {/* 步骤内容 */}
+                            <div className={`
+                              flex-1 rounded-2xl border p-4
+                              ${isDark
+                                ? 'bg-slate-900/40 border-slate-800/50'
+                                : 'bg-white border-gray-200'
+                              }
+                            `}>
+                              <div className="flex items-center gap-3 mb-2">
+                                <span className={`
+                                  px-2 py-0.5 rounded-full text-xs font-bold
+                                  ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-gray-100 text-gray-700'}
+                                `}>
+                                  步骤 {index + 1}
+                                </span>
+                                <h3 className={`font-semibold text-lg ${isDark ? 'text-slate-200' : 'text-gray-900'}`}>
+                                  {step.title}
+                                </h3>
+                              </div>
+                              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
+                                {step.description}
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {/* 快速操作卡片 */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.6 }}
+                      className={`
+                        mt-8 p-6 rounded-2xl border
                         ${isDark
-                          ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
-                          : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                          ? 'bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 border-indigo-500/30'
+                          : 'bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-indigo-200'
                         }
                       `}
                     >
-                      查看所有问题
-                    </button>
-                  </motion.div>
-                ) : (
-                  filteredFAQs.map((faq, index) => {
-                    const isExpanded = expandedIds.includes(faq.id)
-                    const category = categories.find(c => c.value === faq.category)
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className={`
+                            w-12 h-12 rounded-xl flex items-center justify-center
+                            ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-100'}
+                          `}>
+                            <Sparkles size={24} className="text-indigo-500" />
+                          </div>
+                          <div>
+                            <h3 className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              准备好开始创作了吗？
+                            </h3>
+                            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                              完成引导，立即体验AI创作的魅力
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          className={`
+                            px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200
+                            flex items-center justify-center gap-2 whitespace-nowrap
+                            ${isDark
+                              ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/25'
+                              : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25'
+                            }
+                            hover:scale-105 active:scale-95
+                          `}
+                        >
+                          <StepForward size={18} />
+                          开始创作
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
 
-                    return (
-                      <motion.div
-                        key={faq.id}
-                        layout
-                        variants={fadeInUp}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ delay: index * 0.03 }}
+                {/* 工单中心标签页内容 */}
+                {activeTab === 'tickets' && (
+                  <div className="space-y-6">
+                    {/* 提交工单按钮 */}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => setShowTicketModal(true)}
                         className={`
-                          rounded-2xl border overflow-hidden transition-all duration-300
-                          ${isExpanded
-                            ? isDark
-                              ? 'bg-slate-800/80 border-slate-700 shadow-xl shadow-black/20'
-                              : 'bg-white border-gray-200 shadow-lg shadow-gray-200/50'
-                            : isDark
-                              ? 'bg-slate-900/40 border-slate-800/50 hover:border-slate-700/50'
-                              : 'bg-white/70 border-gray-200/70 hover:border-gray-300 hover:bg-white'
+                          px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200
+                          flex items-center justify-center gap-2 whitespace-nowrap
+                          ${isDark
+                            ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/25'
+                            : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25'
                           }
+                          hover:scale-105 active:scale-95
                         `}
                       >
-                        <button
-                          onClick={() => toggleFAQ(faq.id)}
-                          className="w-full flex items-start gap-4 p-5 text-left"
-                        >
-                          <div className={`
-                            w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all
-                            ${isExpanded
-                              ? `bg-gradient-to-br ${category?.color || 'from-gray-500 to-gray-600'} shadow-lg`
-                              : isDark
-                                ? 'bg-slate-800'
-                                : 'bg-gray-100'
-                            }
-                          `}>
-                            {category ? (
-                              <category.icon size={18} className={isExpanded ? 'text-white' : isDark ? 'text-slate-400' : 'text-gray-500'} />
-                            ) : (
-                              <HelpCircle size={18} className={isExpanded ? 'text-white' : isDark ? 'text-slate-400' : 'text-gray-500'} />
-                            )}
-                          </div>
+                        <Plus size={18} />
+                        提交工单
+                      </button>
+                    </div>
 
-                          <div className="flex-1 min-w-0">
-                            <h3 className={`font-semibold text-base mb-1 ${isDark ? 'text-slate-200' : 'text-gray-900'}`}>
-                              {highlightText(faq.question, searchQuery)}
-                            </h3>
-                            <div className={`flex items-center gap-3 text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
-                              <span className="flex items-center gap-1">
-                                <TrendingUp size={12} />
-                                {(faq.views || 0).toLocaleString()} 次浏览
-                              </span>
-                              {faq.helpful && (
-                                <span className="flex items-center gap-1">
-                                  <CheckCircle2 size={12} className="text-emerald-500" />
-                                  {faq.helpful}% 有帮助
-                                </span>
-                              )}
-                              <span className={`
-                                px-2 py-0.5 rounded-full text-xs
-                                ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-gray-100 text-gray-500'}
-                              `}>
-                                {category?.label}
-                              </span>
-                            </div>
-                          </div>
-
+                    {/* 工单列表 */}
+                    {tickets.length > 0 ? (
+                      <div className="space-y-3">
+                        {tickets.map((ticket) => (
                           <motion.div
-                            animate={{ rotate: isExpanded ? 180 : 0 }}
-                            transition={{ duration: 0.2 }}
+                            key={ticket.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
                             className={`
-                              w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors
-                              ${isExpanded
-                                ? isDark
-                                  ? 'bg-indigo-500/20'
-                                  : 'bg-indigo-100'
-                                : isDark
-                                  ? 'bg-slate-800'
-                                  : 'bg-gray-100'
+                              rounded-2xl border p-4 cursor-pointer transition-all duration-200 hover:shadow-lg
+                              ${isDark
+                                ? 'bg-slate-900/40 border-slate-800/50 hover:border-slate-700'
+                                : 'bg-white border-gray-200 hover:border-gray-300'
                               }
                             `}
+                            onClick={() => setTicketDetailView({ isOpen: true, ticketId: ticket.id })}
                           >
-                            <ChevronDown
-                              size={18}
-                              className={isExpanded ? 'text-indigo-500' : isDark ? 'text-slate-500' : 'text-gray-500'}
-                            />
-                          </motion.div>
-                        </button>
-
-                        <AnimatePresence>
-                          {isExpanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.25, ease: [0.25, 0.8, 0.25, 1] }}
-                              className="overflow-hidden"
-                            >
-                              <div className={`
-                                px-5 pb-5
-                                ${isDark ? 'text-slate-400' : 'text-gray-600'}
-                              `}>
-                                <div className={`
-                                  pl-14 pt-2 border-t
-                                  ${isDark ? 'border-slate-700/50' : 'border-gray-100'}
-                                `}>
-                                  <p className="text-sm leading-relaxed whitespace-pre-line">
-                                    {highlightText(faq.answer, searchQuery)}
-                                  </p>
-
-                                  {/* 反馈按钮 */}
-                                  <div className="flex items-center gap-3 mt-4">
-                                    <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>这个回答有帮助吗？</span>
-                                    <div className="flex items-center gap-2">
-                                      <button className={`
-                                        px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1
-                                        ${isDark
-                                          ? 'bg-slate-800 text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-400'
-                                          : 'bg-gray-100 text-gray-600 hover:bg-emerald-50 hover:text-emerald-600'
-                                        }
-                                      `}>
-                                        <CheckCircle2 size={12} />
-                                        有帮助
-                                      </button>
-                                      <button className={`
-                                        px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1
-                                        ${isDark
-                                          ? 'bg-slate-800 text-slate-400 hover:bg-red-500/20 hover:text-red-400'
-                                          : 'bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600'
-                                        }
-                                      `}>
-                                        <X size={12} />
-                                        没帮助
-                                      </button>
-                                    </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <div className="flex-shrink-0">
+                                  <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                    ticket.status === 'pending' || ticket.status === 'open'
+                                      ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700')
+                                      : ticket.status === 'processing' || ticket.status === 'in_progress'
+                                        ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700')
+                                        : ticket.status === 'resolved'
+                                          ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700')
+                                          : (isDark ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-600')
+                                  }`}>
+                                    {ticket.status === 'pending' || ticket.status === 'open' ? '待处理' : 
+                                     ticket.status === 'processing' || ticket.status === 'in_progress' ? '处理中' : 
+                                     ticket.status === 'resolved' ? '已解决' : '已关闭'}
+                                  </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-gray-900'}`}>
+                                      {ticket.title}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-xs ${
+                                      ticket.priority === 'high'
+                                        ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700')
+                                        : ticket.priority === 'medium'
+                                          ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700')
+                                          : (isDark ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-600')
+                                    }`}>
+                                      {ticket.priority === 'high' ? '高优先级' : 
+                                       ticket.priority === 'medium' ? '中优先级' : '低优先级'}
+                                    </span>
                                   </div>
+                                  <p className={`text-sm truncate ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                                    {ticket.description}
+                                  </p>
                                 </div>
                               </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    )
-                  })
+                              <div className="flex items-center gap-3 sm:gap-4">
+                                <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                                  {new Date(ticket.createdAt).toLocaleDateString()}
+                                </span>
+                                <Eye size={16} className={isDark ? 'text-slate-500' : 'text-gray-400'} />
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={`
+                        text-center py-16 rounded-2xl border
+                        ${isDark ? 'bg-slate-800/50 border-slate-700/50' : 'bg-white border-gray-200'}
+                      `}>
+                        <div className={`
+                          w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4
+                          ${isDark ? 'bg-slate-800' : 'bg-gray-100'}
+                        `}>
+                          <Ticket size={28} className={isDark ? 'text-slate-500' : 'text-gray-400'} />
+                        </div>
+                        <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          暂无工单
+                        </h3>
+                        <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'} mb-4`}>
+                          您还没有提交过工单
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </AnimatePresence>
-            </motion.div>
+              </motion.div>
+            </AnimatePresence>
 
-            {/* 我的工单列表 */}
-            {tickets.length > 0 && (
+            {/* 快速反馈入口 - 仅在FAQ、视频和新手引导标签页显示 */}
+            {(activeTab === 'faq' || activeTab === 'videos' || activeTab === 'onboarding') && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="mt-8"
+                transition={{ delay: 0.4 }}
+                className={`
+                  mt-8 p-6 rounded-2xl border
+                  ${isDark
+                    ? 'bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 border-indigo-500/30'
+                    : 'bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-indigo-200'
+                  }
+                `}
               >
-                <h2 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>我的工单</h2>
-                <div className="space-y-3">
-                  {tickets.map((ticket) => (
-                    <div key={ticket.id} className={`
-                      p-4 rounded-xl border
-                      ${isDark ? 'bg-slate-800/50 border-slate-700/50' : 'bg-white border-gray-200'}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className={`
+                      w-12 h-12 rounded-xl flex items-center justify-center
+                      ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-100'}
                     `}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                            ticket.status === 'open' ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600') :
-                            ticket.status === 'in_progress' ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600') :
-                            (isDark ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-500')
-                          }`}>
-                            {ticket.status === 'open' ? '待处理' : ticket.status === 'in_progress' ? '处理中' : '已关闭'}
-                          </span>
-                          <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-gray-900'}`}>{ticket.title}</span>
-                        </div>
-                        <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
-                          {new Date(ticket.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
+                      <MessageCircle size={24} className="text-indigo-500" />
                     </div>
-                  ))}
+                    <div>
+                      <h3 className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        没有找到想要的答案？
+                      </h3>
+                      <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                        我们的客服团队随时为您提供帮助
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowFeedbackModal(true)}
+                      className={`
+                        px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
+                        flex items-center justify-center gap-2 whitespace-nowrap
+                        ${isDark
+                          ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                          : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
+                        }
+                      `}
+                    >
+                      <MessageSquare size={18} />
+                      提交反馈
+                    </button>
+                    <button
+                      onClick={() => setShowTicketModal(true)}
+                      className={`
+                        px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
+                        flex items-center justify-center gap-2 whitespace-nowrap
+                        ${isDark
+                          ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/25'
+                          : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25'
+                        }
+                        hover:scale-105 active:scale-95
+                      `}
+                    >
+                      <Ticket size={18} />
+                      提交工单
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}
-
-            {/* 快速反馈入口 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className={`
-                mt-8 p-6 rounded-2xl border
-                ${isDark
-                  ? 'bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 border-indigo-500/30'
-                  : 'bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-indigo-200'
-                }
-              `}
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className={`
-                    w-12 h-12 rounded-xl flex items-center justify-center
-                    ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-100'}
-                  `}>
-                    <MessageCircle size={24} className="text-indigo-500" />
-                  </div>
-                  <div>
-                    <h3 className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      没有找到想要的答案？
-                    </h3>
-                    <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                      我们的客服团队随时为您提供帮助
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setShowFeedbackModal(true)}
-                    className={`
-                      px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
-                      flex items-center justify-center gap-2 whitespace-nowrap
-                      ${isDark
-                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                        : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
-                      }
-                    `}
-                  >
-                    <MessageSquare size={18} />
-                    提交反馈
-                  </button>
-                  <button
-                    onClick={() => setShowTicketModal(true)}
-                    className={`
-                      px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
-                      flex items-center justify-center gap-2 whitespace-nowrap
-                      ${isDark
-                        ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/25'
-                        : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25'
-                      }
-                      hover:scale-105 active:scale-95
-                    `}
-                  >
-                    <Ticket size={18} />
-                    提交工单
-                  </button>
-                </div>
-              </div>
-            </motion.div>
           </div>
         </main>
 
@@ -1455,6 +1894,174 @@ export default function Help() {
                   提交工单
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 工单详情模态框 */}
+      <AnimatePresence>
+        {ticketDetailView.isOpen && ticketDetailView.ticketId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={() => setTicketDetailView({ isOpen: false, ticketId: null })}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className={`
+                w-full max-w-2xl max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col
+                ${isDark ? 'bg-slate-900 border border-slate-700' : 'bg-white border border-gray-200'}
+              `}
+            >
+              {(() => {
+                const ticket = tickets.find(t => t.id === ticketDetailView.ticketId)
+                if (!ticket) return null
+                
+                return (
+                  <>
+                    <div className={`p-6 border-b ${isDark ? 'border-slate-800' : 'border-gray-100'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Ticket size={24} className={isDark ? 'text-indigo-400' : 'text-indigo-600'} />
+                          <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>工单详情</h3>
+                        </div>
+                        <button
+                          onClick={() => setTicketDetailView({ isOpen: false, ticketId: null })}
+                          className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
+                        >
+                          <X size={18} className={isDark ? 'text-slate-400' : 'text-gray-500'} />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                      {/* 工单信息 */}
+                      <div className="space-y-4">
+                        <div>
+                          <label className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>工单号</label>
+                          <p className={`mt-1 font-mono ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>{ticket.id}</p>
+                        </div>
+                        
+                        <div>
+                          <label className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>标题</label>
+                          <p className={`mt-1 ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>{ticket.title}</p>
+                        </div>
+                        
+                        <div>
+                          <label className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>描述</label>
+                          <p className={`mt-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>{ticket.description}</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>状态</label>
+                            <div className="mt-1">
+                              <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium ${
+                                ticket.status === 'pending' || ticket.status === 'open'
+                                  ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700')
+                                  : ticket.status === 'processing' || ticket.status === 'in_progress'
+                                    ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700')
+                                    : ticket.status === 'resolved'
+                                      ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700')
+                                      : (isDark ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-600')
+                              }`}>
+                                {ticket.status === 'pending' || ticket.status === 'open' ? '待处理' : 
+                                 ticket.status === 'processing' || ticket.status === 'in_progress' ? '处理中' : 
+                                 ticket.status === 'resolved' ? '已解决' : '已关闭'}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <label className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>优先级</label>
+                            <div className="mt-1">
+                              <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium ${
+                                ticket.priority === 'high'
+                                  ? (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-700')
+                                  : ticket.priority === 'medium'
+                                    ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700')
+                                    : (isDark ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-600')
+                              }`}>
+                                {ticket.priority === 'high' ? '高' : ticket.priority === 'medium' ? '中' : '低'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>创建时间</label>
+                            <p className={`mt-1 ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>
+                              {new Date(ticket.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <label className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>最后更新</label>
+                            <p className={`mt-1 ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>
+                              {new Date(ticket.updatedAt || ticket.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {ticket.resolution && (
+                          <div>
+                            <label className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>处理结果</label>
+                            <div className={`mt-2 p-4 rounded-xl ${isDark ? 'bg-emerald-500/10 border border-emerald-500/30' : 'bg-emerald-50 border border-emerald-200'}`}>
+                              <p className={isDark ? 'text-emerald-300' : 'text-emerald-800'}>{ticket.resolution}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* 工单评论（如果有的话） */}
+                      {ticket.comments && ticket.comments.length > 0 && (
+                        <div>
+                          <h4 className={`text-sm font-semibold mb-3 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>交流记录</h4>
+                          <div className="space-y-3">
+                            {ticket.comments.map((comment: any) => (
+                              <div key={comment.id} className={`p-4 rounded-xl ${isDark ? 'bg-slate-800/50' : 'bg-gray-50'}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className={`text-sm font-medium ${isDark ? 'text-slate-200' : 'text-gray-800'}`}>
+                                    {comment.username}
+                                  </span>
+                                  <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                                    {new Date(comment.createdAt).toLocaleString()}
+                                  </span>
+                                </div>
+                                <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
+                                  {comment.content}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className={`p-6 border-t ${isDark ? 'border-slate-800' : 'border-gray-100'} flex justify-end`}>
+                      <button
+                        onClick={() => setTicketDetailView({ isOpen: false, ticketId: null })}
+                        className={`
+                          px-6 py-2 rounded-lg text-sm font-medium transition-colors
+                          ${isDark
+                            ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                          }
+                        `}
+                      >
+                        关闭
+                      </button>
+                    </div>
+                  </>
+                )
+              })()}
             </motion.div>
           </motion.div>
         )}

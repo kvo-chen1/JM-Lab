@@ -1,0 +1,211 @@
+/* ========================================
+   Enhanced UI Components Styles
+   ======================================== */
+
+/* 输入框焦点状态优化 */
+.input-enhanced:focus {
+  outline: none;
+  border-color: var(--color-primary-500, #c21807);
+  box-shadow: 
+    0 0 0 1px var(--color-primary-500, #c21807),
+    0 0 0 4px rgba(194, 24, 7, 0.1),
+    0 0 20px rgba(194, 24, 7, 0.15);
+}
+
+/* 输入框浮动标签动画 */
+.input-group {
+  position: relative;
+}
+
+.input-label {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: all 0.2s;
+  pointer-events: none;
+  color: var(--text-tertiary, #9ca3af);
+}
+
+.input-enhanced:focus + .input-label,
+.input-enhanced:not(:placeholder-shown) + .input-label {
+  top: 0;
+  transform: translateY(-50%) scale(0.85);
+  background: var(--bg-primary, #ffffff);
+  padding: 0 4px;
+  color: var(--color-primary-500, #c21807);
+}
+
+/* 增强的卡片悬停效果 */
+.card-enhanced {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-enhanced:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* 卡片边框渐变效果 */
+.card-border-glow {
+  position: relative;
+}
+
+.card-border-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(194, 24, 7, 0.3), transparent 50%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.card-border-glow:hover::before {
+  opacity: 1;
+}
+
+/* 触摸涟漪效果 */
+.touch-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.touch-ripple::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.2;
+  transform: scale(0);
+  animation: ripple 0.6s linear;
+  pointer-events: none;
+}
+
+@keyframes ripple {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* 触摸目标最小尺寸 */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* 长按振动反馈提示 */
+.haptic-indicator {
+  transform: scale(1);
+  transition: transform 0.1s;
+}
+
+.haptic-indicator:active {
+  transform: scale(0.95);
+}
+
+/* 精致的渐变背景 */
+.gradient-subtle {
+  background: linear-gradient(
+    135deg,
+    rgba(194, 24, 7, 0.03) 0%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(4, 120, 87, 0.03) 100%
+  );
+}
+
+/* 多层阴影效果 */
+.shadow-elevation-1 {
+  box-shadow: 
+    0 1px 2px 0 rgba(0, 0, 0, 0.05),
+    0 1px 1px 0 rgba(0, 0, 0, 0.03);
+}
+
+.shadow-elevation-2 {
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-elevation-3 {
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* 内部光效 */
+.inner-glow {
+  box-shadow: inset 0 0 20px rgba(194, 24, 7, 0.1);
+}
+
+/* 文字渐变 */
+.text-gradient-primary {
+  background: linear-gradient(135deg, #c21807, #ef4444);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 精致的边框效果 */
+.border-subtle {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.border-gradient {
+  border: 1px solid transparent;
+  background: linear-gradient(white, white) padding-box,
+              linear-gradient(135deg, #c21807, #047857) border-box;
+}
+
+/* 智能分隔线 */
+.divider-smart {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 0, 0, 0.1) 20%,
+    rgba(0, 0, 0, 0.1) 80%,
+    transparent
+  );
+}
+
+/* 点状分隔线 */
+.divider-dotted {
+  border-top: 2px dotted rgba(0, 0, 0, 0.1);
+}
+
+/* 隐藏滚动条 */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* 自定义滚动条 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-primary, #e5e7eb);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--border-secondary, #d1d5db);
+}

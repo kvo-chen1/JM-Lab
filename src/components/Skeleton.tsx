@@ -1,241 +1,365 @@
-import clsx from 'clsx';
-
-// 骨架屏动画样式 - 优化为更平滑、更自然的动画效果
-const skeletonAnimation = 'animate-[pulse_1.5s_cubic-bezier(0.4,0,0.6,1)_infinite] transition-all duration-300 ease-in-out';
-
-// 统一的骨架屏颜色方案 - 使用渐变效果增强视觉体验
-const skeletonColor = 'bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800';
-const skeletonRounded = 'rounded-md';
-const skeletonRoundedFull = 'rounded-full';
+import { useTheme } from '@/hooks/useTheme';
 
 interface SkeletonProps {
   className?: string;
-}
-
-interface SkeletonBoxProps extends SkeletonProps {
   width?: string | number;
   height?: string | number;
-  rounded?: boolean;
   circle?: boolean;
-}
-
-interface SkeletonTextProps extends SkeletonProps {
-  lines?: number;
-  width?: string | number | (string | number)[];
-  variant?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'p' | 'span';
-}
-
-interface SkeletonCardProps extends SkeletonProps {
-  image?: boolean;
-  title?: boolean;
-  description?: boolean;
-  footer?: boolean;
-}
-
-interface SkeletonAvatarProps extends SkeletonProps {
-  size?: number;
-  rounded?: boolean;
+  count?: number;
+  style?: React.CSSProperties;
 }
 
 /**
- * 基础骨架屏盒子组件
+ * 通用骨架屏组件
  */
-export function SkeletonBox({
-  width = '100%',
-  height = '1rem',
-  rounded = false,
-  circle = false,
+export function Skeleton({
   className = '',
+  width,
+  height,
+  circle = false,
+  count = 1,
+  style
+}: SkeletonProps) {
+  const { isDark } = useTheme();
+
+  const baseStyle: React.CSSProperties = {
+    width: typeof width === 'number' ? `${width}px` : width,
+    height: typeof height === 'number' ? `${height}px` : height,
+    borderRadius: circle ? '50%' : '0.5rem',
+    ...style
+  };
+
+  const skeletonClass = `
+    animate-pulse
+    ${isDark ? 'bg-slate-800' : 'bg-gray-200'}
+    ${className}
+  `;
+
+  if (count > 1) {
+    return (
+      <>
+        {Array.from({ length: count }).map((_, i) => (
+          <div
+            key={i}
+            className={skeletonClass}
+            style={baseStyle}
+          />
+        ))}
+      </>
+    );
+  }
+
+  return <div className={skeletonClass} style={baseStyle} />;
+}
+
+/**
+ * FAQ列表骨架屏
+ */
+export function FAQListSkeleton({ count = 5 }: { count?: number }) {
+  const { isDark } = useTheme();
+
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className={`
+            rounded-2xl border p-5
+            ${isDark ? 'bg-slate-900/40 border-slate-800/50' : 'bg-white/70 border-gray-200/70'}
+          `}
+        >
+          <div className="flex items-start gap-4">
+            <Skeleton width={40} height={40} className="rounded-xl flex-shrink-0" />
+            <div className="flex-1 min-w-0 space-y-2">
+              <Skeleton width="80%" height={20} />
+              <div className="flex items-center gap-3">
+                <Skeleton width={60} height={14} />
+                <Skeleton width={80} height={14} />
+              </div>
+            </div>
+            <Skeleton width={32} height={32} className="rounded-lg flex-shrink-0" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 工单列表骨架屏
+ */
+export function TicketListSkeleton({ count = 3 }: { count?: number }) {
+  const { isDark } = useTheme();
+
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className={`
+            p-4 rounded-xl border
+            ${isDark ? 'bg-slate-800/50 border-slate-700/50' : 'bg-white border-gray-200'}
+          `}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-1">
+              <Skeleton width={60} height={24} className="rounded-lg" />
+              <Skeleton width="50%" height={20} />
+            </div>
+            <Skeleton width={80} height={16} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 侧边栏统计卡片骨架屏
+ */
+export function StatsCardSkeleton() {
+  const { isDark } = useTheme();
+
+  return (
+    <div className={`
+      p-4 rounded-2xl border
+      ${isDark ? 'bg-slate-800/50 border-slate-700/50' : 'bg-gray-50 border-gray-200'}
+    `}>
+      <Skeleton width={80} height={14} className="mb-3" />
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Skeleton width={14} height={14} circle />
+              <Skeleton width={80} height={16} />
+            </div>
+            <Skeleton width={40} height={16} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 页面头部骨架屏
+ */
+export function PageHeaderSkeleton() {
+  return (
+    <div className="mb-8">
+      <div className="flex items-center gap-3 mb-4">
+        <Skeleton width={48} height={48} className="rounded-2xl" />
+        <div className="space-y-2">
+          <Skeleton width={200} height={32} />
+          <Skeleton width={300} height={16} />
+        </div>
+      </div>
+      <Skeleton width="100%" height={56} className="rounded-2xl" />
+    </div>
+  );
+}
+
+/**
+ * 热门问题列表骨架屏
+ */
+export function HotFAQListSkeleton({ count = 5 }: { count?: number }) {
+  const { isDark } = useTheme();
+
+  return (
+    <div className={`
+      rounded-2xl border overflow-hidden
+      ${isDark ? 'bg-slate-800/30 border-slate-700/50' : 'bg-white border-gray-200'}
+    `}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className={`
+            flex items-center gap-3 p-3
+            ${i !== count - 1 ? (isDark ? 'border-b border-slate-700/50' : 'border-b border-gray-100') : ''}
+          `}
+        >
+          <Skeleton width={24} height={24} className="rounded-lg" />
+          <Skeleton width="70%" height={16} className="flex-1" />
+          <Skeleton width={14} height={14} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 联系支持卡片骨架屏
+ */
+export function ContactCardSkeleton({ count = 3 }: { count?: number }) {
+  const { isDark } = useTheme();
+
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className={`
+            flex items-center gap-3 p-3 rounded-xl
+            ${isDark ? 'bg-slate-800/50 border border-slate-700/50' : 'bg-white border border-gray-200'}
+          `}
+        >
+          <Skeleton width={40} height={40} className="rounded-lg" />
+          <div className="flex-1 space-y-1">
+            <Skeleton width={80} height={16} />
+            <Skeleton width={120} height={12} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 通用骨架盒子组件
+ */
+interface SkeletonBoxProps {
+  width?: string | number;
+  height?: string | number;
+  circle?: boolean;
+  rounded?: boolean;
+  className?: string;
+}
+
+export function SkeletonBox({
+  width,
+  height,
+  circle = false,
+  rounded = false,
+  className = ''
 }: SkeletonBoxProps) {
+  const { isDark } = useTheme();
+
+  const style: React.CSSProperties = {
+    width: typeof width === 'number' ? `${width}px` : width,
+    height: typeof height === 'number' ? `${height}px` : height,
+    borderRadius: circle ? '50%' : rounded ? '0.5rem' : undefined
+  };
+
   return (
     <div
-      className={clsx(
-        skeletonColor,
-        skeletonAnimation,
-        rounded && skeletonRounded,
-        circle && skeletonRoundedFull,
-        className
-      )}
-      style={{
-        width: typeof width === 'number' ? `${width}px` : width,
-        height: typeof height === 'number' ? `${height}px` : height,
-      }}
+      className={`animate-pulse ${isDark ? 'bg-slate-800' : 'bg-gray-200'} ${className}`}
+      style={style}
     />
   );
 }
 
 /**
- * 文本骨架屏组件
+ * 卡片骨架屏
  */
-export function SkeletonText({
-  lines = 1,
-  width = '100%',
-  variant = 'p',
-  className = '',
-}: SkeletonTextProps) {
-  const Line = variant;
-  const widths = Array.isArray(width) ? width : Array(lines).fill(width);
+export function SkeletonCard({ className = '' }: { className?: string }) {
+  const { isDark } = useTheme();
 
   return (
-    <div className={className}>
-      {widths.slice(0, lines).map((lineWidth, index) => (
-        <Line
-          key={index}
-          className={clsx(
-            skeletonColor,
-            skeletonAnimation,
-            'inline-block',
-            skeletonRounded,
-            'mb-2',
-            variant === 'p' && 'h-4',
-            variant.startsWith('h') && `h-${variant.slice(1)}`,
-            'last:mb-0',
-            'transition-all duration-300'
-          )}
-          style={{
-            width: typeof lineWidth === 'number' ? `${lineWidth}px` : lineWidth,
-            height: variant === 'p' ? '1rem' : variant === 'span' ? '1em' : `${parseInt(variant.slice(1)) * 0.3 + 0.8}rem`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
- * 卡片骨架屏组件
- */
-export function SkeletonCard({
-  image = true,
-  title = true,
-  description = true,
-  footer = true,
-  className = '',
-}: SkeletonCardProps) {
-  return (
-    <div className={clsx('bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 transition-all duration-300 hover:shadow-lg', className)}>
-      {image && (
-        <div className="mb-4">
-          <SkeletonBox width="100%" height="160px" rounded />
+    <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-sm ${className}`}>
+      <div className="flex items-start gap-3 mb-4">
+        <SkeletonBox width={40} height={40} circle />
+        <div className="flex-1">
+          <SkeletonBox width="60%" height={16} rounded className="mb-2" />
+          <SkeletonBox width="40%" height={12} rounded />
         </div>
-      )}
-      {title && (
-        <div className="mb-2">
-          <SkeletonText lines={1} width="80%" variant="h3" />
-        </div>
-      )}
-      {description && (
-        <div className="mb-4">
-          <SkeletonText lines={2} width={['90%', '70%']} />
-        </div>
-      )}
-      {footer && (
-        <div className="flex items-center justify-between">
-          <SkeletonBox width="60px" height="32px" rounded />
-          <SkeletonBox width="80px" height="32px" rounded />
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * 头像骨架屏组件
- */
-export function SkeletonAvatar({
-  size = 40,
-  rounded = false,
-  className = '',
-}: SkeletonAvatarProps) {
-  return (
-    <SkeletonBox
-      width={size}
-      height={size}
-      rounded={rounded}
-      circle={!rounded}
-      className={clsx('transition-all duration-300', className)}
-    />
-  );
-}
-
-/**
- * 列表项骨架屏组件
- */
-export function SkeletonListItem({
-  className = '',
-}: SkeletonProps) {
-  return (
-    <div className={clsx('flex items-center gap-3 py-3 border-b border-gray-200 dark:border-gray-700 transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-800', className)}>
-      <SkeletonAvatar size={48} />
-      <div className="flex-1">
-        <SkeletonText lines={1} width="70%" variant="h4" />
-        <SkeletonText lines={1} width="50%" />
       </div>
-      <SkeletonBox width="24px" height="24px" rounded />
+      <SkeletonBox width="100%" height={80} rounded className="mb-3" />
+      <div className="flex gap-2">
+        <SkeletonBox width={60} height={24} rounded />
+        <SkeletonBox width={60} height={24} rounded />
+      </div>
     </div>
   );
 }
 
 /**
- * 按钮骨架屏组件
+ * 列表项骨架屏
  */
+export function SkeletonListItem({ className = '' }: { className?: string }) {
+  return (
+    <div className={`flex items-center gap-3 ${className}`}>
+      <SkeletonBox width={32} height={32} circle />
+      <div className="flex-1">
+        <SkeletonBox width="70%" height={14} rounded className="mb-1" />
+        <SkeletonBox width="40%" height={12} rounded />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 文本骨架屏
+ */
+interface SkeletonTextProps {
+  variant?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'p' | 'span';
+  width?: string | number;
+  lines?: number;
+  className?: string;
+}
+
+export function SkeletonText({
+  variant = 'p',
+  width,
+  lines = 1,
+  className = ''
+}: SkeletonTextProps) {
+  const heightMap = {
+    h1: 32,
+    h2: 24,
+    h3: 20,
+    h4: 18,
+    h5: 16,
+    p: 14,
+    span: 14
+  };
+
+  const height = heightMap[variant];
+
+  if (lines > 1) {
+    return (
+      <div className={`space-y-2 ${className}`}>
+        {Array.from({ length: lines }).map((_, i) => (
+          <SkeletonBox
+            key={i}
+            width={i === lines - 1 ? '70%' : '100%'}
+            height={height}
+            rounded
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return <SkeletonBox width={width || '100%'} height={height} rounded className={className} />;
+}
+
+/**
+ * 头像骨架屏
+ */
+interface SkeletonAvatarProps {
+  size?: number;
+  className?: string;
+}
+
+export function SkeletonAvatar({ size = 40, className = '' }: SkeletonAvatarProps) {
+  return <SkeletonBox width={size} height={size} circle className={className} />;
+}
+
+/**
+ * 按钮骨架屏
+ */
+interface SkeletonButtonProps {
+  width?: string | number;
+  height?: number;
+  className?: string;
+}
+
 export function SkeletonButton({
   width = '100px',
-  height = '40px',
-  rounded = true,
-  className = '',
-}: Omit<SkeletonBoxProps, 'circle'>) {
-  return (
-    <SkeletonBox
-      width={width}
-      height={height}
-      rounded={rounded}
-      circle={false}
-      className={clsx('transition-all duration-300', className)}
-    />
-  );
+  height = 36,
+  className = ''
+}: SkeletonButtonProps) {
+  return <SkeletonBox width={width} height={height} rounded className={className} />;
 }
 
-/**
- * 网格骨架屏组件
- */
-export function SkeletonGrid({
-  columns = 2,
-  rows = 1,
-  className = '',
-}: {
-  columns?: number;
-  rows?: number;
-  className?: string;
-}) {
-  const totalItems = columns * rows;
-
-  return (
-    <div className={clsx(`grid grid-cols-${columns} gap-4`, className)}>
-      {Array.from({ length: totalItems }).map((_, index) => (
-        <SkeletonCard key={index} />
-      ))}
-    </div>
-  );
-}
-
-/**
- * 骨架屏包裹组件，用于统一管理骨架屏的显示和隐藏
- */
-export function SkeletonWrapper({
-  isLoading,
-  children,
-  skeleton,
-}: {
-  isLoading: boolean;
-  children: React.ReactNode;
-  skeleton: React.ReactNode;
-}) {
-  if (isLoading) {
-    return skeleton;
-  }
-  return <>{children}</>;
-}
-
-// 导出默认骨架屏组件
-export default SkeletonBox;
+export default Skeleton;

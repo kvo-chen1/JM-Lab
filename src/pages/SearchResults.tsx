@@ -7,7 +7,7 @@ import searchService from '@/services/searchService'
 import templateService, { Template } from '@/services/templateService'
 import { tianjinActivityService, TianjinTemplate } from '@/services/tianjinActivityService'
 import { SearchResultType } from '@/components/SearchBar'
-import { Search, Users, Image, Calendar, MessageCircle, Building2, Grid3X3, Loader2, FileText } from 'lucide-react'
+import { Search, Users, Image, Calendar, MessageCircle, Building2, Grid3X3, Loader2, FileText, ShoppingBag, Gamepad2 } from 'lucide-react'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -33,6 +33,8 @@ const searchCategories: SearchCategory[] = [
   { id: 'events', label: '津脉活动', icon: <Calendar className="w-4 h-4" />, type: SearchResultType.PAGE },
   { id: 'community', label: '津脉社群', icon: <MessageCircle className="w-4 h-4" />, type: SearchResultType.PAGE },
   { id: 'brands', label: '品牌方', icon: <Building2 className="w-4 h-4" />, type: SearchResultType.CATEGORY },
+  { id: 'products', label: '商品', icon: <ShoppingBag className="w-4 h-4" />, type: SearchResultType.PRODUCT },
+  { id: 'games', label: '游戏', icon: <Gamepad2 className="w-4 h-4" />, type: SearchResultType.GAME },
 ]
 
 // 排序选项
@@ -66,6 +68,8 @@ export default function SearchResults() {
     templates: Template[];
     tianjinTemplates: TianjinTemplate[];
     brands: any[];
+    products: any[];
+    games: any[];
   }
 
   // 搜索结果
@@ -78,7 +82,9 @@ export default function SearchResults() {
     communities: [],
     templates: [],
     tianjinTemplates: [],
-    brands: []
+    brands: [],
+    products: [],
+    games: []
   })
   
   // 加载状态
@@ -151,12 +157,14 @@ export default function SearchResults() {
         results.communities.length > 0 ||
         templates.length > 0 ||
         tianjinTemplates.length > 0 ||
-        results.brands.length > 0
+        results.brands.length > 0 ||
+        results.products.length > 0 ||
+        results.games.length > 0
 
       setIsNoResults(!hasResults)
     } catch (error) {
       console.error('搜索失败:', error)
-      setSearchResults({ works: [], users: [], categories: [], tags: [], events: [], communities: [], templates: [], tianjinTemplates: [], brands: [] })
+      setSearchResults({ works: [], users: [], categories: [], tags: [], events: [], communities: [], templates: [], tianjinTemplates: [], brands: [], products: [], games: [] })
       setIsNoResults(true)
     } finally {
       setIsLoading(false)
@@ -206,7 +214,7 @@ export default function SearchResults() {
   const getCategoryCount = (categoryId: string) => {
     switch (categoryId) {
       case 'all':
-        return searchResults.works.length + searchResults.users.length + searchResults.events.length + searchResults.communities.length + searchResults.templates.length + searchResults.tianjinTemplates.length + searchResults.brands.length
+        return searchResults.works.length + searchResults.users.length + searchResults.events.length + searchResults.communities.length + searchResults.templates.length + searchResults.tianjinTemplates.length + searchResults.brands.length + searchResults.products.length + searchResults.games.length
       case 'square':
         return searchResults.works.length
       case 'works':
@@ -219,6 +227,10 @@ export default function SearchResults() {
         return searchResults.communities.length
       case 'brands':
         return searchResults.brands.length
+      case 'products':
+        return searchResults.products.length
+      case 'games':
+        return searchResults.games.length
       default:
         return 0
     }
@@ -700,6 +712,168 @@ export default function SearchResults() {
     )
   }
 
+  // 渲染商品结果卡片
+  const ProductCard = ({ product }: { product: any }) => (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -4 }}
+      className={cn(
+        "group cursor-pointer rounded-xl overflow-hidden transition-all duration-300",
+        isDark
+          ? "bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-gray-600"
+          : "bg-white hover:bg-gray-50 border border-gray-100 hover:border-gray-200 shadow-sm hover:shadow-md"
+      )}
+      onClick={() => navigate(`/marketplace/product/${product.id}`)}
+    >
+      <div className="relative aspect-square overflow-hidden bg-gray-100">
+        <TianjinImage
+          src={product.cover_image || product.images?.[0] || '/images/default-product.jpg'}
+          alt={product.name}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          quality="medium"
+          loading="lazy"
+        />
+        {/* 商品标签 */}
+        <div className="absolute top-2 left-2 flex flex-col gap-1">
+          {product.is_hot && (
+            <span className="text-[10px] px-2 py-1 rounded-full bg-red-500 text-white">
+              热卖
+            </span>
+          )}
+          {product.is_new && (
+            <span className="text-[10px] px-2 py-1 rounded-full bg-green-500 text-white">
+              新品
+            </span>
+          )}
+        </div>
+        {/* 价格标签 */}
+        <div className="absolute bottom-2 right-2">
+          <span className={cn(
+            "px-3 py-1 rounded-full text-sm font-bold",
+            isDark ? "bg-gray-900/80 text-white" : "bg-white/90 text-gray-900"
+          )}>
+            ¥{product.price}
+          </span>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <h3 className={cn(
+          "font-semibold text-base mb-2 line-clamp-1",
+          isDark ? "text-gray-100" : "text-gray-900"
+        )}>
+          {product.name}
+        </h3>
+
+        <p className={cn(
+          "text-sm mb-3 line-clamp-2",
+          isDark ? "text-gray-400" : "text-gray-500"
+        )}>
+          {product.short_description || product.description}
+        </p>
+
+        <div className="flex items-center justify-between text-xs">
+          <span className={cn(
+            "flex items-center gap-1",
+            isDark ? "text-gray-500" : "text-gray-400"
+          )}>
+            <i className="fas fa-shopping-bag" />
+            {product.sold_count || 0} 已售
+          </span>
+          {product.brand?.name && (
+            <span className={cn(
+              "px-2 py-0.5 rounded-full",
+              isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
+            )}>
+              {product.brand.name}
+            </span>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  )
+
+  // 渲染游戏结果卡片
+  const GameCard = ({ game }: { game: any }) => (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -4 }}
+      className={cn(
+        "group cursor-pointer rounded-xl overflow-hidden transition-all duration-300",
+        isDark
+          ? "bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-gray-600"
+          : "bg-white hover:bg-gray-50 border border-gray-100 hover:border-gray-200 shadow-sm hover:shadow-md"
+      )}
+      onClick={() => navigate(`/games`)}
+    >
+      <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5">
+        {/* 游戏封面 */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Gamepad2 className={cn(
+            "w-16 h-16 opacity-50",
+            isDark ? "text-gray-600" : "text-gray-400"
+          )} />
+        </div>
+        {/* 难度标识 */}
+        <div className="absolute top-2 right-2 z-10">
+          <span className={cn(
+            "text-[10px] px-2 py-1 rounded-full",
+            game.difficulty === 'easy'
+              ? "bg-green-500 text-white"
+              : game.difficulty === 'medium'
+                ? "bg-yellow-500 text-white"
+                : "bg-red-500 text-white"
+          )}>
+            {game.difficulty === 'easy' ? '简单' : game.difficulty === 'medium' ? '中等' : '困难'}
+          </span>
+        </div>
+        {/* 悬停遮罩 */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+          <TianjinButton variant="primary" size="sm">
+            开始游戏
+          </TianjinButton>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <h3 className={cn(
+          "font-semibold text-base mb-2 line-clamp-1",
+          isDark ? "text-gray-100" : "text-gray-900"
+        )}>
+          {game.title}
+        </h3>
+
+        <p className={cn(
+          "text-sm mb-3 line-clamp-2",
+          isDark ? "text-gray-400" : "text-gray-500"
+        )}>
+          {game.description}
+        </p>
+
+        <div className="flex items-center justify-between text-xs">
+          <span className={cn(
+            "flex items-center gap-1",
+            isDark ? "text-gray-500" : "text-gray-400"
+          )}>
+            <i className="fas fa-users" />
+            {game.players || 0} 人在玩
+          </span>
+          <span className={cn(
+            "flex items-center gap-1",
+            isDark ? "text-gray-500" : "text-gray-400"
+          )}>
+            <i className="fas fa-star text-yellow-500" />
+            {game.rating || 4.5}
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  )
+
   // 渲染社群结果卡片
   const CommunityCard = ({ community }: { community: any }) => (
     <motion.div
@@ -953,6 +1127,60 @@ export default function SearchResults() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {searchResults.brands.slice(0, activeCategory === 'all' ? 4 : undefined).map(brand => (
                 <BrandCard key={brand.id} brand={brand} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 商品结果 */}
+        {shouldShow('products') && searchResults.products.length > 0 && (
+          <section>
+            {activeCategory === 'all' && (
+              <div className="flex items-center justify-between mb-4">
+                <h2 className={cn(
+                  "text-lg font-semibold",
+                  isDark ? "text-gray-200" : "text-gray-800"
+                )}>
+                  商品
+                </h2>
+                <button
+                  onClick={() => handleCategoryChange('products')}
+                  className="text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  查看更多
+                </button>
+              </div>
+            )}
+            <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {searchResults.products.slice(0, activeCategory === 'all' ? 5 : undefined).map(product => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 游戏结果 */}
+        {shouldShow('games') && searchResults.games.length > 0 && (
+          <section>
+            {activeCategory === 'all' && (
+              <div className="flex items-center justify-between mb-4">
+                <h2 className={cn(
+                  "text-lg font-semibold",
+                  isDark ? "text-gray-200" : "text-gray-800"
+                )}>
+                  游戏
+                </h2>
+                <button
+                  onClick={() => handleCategoryChange('games')}
+                  className="text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  查看更多
+                </button>
+              </div>
+            )}
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {searchResults.games.slice(0, activeCategory === 'all' ? 4 : undefined).map(game => (
+                <GameCard key={game.id} game={game} />
               ))}
             </div>
           </section>

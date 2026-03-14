@@ -10,9 +10,10 @@ import './dark.css';
 import './tianjin.css';
 import './tianjin-enhanced.css';
 import './poizon.css';
+import './delta-force.css';
 
 // 导出主题类型
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force';
 
 // 导出主题配置接口
 export interface ThemeConfig {
@@ -29,6 +30,7 @@ export const themeConfigs: ThemeConfig[] = [
   { value: 'blue', label: '蓝色', icon: 'fas fa-water', description: '清新蓝色主题，带来宁静感' },
   { value: 'green', label: '绿色', icon: 'fas fa-leaf', description: '自然绿色主题，充满生机' },
   { value: 'pixel', label: '赛博像素', icon: 'fas fa-dungeon', description: '复古赛博朋克风格主题' },
+  { value: 'delta-force', label: '三角洲行动', icon: 'fas fa-crosshairs', description: '三角洲行动军事科技主题，军事绿+科技蓝，战术风格' },
   { value: 'tianjin', label: '津门雅韵', icon: 'fas fa-landmark', description: '天津城市特色主题，融合海河蓝、历史砖红、老字号文化元素' },
   { value: 'nirenzhang', label: '泥人张红', icon: 'fas fa-palette', description: '工艺美术主题，热烈红色调，用于重要操作和强调' },
   { value: 'yangliuqing', label: '杨柳青绿', icon: 'fas fa-tree', description: '天津杨柳青年画主题，石青配朱砂红，半印半绘工艺' },
@@ -40,4 +42,4 @@ export const themeConfigs: ThemeConfig[] = [
 ];
 
 // 导出主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'delta-force', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon'];

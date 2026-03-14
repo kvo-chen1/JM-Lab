@@ -29,6 +29,10 @@ import { Post } from '@/services/postService';
 import dataSyncService from '@/services/dataSyncService';
 // 导入性能优化工具
 import { createLazyComponent, ROUTE_PRIORITIES, performanceOptimizer } from '@/utils/performanceOptimization';
+// 导入 Web Vitals 监控
+import { initWebVitalsMonitoring } from '@/utils/webVitals';
+// 导入 Service Worker 注册
+import { registerServiceWorker } from '@/utils/serviceWorker';
 // 导入通知上下文
 import { NotificationProvider } from '@/contexts/NotificationContext';
 // 导入主题上下文
@@ -42,6 +46,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import { TianjinThemeWrapper } from '@/components/TianjinThemeWrapper';
 import { ScrollRestoration } from '@/components/ScrollRestoration';
 import { HamsterWheelLoader } from '@/components/ui';
+import AIChatBot from '@/components/AIChatBot';
 
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
 import Home from "@/pages/Home";
@@ -578,7 +583,7 @@ const Games = createLazyThreeComponent(() => import(/* webpackChunkName: "pages-
 const Terms = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Terms"), {
   priority: ROUTE_PRIORITIES.LOW
 });
-const Help = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Help"), {
+const Help = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/HelpEnhanced"), {
   priority: ROUTE_PRIORITIES.LOW
 });
 const Privacy = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Privacy"), {
@@ -854,11 +859,7 @@ const FirstLaunchGuide = createLazyComponent(() => import(/* webpackChunkName: "
   priority: ROUTE_PRIORITIES.LOW
 });
 // 悬浮AI助手组件 - 懒加载（带错误处理）
-const FloatingAIAssistant = createLazyComponent(() => import(/* webpackChunkName: "components-ai" */ '@/components/FloatingAIAssistantV2').catch(err => {
-  console.warn('[App] Failed to load FloatingAIAssistantV2:', err);
-  // 返回一个空的默认组件作为降级方案
-  return { default: () => null };
-}), {
+const FloatingAIAssistant = createLazyComponent(() => import(/* webpackChunkName: "components-ai" */ '@/components/FloatingAIAssistantV2'), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   retryCount: 1, // 减少重试次数，避免长时间等待
   timeout: 10000 // 减少超时时间
@@ -895,6 +896,18 @@ export default function App() {
   
   // 性能优化：延迟初始化非关键数据
   useEffect(() => {
+    // 初始化 Web Vitals 监控
+    initWebVitalsMonitoring((metric) => {
+      // 可以在这里发送到分析服务
+      if (import.meta.env.DEV) {
+        const emoji = metric.rating === 'good' ? '✅' : metric.rating === 'poor' ? '❌' : '⚠️';
+        console.log(`[Web Vitals] ${emoji} ${metric.name}: ${metric.value.toFixed(2)} (${metric.rating})`);
+      }
+    });
+
+    // 注册 Service Worker（PWA 支持）
+    registerServiceWorker();
+
     // 初始化数据同步服务
     dataSyncService.initialize();
 
@@ -1442,6 +1455,9 @@ export default function App() {
 
       {/* 全局 Toast 通知 */}
       <Toaster position="top-center" richColors closeButton />
+
+      {/* AI智能客服机器人 */}
+      <AIChatBot />
 
       {/* 天津主题特色功能 */}
       <TianjinThemeWrapper />

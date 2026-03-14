@@ -5,9 +5,7 @@ import {
   Zap,
   Calendar,
   Target,
-  Trophy,
   Share2,
-  ChevronRight,
   Sparkles
 } from 'lucide-react';
 import type { Achievement } from '../types';

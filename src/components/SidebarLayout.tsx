@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState, useContext, memo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { debounce } from '@/lib/utils'
-import { TianjinImage } from '@/components/TianjinStyleComponents'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
-import { themeOrder, themeConfig } from '@/config/themeConfig'
+import { themeConfig } from '@/config/themeConfig'
 import { AuthContext } from '@/contexts/authContext'
 import { useFriendContext } from '@/contexts/friendContext'
 import { usePrefetch } from '@/hooks/usePrefetch'
@@ -15,20 +14,15 @@ import { useTranslation } from 'react-i18next'
 import { navigationGroups, bottomNavItems } from '@/config/navigationConfig'
 import { navItemIdToTranslationKey, navGroupIdToTranslationKey } from '@/utils/navigationUtils'
 import {
-  ANIMATION_VARIANTS,
-  INTERACTION_VARIANTS,
   getResponsiveDuration,
   getResponsiveDelay
 } from '@/config/animationConfig'
 import {
-  useKeyboardNavigation,
   useScreenReader,
-  createAriaAttributes,
   useHighContrast,
   useReducedMotion
 } from '@/utils/accessibility'
 import { userService } from '@/services/apiService'
-import userStatsService from '@/services/userStatsService'
 import { getFollowingList, getFollowersList } from '@/services/postService'
 import { uploadImage } from '@/services/imageService'
 import { supabase } from '@/lib/supabase'
@@ -78,8 +72,6 @@ const useResponsiveAnimation = () => {
 
 import SearchBar, { SearchSuggestion } from '@/components/SearchBar'
 import searchService from '@/services/searchService'
-import PWAInstallButton from '@/components/PWAInstallButton'
-import { playNotificationSound, sendDesktopNotification, requestDesktopNotificationPermission } from '../utils/notificationUtils'
 import { messageService } from '@/services/messageService'
 import { feedService } from '@/services/feedService'
 

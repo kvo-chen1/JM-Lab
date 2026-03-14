@@ -2,7 +2,7 @@
  * 版权证书服务
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { copyrightProtectionService } from './copyrightProtectionService';
 import type {
   CopyrightCertificate,

@@ -4,14 +4,11 @@ import { useTheme } from '@/hooks/useTheme';
 import {
   Search,
   X,
-  Filter,
   SlidersHorizontal,
   Clock,
   TrendingUp,
-  Star,
   FileText,
   Tag,
-  ChevronDown,
   History,
   Sparkles,
 } from 'lucide-react';

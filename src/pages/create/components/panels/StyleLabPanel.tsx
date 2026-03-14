@@ -2,11 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
-import { STYLE_PRESETS } from '@/constants/creativeData';
-import { imageProcessingService } from '@/services/imageProcessingService';
 import { llmService } from '@/services/llmService';
 import { toast } from 'sonner';
-import { Loader2, Check, Blend, Palette, Landmark } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 // 风格转换类型
 type StyleMode = 'transfer' | 'mix' | 'culture';

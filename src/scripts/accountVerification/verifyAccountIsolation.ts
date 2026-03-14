@@ -5,7 +5,6 @@ import { cleanupAllTestData, verifyCleanup } from './cleanupTestData';
 import { TEST_ACCOUNTS, TestAccount, verifyAccountInfo } from './testAccounts';
 // 直接导入服务文件，不使用@/别名
 import { recordUserAction, getUserActions, getUserPreferences } from '../../services/recommendationService';
-import recommendationServiceDefault from '../../services/recommendationService';
 import productService from '../../services/productService';
 // 简单的模拟服务，避免依赖问题
 const mockAchievementService = {

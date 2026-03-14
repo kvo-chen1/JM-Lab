@@ -2,7 +2,7 @@
  * 品牌方管理组件
  */
 import React, { useState } from 'react';
-import { useBrands, useUpdateAuthorizationStatus } from '@/hooks/useBrands';
+import { useBrands } from '@/hooks/useBrands';
 import { brandService } from '@/services/brandService';
 import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/Button';

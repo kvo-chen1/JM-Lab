@@ -3,7 +3,7 @@
  * 参考哔哩哔哩动态页面设计
  */
 
-import { BaseEntity, User } from './index';
+import { BaseEntity } from './index';
 
 // 动态内容类型
 export type FeedContentType = 

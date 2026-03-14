@@ -3,7 +3,6 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import eventBus from '@/lib/eventBus';
 
 export type PointsRuleType = 
   | 'daily_checkin'

@@ -5,14 +5,12 @@
 
 import { 
   Event, 
-  EventType, 
   EventPriority, 
   EventFilter, 
   EventHandler, 
   EventSubscriptionOptions, 
   EventSubscription, 
-  EnhancedEventBus, 
-  BaseEvent 
+  EnhancedEventBus 
 } from '../types/events';
 import errorService from './errorService';
 

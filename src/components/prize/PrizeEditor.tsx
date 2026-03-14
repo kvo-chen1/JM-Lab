@@ -9,12 +9,10 @@ import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import {
   PrizeCreateRequest,
-  PrizeUpdateRequest,
   PrizeType,
   PrizeLevel,
   PrizeCombinationType,
   PRIZE_TYPE_NAMES,
-  PRIZE_TYPE_ICONS,
   PRIZE_LEVEL_NAMES,
   PRIZE_LEVEL_COLORS,
   PrizeBase,
@@ -33,10 +31,8 @@ import {
   Upload,
   Image as ImageIcon,
   Trash2,
-  Copy,
   ChevronDown,
   ChevronUp,
-  GripVertical,
   AlertCircle,
 } from 'lucide-react';
 

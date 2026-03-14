@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import AgentLayout from './AgentLayout';
 import ChatPanel from './components/ChatPanel';
 import CanvasPanel from './components/CanvasPanel';

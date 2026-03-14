@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { CollectionGridProps, ViewMode } from '../types/collection';
 import { CollectionCard } from './CollectionCard';

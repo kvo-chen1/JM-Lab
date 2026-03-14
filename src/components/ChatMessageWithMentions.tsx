@@ -8,7 +8,7 @@ import { Send, Smile, Paperclip } from 'lucide-react';
 import { MentionInput, MentionInputRef } from './MentionInput';
 import { MentionText } from './MentionText';
 import Avatar from '@/components/ui/Avatar';
-import { mentionService, MentionNotification } from '@/services/mentionService';
+import { mentionService } from '@/services/mentionService';
 import { useAuth } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { formatDistanceToNow, isToday, isYesterday } from '@/utils/dateUtils';

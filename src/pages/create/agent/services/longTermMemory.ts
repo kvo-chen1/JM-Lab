@@ -3,9 +3,8 @@
  * 使用向量数据库存储对话记忆，支持语义检索
  */
 
-import { AgentMessage } from '../types/agent';
 import { getEmbeddingService } from './embeddingService';
-import { Entity, EntityType } from './entityExtractor';
+import { Entity } from './entityExtractor';
 
 // 记忆项
 export interface Memory {

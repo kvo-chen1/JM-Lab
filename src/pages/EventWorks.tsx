@@ -5,7 +5,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { useEventWorks } from '@/hooks/useEventWorks';
 import { WorkCard, RatingComponent, WorkActionButtons } from '@/components/works';
-import { eventWorkService } from '@/services/eventWorkService';
 import { useEventService } from '@/hooks/useEventService';
 import { eventParticipationService } from '@/services/eventParticipationService';
 import { ImageCarousel } from '@/components/ImageCarousel';
@@ -27,7 +26,6 @@ import {
   Users,
   ChevronRight,
   Loader2,
-  Share2,
   Calendar,
   MapPin,
   ExternalLink,

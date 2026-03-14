@@ -5,7 +5,6 @@
 
 import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mentionService } from '@/services/mentionService';
 import { supabase } from '@/lib/supabase';
 
 interface MentionTextProps {

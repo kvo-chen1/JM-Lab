@@ -1,17 +1,54 @@
 /**
- * 商品详情页
+ * 商品详情页 - 性能优化版
  */
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useProduct, useProductReviews, useAddToCart, useIsFavorite, useAddToFavorites, useRemoveFromFavorites, useCreateProductReview } from '@/hooks/useProducts';
+import { useProductDetail } from '@/hooks/useProductDetail';
 import { useAuth } from '@/hooks/useAuth';
+import { useAddToCart, useAddToFavorites, useRemoveFromFavorites, useCreateProductReview } from '@/hooks/useProducts';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { Separator } from '@/components/ui/Separator';
 import { Textarea } from '@/components/ui/Textarea';
-import { Heart, ShoppingCart, Share2, Store, Star, Truck, Shield, ArrowLeft, Minus, Plus, Send } from 'lucide-react';
+import { Heart, ShoppingCart, Share2, Store, Star, Truck, Shield, ArrowLeft, Minus, Plus, Send, RotateCcw, Play, GitCompare } from 'lucide-react';
 import { toast } from 'sonner';
+
+// 懒加载弹窗组件，减少初始加载时间
+const Product360View = lazy(() => import('@/components/marketplace/Product360View'));
+const ProductVideoPlayer = lazy(() => import('@/components/marketplace/ProductVideoPlayer'));
+const ProductComparison = lazy(() => import('@/components/marketplace/ProductComparison'));
+
+// 图片加载占位符组件
+const ImagePlaceholder: React.FC = () => (
+  <div className="w-full h-full flex items-center justify-center bg-gray-100 animate-pulse">
+    <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
+  </div>
+);
+
+// 优化的图片组件，支持懒加载
+const LazyImage: React.FC<{
+  src: string;
+  alt: string;
+  className?: string;
+  onError?: () => void;
+}> = ({ src, alt, className, onError }) => {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <>
+      {!loaded && <ImagePlaceholder />}
+      <img
+        src={src}
+        alt={alt}
+        className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        onError={onError}
+      />
+    </>
+  );
+};
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -21,34 +58,149 @@ const ProductDetailPage: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [mainImageError, setMainImageError] = useState(false);
   const [thumbnailErrors, setThumbnailErrors] = useState<Record<number, boolean>>({});
-  
+
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewContent, setReviewContent] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
 
-  const { product, loading: productLoading, error } = useProduct(id || null);
-  const { reviews, count: reviewCount, refetch: refetchReviews } = useProductReviews(id || null, { limit: 5 });
-  const { isFavorite } = useIsFavorite(user?.id || null, id || null);
+  // 产品展示功能状态
+  const [show360View, setShow360View] = useState(false);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+
+  // 使用优化的并行数据获取 Hook
+  const {
+    product,
+    reviews,
+    reviewCount,
+    isFavorite,
+    loading: productLoading,
+    error,
+    refetch: refetchProductDetail,
+  } = useProductDetail(id || null, user?.id || null);
+
   const { addToCart } = useAddToCart();
   const { addToFavorites } = useAddToFavorites();
   const { removeFromFavorites } = useRemoveFromFavorites();
   const { createReview, loading: createReviewLoading } = useCreateProductReview();
 
-  // 调试日志
-  console.log('[ProductDetail] 商品ID:', id);
-  console.log('[ProductDetail] 加载状态:', productLoading);
-  console.log('[ProductDetail] 错误信息:', error);
-  console.log('[ProductDetail] 商品数据:', product);
+  // 优先使用 images 数组，如果没有则使用 cover_image
+  const images = product?.images?.length > 0
+    ? product.images
+    : (product?.cover_image ? [product.cover_image] : []);
+  const discount = product?.original_price
+    ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
+    : 0;
 
-  // 只有在加载完成且没有错误时，才渲染商品内容
-  const isReady = !productLoading && (product !== null || error !== null);
+  const handleAddToCart = async () => {
+    if (!user) {
+      toast.error('请先登录');
+      return;
+    }
+    const success = await addToCart(user.id, product!.id, quantity);
+    if (success) {
+      toast.success('已添加到购物车');
+    }
+  };
 
-  if (!isReady) {
+  const handleBuyNow = async () => {
+    if (!user) {
+      toast.error('请先登录');
+      return;
+    }
+    // 直接跳转到订单确认页
+    navigate(`/marketplace/order/confirm?productId=${product!.id}&quantity=${quantity}`);
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      toast.error('请先登录');
+      return;
+    }
+    if (isFavorite) {
+      await removeFromFavorites(user.id, product!.id);
+      toast.success('已取消收藏');
+    } else {
+      await addToFavorites(user.id, product!.id);
+      toast.success('已添加到收藏');
+    }
+    // 刷新收藏状态
+    refetchProductDetail();
+  };
+
+  const handleSubmitReview = async () => {
+    if (!user) {
+      toast.error('请先登录');
+      return;
+    }
+    if (!reviewContent.trim()) {
+      toast.error('请输入评价内容');
+      return;
+    }
+
+    try {
+      const result = await createReview({
+        product_id: product!.id,
+        order_id: '',
+        user_id: user.id,
+        rating: reviewRating,
+        content: reviewContent,
+        is_anonymous: isAnonymous,
+        is_recommended: reviewRating >= 4,
+      });
+
+      if (result) {
+        toast.success('评价提交成功！');
+        setReviewContent('');
+        setReviewRating(5);
+        setIsAnonymous(false);
+        refetchProductDetail();
+      }
+    } catch (err: any) {
+      toast.error(err.message || '评价提交失败');
+    }
+  };
+
+  // 骨架屏加载状态
+  if (productLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#C02C38] mx-auto"></div>
-          <p className="mt-4 text-gray-600">加载中...</p>
+      <div className="min-h-screen bg-gray-50">
+        {/* 顶部导航骨架 */}
+        <div className="bg-white shadow-sm sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="h-6 w-20 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* 左侧图片骨架 */}
+            <div className="space-y-4">
+              <div className="aspect-square rounded-2xl bg-gray-200 animate-pulse"></div>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="w-20 h-20 rounded-lg bg-gray-200 animate-pulse"></div>
+                ))}
+              </div>
+            </div>
+
+            {/* 右侧信息骨架 */}
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+              <div className="h-24 bg-gray-200 rounded-xl animate-pulse"></div>
+              <div className="space-y-2">
+                <div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-12 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-12 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -81,81 +233,6 @@ const ProductDetailPage: React.FC = () => {
     );
   }
 
-  // 优先使用 images 数组，如果没有则使用 cover_image
-  const images = product.images?.length > 0
-    ? product.images
-    : (product.cover_image ? [product.cover_image] : []);
-  const discount = product.original_price
-    ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
-    : 0;
-
-  const handleAddToCart = async () => {
-    if (!user) {
-      toast.error('请先登录');
-      return;
-    }
-    const success = await addToCart(user.id, product.id, quantity);
-    if (success) {
-      toast.success('已添加到购物车');
-    }
-  };
-
-  const handleBuyNow = async () => {
-    if (!user) {
-      toast.error('请先登录');
-      return;
-    }
-    // 直接跳转到订单确认页
-    navigate(`/marketplace/order/confirm?productId=${product.id}&quantity=${quantity}`);
-  };
-
-  const handleToggleFavorite = async () => {
-    if (!user) {
-      toast.error('请先登录');
-      return;
-    }
-    if (isFavorite) {
-      await removeFromFavorites(user.id, product.id);
-      toast.success('已取消收藏');
-    } else {
-      await addToFavorites(user.id, product.id);
-      toast.success('已添加到收藏');
-    }
-  };
-
-  const handleSubmitReview = async () => {
-    if (!user) {
-      toast.error('请先登录');
-      return;
-    }
-    if (!reviewContent.trim()) {
-      toast.error('请输入评价内容');
-      return;
-    }
-    
-    try {
-      const result = await createReview({
-        product_id: product.id,
-        order_id: '',
-        user_id: user.id,
-        rating: reviewRating,
-        content: reviewContent,
-        is_anonymous: isAnonymous,
-        is_recommended: reviewRating >= 4,
-      });
-      
-      if (result) {
-        toast.success('评价提交成功！');
-        setReviewContent('');
-        setReviewRating(5);
-        setIsAnonymous(false);
-        refetchReviews();
-      }
-    } catch (err: any) {
-      toast.error(err.message || '评价提交失败');
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 顶部导航 */}
@@ -177,7 +254,7 @@ const ProductDetailPage: React.FC = () => {
           <div className="space-y-4">
             <div className="aspect-square rounded-2xl overflow-hidden bg-gray-100">
               {images[selectedImage] && !mainImageError ? (
-                <img
+                <LazyImage
                   src={images[selectedImage]}
                   alt={product.name}
                   className="w-full h-full object-cover"
@@ -200,7 +277,7 @@ const ProductDetailPage: React.FC = () => {
                     }`}
                   >
                     {!thumbnailErrors[index] ? (
-                      <img
+                      <LazyImage
                         src={image}
                         alt=""
                         className="w-full h-full object-cover"
@@ -215,6 +292,35 @@ const ProductDetailPage: React.FC = () => {
                 ))}
               </div>
             )}
+
+            {/* 产品展示功能按钮 */}
+            <div className="flex gap-2 mt-4">
+              {images.length > 1 && (
+                <button
+                  onClick={() => setShow360View(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  360°视图
+                </button>
+              )}
+              {product.video_url && (
+                <button
+                  onClick={() => setShowVideoPlayer(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 transition-colors"
+                >
+                  <Play className="w-4 h-4" />
+                  播放视频
+                </button>
+              )}
+              <button
+                onClick={() => setShowComparison(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 transition-colors"
+              >
+                <GitCompare className="w-4 h-4" />
+                产品对比
+              </button>
+            </div>
           </div>
 
           {/* 右侧：商品信息 */}
@@ -319,38 +425,51 @@ const ProductDetailPage: React.FC = () => {
             </div>
 
             {/* 操作按钮 */}
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant="outline"
-                className="h-12 text-base"
-                onClick={handleToggleFavorite}
-              >
-                <Heart className={`w-5 h-5 mr-2 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
-                {isFavorite ? '已收藏' : '收藏'}
-              </Button>
-              <Button
-                variant="outline"
-                className="h-12 text-base"
-                onClick={() => toast.info('分享功能开发中')}
-              >
-                <Share2 className="w-5 h-5 mr-2" />
-                分享
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                className="h-12 text-base bg-[#C02C38] hover:bg-[#991b1b]"
-                onClick={handleAddToCart}
-              >
-                <ShoppingCart className="w-5 h-5 mr-2" />
-                加入购物车
-              </Button>
-              <Button
-                className="h-12 text-base bg-[#D4AF37] hover:bg-[#B8962F] text-gray-900"
-                onClick={handleBuyNow}
-              >
-                立即购买
-              </Button>
+            <div className="space-y-3">
+              {/* 主要操作按钮 */}
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  className="h-12 text-base bg-[#C02C38] hover:bg-[#991b1b] shadow-md hover:shadow-lg transition-shadow"
+                  onClick={handleAddToCart}
+                  icon={<ShoppingCart className="w-5 h-5" />}
+                  iconPosition="left"
+                >
+                  加入购物车
+                </Button>
+                <Button
+                  className="h-12 text-base bg-[#D4AF37] hover:bg-[#B8962F] text-gray-900 shadow-md hover:shadow-lg transition-shadow"
+                  onClick={handleBuyNow}
+                  icon={<span>⚡</span>}
+                  iconPosition="left"
+                >
+                  立即购买
+                </Button>
+              </div>
+              {/* 次要操作按钮 */}
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant="outline"
+                  className={`h-11 text-sm font-medium border-2 transition-all duration-200 ${
+                    isFavorite
+                      ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                  onClick={handleToggleFavorite}
+                  icon={<Heart className={`w-4 h-4 transition-transform duration-200 ${isFavorite ? 'fill-red-500 text-red-500 scale-110' : ''}`} />}
+                  iconPosition="left"
+                >
+                  {isFavorite ? '已收藏' : '收藏'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11 text-sm font-medium border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200"
+                  onClick={() => toast.info('分享功能开发中')}
+                  icon={<Share2 className="w-4 h-4" />}
+                  iconPosition="left"
+                >
+                  分享
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -364,7 +483,7 @@ const ProductDetailPage: React.FC = () => {
             <TabsTrigger value="reviews">评价({reviewCount})</TabsTrigger>
             <TabsTrigger value="authorization">授权信息</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="detail" className="mt-6">
             <div className="bg-white rounded-xl p-6">
               <h3 className="font-semibold text-lg mb-4">商品介绍</h3>
@@ -381,7 +500,7 @@ const ProductDetailPage: React.FC = () => {
           <TabsContent value="reviews" className="mt-6">
             <div className="bg-white rounded-xl p-6">
               <h3 className="font-semibold text-lg mb-4">商品评价</h3>
-              
+
               {user ? (
                 <div className="border border-gray-200 rounded-lg p-4 mb-6">
                   <h4 className="font-medium mb-3">发表评价</h4>
@@ -407,7 +526,7 @@ const ProductDetailPage: React.FC = () => {
                         ))}
                       </div>
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">评价内容</label>
                       <Textarea
@@ -417,7 +536,7 @@ const ProductDetailPage: React.FC = () => {
                         rows={4}
                       />
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -428,7 +547,7 @@ const ProductDetailPage: React.FC = () => {
                         />
                         <span className="text-sm text-gray-600">匿名评价</span>
                       </label>
-                      
+
                       <Button
                         onClick={handleSubmitReview}
                         disabled={createReviewLoading || !reviewContent.trim()}
@@ -451,7 +570,7 @@ const ProductDetailPage: React.FC = () => {
                   </Button>
                 </div>
               )}
-              
+
               {reviews.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">暂无评价</p>
               ) : (
@@ -484,6 +603,7 @@ const ProductDetailPage: React.FC = () => {
                               src={image}
                               alt=""
                               className="w-20 h-20 object-cover rounded-lg"
+                              loading="lazy"
                             />
                           ))}
                         </div>
@@ -515,6 +635,44 @@ const ProductDetailPage: React.FC = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* 360度视图弹窗 - 懒加载 */}
+      {show360View && images.length > 1 && (
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center"><div className="text-white">加载中...</div></div>}>
+          <Product360View
+            images={images}
+            productName={product.name}
+            onClose={() => setShow360View(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* 视频播放弹窗 - 懒加载 */}
+      {showVideoPlayer && product.video_url && (
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center"><div className="text-white">加载中...</div></div>}>
+          <ProductVideoPlayer
+            videoUrl={product.video_url}
+            posterUrl={images[0]}
+            productName={product.name}
+            onClose={() => setShowVideoPlayer(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* 产品对比弹窗 - 懒加载 */}
+      {showComparison && (
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center"><div className="text-white">加载中...</div></div>}>
+          <ProductComparison
+            products={[product]}
+            onAddToCart={async (p) => {
+              if (user) {
+                await addToCart(user.id, p.id, 1);
+              }
+            }}
+            onClose={() => setShowComparison(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

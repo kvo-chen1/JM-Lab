@@ -7,7 +7,7 @@ import { useCreateStore } from './hooks/useCreateStore';
 import AIReview from '@/components/AIReview';
 import ModelSelector from '@/components/ModelSelector';
 import PublishToSquareModal from '@/components/PublishToSquareModal';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 

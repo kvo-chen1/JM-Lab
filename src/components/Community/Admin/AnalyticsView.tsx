@@ -1,26 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  BarChart3,
   Users,
   MessageSquare,
   TrendingUp,
-  Calendar,
   Download,
-  Filter,
   ChevronDown,
   ArrowUpRight,
   ArrowDownRight,
   Activity,
-  Clock,
   Eye,
   Heart,
-  Share2,
   RefreshCw
 } from 'lucide-react';
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   PieChart,
@@ -30,7 +23,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   AreaChart,
   Area

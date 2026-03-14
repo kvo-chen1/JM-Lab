@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
@@ -7,17 +7,14 @@ import { supabaseAdmin } from '@/lib/supabaseClient';
 import { analyticsTrackingService } from '@/services/analyticsTrackingService';
 import {
   TrendingUp,
-  TrendingDown,
   ArrowLeft,
   RefreshCw,
   BarChart3,
   PieChart as PieChartIcon,
   Activity,
-  Zap,
   Target,
   Users,
   Clock,
-  Calendar,
   DollarSign,
   Eye,
   MousePointer,
@@ -27,20 +24,15 @@ import {
   ArrowDownRight,
   Lightbulb,
   Filter,
-  Download,
   ChevronRight,
   Award,
-  Flame,
   Sparkles,
   Percent
 } from 'lucide-react';
 import {
-  LineChart,
   Line,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
   Cell,
   XAxis,
   YAxis,
@@ -48,10 +40,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  AreaChart,
   Area,
-  ComposedChart,
-  Funnel
+  ComposedChart
 } from 'recharts';
 
 // ==================== 类型定义 ====================

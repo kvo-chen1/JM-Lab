@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Product } from '@/services/productService';
-import { X, Check, Minus, Plus, ShoppingCart, Star, TrendingUp } from 'lucide-react';
+import { X, Check, ShoppingCart, Star, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
 interface ProductComparisonProps {

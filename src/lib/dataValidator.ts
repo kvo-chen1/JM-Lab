@@ -4,7 +4,6 @@
  */
 
 import { z } from 'zod';
-import { User, Work, Comment, Post, Category, Tag, Community, Notification, Message, Conversation, Achievement, UserAchievement, PointsTransaction, Event, FileMetadata } from '../types';
 
 // 基础实体验证schema
 export const baseEntitySchema = z.object({

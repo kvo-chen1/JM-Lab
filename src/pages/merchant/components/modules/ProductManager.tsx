@@ -3,16 +3,14 @@
  * 使用真实数据库数据
  */
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   Package, 
   Plus, 
-  Search, 
-  Filter,
+  Search,
   MoreVertical,
   Edit3,
   Eye,
-  ArrowUpDown,
   Grid3X3,
   List,
   Tag,

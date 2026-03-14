@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { culturalExpertService, CulturalElement } from './culturalExpertService';
+import { culturalExpertService } from './culturalExpertService';
 
 // 用户行为类型
 export type UserBehaviorType = 

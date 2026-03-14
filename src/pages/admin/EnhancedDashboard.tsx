@@ -1,33 +1,21 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabaseAdmin } from '@/lib/supabaseClient';
-import { adminService } from '@/services/adminService';
-import { analyticsTrackingService } from '@/services/analyticsTrackingService';
-import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+import { Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  AreaChart, Area, ComposedChart, RadarChart, PolarGrid,
-  PolarAngleAxis, PolarRadiusAxis, Radar, ScatterChart, Scatter,
-  Treemap, Sankey, Funnel, FunnelChart, LabelList
+  AreaChart, Area, ComposedChart
 } from 'recharts';
 import {
-  TrendingUp, TrendingDown, Minus, RefreshCw, Download, Filter,
-  Calendar, Clock, Users, Eye, Heart, MessageSquare, Share2,
-  ShoppingCart, DollarSign, Target, Activity, Zap, BarChart3,
-  PieChart as PieChartIcon, Globe, Smartphone, Monitor, Tablet,
-  ArrowUpRight, ArrowDownRight, MoreHorizontal, ChevronRight,
-  ChevronDown, Layers, Award, Flame, Sparkles, Search, Bell,
-  Settings, Maximize2, Minimize2, Play, Pause, Database,
-  Server, Shield, CheckCircle, XCircle, AlertTriangle,
-  FileText, Image as ImageIcon, Video, Music, Box,
-  Crown, Gift, CreditCard, Percent, TrendingUp as GrowthIcon,
-  MapPin, UserCheck, UserPlus, LogIn, MousePointer,
-  Clock as ClockIcon, Calendar as CalendarIcon, Filter as FilterIcon,
-  BarChart2, Activity as ActivityIcon, Zap as ZapIcon,
-  ArrowRight, Loader2, RefreshCcw, ExternalLink
+  TrendingUp, TrendingDown, RefreshCw, Download,
+  Calendar, Clock, Users, Eye, Heart, MessageSquare,
+  ShoppingCart, DollarSign, Activity, Zap, BarChart3,
+  PieChart as PieChartIcon, Globe, Monitor, ChevronRight, Flame,
+  Settings, Maximize2, Minimize2, Play, Pause,
+  Server, Shield,
+  FileText, Image as ImageIcon, Video, Music, UserPlus
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Card, { CardHeader, CardTitle, CardContent } from '@/components/ui/Card';

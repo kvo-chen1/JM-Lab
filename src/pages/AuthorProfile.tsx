@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { 
   MapPin, 
@@ -7,8 +7,7 @@ import {
   Users, 
   Edit3, 
   Share2, 
-  Mail, 
-  Link as LinkIcon,
+  Mail,
   Grid,
   List,
   Search,
@@ -19,8 +18,6 @@ import {
   MessageCircle,
   UserPlus,
   UserCheck,
-  TrendingUp,
-  Clock,
   Filter,
   ChevronDown,
   Globe,
@@ -43,14 +40,12 @@ import {
   Send,
   ChevronLeft,
   Upload,
-  MoreVertical,
   Bookmark,
-  Crown,
-  Star
+  Crown
 } from 'lucide-react'
 import LazyImage from '../components/LazyImage'
 import { PostGrid } from '../components/CreatorCommunity/PostGrid'
-import postsApi, { Post, getAuthorById, checkUserFollowing, followUser, unfollowUser } from '../services/postService'
+import postsApi, { getAuthorById, checkUserFollowing, followUser, unfollowUser } from '../services/postService'
 import { supabase } from '../lib/supabase'
 import type { User } from '../contexts/authContext'
 import { toast } from 'sonner'

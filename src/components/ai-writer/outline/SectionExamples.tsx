@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { BookOpen, X, ChevronDown, ChevronUp, Copy, Check, Lightbulb, FileText, Target } from 'lucide-react';
+import { BookOpen, X, ChevronDown, ChevronUp, Copy, Check, Lightbulb, Target } from 'lucide-react';
 
 interface Example {
   title: string;

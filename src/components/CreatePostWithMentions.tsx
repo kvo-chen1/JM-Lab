@@ -7,7 +7,6 @@ import React, { useRef, useState } from 'react';
 import { Send, Image, Link, X } from 'lucide-react';
 import { MentionInput, MentionInputRef } from './MentionInput';
 import { MentionText } from './MentionText';
-import { mentionService } from '@/services/mentionService';
 import { useAuth } from '@/contexts/authContext';
 import { toast } from 'sonner';
 

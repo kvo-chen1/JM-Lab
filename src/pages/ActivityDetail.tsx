@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useCallback, useMemo } from 'react';
+import { useState, useContext, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -6,11 +6,10 @@ import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { Event } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
-import { InfoCard, StatCard } from '@/components/InfoCard';
+import { InfoCard } from '@/components/InfoCard';
 import PublishToSquareModal from '@/components/PublishToSquareModal';
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { ShareModal } from '@/components/ShareModal';
-import { EventCard } from '@/components/EventCard';
 import { PrizeDisplay } from '@/components/prize';
 import { Prize } from '@/types/prize';
 import { prizeService } from '@/services/prizeService';
@@ -41,8 +40,7 @@ import {
   Crown,
   Heart,
   Gift,
-  Sparkles,
-  ChevronRight
+  Sparkles
 } from 'lucide-react';
 
 // 活动状态配置

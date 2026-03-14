@@ -1,16 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { 
-  Brain, 
-  Puzzle, 
-  Link2, 
-  Shuffle, 
-  SortAsc, 
-  Lightbulb, 
-  History, 
-  Eye,
+import {
   Star,
   Trophy,
   Target,
@@ -21,7 +12,7 @@ import GameHero from '@/components/games/GameHero';
 import LeftSidebar from '@/components/games/LeftSidebar';
 import MainContent from '@/components/games/MainContent';
 import RightSidebar from '@/components/games/RightSidebar';
-import { gameService, LeaderboardEntry, Achievement, RecentGame } from '@/services/gameService';
+import { LeaderboardEntry, Achievement, RecentGame } from '@/services/gameService';
 import { gameScoringService, GameType } from '@/services/gameScoringService';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -35,6 +26,7 @@ import CulturalTimelineGame from '@/components/CulturalTimelineGame';
 import CulturalWordChainGame from '@/components/CulturalWordChainGame';
 import CulturalSpotTheDifferenceGame from '@/components/CulturalSpotTheDifferenceGame';
 import CulturalPairMatchingGame from '@/components/CulturalPairMatchingGame';
+import CulturalQuizGame from '@/components/CulturalQuizGame';
 
 // 游戏封面图片 - 使用渐变色占位图
 const getGameCover = (seed: string, color1: string, color2: string) => 
@@ -54,7 +46,7 @@ const gamesList = [
     duration: '10-15分钟',
     features: ['多种题型', '难度分级', '实时反馈', '积分系统'],
     color: 'from-blue-500 to-blue-600',
-    component: null // 跳转到知识库页面
+    component: 'quiz'
   },
   {
     id: 'cultural-memory',
@@ -379,6 +371,13 @@ export default function Games() {
     if (!game) return null;
 
     switch (game.component) {
+      case 'quiz':
+        return (
+          <CulturalQuizGame 
+            isOpen={true} 
+            onClose={handleCloseGame} 
+          />
+        );
       case 'memory':
         return (
           <CulturalMemoryGame 

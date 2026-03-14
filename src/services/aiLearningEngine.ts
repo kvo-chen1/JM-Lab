@@ -4,7 +4,6 @@
  * 实现持续学习、知识蒸馏、模型优化
  */
 
-import { Message } from './llmService';
 
 // 学习样本
 export interface LearningSample {

@@ -29,18 +29,13 @@ import {
   Eye,
   Users,
   ArrowLeft,
-  MoreHorizontal,
   Edit3,
   Trash2,
-  Send,
-  MapPin,
   Heart,
   Star,
   Upload,
   Calendar,
   TrendingUp,
-  Award,
-  Image as ImageIcon,
 } from 'lucide-react';
 
 // 状态配置

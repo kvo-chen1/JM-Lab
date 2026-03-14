@@ -5,8 +5,6 @@
 import React, { useState, useRef } from 'react';
 import { 
   X, 
-  Upload, 
-  Image as ImageIcon, 
   Plus, 
   Trash2, 
   Loader2,
@@ -16,7 +14,6 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Label } from '@/components/ui/Label';
-import { Badge } from '@/components/ui/Badge';
 import { uploadImage } from '@/services/storageServiceNew';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';

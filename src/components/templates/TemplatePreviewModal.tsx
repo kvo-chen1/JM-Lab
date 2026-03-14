@@ -9,11 +9,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import {
   X,
-  Sparkles,
   Heart,
   Bookmark,
   Eye,
-  Clock,
   Zap,
   Copy,
   Check,

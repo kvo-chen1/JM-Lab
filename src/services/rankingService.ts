@@ -2,7 +2,6 @@
  * 积分排行榜服务 - 提供不同时间维度的积分排行榜功能
  */
 
-import pointsService from './pointsService';
 
 // 排行榜类型
 export type RankingType = 'daily' | 'weekly' | 'monthly' | 'total';

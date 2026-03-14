@@ -15,17 +15,13 @@ import BenefitsGrid from '@/components/membership/BenefitsGrid';
 import PricingCards from '@/components/membership/PricingCards';
 import FAQSection from '@/components/membership/FAQSection';
 import OrdersList from '@/components/membership/OrdersList';
-import JinbiBalance from '@/components/jinbi/JinbiBalance';
 
 // 图标
 import {
   Menu,
   X,
-  Sparkles,
   Crown,
-  ChevronRight,
-  Loader2,
-  Coins
+  ChevronRight
 } from 'lucide-react';
 
 // 会员权益数据类型

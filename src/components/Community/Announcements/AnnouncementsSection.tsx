@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { communityService } from '@/services/communityService';
-import { Megaphone, Pin, Calendar, User, ChevronRight, Bell } from 'lucide-react';
+import { Megaphone, Pin, Calendar, ChevronRight, Bell } from 'lucide-react';
 
 interface Announcement {
   id: string;

@@ -3,7 +3,6 @@
 
 import React, { ReactNode, HTMLAttributes, forwardRef } from 'react';
 import { clsx } from 'clsx';
-import { componentVariants } from '@/utils/designSystem';
 
 // 徽章变体类型
 export type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' | 'outline' | 'ghost';

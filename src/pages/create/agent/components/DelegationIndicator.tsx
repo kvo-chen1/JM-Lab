@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useAgentStore } from '../hooks/useAgentStore';
-import { DelegationTask, AGENT_CONFIG, AgentType } from '../types/agent';
+import { DelegationTask, AGENT_CONFIG } from '../types/agent';
 import { ArrowRight, Clock, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 
 interface DelegationIndicatorProps {

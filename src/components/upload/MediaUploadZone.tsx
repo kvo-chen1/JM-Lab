@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Cloud, AlertCircle, Image, Video, Music, FileText, Palette } from 'lucide-react';
+import { Cloud, Image, Video, Music, FileText, Palette } from 'lucide-react';
 import { FilePreviewCard, FileListItem } from './FilePreviewCard';
 import { getAcceptedFileTypes, formatFileSize } from './FileTypeIcon';
 import { toast } from 'sonner';

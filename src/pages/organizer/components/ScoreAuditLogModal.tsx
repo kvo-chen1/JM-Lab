@@ -4,13 +4,11 @@ import {
   Loader2,
   History,
   Star,
-  Send,
   Edit3,
   Trash2,
   Eye,
   EyeOff,
   User,
-  Clock,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { workScoringService, ScoreAuditLog } from '@/services/workScoringService';

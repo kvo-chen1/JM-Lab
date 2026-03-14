@@ -5,13 +5,10 @@ import {
   AgentDecision,
   AgentMessage,
   DelegationTask,
-  AgentAction,
   getAgentConfig,
   AGENT_CONFIG,
-  RequirementCollection,
-  CollectedRequirementInfo
+  RequirementCollection
 } from '../types/agent';
-import { callQwenChat, callKimiChat, callDeepseekChat } from '@/services/llm/chatProviders';
 import {
   ORCHESTRATOR_DECISION_PROMPT,
   getAgentSystemPrompt,
@@ -21,12 +18,10 @@ import {
   TASK_ASSIGNMENT_PROMPT,
   REQUIREMENT_INITIAL_PROMPT,
   REQUIREMENT_DEEP_DIVE_PROMPT,
-  REQUIREMENT_CONFIRMATION_PROMPT,
-  REQUIREMENT_INFERENCE_PROMPT,
   REQUIREMENT_PRIORITY_PROMPT
 } from './agentPrompts';
 import { callAgent, AIResponse } from './agentService';
-import { callEnhancedAgent, EnhancedAIResponse } from './enhancedAgentIntegration';
+import { callEnhancedAgent } from './enhancedAgentIntegration';
 import { llmService } from '@/services/llmService';
 
 /**

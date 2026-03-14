@@ -5,8 +5,7 @@ import {
   sendFriendRequest as sendSupabaseFriendRequest,
   acceptFriendRequest as acceptSupabaseFriendRequest,
   rejectFriendRequest as rejectSupabaseFriendRequest,
-  getFriendRequests as getSupabaseFriendRequests,
-  checkIsFriend
+  getFriendRequests as getSupabaseFriendRequests
 } from '@/services/messageService';
 
 // 好友请求状态类型

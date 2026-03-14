@@ -1,0 +1,149 @@
+.dewu-loader-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.dewu-svg-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.dewu-svg-frame svg {
+  position: absolute;
+  transition: 0.5s;
+  z-index: calc(1 - (0.2 * var(--j)));
+  transform-origin: center;
+  fill: none;
+}
+
+.dewu-svg-frame:hover svg {
+  transform: rotate(-80deg) skew(30deg) translateX(calc(45px * var(--i)))
+    translateY(calc(-35px * var(--i)));
+}
+
+.dewu-svg-frame svg #dewu-center {
+  transition: 0.5s;
+  transform-origin: center;
+}
+
+.dewu-svg-frame:hover svg #dewu-center {
+  transform: rotate(-30deg) translateX(45px) translateY(-3px);
+}
+
+/* 发光效果 */
+.dewu-glow {
+  filter: drop-shadow(0 0 6px #39ff14) drop-shadow(0 0 12px #39ff14);
+}
+
+.dewu-glow-intense {
+  filter: drop-shadow(0 0 8px #39ff14) drop-shadow(0 0 16px #39ff14)
+    drop-shadow(0 0 24px #39ff14);
+}
+
+/* 各层动画 */
+#dewu-out1 {
+  animation: dewu-rotate-slow 7s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+
+#dewu-out2 {
+  animation: dewu-rotate-medium 3s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+
+#dewu-out3 {
+  animation: dewu-rotate-fast 2s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+
+#dewu-center {
+  animation: dewu-breathe 2s ease-in-out infinite alternate,
+    dewu-rotate-center 4s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+
+/* 旋转动画 */
+@keyframes dewu-rotate-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dewu-rotate-medium {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes dewu-rotate-fast {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes dewu-rotate-center {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(180deg);
+  }
+}
+
+/* 呼吸动画 */
+@keyframes dewu-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 8px #39ff14) drop-shadow(0 0 16px #39ff14);
+  }
+  50% {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 12px #39ff14) drop-shadow(0 0 24px #39ff14)
+      drop-shadow(0 0 32px #39ff14);
+  }
+}
+
+/* 脉冲效果 - 整体容器 */
+.dewu-loader-container::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(57, 255, 20, 0.1) 0%,
+    transparent 70%
+  );
+  animation: dewu-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes dewu-pulse {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.6;
+  }
+}

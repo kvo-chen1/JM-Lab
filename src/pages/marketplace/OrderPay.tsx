@@ -8,7 +8,6 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Clock,
-  CreditCard,
   QrCode,
   CheckCircle,
   AlertCircle,
@@ -17,7 +16,6 @@ import {
 import { toast } from 'sonner';
 
 // 组件
-import { Button } from '@/components/ui/Button';
 import { payOrder, getOrderById, type Order } from '@/services/orderService';
 
 // 支付方式

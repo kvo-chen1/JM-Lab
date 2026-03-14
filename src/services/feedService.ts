@@ -8,8 +8,6 @@
 import {
   FeedItem,
   FeedQueryParams,
-  FeedFilterType,
-  FeedSortType,
   CreateFeedRequest,
   FeedComment,
   HotSearchItem,
@@ -18,20 +16,16 @@ import {
   CommunityAnnouncement,
   FeedStats,
   FeedAuthor,
-  FeedMedia,
-  FeedShareTarget
+  FeedMedia
 } from '@/types/feed';
 import { mockFeedData } from '@/mocks/feedData';
-import { getFollowingList, getPosts, Post, likePost, unlikePost, addComment } from './postService';
+import { getFollowingList, getPosts, Post } from './postService';
 import { communityService } from './communityService';
 import { supabase } from '@/lib/supabase';
 import {
-  generateOptimizedRecommendations,
   recordUserAction,
   calculateLTRFeatures,
-  calculateLTRScore,
-  multiChannelRecall,
-  mergeRecallResults
+  calculateLTRScore
 } from './recommendationService';
 
 // 模拟延迟
@@ -774,7 +768,7 @@ class FeedService {
   ): { feeds: FeedItem[]; hasMore: boolean; total: number } {
     const { sort = 'latest', page = 1, pageSize = 10 } = params;
 
-    let feeds = [...cachedFeeds];
+    const feeds = [...cachedFeeds];
 
     // 排序
     switch (sort) {
@@ -1337,7 +1331,7 @@ class FeedService {
         const userIds = [...new Set(feedComments.map((c: any) => c.user_id).filter(Boolean))];
 
         // 从 users 表获取用户头像信息
-        let userAvatarMap = new Map<string, string>();
+        const userAvatarMap = new Map<string, string>();
         if (userIds.length > 0) {
           const { data: usersData } = await supabase
             .from('users')
@@ -1354,7 +1348,7 @@ class FeedService {
         const currentUserId = currentUser?.id;
 
         // 获取当前用户已点赞的评论ID列表
-        let likedCommentIds = new Set<string>();
+        const likedCommentIds = new Set<string>();
         if (currentUserId) {
           const commentIds = feedComments.map((c: any) => c.id);
           const { data: likesData } = await supabase

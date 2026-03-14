@@ -13,8 +13,7 @@ import {
   Loader2,
   ChevronLeft,
   Sparkles,
-  Lock,
-  RefreshCw
+  Lock
 } from 'lucide-react';
 
 // 支付方式图标组件

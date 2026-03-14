@@ -4,10 +4,7 @@ import {
   Trophy,
   Target,
   Zap,
-  Clock,
   TrendingUp,
-  Award,
-  Star,
   Crown
 } from 'lucide-react';
 import type { AchievementStats, UserAchievementInfo } from '../types';

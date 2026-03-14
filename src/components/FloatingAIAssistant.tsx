@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { llmService, Message, AssistantPersonality, AssistantTheme, ConnectionStatus } from '@/services/llmService';
-import { aiAssistantService, AIResponse, ChatMessage, AIAction } from '@/services/aiAssistantService';
+import { aiAssistantService, AIAction } from '@/services/aiAssistantService';
 import { culturalExpertService } from '@/services/culturalExpertService';
 import { MessageBubble, ChatInput } from '@/components/Chat';
 
@@ -1193,7 +1193,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
 
     const chatWindowHeight = getChatWindowHeight();
     let shouldUpdate = false;
-    let newPosition = { ...positionStyle };
+    const newPosition = { ...positionStyle };
     
     // 检查是否接近底部，只有在这种情况下才调整Y轴位置
     if (distanceFromBottom < threshold) {

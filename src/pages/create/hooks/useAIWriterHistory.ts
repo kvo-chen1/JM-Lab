@@ -112,7 +112,7 @@ export function useAIWriterHistory() {
         }
 
         // 获取或创建用户的默认津脉脉络
-        let mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
+        const mindMaps = await inspirationMindMapService.getUserMindMaps(user.id);
         let mindMap = mindMaps.find(m => m.title === '我的创作脉络') || mindMaps[0];
 
         if (!mindMap) {

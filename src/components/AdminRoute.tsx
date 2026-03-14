@@ -1,4 +1,4 @@
-import { useContext, ReactNode, memo, useEffect, useState } from 'react'
+import { useContext, ReactNode, memo } from 'react'
 import { AuthContext } from '@/contexts/authContext'
 import { Navigate, useLocation } from 'react-router-dom'
 

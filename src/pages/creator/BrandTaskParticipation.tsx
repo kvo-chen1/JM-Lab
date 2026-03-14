@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { brandTaskService, BrandTask, BrandTaskParticipant, BrandTaskSubmission } from '@/services/brandTaskService';
-import { useAuth } from '@/hooks/useAuth';
 import {
   Target,
   Search,
-  Filter,
   Clock,
   DollarSign,
   Users,
@@ -18,34 +16,15 @@ import {
   XCircle,
   AlertCircle,
   TrendingUp,
-  Eye,
-  Heart,
-  Bookmark,
-  Share2,
-  Plus,
-  Upload,
-  ExternalLink,
   Wallet,
   History,
-  Award,
-  BarChart3,
-  Calendar,
   TrendingDown,
-  PieChart,
   Activity,
-  Layers,
   Sparkles,
   RefreshCw,
   Download,
-  ChevronDown,
-  ChevronUp,
-  MoreHorizontal,
-  Edit3,
-  Trash2,
-  Play,
-  Pause,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 // ============================================================================
 // 配置

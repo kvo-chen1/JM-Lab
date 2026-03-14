@@ -3,21 +3,17 @@
  * 管理通过品牌授权创建的文创产品
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Award, 
   Plus, 
-  Search, 
-  Filter,
-  MoreVertical,
+  Search,
   Edit3,
   Eye,
-  ArrowUpDown,
   Grid3X3,
   List,
   Tag,
-  AlertCircle,
   Building2,
   DollarSign,
   Package,
@@ -27,8 +23,6 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-import { toast } from 'sonner';
-import { copyrightLicenseService } from '@/services/copyrightLicenseService';
 import type { LicensedProduct } from '@/types/copyright-license';
 
 // 模拟授权IP产品数据

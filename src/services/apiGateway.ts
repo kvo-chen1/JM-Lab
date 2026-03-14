@@ -10,7 +10,6 @@ import rbacService from './rbacService';
 import eventBus from './eventBus';
 import { EventType } from './eventBus';
 import { ApiResponse } from '../types';
-import { validate } from '../lib/dataValidator';
 
 // API网关配置
 export interface ApiGatewayConfig {

@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { Search, User, Loader2 } from 'lucide-react';
 import { getFollowingList, getFollowersList } from '@/services/postService';
-import type { User as UserType } from '@/types/user';
 
 interface MentionUser {
   id: string;

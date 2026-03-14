@@ -3,7 +3,7 @@
 import { getPredictionService, BehaviorType } from './predictionService';
 import { getRAGService } from './ragService';
 import { getMemoryService } from './memoryService';
-import { getIntentRecognitionService, IntentType } from './intentRecognition';
+import { getIntentRecognitionService } from './intentRecognition';
 import { AgentType, PRESET_STYLES, AGENT_CONFIG } from '../types/agent';
 
 // 建议类型

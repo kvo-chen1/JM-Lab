@@ -3,11 +3,11 @@
  * 展示所有授权IP产品，支持筛选和搜索
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  Award, Search, Filter, ChevronDown, Grid3X3, List,
+  Award, Search, ChevronDown, Grid3X3, List,
   ShoppingBag, Heart, Loader2, Building2, User, SlidersHorizontal
 } from 'lucide-react';
 import { toast } from 'sonner';

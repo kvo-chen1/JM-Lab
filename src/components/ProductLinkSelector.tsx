@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Link, Plus, X, ExternalLink, ShoppingBag, DollarSign, Image as ImageIcon } from 'lucide-react';
+import { Plus, X, ExternalLink, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
 import * as orderExecutionService from '@/services/orderExecutionService';
 

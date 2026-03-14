@@ -4,7 +4,7 @@
  */
 
 import { Variants, Transition } from 'framer-motion';
-import { easings, durations } from './theme';
+import { easings } from './theme';
 
 // 基础过渡配置
 export const defaultTransition: Transition = {

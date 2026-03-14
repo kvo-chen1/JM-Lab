@@ -137,7 +137,7 @@ export const calculateScore = (
   hintsUsed: number
 ): number => {
   // 基础分数
-  let baseScore = 1000;
+  const baseScore = 1000;
   
   // 难度系数
   const difficultyMultiplier = {

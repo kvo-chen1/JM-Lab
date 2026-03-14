@@ -1,5 +1,5 @@
-import React, { useCallback, memo, useEffect, useState, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useCallback, memo, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Post, recordPromotionClick } from '../services/postService'
 import LazyImage from './LazyImage'
 import { TianjinAvatar } from './TianjinStyleComponents'

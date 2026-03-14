@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
 import { brandTaskService, BrandTask, BrandTaskParticipant, BrandTaskSubmission } from '@/services/brandTaskService';
@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Target,
   Search,
-  Filter,
   Clock,
   DollarSign,
   Users,
@@ -17,29 +16,16 @@ import {
   ChevronRight,
   CheckCircle2,
   XCircle,
-  AlertCircle,
-  TrendingUp,
   Eye,
-  Heart,
   Wallet,
-  History,
-  Award,
-  BarChart3,
-  Calendar,
-  TrendingDown,
-  PieChart,
   Activity,
   Sparkles,
   RefreshCw,
-  ChevronDown,
   Briefcase,
   Zap,
   Crown,
   Gem,
   Star,
-  ArrowUpRight,
-  MoreHorizontal,
-  ExternalLink,
 } from 'lucide-react';
 
 // ============================================================================

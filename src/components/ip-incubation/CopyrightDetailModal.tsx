@@ -8,12 +8,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
 import {
-  X, Shield, CheckCircle2, Calendar, FileText,
+  X, Shield, Calendar, FileText,
   Download, Eye, Clock, Award, DollarSign,
-  Unlock, Lock, TrendingUp, User, Hash,
-  ExternalLink, Copy, AlertCircle, ChevronRight
+  Unlock, Lock, TrendingUp, User, Hash, Copy, AlertCircle, ChevronRight
 } from 'lucide-react';
-import ipService, { type CopyrightAsset } from '@/services/ipService';
+import { type CopyrightAsset } from '@/services/ipService';
 
 // 深色主题配色
 const DARK_THEME = {

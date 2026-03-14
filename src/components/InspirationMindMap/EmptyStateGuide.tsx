@@ -9,10 +9,8 @@ import {
   Lightbulb,
   Sparkles,
   BookOpen,
-  Plus,
   ArrowRight,
   Palette,
-  Wand2,
 } from 'lucide-react';
 
 interface EmptyStateGuideProps {

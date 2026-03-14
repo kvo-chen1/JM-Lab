@@ -655,3 +655,327 @@
   background-color: transparent !important;
   background: transparent !important;
 }
+
+/* ============================================
+   Hero区域样式优化 - Hero Section Styles
+   ============================================ */
+
+/* Hero区域整体背景 */
+.poizon [class*="hero"],
+.poizon [class*="Hero"],
+.poizon .hero-section,
+.poizon .hero-banner {
+  background: linear-gradient(180deg, #0F0F0F 0%, #1A1A1A 50%, #0F0F0F 100%) !important;
+  background-color: #0F0F0F !important;
+}
+
+/* Hero标题样式 - 增强对比度 */
+.poizon [class*="hero"] h1,
+.poizon [class*="Hero"] h1,
+.poizon .hero-title,
+.poizon [class*="hero-title"] {
+  color: #FFFFFF !important;
+  text-shadow: 0 0 30px rgba(0, 198, 255, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+  font-weight: 700 !important;
+  background: linear-gradient(135deg, #FFFFFF 0%, #00C6FF 50%, #FFFFFF 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+/* Hero副标题样式 */
+.poizon [class*="hero"] p,
+.poizon [class*="Hero"] p,
+.poizon .hero-subtitle,
+.poizon [class*="hero-subtitle"] {
+  color: #E5E5E5 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8) !important;
+  font-weight: 400 !important;
+}
+
+/* ============================================
+   统计卡片样式优化 - Stats Card Styles
+   ============================================ */
+
+/* 统计卡片容器 */
+.poizon [class*="stats"],
+.poizon [class*="Stats"],
+.poizon .stats-section,
+.poizon [class*="stat-card"] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* 统计卡片 */
+.poizon [class*="stat-card"],
+.poizon [class*="stats-card"],
+.poizon [class*="stats"] [class*="card"],
+.poizon [class*="Stats"] [class*="card"] {
+  background: linear-gradient(145deg, #1A1A1A 0%, #262626 100%) !important;
+  background-color: #1A1A1A !important;
+  border: 1px solid #333333 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 198, 255, 0.1) !important;
+  transition: all 0.3s ease !important;
+}
+
+/* 统计卡片悬停效果 */
+.poizon [class*="stat-card"]:hover,
+.poizon [class*="stats-card"]:hover,
+.poizon [class*="stats"] [class*="card"]:hover,
+.poizon [class*="Stats"] [class*="card"]:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 198, 255, 0.2) !important;
+  border-color: #00C6FF !important;
+}
+
+/* 统计数字 - 使用极光蓝品牌色 */
+.poizon [class*="stat"] [class*="number"],
+.poizon [class*="stat"] [class*="count"],
+.poizon [class*="stats"] [class*="number"],
+.poizon [class*="stats"] [class*="count"],
+.poizon [class*="stat-value"],
+.poizon [class*="stat-number"] {
+  color: #00C6FF !important;
+  font-weight: 700 !important;
+  text-shadow: 0 0 20px rgba(0, 198, 255, 0.6) !important;
+}
+
+/* 统计标签 */
+.poizon [class*="stat"] [class*="label"],
+.poizon [class*="stats"] [class*="label"],
+.poizon [class*="stat-label"] {
+  color: #A3A3A3 !important;
+  font-weight: 500 !important;
+}
+
+/* ============================================
+   顶部导航栏修复 - Header/Nav Fixes
+   ============================================ */
+
+/* 修复顶部任何可能的白色背景 */
+.poizon header,
+.poizon [class*="header"],
+.poizon nav,
+.poizon [class*="navbar"],
+.poizon [class*="top-bar"],
+.poizon [class*="topbar"] {
+  background: #0F0F0F !important;
+  background-color: #0F0F0F !important;
+  background-image: none !important;
+  border-bottom: 1px solid #262626 !important;
+}
+
+/* 导航栏中的搜索框容器 */
+.poizon header [class*="search"],
+.poizon nav [class*="search"],
+.poizon [class*="header"] [class*="search"] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* 修复顶部所有子元素的背景 */
+.poizon header *,
+.poizon [class*="header"] *,
+.poizon nav * {
+  background-color: transparent !important;
+}
+
+/* 但保留按钮和交互元素的背景 */
+.poizon header button,
+.poizon [class*="header"] button,
+.poizon nav button,
+.poizon header [class*="btn"],
+.poizon [class*="header"] [class*="btn"],
+.poizon nav [class*="btn"] {
+  background-color: #1A1A1A !important;
+  background: #1A1A1A !important;
+}
+
+/* ============================================
+   通用文字对比度优化 - Text Contrast
+   ============================================ */
+
+/* 确保所有标题都清晰可见 */
+.poizon h1, .poizon h2, .poizon h3, .poizon h4, .poizon h5, .poizon h6 {
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+}
+
+/* 正文文字 */
+.poizon p, .poizon span, .poizon div {
+  color: #E5E5E5 !important;
+}
+
+/* 链接文字 */
+.poizon a {
+  color: #00C6FF !important;
+  transition: all 0.2s ease !important;
+}
+
+.poizon a:hover {
+  color: #00E5FF !important;
+  text-shadow: 0 0 10px rgba(0, 198, 255, 0.5) !important;
+}
+
+/* 弱化文字 */
+.poizon [class*="muted"], .poizon [class*="secondary"] {
+  color: #A3A3A3 !important;
+}
+
+/* ============================================
+   修复任何残留的白色背景元素
+   ============================================ */
+
+/* 强制所有主要容器使用深色背景 */
+.poizon main,
+.poizon [class*="main"],
+.poizon [class*="content"],
+.poizon [class*="page"],
+.poizon [class*="container"] {
+  background-color: #0F0F0F !important;
+  background: #0F0F0F !important;
+}
+
+/* 修复section背景 */
+.poizon section,
+.poizon [class*="section"] {
+  background-color: #0F0F0F !important;
+  background: #0F0F0F !important;
+}
+
+/* 修复article背景 */
+.poizon article,
+.poizon [class*="article"] {
+  background-color: #1A1A1A !important;
+  background: #1A1A1A !important;
+}
+
+/* ============================================
+   AI创作区域样式修复 - AI Creation Section
+   ============================================ */
+
+/* AI创作卡片容器 */
+.poizon [class*="ai-create"],
+.poizon [class*="ai-creation"],
+.poizon [class*="creation"],
+.poizon [class*="AI创作"],
+.poizon [class*="智能创作"] {
+  background-color: #1A1A1A !important;
+  background: #1A1A1A !important;
+}
+
+/* AI创作卡片 */
+.poizon [class*="ai-create"] [class*="card"],
+.poizon [class*="ai-creation"] [class*="card"],
+.poizon [class*="creation-card"],
+.poizon [class*="ai-card"],
+.poizon [class*="智能创作助手"],
+.poizon [class*="creation"] > div[class*="bg-white"],
+.poizon [class*="creation"] > div[class*="bg-gray"] {
+  background: linear-gradient(145deg, #1A1A1A 0%, #262626 100%) !important;
+  background-color: #1A1A1A !important;
+  border: 1px solid #333333 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* AI创作卡片标题 */
+.poizon [class*="ai-create"] h3,
+.poizon [class*="ai-creation"] h3,
+.poizon [class*="creation"] h3,
+.poizon [class*="智能创作助手"],
+.poizon [class*="ai-title"] {
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+}
+
+/* AI创作卡片描述文字 */
+.poizon [class*="ai-create"] p,
+.poizon [class*="ai-creation"] p,
+.poizon [class*="creation"] p,
+.poizon [class*="ai-desc"],
+.poizon [class*="creation-desc"] {
+  color: #A3A3A3 !important;
+}
+
+/* 生成模式选择卡片 */
+.poizon [class*="mode-card"],
+.poizon [class*="mode-item"],
+.poizon [class*="生成模式"] [class*="card"],
+.poizon [class*="选择生成模式"] > div > div {
+  background: linear-gradient(145deg, #1A1A1A 0%, #262626 100%) !important;
+  background-color: #1A1A1A !important;
+  border: 1px solid #333333 !important;
+  border-radius: 12px !important;
+  transition: all 0.3s ease !important;
+}
+
+/* 生成模式选中状态 */
+.poizon [class*="mode-card"][class*="active"],
+.poizon [class*="mode-item"][class*="active"],
+.poizon [class*="mode-card"][class*="selected"],
+.poizon [class*="mode-item"][class*="selected"] {
+  background: linear-gradient(145deg, #1A1A1A 0%, #262626 100%) !important;
+  border-color: #00C6FF !important;
+  box-shadow: 0 0 20px rgba(0, 198, 255, 0.3) !important;
+}
+
+/* 生成模式悬停效果 */
+.poizon [class*="mode-card"]:hover,
+.poizon [class*="mode-item"]:hover {
+  border-color: #00C6FF !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 20px rgba(0, 198, 255, 0.2) !important;
+}
+
+/* 生成模式图标容器 */
+.poizon [class*="mode-card"] [class*="icon"],
+.poizon [class*="mode-item"] [class*="icon"] {
+  background: linear-gradient(135deg, #00C6FF 0%, #00A8D4 100%) !important;
+  color: #FFFFFF !important;
+}
+
+/* 生成模式标题 */
+.poizon [class*="mode-card"] [class*="title"],
+.poizon [class*="mode-item"] [class*="title"],
+.poizon [class*="文生图"],
+.poizon [class*="图生图"],
+.poizon [class*="文生视频"],
+.poizon [class*="图生视频"] {
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+}
+
+/* 生成模式副标题 */
+.poizon [class*="mode-card"] [class*="subtitle"],
+.poizon [class*="mode-item"] [class*="subtitle"],
+.poizon [class*="文字生成"],
+.poizon [class*="风格转换"],
+.poizon [class*="图片生成"] {
+  color: #A3A3A3 !important;
+}
+
+/* 创意描述区域 */
+.poizon [class*="创意描述"],
+.poizon [class*="description"],
+.poizon [class*="desc-area"] {
+  background-color: #1A1A1A !important;
+  background: #1A1A1A !important;
+}
+
+/* 字数统计 */
+.poizon [class*="char-count"],
+.poizon [class*="字数统计"],
+.poizon [class*="count"] {
+  color: #737373 !important;
+}
+
+/* 强制修复任何白色背景的卡片 */
+.poizon [class*="creation"] [class*="bg-white"],
+.poizon [class*="ai-create"] [class*="bg-white"],
+.poizon [class*="ai-creation"] [class*="bg-white"] {
+  background: linear-gradient(145deg, #1A1A1A 0%, #262626 100%) !important;
+  background-color: #1A1A1A !important;
+  border: 1px solid #333333 !important;
+}

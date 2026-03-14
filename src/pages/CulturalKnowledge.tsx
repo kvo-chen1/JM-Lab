@@ -4,8 +4,6 @@ import { useTheme } from '@/hooks/useTheme';
 import GradientHero from '@/components/GradientHero';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { getKnowledgeImageUrl, generatePrompt } from '@/services/culturalKnowledgeImageService';
-import { toast } from 'sonner';
 
 // 分类中文映射
 const CATEGORY_NAME_MAP: Record<string, string> = {

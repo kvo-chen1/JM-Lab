@@ -206,7 +206,7 @@ class PersonalizedRecommendationService {
     userProfile: UserProfile
   ): { score: number; reasons: string[]; confidence: number } {
     const reasons: string[] = [];
-    let confidence = 0.8;
+    const confidence = 0.8;
 
     // 1. 分类偏好分数 (0-100)
     const categoryScore = this.calculateCategoryScore(

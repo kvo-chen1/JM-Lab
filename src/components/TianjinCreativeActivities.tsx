@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { tianjinActivityService, TianjinTemplate } from '@/services/tianjinActivityService';
-import { templateInteractionService, TemplateInteractionState } from '@/services/templateInteractionService';
+import { templateInteractionService } from '@/services/templateInteractionService';
 import { generateTemplatePrompt } from '@/utils/templatePromptGenerator';
 import { templateUsageService } from '@/services/templateUsageService';
 import { useAuth } from '@/hooks/useAuth';

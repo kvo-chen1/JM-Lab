@@ -1,4 +1,3 @@
-import { toast } from 'sonner';
 
 export interface OfflineSubmission {
   id: string;

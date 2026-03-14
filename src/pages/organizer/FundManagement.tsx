@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
@@ -16,7 +16,6 @@ import {
   Plus,
   History,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   CreditCard,
   Building2,
@@ -25,13 +24,9 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
-  Download,
   LayoutDashboard,
   Receipt,
-  PiggyBank,
   BarChart3,
-  Sparkles,
-  Target,
   ChevronLeft as ArrowLeftIcon,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';

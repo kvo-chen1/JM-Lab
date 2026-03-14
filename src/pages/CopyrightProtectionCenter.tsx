@@ -4,12 +4,9 @@ import { similarityDetectionService } from '@/services/similarityDetectionServic
 import { infringementReportService } from '@/services/infringementReportService';
 import { copyrightCertificateService } from '@/services/copyrightCertificateService';
 import {
-  CopyrightBadge,
   CopyrightDeclarationForm,
   CopyrightDeclarationDetail,
-  SimilarityChecker,
   InfringementAlertList,
-  InfringementReportForm,
   InfringementReportDetail,
   CertificateGenerator,
   CertificateViewer

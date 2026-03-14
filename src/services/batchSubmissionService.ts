@@ -70,7 +70,7 @@ class BatchSubmissionService {
 
     this.isRunning = true;
     const total = this.queue.length;
-    let completed = 0;
+    const completed = 0;
 
     try {
       await this.processQueue(completed, total);

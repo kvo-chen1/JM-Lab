@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
@@ -7,7 +7,6 @@ import {
   Sparkles,
   X,
   Send,
-  RefreshCw,
   Copy,
   Check,
   Lightbulb,

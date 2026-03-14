@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { TianjinEmptyState, YangliuqingCard, TianjinButton } from './TianjinStyleComponents';
+import { YangliuqingCard, TianjinButton } from './TianjinStyleComponents';
 import { tianjinActivityService, HistoricalSceneItem, InspirationItem } from '@/services/tianjinActivityService';
 
 export default function TianjinHistoricalScene() {

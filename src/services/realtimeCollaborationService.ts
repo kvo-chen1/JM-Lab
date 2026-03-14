@@ -11,9 +11,7 @@ import type {
   CollaboratorPresence,
   WebSocketCollaborationMessage,
   CollaborationRole,
-  LockStatus,
   OperationType,
-  ConflictResolutionStrategy,
 } from '../types/work-collaboration';
 
 const LOCK_EXPIRY_MS = 30 * 60 * 1000;

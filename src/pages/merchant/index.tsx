@@ -6,14 +6,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, AlertCircle, CheckCircle, Clock, Store } from 'lucide-react';
+import { Loader2, AlertCircle, Clock, Store } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { merchantApplicationService } from '@/services/merchantApplicationService';
 import { merchantStoreService, MerchantStore } from '@/services/merchantStoreService';
 import { Button } from '@/components/ui/Button';
 
 // 布局组件
-import MerchantLayout from './components/MerchantLayout';
 import LeftSidebar from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
 import HeaderBar from './components/HeaderBar';

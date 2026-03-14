@@ -5,33 +5,22 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Users,
-  UserCheck,
-  UserX,
   Clock,
   Search,
-  Filter,
   Eye,
   CheckCircle,
   XCircle,
-  Play,
   TrendingUp,
   DollarSign,
-  BarChart3,
   ChevronLeft,
   ChevronRight,
-  RefreshCw,
   Download,
   Package,
-  Target,
-  Zap,
-  Award,
   MousePointer,
-  Percent,
   Settings,
   Info,
   ArrowRight,
   Star,
-  Flame,
   ShoppingCart,
   Activity
 } from 'lucide-react';
@@ -245,7 +234,7 @@ export default function PromotionUserManagement() {
       const userIds = [...new Set((ordersData || []).map((o: any) => o.user_id).filter(Boolean))];
       console.log('需要获取的用户IDs:', userIds);
 
-      let usersMap = new Map();
+      const usersMap = new Map();
       if (userIds.length > 0) {
         console.log('开始获取用户信息...');
         const { data: usersData, error: usersError } = await supabaseAdmin

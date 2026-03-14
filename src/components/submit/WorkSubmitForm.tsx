@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Save, Type, FileText, Hash, Upload, AlertCircle, Sparkles, Wand2 } from 'lucide-react';
+import { Send, Save, Type, FileText, Hash, Upload, AlertCircle, Sparkles, Wand2, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MediaUploadZone } from '../upload/MediaUploadZone';
 import { TagInput } from './TagInput';
+import ProductLinkSelector from '../ProductLinkSelector';
 
 interface WorkSubmitFormProps {
   initialData?: {
@@ -410,6 +411,27 @@ export function WorkSubmitForm({
             <span>{errors.files}</span>
           </div>
         )}
+      </motion.div>
+
+      {/* 产品链接选择器 */}
+      <motion.div
+        custom={4}
+        variants={fieldVariants}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
+      >
+        <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white mb-3">
+          <Link2 className="w-4 h-4 text-green-500" />
+          关联产品链接
+        </label>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          添加相关产品链接，让作品获得更多曝光和收益机会
+        </p>
+        <ProductLinkSelector 
+          onLinksChange={(links) => {
+            console.log('产品链接已更新:', links);
+          }}
+          isDark={false}
+        />
       </motion.div>
 
       {/* 底部操作栏 */}

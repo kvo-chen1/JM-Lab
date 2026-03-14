@@ -18,11 +18,10 @@ import {
   X,
   Camera
 } from 'lucide-react'
-import { userService } from '@/services/apiService'
 import { validationService } from '@/services/validationService'
 import { useAnalyticsStore } from '@/stores/useAnalyticsStore'
 import { uploadAvatar, uploadImage } from '@/services/imageService'
-import { supabase, supabaseAdmin } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 // 辅助函数：base64 转 File
 const dataURLtoFile = (dataurl: string, filename: string): File => {

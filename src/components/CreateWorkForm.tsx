@@ -7,7 +7,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { Work } from '@/mock/works';
 import postsApi from '@/services/postService';
-import { generatePlaceholderSvg } from '@/utils/imageUrlUtils';
 
 // 分类数据
 const categories = [

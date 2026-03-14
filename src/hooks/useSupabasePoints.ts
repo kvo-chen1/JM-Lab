@@ -11,9 +11,7 @@ import supabasePointsService, {
   PointsStats,
   CheckinRecord,
   TaskRecord,
-  ExchangeRecord,
-  InviteRecord,
-  ConsumptionRecord
+  ExchangeRecord
 } from '@/services/supabasePointsService';
 import { toast } from 'sonner';
 
@@ -388,7 +386,7 @@ export function useSupabasePoints(): UseSupabasePointsReturn {
         : 1;
 
       // 计算签到积分
-      let pointsEarned = 5; // 基础积分
+      const pointsEarned = 5; // 基础积分
       let bonusPoints = 0;
 
       // 连续签到奖励

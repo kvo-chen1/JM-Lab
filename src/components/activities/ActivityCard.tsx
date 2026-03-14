@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import type { ParticipationDetail } from '@/services/eventParticipationService';
 import { TianjinButton } from '@/components/TianjinStyleComponents';
-import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
-import { Trophy, Medal, Award, Crown, X, Star, User } from 'lucide-react';
 
 interface ActivityCardProps {
   participation: ParticipationDetail;

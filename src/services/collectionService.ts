@@ -153,7 +153,7 @@ async function getBookmarkedSquareWorks(
               const worksWithoutAuthor = result.data.filter((work: any) => !work.author && (work.creator_id || work.user_id));
               
               // 获取作者信息
-              let authorsMap = new Map();
+              const authorsMap = new Map();
               if (worksWithoutAuthor.length > 0) {
                 const creatorIds = worksWithoutAuthor.map((w: any) => w.creator_id || w.user_id).filter(Boolean);
                 console.log('[getBookmarkedSquareWorks] Fetching authors for IDs:', creatorIds);
@@ -270,7 +270,7 @@ async function getBookmarkedSquareWorks(
     console.log('[getBookmarkedSquareWorks] Creator IDs:', creatorIds);
 
     // 获取作者信息（头像等）
-    let usersMap = new Map();
+    const usersMap = new Map();
     if (creatorIds.length > 0) {
       console.log('[getBookmarkedSquareWorks] Fetching users for IDs:', creatorIds);
       const { data: users, error: usersError } = await supabase
@@ -380,7 +380,7 @@ async function getLikedSquareWorks(
               const worksWithoutAuthor = result.data.filter((work: any) => !work.author && (work.creator_id || work.user_id));
               
               // 获取作者信息
-              let authorsMap = new Map();
+              const authorsMap = new Map();
               if (worksWithoutAuthor.length > 0) {
                 const creatorIds = worksWithoutAuthor.map((w: any) => w.creator_id || w.user_id).filter(Boolean);
                 console.log('[getLikedSquareWorks] Fetching authors for IDs:', creatorIds);
@@ -490,7 +490,7 @@ async function getLikedSquareWorks(
     const creatorIds = works?.map(w => w.creator_id).filter(Boolean) || [];
 
     // 获取作者信息（头像等）
-    let usersMap = new Map();
+    const usersMap = new Map();
     if (creatorIds.length > 0) {
       const { data: users, error: usersError } = await supabase
         .from('users')
@@ -846,7 +846,7 @@ async function getBookmarkedCommunityPosts(
     }).filter(Boolean) || [];
 
     // 获取作者信息（头像等）
-    let usersMap = new Map();
+    const usersMap = new Map();
     if (authorIds.length > 0) {
       const { data: users, error: usersError } = await supabase
         .from('users')
@@ -870,7 +870,7 @@ async function getBookmarkedCommunityPosts(
 
     // 获取所有帖子的点赞数
     const allPostIds = posts?.map(p => p.id) || [];
-    let likesCountMap = new Map();
+    const likesCountMap = new Map();
     if (allPostIds.length > 0) {
       const { data: likesData, error: likesError } = await supabase
         .from('likes')
@@ -1022,7 +1022,7 @@ async function getLikedCommunityPosts(
     }).filter(Boolean) || [];
 
     // 获取作者信息（头像等）
-    let usersMap = new Map();
+    const usersMap = new Map();
     if (authorIds.length > 0) {
       const { data: users, error: usersError } = await supabase
         .from('users')
@@ -1046,7 +1046,7 @@ async function getLikedCommunityPosts(
 
     // 获取所有帖子的点赞数
     const allPostIds = posts?.map(p => p.id) || [];
-    let likesCountMap = new Map();
+    const likesCountMap = new Map();
     if (allPostIds.length > 0) {
       const { data: likesData, error: likesError } = await supabase
         .from('likes')

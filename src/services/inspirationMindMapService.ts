@@ -14,17 +14,10 @@ import { supabase } from '@/lib/supabase';
 import { llmService } from './llmService';
 import type { 
   MindNode, 
-  NodePosition, 
-  NodeStyle,
+  NodePosition,
   CreationMindMap,
   CreationStory,
-  CulturalElement,
-  BrandReference,
   AISuggestion,
-  AIResult,
-  NodeContent,
-  MindMapSettings,
-  MindMapStats,
   TurningPoint,
   TimelineEvent,
   StoryStats,

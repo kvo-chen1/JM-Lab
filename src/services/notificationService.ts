@@ -6,7 +6,6 @@
 import apiClient from '../lib/apiClient';
 import type {
   InvitationNotification,
-  InvitationNotificationType,
 } from '../types/community-invitation';
 
 // ============================================

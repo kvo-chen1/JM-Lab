@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -9,25 +9,15 @@ import {
   MousePointer2,
   ShoppingCart,
   BarChart3,
-  Calendar,
   ExternalLink,
   Link as LinkIcon,
-  Plus,
-  Trash2,
-  Edit,
-  Eye,
   X,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
   ArrowUpRight,
   Package,
-  Copy,
-  Share2,
 } from 'lucide-react';
 import * as orderExecutionService from '@/services/orderExecutionService';
 import type { OrderExecution, OrderExecutionStats, ProductLink } from '@/services/orderExecutionService';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 const OrderCenterPage: React.FC = () => {
   const { isDark } = useTheme();

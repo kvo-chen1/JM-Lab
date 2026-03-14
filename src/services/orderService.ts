@@ -276,7 +276,7 @@ export async function getOrders(
     const orderIds = orders?.map((o: any) => o.id) || [];
 
     // 如果有订单，批量获取订单项
-    let itemsMap = new Map();
+    const itemsMap = new Map();
     if (orderIds.length > 0) {
       const { data: items, error: itemsError } = await queryWithTimeout(
         supabase
@@ -723,7 +723,7 @@ export async function adminGetAllOrders(
     const orderIds = orders?.map((o: any) => o.id) || [];
 
     // 如果有订单，批量获取订单项
-    let itemsMap = new Map();
+    const itemsMap = new Map();
     if (orderIds.length > 0) {
       const { data: items, error: itemsError } = await supabaseAdmin
         .from('order_items')

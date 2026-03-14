@@ -1,5 +1,5 @@
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { storageService, supabaseStorageService } from './supabaseStorageService';
+import { supabaseStorageService } from './supabaseStorageService';
 import { uploadFile } from './storageServiceNew';
 
 // 提交文件接口

@@ -3,12 +3,7 @@ import { persist } from 'zustand/middleware';
 import {
   ConversationSession,
   AgentStateSnapshot,
-  AgentMessage,
-  AgentType,
-  DesignTask,
-  TaskStage,
-  GeneratedOutput,
-  DelegationTask
+  AgentMessage
 } from '../types/agent';
 import { useAgentStore } from './useAgentStore';
 

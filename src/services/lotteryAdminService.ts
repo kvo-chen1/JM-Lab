@@ -3,7 +3,7 @@
  * 提供转盘活动的CRUD操作和数据统计分析
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 
 // 转盘活动状态
 export type LotteryStatus = 'draft' | 'active' | 'paused' | 'ended';

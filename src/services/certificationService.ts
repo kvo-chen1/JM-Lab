@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseClient';
 import { apiClient } from '@/lib/apiClient';
 import eventBus from '@/lib/eventBus';
 import { toast } from 'sonner';
@@ -9,7 +9,6 @@ import {
   CertificationApplication,
   CertificationInfo,
   CertificationMaterial,
-  CertificationAuditLog,
   CertificationStats,
   CERTIFICATION_LEVELS,
 } from '@/types/certification';

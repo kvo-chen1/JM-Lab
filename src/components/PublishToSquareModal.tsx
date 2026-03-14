@@ -9,7 +9,7 @@ import { AuthContext } from '@/contexts/authContext';
 import { generatePlaceholderSvg } from '@/utils/imageUrlUtils';
 import { X, Hash, Image as ImageIcon, Video, Type, AlignLeft, Sparkles, Loader2, CheckCircle2, Upload, Trash2, ExternalLink, Briefcase, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { brandTaskService, BrandTask, UserInfo } from '@/services/brandTaskService';
+import { brandTaskService, BrandTask } from '@/services/brandTaskService';
 
 interface PublishToSquareModalProps {
   isOpen: boolean;

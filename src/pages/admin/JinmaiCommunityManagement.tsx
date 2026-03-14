@@ -26,15 +26,9 @@ import {
   BarChart3,
   ArrowUpRight,
   ArrowDownRight,
-  Clock,
   UserPlus,
-  MessageSquare,
-  ThumbsUp,
-  MoreVertical,
   Flame,
-  Target,
   Zap,
-  Settings,
   Plus
 } from 'lucide-react';
 

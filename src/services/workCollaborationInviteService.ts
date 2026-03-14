@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
-import { websocketService } from './websocketService';
 import type {
   WorkCollaborator,
   CollaborationInvite,
@@ -9,10 +8,6 @@ import type {
   CreateCollaborationInviteRequest,
   BatchCollaborationInviteRequest,
   CollaborationInviteStatus,
-  ROLE_PERMISSIONS,
-  DEFAULT_INVITE_EXPIRY_HOURS,
-  MAX_COLLABORATORS_PER_WORK,
-  MAX_PENDING_INVITES_PER_WORK,
 } from '../types/work-collaboration';
 
 const DEFAULT_EXPIRY_HOURS = 72;

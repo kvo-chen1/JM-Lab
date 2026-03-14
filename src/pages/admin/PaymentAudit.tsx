@@ -14,7 +14,6 @@ import {
   User,
   CreditCard,
   Calendar,
-  Filter,
   Download,
   ChevronLeft,
   ChevronRight,
@@ -23,7 +22,6 @@ import {
   XSquare,
   AlertCircle,
   FileText,
-  ExternalLink,
   RotateCcw
 } from 'lucide-react';
 
@@ -140,7 +138,7 @@ const PaymentAudit: React.FC = () => {
       // 日期范围筛选
       if (dateRange !== 'all') {
         const now = new Date();
-        let startDate = new Date();
+        const startDate = new Date();
         switch (dateRange) {
           case 'today':
             startDate.setHours(0, 0, 0, 0);

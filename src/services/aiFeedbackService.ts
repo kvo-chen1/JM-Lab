@@ -3,7 +3,6 @@
  * 处理用户对AI回复的反馈数据收集和管理
  */
 
-import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase';
 
 // AI反馈类型

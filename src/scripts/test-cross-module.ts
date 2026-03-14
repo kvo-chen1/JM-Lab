@@ -1,6 +1,6 @@
 // 跨模块数据互通测试脚本
 import { workService, userService, categoryService } from '../services/apiService';
-import { eventBus, EventType, useEventBus } from '../services/eventBus';
+import { eventBus, EventType } from '../services/eventBus';
 import { useDataState } from '../services/dataStateService';
 import { validationService } from '../services/validationService';
 

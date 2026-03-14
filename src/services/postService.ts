@@ -424,7 +424,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
         console.log('Extracted authorIds:', authorIds);
         
         // 批量获取作者信息
-        let authorsMap: Map<string, any> = new Map();
+        const authorsMap: Map<string, any> = new Map();
         if (authorIds.length > 0) {
           const { data: authorsData, error: authorsError } = await supabase
             .from('users')
@@ -556,7 +556,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
           }).filter(Boolean))].map(id => String(id));
 
           // 批量获取作者信息
-          let authorsMap: Map<string, any> = new Map();
+          const authorsMap: Map<string, any> = new Map();
           if (authorIds.length > 0) {
             const { data: authorsData, error: authorsError } = await supabase
               .from('users')
@@ -867,7 +867,7 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
   let comments: Comment[] = [];
   if (commentsData && commentsData.length > 0) {
     const authorIds = [...new Set(commentsData.map(c => c.user_id).filter(Boolean))].map(id => String(id));
-    let authorsMap: Map<string, any> = new Map();
+    const authorsMap: Map<string, any> = new Map();
     
     if (authorIds.length > 0) {
       const { data: authorsData } = await supabase
@@ -1123,7 +1123,6 @@ export async function createWorkWithUrl(workData: any, imageUrl: string, userId?
   }, { id: userId } as User);
 }
 
-import eventBus from '@/lib/eventBus';
 
 async function ensureSupabaseSessionUserId(): Promise<string | null> {
   try {

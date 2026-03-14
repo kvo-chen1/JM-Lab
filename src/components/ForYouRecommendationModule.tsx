@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import { 
   Heart, 
   X, 
-  MoreHorizontal, 
   ChevronLeft, 
   ChevronRight, 
   Sparkles,

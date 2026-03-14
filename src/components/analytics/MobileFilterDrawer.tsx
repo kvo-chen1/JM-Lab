@@ -1,7 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { X, SlidersHorizontal } from 'lucide-react';
-import { useState } from 'react';
 import LeftSidebar from './LeftSidebar';
 import { MetricType, TimeRange, GroupBy } from '@/services/analyticsService';
 

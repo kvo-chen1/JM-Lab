@@ -2,13 +2,10 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import {
-  Trophy,
   LayoutGrid,
   List,
   Clock,
-  ChevronDown,
   Filter,
-  SlidersHorizontal,
   X
 } from 'lucide-react';
 import type {
@@ -16,8 +13,7 @@ import type {
   AchievementStats,
   UserAchievementInfo,
   AchievementFilter,
-  ViewMode,
-  CreatorLevel
+  ViewMode
 } from '../types';
 import AchievementCard from './AchievementCard';
 import StatsPanel from './StatsPanel';

@@ -9,7 +9,7 @@ import { userPersonaService } from '@/services/userPersonaService';
 import { RecommendationCandidate, RecommendationExplanation } from '@/types/recommendation';
 import { BehaviorType, ContentType } from '@/types/userPersona';
 import { toast } from 'sonner';
-import { ChevronRight, Heart, X, MoreHorizontal, Sparkles, TrendingUp, Clock, User } from 'lucide-react';
+import { ChevronRight, Heart, X, MoreHorizontal, Sparkles, TrendingUp, User } from 'lucide-react';
 
 interface PersonalizedRecommendationSectionProps {
   className?: string;

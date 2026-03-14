@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useTheme } from '@/hooks/useTheme';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { BRANDS } from '@/lib/brands';
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
 import { AuthContext } from '@/contexts/authContext';
@@ -10,8 +10,6 @@ import {
   LeftSidebar,
   HeroSection,
   FeaturesSection,
-  ProcessSection,
-  CooperationForm,
   BrandOnboarding,
   BrandApplicationForm,
 } from '@/components/business';
@@ -20,9 +18,7 @@ import {
   Users,
   Briefcase,
   MapPin,
-  CheckCircle,
   Clock,
-  X,
   FileText,
   TrendingUp,
   ArrowRight,

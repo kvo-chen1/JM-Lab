@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
@@ -17,21 +17,15 @@ import {
   Zap,
   Flame,
   ShoppingCart,
-  Clock,
-  CheckCircle,
   Play,
   User,
   Package,
   Pause,
-  StopCircle,
   TrendingDown,
-  Calendar,
-  Hash,
   Award,
   Sparkles,
   PlayCircle,
-  StopCircle as StopIcon,
-  Monitor
+  StopCircle as StopIcon
 } from 'lucide-react';
 import { promotionService, PromotedWork } from '@/services/promotionService';
 import { supabaseAdmin } from '@/lib/supabaseClient';

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
-import { X, Search, Send, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Send, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { WorkSelector } from './WorkSelector';
 import { UserSearch } from './UserSearch';
 import { WorkPreview } from './WorkPreview';

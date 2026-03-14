@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useRef, useCallback } from 'react';
+import { useState, useContext, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
@@ -24,15 +24,12 @@ import {
   ThumbsUp,
   Users,
   Loader2,
-  Share2,
   Calendar,
   MapPin,
   ExternalLink,
   Lock,
   Heart,
   X,
-  SlidersHorizontal,
-  ChevronDown,
   Sparkles,
   Upload,
   ArrowUp,

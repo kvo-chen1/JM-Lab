@@ -5,22 +5,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import {
   BarChart3,
-  TrendingUp,
   DollarSign,
   MousePointer2,
   ShoppingCart,
   Package,
-  Users,
-  Calendar,
   ExternalLink,
   Download,
   RefreshCw,
-  Eye,
   ArrowUpRight,
 } from 'lucide-react';
 import * as orderExecutionService from '@/services/orderExecutionService';
 import type { OrderExecution, OrderExecutionStats } from '@/services/orderExecutionService';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 const BrandOrderExecutionPage: React.FC = () => {
   const { isDark } = useTheme();

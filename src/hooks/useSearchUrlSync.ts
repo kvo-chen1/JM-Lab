@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { FilterState } from '@/components/SearchFilterPanel'
 import { CategoryType } from '@/components/SearchCategoryTabs'

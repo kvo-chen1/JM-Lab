@@ -5,7 +5,6 @@ import {
   MessageCircle, 
   Bookmark, 
   Share2, 
-  Image, 
   UserPlus, 
   Award,
   Clock,

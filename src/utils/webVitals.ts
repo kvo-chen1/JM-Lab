@@ -115,7 +115,7 @@ export function observeCLS(onReport: ReportCallback): () => void {
   if (!('PerformanceObserver' in window)) return () => {};
 
   let clsValue = 0;
-  let sessionEntries: PerformanceEntry[] = [];
+  const sessionEntries: PerformanceEntry[] = [];
 
   const observer = new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {

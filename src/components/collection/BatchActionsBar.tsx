@@ -3,16 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import {
   CheckSquare,
-  Square,
   FolderPlus,
   Trash2,
   X,
-  Check,
 } from 'lucide-react';
-import { CollectionItem, CollectionType } from '@/services/collectionService';
+import { CollectionItem } from '@/services/collectionService';
 import { CollectionFolder } from '@/types/collectionFolder';
 import { collectionFolderService } from '@/services/collectionFolderService';
-import { toast } from 'sonner';
 
 interface BatchActionsBarProps {
   selectedItems: CollectionItem[];

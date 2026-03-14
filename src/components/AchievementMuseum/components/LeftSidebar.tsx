@@ -11,14 +11,10 @@ import {
   List,
   Clock,
   RotateCcw,
-  ChevronRight,
-  Trophy,
   Target
 } from 'lucide-react';
 import type {
   AchievementFilter,
-  AchievementRarity,
-  AchievementCategory,
   ViewMode,
   AchievementStats
 } from '../types';

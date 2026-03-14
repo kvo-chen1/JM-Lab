@@ -4,15 +4,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  ShoppingCart, 
   Search, 
   Truck, 
   Eye,
-  MoreHorizontal,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Package,
   Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';

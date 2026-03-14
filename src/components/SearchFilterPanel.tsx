@@ -5,7 +5,6 @@ import {
   X,
   ChevronDown,
   Calendar,
-  User,
   Tag,
   Layers,
   RotateCcw,

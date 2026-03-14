@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import { Upload, X, Plus, Search, Edit2, Trash2, Eye, Save, AlertCircle, Trophy, Star, Award, Crown, Shield, Target, Zap, Heart, MessageCircle, Bookmark, Share2, Calendar, Cpu, Video, Film, Users, UserCheck, Landmark, Sparkles } from 'lucide-react';
-import achievementService, { Achievement, CreatorLevel } from '@/services/achievementService';
+import { X, Plus, Search, Edit2, Trash2, Eye, Save, AlertCircle, Trophy, Star, Award, Crown, Shield, Target, Zap, Heart, MessageCircle, Bookmark, Share2, Calendar, Cpu, Video, Film, Users, UserCheck, Landmark, Sparkles } from 'lucide-react';
+import achievementService from '@/services/achievementService';
 import supabasePointsService from '@/services/supabasePointsService';
 import achievementAdminService, { AchievementConfig, CreatorLevelConfig } from '@/services/achievementAdminService';
 

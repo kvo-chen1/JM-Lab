@@ -11,8 +11,6 @@ import {
   Trash2,
   ArrowLeft,
   Check,
-  X,
-  Package,
   Loader2,
   AlertCircle
 } from 'lucide-react';

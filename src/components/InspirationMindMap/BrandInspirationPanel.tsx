@@ -7,8 +7,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
-  Sparkles,
-  Lightbulb,
   Palette,
   Utensils,
   Brush,
@@ -16,7 +14,6 @@ import {
   Plus,
   Wand2,
   X,
-  ChevronRight,
   Check,
   Building2,
   History,

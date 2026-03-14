@@ -1,11 +1,11 @@
 import { supabase } from '@/lib/supabase';
-import { useState, useContext, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useContext, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { useGuide } from '@/contexts/GuideContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import {
   Bookmark,
   Heart,
@@ -14,39 +14,30 @@ import {
   Users,
   Bell,
   TrendingUp,
-  Calendar,
   Home,
   Compass,
   Sparkles,
   Award,
   Zap,
   MessageCircle,
-  Share2,
-  MoreHorizontal,
   ChevronRight,
-  Edit3,
   Eye,
   ThumbsUp,
   Image,
-  Clock,
-  Target,
   Flame,
   Crown,
   Star,
   Gift,
   CheckCircle2,
   Plus,
-  Trash2,
-  MoreVertical
+  Trash2
 } from 'lucide-react';
-import OptimizedImage from '../components/OptimizedImage';
-import ActivityTimeline, { Activity } from '../components/ActivityTimeline';
+import { Activity } from '../components/ActivityTimeline';
 import achievementService from '../services/achievementService';
 import analyticsService, { WorkPerformance } from '../services/analyticsService';
 import taskService, { Task } from '../services/taskService';
 import { useCommunityLogic } from '@/hooks/useCommunityLogic';
 import postsApi from '@/services/postService';
-import PWAInstallButton from '@/components/PWAInstallButton'
 import { useSupabasePoints } from '@/hooks/useSupabasePoints';
 import MobileDashboard from '@/components/MobileDashboard';
 

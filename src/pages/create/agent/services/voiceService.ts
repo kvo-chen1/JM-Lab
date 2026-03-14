@@ -1,6 +1,5 @@
 // 语音服务 - 语音识别(STT)和语音合成(TTS)
 
-import { callQwenChat } from '@/services/llm/chatProviders';
 
 // 语音识别配置
 interface STTConfig {

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import {
@@ -13,7 +13,6 @@ import {
   PrizeLevel,
   PrizeCombinationType,
   PrizeTemplate,
-  PRIZE_LEVEL_NAMES,
   PRIZE_LEVEL_COLORS,
 } from '@/types/prize';
 import { prizeService } from '@/services/prizeService';

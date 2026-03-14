@@ -1,7 +1,7 @@
 /**
  * 订单确认页面
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart, useProduct } from '@/hooks/useProducts';
@@ -212,6 +212,7 @@ const OrderConfirmPage: React.FC = () => {
             quantity: item.quantity
           }))}
           shippingAddress={shippingAddress}
+          onAddressChange={setShippingAddress}
           onSubmit={handleSubmitOrder}
           loading={loading}
           subtotal={totalAmount || 0}

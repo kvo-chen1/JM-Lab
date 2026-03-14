@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import type { OutlineTemplate, OutlineSection } from './types';
+import type { OutlineTemplate } from './types';
 import {
   Users,
   Share2,
@@ -13,12 +13,10 @@ import {
   Mail,
   MessageSquare,
   Clock,
-  MoreHorizontal,
   UserPlus,
   Shield,
   Eye,
   Edit3,
-  Trash2,
   Send,
 } from 'lucide-react';
 

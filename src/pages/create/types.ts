@@ -74,11 +74,15 @@ export interface CreateState {
   generatedResults: GeneratedResult[];
   selectedResult: number | null;
   
+  // AI Model State
+  selectedModel: string;
+  
   // Feature Flags / Toggles
   showCulturalInfo: boolean;
   showAIReview: boolean;
   showModelSelector: boolean;
   showPublishModal: boolean;
+  showHistoryModal: boolean;
   isPrecheckEnabled: boolean;
   precheckResult: PrecheckResult | null;
   fusionMode: boolean;

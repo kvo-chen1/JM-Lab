@@ -216,7 +216,7 @@ class BrandPartnershipService {
       console.log('获取品牌申请 - 用户邮箱:', userEmail);
 
       // 先尝试通过 applicant_id 查询
-      let { data: dataById, error: errorById } = await supabase
+      const { data: dataById, error: errorById } = await supabase
         .from('brand_partnerships')
         .select('*')
         .eq('applicant_id', userId)

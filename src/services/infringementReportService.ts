@@ -2,15 +2,14 @@
  * 侵权举报服务
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import type {
   InfringementReport,
   Evidence,
   CreateInfringementReportDTO,
   AddEvidenceDTO,
   UpdateReportStatusDTO,
-  InfringementReportStats,
-  ReportTimelineEntry
+  InfringementReportStats
 } from '@/types/infringement-report';
 
 const getCurrentUserInfo = (): { id: string; name: string; email?: string } | null => {

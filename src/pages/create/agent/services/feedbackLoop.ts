@@ -4,7 +4,7 @@
  * 此文件保留以维持向后兼容
  */
 
-import { FeedbackLearning, getFeedbackLearning, FeedbackType as NewFeedbackType } from './feedbackLearning';
+import { getFeedbackLearning, FeedbackType as NewFeedbackType } from './feedbackLearning';
 import { getLongTermMemory, MemoryType } from './longTermMemory';
 import { EntityType } from './entityExtractor';
 

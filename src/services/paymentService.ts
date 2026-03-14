@@ -1,4 +1,3 @@
-import { apiClient } from '@/lib/apiClient';
 
 export interface PaymentOrder {
   id: string;

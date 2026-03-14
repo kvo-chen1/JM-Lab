@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import type { Thread } from '@/pages/Community';
 import { PostCard } from './PostCard';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';

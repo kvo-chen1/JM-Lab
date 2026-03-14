@@ -2,15 +2,11 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
-  BellOff,
   Settings,
   RefreshCw,
   Filter,
-  ChevronDown,
   Wifi,
   WifiOff,
-  Volume2,
-  VolumeX,
   X,
   Check,
   Inbox
@@ -19,8 +15,7 @@ import type {
   Notification,
   NotificationCategory,
   NotificationType,
-  NotificationSettings,
-  NotificationAggregate
+  NotificationSettings
 } from '../../types/notification';
 import {
   NOTIFICATION_CATEGORIES,

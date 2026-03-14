@@ -15,9 +15,7 @@ import {
   Eye,
   Clock,
   Zap,
-  ChevronRight,
-  Search,
-  Filter
+  Search
 } from 'lucide-react';
 
 interface TemplateShowcaseGridProps {

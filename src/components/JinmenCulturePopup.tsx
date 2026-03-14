@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ExternalLink, Calendar, Heart, Eye, Info, Clock, Minimize2, Maximize2 } from 'lucide-react';
+import { X, ExternalLink, Heart, Eye, Info, Minimize2, Maximize2 } from 'lucide-react';
 import { jinmenKnowledgeData, CulturalKnowledge } from '@/data/jinmenCultureData';
 import { useTheme } from '@/hooks/useTheme';
 import { Link, useLocation } from 'react-router-dom';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Image as ImageIcon, Video, CheckCircle2, Download, Share2, Upload, MessageCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Loader2, Image as ImageIcon, Video, Download, Share2, Upload } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 

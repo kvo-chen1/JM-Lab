@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,20 +20,15 @@ import {
   RefreshCw,
   Calendar,
   DollarSign,
-  MapPin,
   Briefcase,
   User,
   MessageSquare,
-  ChevronRight,
   TrendingUp,
   Eye,
   X,
-  ArrowUpDown,
   CheckSquare,
   AlertCircle,
   Archive,
-  Play,
-  Pause,
 } from 'lucide-react';
 
 // ============================================================================

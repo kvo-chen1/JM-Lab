@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useRef } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
@@ -14,14 +14,11 @@ import {
   MoreHorizontal,
   X,
   MessageCircle,
-  Send,
   Image as ImageIcon,
   Video,
   FileAudio,
   FileText,
-  Download,
   ExternalLink,
-  ChevronRight,
   Loader2,
 } from 'lucide-react';
 

@@ -1,5 +1,4 @@
-import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { useNotifications } from '@/contexts/NotificationContext';
+import { supabase } from '@/lib/supabase';
 
 // 反馈类型
 export type FeedbackType = 'bug' | 'feature' | 'complaint' | 'inquiry' | 'other';

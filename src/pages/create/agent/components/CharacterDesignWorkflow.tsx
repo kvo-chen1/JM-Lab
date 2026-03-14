@@ -3,13 +3,13 @@
  * 引导用户一步步完成IP形象设计
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore } from '../hooks/useAgentStore';
 import { 
-  User, Palette, Sparkles, Image as ImageIcon, 
-  CheckCircle, Clock, Wand2, ChevronRight, RefreshCw 
+  User, Palette, Sparkles, 
+  CheckCircle, Clock, Wand2, RefreshCw 
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { llmService } from '@/services/llmService';

@@ -26,9 +26,16 @@ import {
   ArrowRight,
   Lightbulb,
   Zap,
-  Loader2
+  Loader2,
+  Ticket,
+  Send,
+  Plus,
+  Eye,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react'
 import { feedbackService, FeedbackType } from '@/services/feedbackService'
+import ticketService from '@/services/ticketService'
 import { toast } from 'sonner'
 
 // FAQ类别类型
@@ -68,12 +75,6 @@ const staggerContainer = {
   }
 }
 
-const scaleIn = {
-  initial: { opacity: 0, scale: 0.95 },
-  animate: { opacity: 1, scale: 1 },
-  exit: { opacity: 0, scale: 0.95 }
-}
-
 export default function Help() {
   const { isDark } = useTheme()
   const [activeCategory, setActiveCategory] = useState<FAQCategory>('all')
@@ -81,8 +82,18 @@ export default function Help() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [showTicketModal, setShowTicketModal] = useState(false)
   const [searchHistory, setSearchHistory] = useState<string[]>([])
   const [showHistory, setShowHistory] = useState(false)
+
+  // 工单相关状态
+  const [tickets, setTickets] = useState<any[]>([])
+  const [ticketForm, setTicketForm] = useState({
+    type: 'bug',
+    title: '',
+    description: '',
+    priority: 'medium' as 'low' | 'medium' | 'high'
+  })
 
   // 反馈表单状态
   const [feedbackType, setFeedbackType] = useState<FeedbackType>('inquiry')
@@ -154,54 +165,6 @@ export default function Help() {
     },
     {
       id: 'faq-7',
-      question: '如何修改个人信息？',
-      answer: '登录后进入"个人中心"页面，点击"编辑资料"按钮即可修改个人信息，包括用户名、头像、邮箱、手机号等。修改完成后，系统会保存你的更改。部分敏感信息修改需要进行身份验证。',
-      category: 'auth',
-      views: 5430,
-      helpful: 94
-    },
-    {
-      id: 'faq-8',
-      question: '如何使用AI创作功能？',
-      answer: '进入"AI创作工具"页面，选择创作类型（图片、视频、文字等），输入创作提示词，调整参数设置，点击"生成"按钮即可生成内容。你可以对生成的内容进行编辑和调整，直到满意为止。高级会员可使用更多AI模型。',
-      category: 'creation',
-      views: 18920,
-      helpful: 98
-    },
-    {
-      id: 'faq-9',
-      question: '如何保存和管理我的作品？',
-      answer: '创作完成后，点击"保存"按钮即可将作品保存到"我的作品"页面。在该页面，你可以查看、编辑、删除、分享你的作品，还可以将作品分类管理。支持批量操作和文件夹管理功能。',
-      category: 'creation',
-      views: 7650,
-      helpful: 93
-    },
-    {
-      id: 'faq-10',
-      question: '如何分享我的作品？',
-      answer: '在作品详情页面，点击"分享"按钮，选择分享方式（微信、微博、QQ等）或复制分享链接，即可将作品分享给他人。你也可以设置作品的可见范围，控制谁可以查看你的作品。支持生成精美分享卡片。',
-      category: 'community',
-      views: 6780,
-      helpful: 91
-    },
-    {
-      id: 'faq-11',
-      question: '如何加入社区讨论？',
-      answer: '进入"社区"页面，浏览社区动态，点击帖子即可参与讨论。你可以点赞、评论、分享帖子，也可以创建自己的帖子，与其他用户交流创作经验和想法。遵守社区规范，文明交流。',
-      category: 'community',
-      views: 4320,
-      helpful: 89
-    },
-    {
-      id: 'faq-12',
-      question: '如何关注其他用户？',
-      answer: '在用户个人主页或社区动态中，点击用户头像或用户名进入用户详情页面，点击"关注"按钮即可关注该用户。关注后，你可以在"关注"页面查看该用户的最新动态。支持批量关注和分组管理。',
-      category: 'community',
-      views: 3890,
-      helpful: 88
-    },
-    {
-      id: 'faq-13',
       question: '会员有哪些权益？',
       answer: '会员可以享受无限AI生成次数、高级AI模型访问、高清作品导出、优先处理队列、专属模板库、去除水印等权益。不同等级的会员享受不同的权益，你可以在"会员中心"页面查看详细的会员权益说明。',
       category: 'membership',
@@ -209,7 +172,7 @@ export default function Help() {
       helpful: 97
     },
     {
-      id: 'faq-14',
+      id: 'faq-8',
       question: '如何升级会员？',
       answer: '进入"会员中心"页面，选择你想要升级的会员等级，点击"立即升级"按钮，按照提示完成支付即可。支付成功后，你的会员等级会立即升级，享受相应的会员权益。支持多种支付方式。',
       category: 'membership',
@@ -217,15 +180,7 @@ export default function Help() {
       helpful: 95
     },
     {
-      id: 'faq-15',
-      question: '会员到期后怎么办？',
-      answer: '会员到期后，你的会员权益会自动失效，系统会将你的会员等级恢复为免费会员。你可以在会员到期前续费，继续享受会员权益。系统会在会员到期前发送提醒通知，确保你不会错过续费时机。',
-      category: 'membership',
-      views: 6540,
-      helpful: 94
-    },
-    {
-      id: 'faq-16',
+      id: 'faq-9',
       question: '如何处理创作过程中的技术问题？',
       answer: '如果在创作过程中遇到技术问题，你可以尝试刷新页面、清除浏览器缓存、更换浏览器等方式解决。如果问题依然存在，请通过反馈渠道提交问题，我们的技术团队会尽快协助你解决。',
       category: 'technical',
@@ -233,198 +188,26 @@ export default function Help() {
       helpful: 90
     },
     {
-      id: 'faq-17',
-      question: '如何优化AI生成效果？',
-      answer: '要优化AI生成效果，你可以尝试以下方法：1）提供更详细的提示词，明确描述你想要的效果；2）调整生成参数，如风格、细节程度等；3）使用参考图片或风格参考；4）尝试不同的AI模型。',
-      category: 'technical',
-      views: 7890,
-      helpful: 96
-    },
-    {
-      id: 'faq-18',
-      question: '如何处理生成内容中的版权问题？',
-      answer: '平台生成的内容可能包含受版权保护的元素，建议你在使用前检查内容的版权状态。对于商业用途，建议你使用平台提供的授权素材，或自行获取版权授权。如果发现生成内容存在版权问题，请立即停止使用，并联系平台客服。',
-      category: 'security',
-      views: 4320,
-      helpful: 92
-    },
-    {
-      id: 'faq-19',
-      question: '如何使用品牌设计功能？',
-      answer: '在"创作中心"选择"品牌设计"，你可以浏览并使用专业的品牌模板，上传和管理你的品牌Logo、配色、字体等资产。系统还提供"品牌一致性检查"工具，帮助你确保设计稿符合品牌规范。',
-      category: 'creation',
-      views: 5670,
-      helpful: 89
-    },
-    {
-      id: 'faq-20',
-      question: '如何参加创意比赛？',
-      answer: '进入"创作中心"的"赛事评选"页面，查看正在进行的比赛。点击比赛卡片可以查看详情和要求，使用"立即报名"按钮即可提交你的作品参与比赛。获奖作品将获得丰厚奖励和曝光机会。',
-      category: 'community',
-      views: 3450,
-      helpful: 87
-    },
-    {
-      id: 'faq-21',
-      question: '作品上传支持哪些格式？',
-      answer: '我们支持多种常见的媒体格式，包括图片（JPG, PNG, GIF, WebP）、视频（MP4, MOV, AVI）和文档（PDF, DOC, DOCX）。单个文件大小限制请参考上传页面的具体说明（图片通常50MB，视频500MB）。',
-      category: 'technical',
-      views: 6780,
-      helpful: 94
-    },
-    {
-      id: 'faq-22',
-      question: '如何绑定和解绑第三方账号？',
-      answer: '进入"设置"页面的"账号安全"选项，你可以看到已绑定的第三方账号（微信、支付宝、QQ等）。点击"绑定"按钮可以添加新的第三方账号，点击"解绑"可以解除已绑定的账号。为了账号安全，解绑前需要进行身份验证。',
-      category: 'auth',
-      views: 4560,
-      helpful: 93
-    },
-    {
-      id: 'faq-23',
-      question: '如何注销账号？',
-      answer: '如果你需要注销账号，请进入"设置"页面的"账号安全"选项，点击"注销账号"。注销前请确保已备份重要数据，账号注销后将无法恢复，所有数据将被永久删除。注销申请提交后，我们有7天的冷静期，期间你可以取消注销。',
-      category: 'auth',
-      views: 3210,
-      helpful: 91
-    },
-    {
-      id: 'faq-24',
-      question: 'AI创作需要消耗积分吗？',
-      answer: '是的，AI创作功能需要消耗积分。免费用户每天有固定的免费积分额度，用完后可以等待次日重置，或者购买积分包。会员用户享有更多的免费积分额度和更优惠的积分价格。不同AI模型消耗的积分数量不同，具体请参考创作页面的积分提示。',
-      category: 'creation',
-      views: 9870,
-      helpful: 96
-    },
-    {
-      id: 'faq-25',
-      question: '如何获取更多积分？',
-      answer: '你可以通过以下方式获取积分：1）每日签到领取积分奖励；2）完成平台任务获得积分；3）参与社区活动赢取积分；4）分享作品获得积分奖励；5）直接购买积分包。会员用户还可以享受每日积分返还和积分加成特权。',
-      category: 'membership',
-      views: 8760,
-      helpful: 95
-    },
-    {
-      id: 'faq-26',
-      question: '如何删除已发布的作品？',
-      answer: '进入"我的作品"页面，找到你想要删除的作品，点击作品卡片右上角的"更多"按钮，选择"删除"选项。删除后作品将从平台移除，但已分享的外链可能会失效。删除操作不可恢复，请谨慎操作。',
-      category: 'creation',
-      views: 5430,
-      helpful: 92
-    },
-    {
-      id: 'faq-27',
-      question: '如何修改已发布作品的可见性？',
-      answer: '在"我的作品"页面，点击作品卡片进入详情页，点击"编辑"按钮，在设置中可以修改作品的可见性（公开、仅好友可见、私密）。修改后即时生效，已分享链接的访问权限也会相应改变。',
-      category: 'creation',
-      views: 4320,
-      helpful: 90
-    },
-    {
-      id: 'faq-28',
-      question: '平台支持哪些AI模型？',
-      answer: '平台支持多种主流AI模型，包括GPT-4、Claude、文心一言等文本生成模型，以及Stable Diffusion、Midjourney、DALL-E等图像生成模型。不同会员等级可使用的模型不同，高级会员可以使用更多专业模型。',
-      category: 'technical',
-      views: 7650,
-      helpful: 94
-    },
-    {
-      id: 'faq-29',
-      question: 'AI生成的内容可以编辑吗？',
-      answer: '当然可以。AI生成的内容可以在平台的编辑器中进行二次编辑。你可以调整文字、修改图片元素、更改配色方案等。我们还提供了AI辅助编辑功能，可以帮助你快速优化内容。',
-      category: 'creation',
-      views: 6540,
-      helpful: 93
-    },
-    {
-      id: 'faq-30',
-      question: '如何参与社区共创项目？',
-      answer: '进入"津脉社区"页面，浏览正在进行的共创项目。点击感兴趣的项目卡片查看详情，点击"参与共创"按钮即可加入。在共创项目中，你可以与其他创作者协作，共同完成作品，并分享项目收益。',
-      category: 'community',
-      views: 3890,
-      helpful: 88
-    },
-    {
-      id: 'faq-31',
-      question: '如何举报违规内容或用户？',
-      answer: '如果你发现违规内容或用户，可以点击内容右上角的"举报"按钮，选择举报原因并提交。我们的审核团队会在24小时内处理。对于严重违规行为，你也可以直接联系客服进行举报。',
-      category: 'security',
-      views: 2980,
-      helpful: 91
-    },
-    {
-      id: 'faq-32',
-      question: '如何设置隐私权限？',
-      answer: '进入"设置"页面的"隐私设置"选项，你可以设置：1）个人资料可见性；2）作品默认可见性；3）是否允许他人关注；4）是否接收陌生人消息；5）是否展示在线状态。根据你的需求调整这些设置，保护个人隐私。',
-      category: 'security',
-      views: 4120,
-      helpful: 92
-    },
-    {
-      id: 'faq-33',
-      question: '会员可以退款吗？',
-      answer: '会员购买后7天内，如果未使用任何会员特权，可以申请全额退款。超过7天或已使用会员特权的情况下，不支持退款。如遇特殊情况，请联系客服协商处理。',
-      category: 'membership',
-      views: 5670,
-      helpful: 89
-    },
-    {
-      id: 'faq-34',
-      question: '如何查看我的创作数据统计？',
-      answer: '进入"个人中心"页面的"数据分析"选项，你可以查看作品的浏览量、点赞数、分享数等数据，还可以查看粉丝增长趋势、积分收支明细等。专业会员还可以导出详细的数据报表。',
-      category: 'basic',
-      views: 4560,
-      helpful: 90
-    },
-    {
-      id: 'faq-35',
-      question: '浏览器兼容性有什么要求？',
-      answer: '为了获得最佳体验，建议使用Chrome 90+、Firefox 88+、Safari 14+或Edge 90+版本的浏览器。部分高级功能（如WebGL渲染）需要较新的浏览器支持。如果你遇到兼容性问题，请尝试升级浏览器或更换浏览器。',
+      id: 'faq-10',
+      question: '工单系统如何使用？',
+      answer: `工单系统使用指南：
+1. 点击"提交工单"按钮
+2. 选择工单类型（Bug报告/功能建议/咨询问题）
+3. 填写标题和详细描述
+4. 选择优先级
+5. 提交工单
+
+提交后，您可以在帮助中心查看工单状态和处理进度。我们会尽快处理您的工单并通过邮件通知您处理结果。`,
       category: 'technical',
       views: 3210,
-      helpful: 88
-    },
-    {
-      id: 'faq-36',
-      question: '如何开启两步验证？',
-      answer: '进入"设置"页面的"账号安全"选项，找到"两步验证"设置。你可以选择通过短信验证码或身份验证器应用（如Google Authenticator）进行验证。开启后，每次登录都需要输入额外的验证码，大大提升账号安全性。',
-      category: 'security',
-      views: 3890,
-      helpful: 93
-    },
-    {
-      id: 'faq-37',
-      question: '如何邀请好友加入平台？',
-      answer: '进入"个人中心"页面的"邀请好友"选项，你可以通过分享邀请链接或邀请码的方式邀请好友。好友通过你的邀请链接注册后，你和好友都可以获得积分奖励。邀请越多，奖励越多。',
-      category: 'community',
-      views: 4320,
       helpful: 87
-    },
-    {
-      id: 'faq-38',
-      question: '创作时如何保存草稿？',
-      answer: '平台会自动保存你的创作进度，每30秒自动保存一次。你也可以手动点击"保存草稿"按钮。草稿会保存在"草稿箱"中，你可以随时继续编辑。草稿默认保存30天，请及时发布或导出。',
-      category: 'creation',
-      views: 5430,
-      helpful: 91
-    },
-    {
-      id: 'faq-39',
-      question: '如何参加平台的创作活动？',
-      answer: '进入"津脉活动"页面，查看正在进行的创作活动。每个活动都有详细的参与规则和奖励说明。点击"立即参与"按钮，按照活动要求创作并提交作品即可。获奖名单会在活动结束后公布。',
-      category: 'community',
-      views: 6780,
-      helpful: 92
-    },
-    {
-      id: 'faq-40',
-      question: '平台对生成内容的版权归属如何规定？',
-      answer: '使用平台AI工具生成的内容，版权归属于创作者本人。但请注意，如果你使用了平台提供的素材库内容，需要遵守相应的授权协议。对于商业用途，建议咨询专业法律意见。平台保留对生成内容的使用权，用于服务改进和展示。',
-      category: 'security',
-      views: 7650,
-      helpful: 90
     }
   ]
+
+  // 加载工单数据
+  useEffect(() => {
+    setTickets(ticketService.getAllTickets())
+  }, [])
 
   // 搜索和过滤
   const filteredFAQs = useMemo(() => {
@@ -501,7 +284,6 @@ export default function Help() {
     setIsSubmittingFeedback(true)
 
     try {
-      // 获取设备信息
       const deviceInfo = {
         os: navigator.platform,
         browser: navigator.userAgent,
@@ -509,10 +291,7 @@ export default function Help() {
         userAgent: navigator.userAgent
       }
 
-      // 获取当前页面URL
       const pageUrl = window.location.href
-
-      // 获取当前用户信息（如果有）
       const userStr = localStorage.getItem('user')
       const userId = userStr ? JSON.parse(userStr)?.id : undefined
 
@@ -529,7 +308,6 @@ export default function Help() {
 
       if (result) {
         toast.success('反馈提交成功！我们会尽快处理您的反馈')
-        // 重置表单
         setFeedbackType('inquiry')
         setFeedbackContent('')
         setFeedbackEmail('')
@@ -545,10 +323,49 @@ export default function Help() {
     }
   }, [feedbackType, feedbackContent, feedbackEmail])
 
+  // 提交工单
+  const handleSubmitTicket = useCallback(async () => {
+    if (!ticketForm.title.trim() || !ticketForm.description.trim()) {
+      toast.error('请填写工单标题和描述')
+      return
+    }
+
+    try {
+      const userStr = localStorage.getItem('user')
+      const user = userStr ? JSON.parse(userStr) : null
+
+      ticketService.createTicket({
+        userId: user?.id || 'anonymous',
+        username: user?.username || '匿名用户',
+        email: user?.email || '',
+        type: ticketForm.type,
+        title: ticketForm.title,
+        description: ticketForm.description,
+        priority: ticketForm.priority
+      })
+
+      toast.success('工单提交成功！我们会尽快处理')
+      setTicketForm({ type: 'bug', title: '', description: '', priority: 'medium' })
+      setShowTicketModal(false)
+      setTickets(ticketService.getAllTickets())
+    } catch (error) {
+      console.error('提交工单失败:', error)
+      toast.error('工单提交失败，请稍后重试')
+    }
+  }, [ticketForm])
+
   // 反馈类型配置
   const feedbackTypeOptions: { value: FeedbackType; label: string }[] = [
     { value: 'feature', label: '功能建议' },
     { value: 'bug', label: '问题反馈' },
+    { value: 'inquiry', label: '咨询问题' },
+    { value: 'other', label: '其他' }
+  ]
+
+  // 工单类型选项
+  const ticketTypeOptions = [
+    { value: 'bug', label: 'Bug报告' },
+    { value: 'feature', label: '功能建议' },
     { value: 'inquiry', label: '咨询问题' },
     { value: 'other', label: '其他' }
   ]
@@ -1028,7 +845,7 @@ export default function Help() {
                                   pl-14 pt-2 border-t
                                   ${isDark ? 'border-slate-700/50' : 'border-gray-100'}
                                 `}>
-                                  <p className="text-sm leading-relaxed">
+                                  <p className="text-sm leading-relaxed whitespace-pre-line">
                                     {highlightText(faq.answer, searchQuery)}
                                   </p>
 
@@ -1070,6 +887,42 @@ export default function Help() {
               </AnimatePresence>
             </motion.div>
 
+            {/* 我的工单列表 */}
+            {tickets.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mt-8"
+              >
+                <h2 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>我的工单</h2>
+                <div className="space-y-3">
+                  {tickets.map((ticket) => (
+                    <div key={ticket.id} className={`
+                      p-4 rounded-xl border
+                      ${isDark ? 'bg-slate-800/50 border-slate-700/50' : 'bg-white border-gray-200'}
+                    `}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                            ticket.status === 'open' ? (isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600') :
+                            ticket.status === 'in_progress' ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600') :
+                            (isDark ? 'bg-slate-700 text-slate-400' : 'bg-gray-100 text-gray-500')
+                          }`}>
+                            {ticket.status === 'open' ? '待处理' : ticket.status === 'in_progress' ? '处理中' : '已关闭'}
+                          </span>
+                          <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-gray-900'}`}>{ticket.title}</span>
+                        </div>
+                        <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                          {new Date(ticket.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
             {/* 快速反馈入口 */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -1100,21 +953,37 @@ export default function Help() {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowFeedbackModal(true)}
-                  className={`
-                    px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200
-                    flex items-center justify-center gap-2 whitespace-nowrap
-                    ${isDark
-                      ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/25'
-                      : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25'
-                    }
-                    hover:scale-105 active:scale-95
-                  `}
-                >
-                  <MessageSquare size={18} />
-                  提交反馈
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowFeedbackModal(true)}
+                    className={`
+                      px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
+                      flex items-center justify-center gap-2 whitespace-nowrap
+                      ${isDark
+                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                        : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
+                      }
+                    `}
+                  >
+                    <MessageSquare size={18} />
+                    提交反馈
+                  </button>
+                  <button
+                    onClick={() => setShowTicketModal(true)}
+                    className={`
+                      px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
+                      flex items-center justify-center gap-2 whitespace-nowrap
+                      ${isDark
+                        ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/25'
+                        : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25'
+                      }
+                      hover:scale-105 active:scale-95
+                    `}
+                  >
+                    <Ticket size={18} />
+                    提交工单
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -1442,6 +1311,148 @@ export default function Help() {
                 >
                   {isSubmittingFeedback && <Loader2 size={16} className="animate-spin" />}
                   {isSubmittingFeedback ? '提交中...' : '提交反馈'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 工单模态框 */}
+      <AnimatePresence>
+        {showTicketModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowTicketModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className={`
+                w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl
+                ${isDark ? 'bg-slate-900 border border-slate-700' : 'bg-white border border-gray-200'}
+              `}
+            >
+              <div className={`p-6 border-b ${isDark ? 'border-slate-800' : 'border-gray-100'}`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>提交工单</h3>
+                  <button
+                    onClick={() => setShowTicketModal(false)}
+                    className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
+                  >
+                    <X size={18} className={isDark ? 'text-slate-400' : 'text-gray-500'} />
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                    工单类型 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={ticketForm.type}
+                    onChange={(e) => setTicketForm({ ...ticketForm, type: e.target.value })}
+                    className={`
+                      w-full px-4 py-3 rounded-xl outline-none transition-all
+                      ${isDark
+                        ? 'bg-slate-800 border border-slate-700 text-white'
+                        : 'bg-gray-50 border border-gray-200 text-gray-900'
+                      }
+                    `}
+                  >
+                    {ticketTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                    标题 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={ticketForm.title}
+                    onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })}
+                    placeholder="请输入工单标题"
+                    className={`
+                      w-full px-4 py-3 rounded-xl outline-none transition-all
+                      ${isDark
+                        ? 'bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20'
+                        : 'bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100'
+                      }
+                    `}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                    详细描述 <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={ticketForm.description}
+                    onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
+                    placeholder="请详细描述您遇到的问题..."
+                    className={`
+                      w-full px-4 py-3 rounded-xl resize-none outline-none transition-all
+                      ${isDark
+                        ? 'bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20'
+                        : 'bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100'
+                      }
+                    `}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                    优先级
+                  </label>
+                  <select
+                    value={ticketForm.priority}
+                    onChange={(e) => setTicketForm({ ...ticketForm, priority: e.target.value as 'low' | 'medium' | 'high' })}
+                    className={`
+                      w-full px-4 py-3 rounded-xl outline-none transition-all
+                      ${isDark
+                        ? 'bg-slate-800 border border-slate-700 text-white'
+                        : 'bg-gray-50 border border-gray-200 text-gray-900'
+                      }
+                    `}
+                  >
+                    <option value="low">低</option>
+                    <option value="medium">中</option>
+                    <option value="high">高</option>
+                  </select>
+                </div>
+              </div>
+              <div className={`p-6 border-t ${isDark ? 'border-slate-800' : 'border-gray-100'} flex justify-end gap-3`}>
+                <button
+                  onClick={() => setShowTicketModal(false)}
+                  className={`
+                    px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                    ${isDark
+                      ? 'text-slate-300 hover:bg-slate-800'
+                      : 'text-gray-600 hover:bg-gray-100'
+                    }
+                  `}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSubmitTicket}
+                  disabled={!ticketForm.title.trim() || !ticketForm.description.trim()}
+                  className={`
+                    px-6 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2
+                    ${isDark
+                      ? 'bg-indigo-500 hover:bg-indigo-400 text-white'
+                      : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                    }
+                  `}
+                >
+                  <Send size={16} />
+                  提交工单
                 </button>
               </div>
             </motion.div>

@@ -1,8 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Community } from '@/services/communityService';
-import { chatService } from '@/services/chatService';
-import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 
 interface ShareCardData {

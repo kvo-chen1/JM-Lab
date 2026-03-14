@@ -5,7 +5,7 @@
  */
 import React, { useState } from 'react';
 import { Product } from '@/services/productService';
-import { Heart, Star, Plus } from 'lucide-react';
+import { Heart, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ProductCardV2Props {

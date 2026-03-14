@@ -1,15 +1,12 @@
-import { useState, useContext, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, Link } from 'react-router-dom';
-import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { useSupabasePoints } from '@/hooks/useSupabasePoints';
 import achievementService from '@/services/achievementService';
 import {
   Bookmark,
   Heart,
-  Settings,
   FileText,
   Users,
   Bell,
@@ -23,17 +20,12 @@ import {
   Eye,
   ThumbsUp,
   Image,
-  Flame,
   LogOut,
   Edit3,
   Palette,
   Shield,
   HelpCircle,
-  Moon,
-  Sun,
-  Sparkles,
   TrendingUp,
-  Clock,
   Target,
   Menu,
   X

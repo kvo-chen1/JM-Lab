@@ -6,15 +6,12 @@ import React, { useState, useEffect } from 'react';
 import { 
   Store, 
   User, 
-  Phone, 
-  Mail, 
   FileText,
   CheckCircle,
   XCircle,
   Eye,
   Loader2,
   Search,
-  Filter,
   Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';

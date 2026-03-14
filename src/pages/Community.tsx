@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useMemo, useState, useCallback } from 'react';
+import React, { Suspense, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { CommunityLayout } from '@/components/Community/CommunityLayout';
@@ -12,7 +12,6 @@ import { AnnouncementsSection } from '@/components/Community/Announcements/Annou
 import { CreatePostModal } from '@/components/Community/Modals/CreatePostModal';
 import { CreateCommunityModal } from '@/components/Community/Modals/CreateCommunityModal';
 import { DiscoverySection } from '@/components/Community/Discovery/DiscoverySection';
-import { NotificationCenter } from '@/components/Community/Notification/NotificationCenter';
 import { useCommunityLogic } from '@/hooks/useCommunityLogic';
 import { motion } from 'framer-motion';
 import CommunityManagement from '@/components/CommunityManagement';

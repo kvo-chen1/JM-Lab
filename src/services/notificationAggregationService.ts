@@ -4,7 +4,6 @@ import type {
   NotificationType,
   NotificationCategory,
   NotificationDigest,
-  NOTIFICATION_TYPES,
   NOTIFICATION_CATEGORIES
 } from '../types/notification';
 

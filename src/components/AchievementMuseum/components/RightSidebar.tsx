@@ -3,18 +3,12 @@ import { useTheme } from '@/hooks/useTheme';
 import { useState, useEffect } from 'react';
 import apiClient from '@/lib/apiClient';
 import {
-  Trophy,
-  Star,
   Clock,
-  TrendingUp,
-  Award,
   Zap,
   Crown,
-  Medal,
   ChevronRight,
   Sparkles,
-  Target,
-  Flame
+  Target
 } from 'lucide-react';
 import { AchievementIcon } from './AchievementIcon';
 import type {

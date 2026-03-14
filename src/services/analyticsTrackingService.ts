@@ -4,7 +4,6 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase';
-import { supabase } from '@/lib/supabase';
 
 // ==================== 类型定义 ====================
 

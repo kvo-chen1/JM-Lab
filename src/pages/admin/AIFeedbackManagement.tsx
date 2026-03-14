@@ -3,9 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import {
-  Star, MessageSquare, ThumbsUp, ThumbsDown, Filter,
-  Search, Calendar, User, Bot, Eye, BarChart3, TrendingUp,
-  Clock, CheckCircle, X, Download, RefreshCw, AlertCircle
+  Star, MessageSquare, ThumbsUp, ThumbsDown,
+  Search, Calendar, User, Bot, Eye, TrendingUp, CheckCircle, X, Download, RefreshCw, AlertCircle
 } from 'lucide-react';
 import {
   aiFeedbackService,

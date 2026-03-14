@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
@@ -29,12 +29,10 @@ import {
   Filter,
   X,
   Save,
-  Copy,
   ChevronUp,
   ChevronDown,
   Home,
   FileText,
-  Trophy,
   Palette,
 } from 'lucide-react';
 

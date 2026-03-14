@@ -3,7 +3,7 @@
  * 提供版权声明、时间戳记录等功能
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import type {
   CopyrightDeclaration,
   TimestampRecord,
@@ -11,8 +11,7 @@ import type {
   CreateCopyrightDeclarationDTO,
   UpdateCopyrightDeclarationDTO,
   CopyrightStats,
-  TimestampProvider,
-  LICENSE_TYPE_CONFIG
+  TimestampProvider
 } from '@/types/copyright-protection';
 
 const getCurrentUserId = (): string | null => {

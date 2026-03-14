@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { processImageUrl, buildSrcSet, ImageQuality, ImageProcessingOptions } from '../utils/imageUrlUtils';
-import { imageCacheManager } from '../utils/imageCacheManager';
 
 // 导入共享的Intersection Observer相关变量
 // 共享的Intersection Observer实例，减少创建实例的开销
 let sharedObserver: IntersectionObserver | null = null;
-let observerTargets = new Map<Element, () => void>();
+const observerTargets = new Map<Element, () => void>();
 
 // 初始化共享的Intersection Observer
 const initSharedObserver = () => {

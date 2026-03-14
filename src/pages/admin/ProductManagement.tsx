@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import productService, { Product, ProductCategory, ExchangeRecord } from '@/services/productService';
+import productService, { Product, ProductCategory } from '@/services/productService';
 import { supabaseAdmin } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 import {

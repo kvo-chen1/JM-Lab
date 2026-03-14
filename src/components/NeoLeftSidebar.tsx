@@ -2,7 +2,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { themeOrder, themeConfig } from '@/config/themeConfig';
+import { themeConfig } from '@/config/themeConfig';
 
 interface NeoLeftSidebarProps {
   activeTab: 'create' | 'design' | 'results' | 'history';

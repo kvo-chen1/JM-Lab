@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Trash2, Edit2, Bell, Shield, AlertTriangle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { X, Plus, Trash2, Edit2, Bell, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getAlertRules,

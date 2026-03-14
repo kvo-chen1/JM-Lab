@@ -1,32 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import {
   FileText,
   Search,
-  Filter,
-  Calendar,
   CheckCircle2,
   XCircle,
   Clock,
   DollarSign,
   Building2,
-  User,
   Tag,
   Paperclip,
   ChevronRight,
   RefreshCw,
   CheckSquare,
   Square,
-  Download,
   Eye,
-  AlertCircle,
-  TrendingUp,
-  BarChart3,
-  MoreHorizontal,
-  Trash2,
 } from 'lucide-react';
 import * as orderAuditService from '@/services/orderAuditService';
 import type { OrderAudit, AuditStats, AuditFilter } from '@/services/orderAuditService';

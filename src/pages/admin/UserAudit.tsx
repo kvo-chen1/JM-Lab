@@ -468,8 +468,8 @@ export default function UserAudit() {
       return true;
     })
     .sort((a, b) => {
-      let aValue = a[sortBy as keyof User];
-      let bValue = b[sortBy as keyof User];
+      const aValue = a[sortBy as keyof User];
+      const bValue = b[sortBy as keyof User];
       
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortOrder === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);

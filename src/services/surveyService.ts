@@ -14,7 +14,7 @@ export interface SurveyData {
 }
 
 // 模拟存储
-let surveys: SurveyData[] = []
+const surveys: SurveyData[] = []
 
 // 生成唯一ID
 const generateId = (): string => {

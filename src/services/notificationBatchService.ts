@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
 import type {
-  Notification,
   NotificationBatchOperation,
   NotificationFilterOptions,
   NotificationSettings,

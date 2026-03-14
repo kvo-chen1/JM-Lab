@@ -5,8 +5,7 @@ import {
   Bell, 
   Search, 
   Sparkles,
-  Crown,
-  Zap
+  Crown
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 

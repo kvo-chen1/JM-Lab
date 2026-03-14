@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { useJinbi } from '@/hooks/useJinbi';
@@ -6,15 +6,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
   Bold, Italic, Underline, Strikethrough, 
-  AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  AlignLeft, AlignCenter, AlignRight,
   List, ListOrdered, CheckSquare,
-  Link, Image, Table, Code, Quote,
-  Type, Heading1, Heading2, Heading3,
+  Link, Image, Table, Code, Quote, Heading1, Heading2, Heading3,
   MoreHorizontal, ChevronDown, History, Share2, Download,
-  Sparkles, Wand2, Languages, FileText, LayoutTemplate,
-  Save, RotateCcw, Coins
+  Sparkles, Wand2,
+  Save, Coins
 } from 'lucide-react';
-import { llmService, AVAILABLE_MODELS } from '@/services/llmService';
+import { llmService } from '@/services/llmService';
 import { useAIWriterHistory } from './hooks/useAIWriterHistory';
 import ModelSelector from '@/components/ModelSelector';
 import SubmitToEventButton from '@/components/ai-writer/SubmitToEventButton';

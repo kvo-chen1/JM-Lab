@@ -4,7 +4,6 @@ import certificationService, { SubmitApplicationParams } from '@/services/certif
 import {
   CertificationLevel,
   CertificationType,
-  CertificationLevelConfig,
   CERTIFICATION_LEVELS,
   CERTIFICATION_TYPE_NAMES,
 } from '@/types/certification';

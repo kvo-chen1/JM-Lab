@@ -5,7 +5,6 @@
 import {
   AgentError,
   AgentErrorType,
-  ErrorLevel,
   createAgentError,
   ErrorLogger,
   getUserFriendlyErrorMessage,

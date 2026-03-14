@@ -8,7 +8,6 @@
  * - 第四阶段：A/B测试框架（实验驱动迭代）
  */
 
-import { recommendationService } from './recommendationService';
 import { realtimeRecommendationService } from './realtimeRecommendationService';
 import { diversityRerankService } from './diversityRerankService';
 import { coldStartService } from './coldStartService';

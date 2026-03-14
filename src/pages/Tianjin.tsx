@@ -3,7 +3,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
-import TianjinCreativeActivities from '@/components/TianjinCreativeActivities';
 import TemplateShowcaseGrid from '@/components/templates/TemplateShowcaseGrid';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { tianjinActivityService, TianjinTemplate } from '@/services/tianjinActivityService';

@@ -4,7 +4,7 @@
  * 此文件保留以维持向后兼容
  */
 
-import { AgentType, GeneratedOutput, PRESET_STYLES } from '../types/agent';
+import { AgentType, PRESET_STYLES } from '../types/agent';
 import { EntityType } from './entityExtractor';
 import {
   LongTermMemory,

@@ -2,7 +2,6 @@
  * 品牌服务 - 管理品牌方入驻和授权
  */
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { generateIdempotencyKey } from '@/lib/supabase';
 
 // 品牌方类型定义
 export interface Brand {

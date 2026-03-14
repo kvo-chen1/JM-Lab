@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { Coins, Gift, Sparkles, History, X } from 'lucide-react';
+import { Gift, Sparkles } from 'lucide-react';
 
 interface WheelSegment {
   id: string;

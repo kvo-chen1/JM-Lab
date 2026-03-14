@@ -17,8 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ConversationSession } from '../types/agent';
-import { fadeInUp, staggerContainer, listItem, cardHover } from '../styles/animations';
-import { colors, shadows, radius, transitions } from '../styles/theme';
+import { fadeInUp, staggerContainer, listItem } from '../styles/animations';
 
 interface ConversationSidebarProps {
   isOpen: boolean;

@@ -3,16 +3,15 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
-import { TianjinImage, TianjinTag } from '@/components/TianjinStyleComponents';
+import { TianjinImage } from '@/components/TianjinStyleComponents';
 import recommendationService, {
   RecommendedItem,
-  RecommendationFeedbackType,
-  recordUserAction
+  RecommendationFeedbackType
 } from '@/services/recommendationService';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 // import PostDetailModal from '@/components/PostDetailModal';
-import postsApi, { Post } from '@/services/postService';
+import postsApi from '@/services/postService';
 import { workService } from '@/services/apiService';
 import { eventService } from '@/services/eventService';
 

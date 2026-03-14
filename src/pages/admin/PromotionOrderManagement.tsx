@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import {
   ShoppingCart,
   Search,
-  Filter,
   Eye,
   CheckCircle,
   XCircle,
@@ -22,8 +21,6 @@ import {
   User,
   Calendar,
   CreditCard,
-  MousePointer,
-  Percent,
   Activity,
   ArrowRight,
   Flame

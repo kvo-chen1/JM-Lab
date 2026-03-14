@@ -2,10 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import { Upload, X, Plus, Search, Edit2, Trash2, Eye, Image as ImageIcon, Tag, Save, AlertCircle, Database, RefreshCw } from 'lucide-react';
+import { Upload, X, Plus, Search, Edit2, Trash2, Eye, Image as ImageIcon, Tag, Save, AlertCircle, Database } from 'lucide-react';
 import tianjinCultureService from '@/services/tianjinCultureService';
 import { knowledgeBaseService } from '@/services/knowledgeBaseService';
-import { getPicsumUrl } from '@/utils/templateImageGenerator';
 import { uploadImage } from '@/services/storageServiceNew';
 
 // 知识库条目类型定义

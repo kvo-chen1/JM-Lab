@@ -2,7 +2,7 @@
  * 订单相关 Hooks
  */
 import { useState, useEffect, useCallback } from 'react';
-import orderService, { Order, ShippingAddress, CreateOrderParams } from '@/services/orderService';
+import orderService, { Order, CreateOrderParams } from '@/services/orderService';
 
 // 获取订单列表
 export function useOrders(

@@ -19,7 +19,6 @@ import {
 import {
   eventParticipationService,
   type ParticipationDetail,
-  type ParticipationStats,
 } from '@/services/eventParticipationService';
 
 // 格式化数字

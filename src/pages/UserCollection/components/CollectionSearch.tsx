@@ -5,7 +5,6 @@ import {
   Search,
   X,
   Clock,
-  TrendingUp,
   Sparkles,
   Trash2,
 } from 'lucide-react';

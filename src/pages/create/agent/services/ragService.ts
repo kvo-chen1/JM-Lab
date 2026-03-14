@@ -1,8 +1,7 @@
 // RAG (Retrieval-Augmented Generation) 服务
 // 实现检索增强生成功能，将相关案例自动注入到Prompt中
 
-import { getVectorStore, VectorItem, SimilarityResult } from './vectorStore';
-import { callQwenChat } from '@/services/llm/chatProviders';
+import { getVectorStore, SimilarityResult } from './vectorStore';
 import { PRESET_STYLES } from '../types/agent';
 
 // RAG配置

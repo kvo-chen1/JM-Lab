@@ -9,7 +9,6 @@ import {
   ShoppingCart, 
   Heart, 
   Clock, 
-  Tag, 
   Sparkles,
   ChevronRight,
   Trash2,

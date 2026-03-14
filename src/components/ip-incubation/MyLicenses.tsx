@@ -8,8 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   Award, Clock, CheckCircle2, XCircle, MessageCircle, Building2,
-  Calendar, DollarSign, Package, ExternalLink, Loader2, X,
-  ChevronRight, ShoppingBag, Eye, Phone, Mail, MessageSquare
+  Calendar, DollarSign, Package, Loader2, X, ShoppingBag, Eye, Phone, Mail, MessageSquare
 } from 'lucide-react';
 import { copyrightLicenseService } from '@/services/copyrightLicenseService';
 import type { LicenseApplication } from '@/types/copyright-license';

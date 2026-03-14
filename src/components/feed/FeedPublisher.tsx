@@ -22,8 +22,6 @@ import {
   Loader2,
   FileText,
   Type,
-  ImageIcon,
-  VideoIcon,
 } from 'lucide-react';
 
 interface FeedPublisherProps {

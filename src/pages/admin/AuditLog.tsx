@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useCallback } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
@@ -224,8 +224,8 @@ export default function AuditLog() {
       return true;
     })
     .sort((a, b) => {
-      let aValue = a[sortBy as keyof AuditLog];
-      let bValue = b[sortBy as keyof AuditLog];
+      const aValue = a[sortBy as keyof AuditLog];
+      const bValue = b[sortBy as keyof AuditLog];
       
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortOrder === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);

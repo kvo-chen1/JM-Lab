@@ -1,5 +1,5 @@
-import { useState, useContext, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useContext, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
@@ -17,7 +17,6 @@ import { PrizeManager } from '@/components/prize';
 import { Prize, PrizeCreateRequest } from '@/types/prize';
 import { prizeService } from '@/services/prizeService';
 import { aiGenerationService, ImageGenerationParams, VideoGenerationParams, GenerationTask } from '@/services/aiGenerationService';
-import { llmService } from '@/services/llmService';
 import Modal from '@/components/ui/Modal';
 import { AIOptimizeButton } from '@/components/AIOptimizeButton';
 

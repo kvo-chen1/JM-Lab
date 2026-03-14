@@ -653,7 +653,7 @@ class AnalyticsService {
     else if (timeRange === 'year') points = 12; // 12个月
 
     // 生成趋势数据
-    let baseValue = 100;
+    const baseValue = 100;
     for (let i = 0; i < points; i++) {
       const date = new Date(now);
       if (groupBy === 'hour') {

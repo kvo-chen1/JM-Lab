@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
@@ -9,7 +9,7 @@ import { userPersonaService } from '@/services/userPersonaService';
 import { RecommendationCandidate } from '@/types/recommendation';
 import { BehaviorType } from '@/types/userPersona';
 import { toast } from 'sonner';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Play, Volume2, VolumeX } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Play, Volume2, VolumeX } from 'lucide-react';
 
 interface RecommendedWorksListProps {
   className?: string;

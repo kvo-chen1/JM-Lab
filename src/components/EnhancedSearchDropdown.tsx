@@ -9,7 +9,6 @@ import {
   ArrowRight,
   Loader2
 } from 'lucide-react'
-import { SearchResultType } from '@/components/SearchBar'
 import { cn } from '@/lib/utils'
 
 export interface SuggestionItem {

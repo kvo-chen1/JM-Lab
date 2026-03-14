@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Search, User, X } from 'lucide-react';
 import { mentionService, CommunityMember } from '@/services/mentionService';
 import Avatar from '@/components/ui/Avatar';

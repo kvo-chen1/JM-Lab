@@ -1,4 +1,4 @@
-import { Post, Comment } from './postService';
+import { Post } from './postService';
 import { workService, commentService } from './apiService';
 
 export type OfflineDataStatus = 'pending' | 'syncing' | 'synced' | 'failed';

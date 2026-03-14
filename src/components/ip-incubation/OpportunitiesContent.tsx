@@ -3,15 +3,13 @@
  * 展示所有商业机会列表，支持搜索、筛选和申请
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
 import {
-  Search, Filter, Building2, Calendar, DollarSign, Users,
-  ChevronDown, Sparkles, Eye, ArrowRight, X, Loader2,
-  Target, Clock, CheckCircle2, MapPin, Briefcase,
-  TrendingUp, Star, ArrowUpRight
+  Search, Filter, Building2, DollarSign, Users,
+  ChevronDown, Eye, ArrowRight, Loader2, Clock, Briefcase, Star
 } from 'lucide-react';
 import ipService, { CommercialOpportunity, IPAsset } from '@/services/ipService';
 import { OpportunityDetailModal } from './OpportunityDetailModal';

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 // 安全的 storage 操作

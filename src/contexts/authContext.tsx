@@ -1,9 +1,8 @@
-import { createContext, useState, ReactNode, useEffect, useCallback, useMemo, useRef, useContext } from "react";
+import { createContext, useState, ReactNode, useEffect, useCallback, useRef, useContext } from "react";
 import { supabase } from "@/lib/supabase";
 import { securityService } from "../services/securityService";
 import eventBus from '../lib/eventBus'; // 导入事件总线
 import { toast } from 'sonner';
-import userStatsService from '../services/userStatsService';
 import { historyService } from '../services/historyService';
 import { userService } from '../services/apiService';
 

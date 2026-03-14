@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '@/hooks/useTheme'
 import { useNavigate } from 'react-router-dom'
 import { llmService, Message, ConversationSession, AssistantPersonality, AssistantTheme } from '@/services/llmService'
-import { aiAssistantService, ChatMessage, AIResponse } from '@/services/aiAssistantService'
-import { Conversation, aiMemoryService } from '@/services/aiMemoryService'
+import { aiAssistantService } from '@/services/aiAssistantService'
+import { aiMemoryService } from '@/services/aiMemoryService'
 import { toast } from 'sonner'
 import SpeechInput from './SpeechInput'
 import { useTranslation } from 'react-i18next'
@@ -15,7 +15,6 @@ import { getRecommendations, RecommendedItem, recordRecommendationClick } from '
 import InlineGenerationCard from './InlineGenerationCard'
 import { aiGenerationService, GenerationTask } from '@/services/aiGenerationService'
 import ShareDialog from './ShareDialog'
-import VoiceOutputButton from './VoiceOutputButton'
 import SmartInput from './SmartInput'
 import InspirationCard from './InspirationCard'
 import { MessageSearch } from './MessageSearch'
@@ -2007,7 +2006,7 @@ export default function AICollaborationPanel({ isOpen, onClose, onContentGenerat
     if (!currentSession) return
     
     let content = ''
-    let filename = `${currentSession.name}.${format}`
+    const filename = `${currentSession.name}.${format}`
     
     switch (format) {
       case 'text':

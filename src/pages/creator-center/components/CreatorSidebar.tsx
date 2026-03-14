@@ -16,8 +16,7 @@ import {
   Briefcase,
   Wallet,
   PlusCircle,
-  Package,
-  TrendingUp
+  Package
 } from 'lucide-react';
 import { CreatorTab } from '../index';
 import { Link, useLocation } from 'react-router-dom';

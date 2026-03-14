@@ -17,9 +17,6 @@ import {
   Award, 
   MapPin, 
   Crown,
-  Wind,
-  Palette,
-  Flame,
   Star
 } from 'lucide-react';
 

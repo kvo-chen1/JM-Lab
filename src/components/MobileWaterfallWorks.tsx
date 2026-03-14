@@ -1,5 +1,5 @@
-import React, { useMemo, useState, Suspense, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useMemo, useState, Suspense, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { useResponsive } from '@/utils/responsiveDesign';
 import { TianjinImage } from '@/components/TianjinStyleComponents';
 import { toast } from 'sonner';

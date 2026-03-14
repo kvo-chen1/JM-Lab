@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import postsApi, { Post, Comment, addComment, getWorkComments, checkUserFollowing, followUser, unfollowUser, getPostById, likePost, unlikePost, bookmarkPost, unbookmarkPost } from '@/services/postService';
-import MobileWorksGallery, { ArtworkItem } from './MobileWorksGallery';
+import MobileWorksGallery from './MobileWorksGallery';
 import { toast } from 'sonner';
 import {
   ChevronLeft,
@@ -12,7 +12,6 @@ import {
   MessageCircle,
   Share2,
   X,
-  Bookmark,
   Send,
   Image as ImageIcon,
   MoreHorizontal,

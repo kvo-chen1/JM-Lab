@@ -113,7 +113,7 @@ class BatchModerationService {
 
     this.isRunning = true;
     const total = selectedItems.length;
-    let completed = 0;
+    const completed = 0;
 
     try {
       await this.processQueue(selectedItems, completed, total);

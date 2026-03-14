@@ -12,14 +12,11 @@ import {
   Crown,
   Star,
   User,
-  ChevronLeft,
   Calendar,
   Users,
   Target,
   TrendingUp,
-  BarChart3,
   Share2,
-  Download,
   ArrowLeft
 } from 'lucide-react';
 

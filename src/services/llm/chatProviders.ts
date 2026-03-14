@@ -1,4 +1,3 @@
-import apiClient from '@/lib/apiClient'
 import { handleSseStreamingResponse } from './streaming'
 import type { Message } from '../llmService'
 

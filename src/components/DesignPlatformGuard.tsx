@@ -1,7 +1,7 @@
 import { useContext, ReactNode, memo } from 'react';
 import { AuthContext } from '@/contexts/authContext';
 import { Navigate, useLocation } from 'react-router-dom';
-import PrivateRoute, { savePreLoginPath } from './PrivateRoute';
+import { savePreLoginPath } from './PrivateRoute';
 
 interface DesignPlatformGuardProps {
   children: ReactNode;

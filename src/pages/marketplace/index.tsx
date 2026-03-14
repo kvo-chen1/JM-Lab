@@ -13,10 +13,8 @@ import {
   ChevronRight,
   Package,
   Store,
-  Award,
   ChevronDown,
-  Check,
-  RefreshCw
+  Check
 } from 'lucide-react';
 import LicensedProductSection from '@/components/marketplace/LicensedProductSection';
 

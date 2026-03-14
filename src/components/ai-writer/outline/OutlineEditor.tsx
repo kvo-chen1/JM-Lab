@@ -1,5 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import type { Template } from '../TemplatePreview';
@@ -16,7 +15,6 @@ import {
   createEmptySection,
   exportOutlineToMarkdown,
   exportOutlineToJSON,
-  generateSectionId,
 } from './utils';
 import { OutlineSectionItem } from './OutlineSectionItem';
 import { OutlineToolbar } from './OutlineToolbar';
@@ -25,7 +23,6 @@ import { OutlineValidationPanel } from './OutlineValidationPanel';
 import { OutlineTemplateManager } from './OutlineTemplateManager';
 import {
   ChevronLeft,
-  ChevronRight,
   Layout,
   Eye,
   Save,
@@ -36,7 +33,6 @@ import {
   Redo,
   Sparkles,
   FileText,
-  ChevronDown,
 } from 'lucide-react';
 
 interface OutlineEditorProps {

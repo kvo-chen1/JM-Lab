@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { uploadFile, deleteFile } from '@/services/storageServiceNew';
-import { toast } from 'sonner';
 
 // 文件信息接口
 export interface DraftFile {

@@ -504,7 +504,7 @@ export async function getCart(userId: string): Promise<{ data?: CartItem[]; erro
     const productIds = cartItems.map(item => item.product_id).filter(Boolean);
 
     // 批量获取商品信息
-    let productsMap = new Map();
+    const productsMap = new Map();
     if (productIds.length > 0) {
       const { data: products, error: productsError } = await supabase
         .from('products')
@@ -516,7 +516,7 @@ export async function getCart(userId: string): Promise<{ data?: CartItem[]; erro
       } else {
         // 获取所有品牌ID
         const brandIds = [...new Set(products?.map((p: any) => p.brand_id).filter(Boolean) || [])];
-        let brandsMap = new Map();
+        const brandsMap = new Map();
         if (brandIds.length > 0) {
           const { data: brands } = await supabase
             .from('brands')
@@ -754,7 +754,7 @@ export async function getUserFavorites(userId: string): Promise<{ data?: Product
 
     // 获取所有品牌ID
     const brandIds = [...new Set(products?.map((p: any) => p.brand_id).filter(Boolean) || [])];
-    let brandsMap = new Map();
+    const brandsMap = new Map();
     if (brandIds.length > 0) {
       const { data: brands } = await supabase
         .from('brands')

@@ -33,7 +33,6 @@ import {
 import {
   Bookmark,
   Heart,
-  LayoutGrid,
   Image,
   MessageSquare,
   Calendar,

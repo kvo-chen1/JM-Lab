@@ -3,7 +3,6 @@
  * 提供图片格式转换、压缩、懒加载等功能
  */
 
-import { resourceOptimizer } from './performanceOptimization.tsx';
 
 export interface ImageOptimizationOptions {
   formats?: string[];

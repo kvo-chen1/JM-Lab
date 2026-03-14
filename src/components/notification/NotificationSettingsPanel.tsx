@@ -13,8 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
-  Check,
-  X
+  Check
 } from 'lucide-react';
 import type {
   NotificationSettings,
@@ -23,8 +22,7 @@ import type {
 } from '../../types/notification';
 import {
   NOTIFICATION_CATEGORIES,
-  NOTIFICATION_TYPES,
-  DEFAULT_NOTIFICATION_SETTINGS
+  NOTIFICATION_TYPES
 } from '../../types/notification';
 import { notificationBatchService } from '../../services/notificationBatchService';
 

@@ -371,7 +371,7 @@ class ImageService {
   public normalizeUrl(url: string): string {
     try {
       // 清理URL，移除多余空格和无效字符
-      let cleanedUrl = url.trim().replace(/[\s\t\n\r]+/g, '');
+      const cleanedUrl = url.trim().replace(/[\s\t\n\r]+/g, '');
       
       // 检查是否为base64编码的图片数据
       if (cleanedUrl.startsWith('data:')) {
@@ -661,7 +661,7 @@ class ImageService {
     this.cleanupCache();
 
     // 检查缓存
-    let cachedItem = this.cache.get(normalizedUrl);
+    const cachedItem = this.cache.get(normalizedUrl);
     if (cachedItem) {
       // 更新缓存项的使用次数和最后使用时间
       cachedItem.usageCount++;

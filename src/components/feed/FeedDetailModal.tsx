@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import type { FeedItem, FeedComment } from '@/types/feed';
 import feedService from '@/services/feedService';
 import { VideoPlayer } from './VideoPlayer';
-import { communityService } from '@/services/communityService';
 import { getFollowingList, getFollowersList } from '@/services/postService';
 import { useNavigate } from 'react-router-dom';
 import {

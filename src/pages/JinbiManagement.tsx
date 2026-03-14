@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -15,7 +15,6 @@ import {
   Gift,
   CheckCircle2,
   AlertCircle,
-  Zap,
   RefreshCw,
   Filter,
   ChevronDown,
@@ -25,8 +24,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
-import { useJinbi, SERVICE_TYPES } from '@/hooks/useJinbi';
-import { JinbiRecord, JinbiRecordType, JinbiPackage, jinbiService } from '@/services/jinbiService';
+import { useJinbi } from '@/hooks/useJinbi';
+import { JinbiRecordType, JinbiPackage, jinbiService } from '@/services/jinbiService';
 import JinbiBalance from '@/components/jinbi/JinbiBalance';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';

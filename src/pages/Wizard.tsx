@@ -1,11 +1,10 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import BRANDS from '@/lib/brands';
 import { useWorkflow } from '@/contexts/workflowContext';
 import voiceService from '@/services/voiceService';
 import UploadBox from '@/components/UploadBox';
-import { scoreAuthenticity } from '@/services/authenticityService';
 import { contentScoringService } from '@/services/contentScoringService';
 import postService from '@/services/postService';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -25,16 +24,15 @@ import {
   BRAND_FONTS,
   EXTENDED_TEMPLATES
 } from '@/constants/creativeData';
-import { StepIndicator, BrandCard3D, TemplateGallery, RadarChart } from '@/components/wizard';
+import { StepIndicator } from '@/components/wizard';
 import { brandService } from '@/services/brandService';
-import { eventService as supabaseEventService } from '@/services/eventService';
 import { eventParticipationService } from '@/services/eventParticipationService';
 import { eventSubmissionService } from '@/services/eventSubmissionService';
 import { useEventService } from '@/hooks/useEventService';
 import { supabase } from '@/lib/supabase';
-import { uploadBase64Image, generateFilePath } from '@/services/supabaseStorageService';
+import { uploadBase64Image } from '@/services/supabaseStorageService';
 import { userStateService } from '@/services/userStateService';
-import { brandConsistencyService, BrandConsistencyResult } from '@/services/brandConsistencyService';
+import { brandConsistencyService } from '@/services/brandConsistencyService';
 import { brandCheckShareService } from '@/services/brandCheckShareService';
 import ShareSelector from '@/components/ShareSelector';
 

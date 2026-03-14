@@ -3,7 +3,7 @@
  * 津脉社区平台
  */
 
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { communityService } from './communityService';
 import { notificationService } from './notificationService';
 import { sendDirectMessage } from './messageService';
@@ -21,7 +21,6 @@ import type {
   InviteRateLimit,
   InvitationReport,
   CreateInvitationReport,
-  CommunityInvitationHistory,
   CommunityInviteStats,
   SearchUsersParams,
   SearchableUser,

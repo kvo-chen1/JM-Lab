@@ -4,12 +4,11 @@
  */
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
 import {
-  X, Building2, DollarSign, Calendar, Target, Users,
+  X, Building2, DollarSign, Target, Users,
   Clock, CheckCircle2, Star, ArrowRight, Briefcase,
-  Sparkles, Lightbulb, TrendingUp, Award
+  Sparkles
 } from 'lucide-react';
 import type { CommercialOpportunity, IPAsset } from '@/services/ipService';
 

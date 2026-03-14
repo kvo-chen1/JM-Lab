@@ -8,7 +8,6 @@ import {
   Video,
   Eye,
   Heart,
-  MessageCircle,
   Bookmark,
   Share2,
   Flame,

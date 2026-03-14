@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { uploadFile } from './storageServiceNew';
 
 export interface CulturalKnowledge {

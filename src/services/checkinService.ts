@@ -186,7 +186,7 @@ class CheckinService {
     }
     
     // 计算签到积分
-    let basePoints = 5; // 基础签到积分
+    const basePoints = 5; // 基础签到积分
     let bonusPoints = 0;
     let isBonus = false;
     

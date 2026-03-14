@@ -2,7 +2,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
   LayoutGrid,
-  List,
   SlidersHorizontal,
   ArrowUpDown,
   X

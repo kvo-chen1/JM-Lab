@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase';
 import {
   LineChart,
   Line,
-  BarChart,
   Bar,
   PieChart,
   Pie,

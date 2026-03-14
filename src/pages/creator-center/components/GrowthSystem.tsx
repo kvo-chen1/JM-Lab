@@ -11,7 +11,6 @@ import {
   Flame,
   Lock,
   Check,
-  ChevronRight,
   Gift,
   Sparkles,
   Loader2,

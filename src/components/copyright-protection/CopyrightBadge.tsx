@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { copyrightProtectionService } from '@/services/copyrightProtectionService';
-import type { CopyrightDeclaration, LICENSE_TYPE_CONFIG } from '@/types/copyright-protection';
-import { LICENSE_TYPE_CONFIG as LICENSE_CONFIG, WORK_TYPE_CONFIG } from '@/types/copyright-protection';
+import type { CopyrightDeclaration } from '@/types/copyright-protection';
+import { LICENSE_TYPE_CONFIG as LICENSE_CONFIG } from '@/types/copyright-protection';
 
 interface CopyrightBadgeProps {
   workId: string;

@@ -1,27 +1,20 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   CheckSquare,
   Square,
   X,
   Trash2,
   Copy,
-  Scissors,
   ArrowUp,
   ArrowDown,
-  FolderInput,
   Layers,
-  Tag,
   AlignLeft,
-  MoreHorizontal,
   ChevronRight,
   ChevronDown,
   Filter,
   Search,
-  Wand2,
   RefreshCw,
-  Download,
-  Archive,
   CheckCircle2,
   AlertTriangle
 } from 'lucide-react';

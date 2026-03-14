@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { Lightbulb, Plus, X, ChevronRight, BookOpen, Target, Users, TrendingUp, FileText } from 'lucide-react';
+import { Lightbulb, Plus, X, BookOpen, Target, Users, TrendingUp, FileText } from 'lucide-react';
 import type { OutlineSection } from './types';
 
 interface Recommendation {

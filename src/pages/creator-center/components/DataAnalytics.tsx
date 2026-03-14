@@ -2,29 +2,20 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   BarChart3, 
-  TrendingUp, 
-  TrendingDown,
-  Users, 
   Eye, 
   Heart, 
   MessageCircle,
   Share2,
-  Clock,
-  Calendar,
-  Filter,
   Download,
   ArrowUpRight,
   ArrowDownRight,
-  Loader2,
-  Sparkles
+  Loader2
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreatorCenter } from '@/hooks/useCreatorCenter';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { 
-  LineChart, 
-  Line, 
   AreaChart, 
   Area, 
   BarChart, 

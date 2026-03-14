@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { uploadFile, deleteFile } from './storageServiceNew';
 
 // 存储桶名称（现在作为文件夹使用）

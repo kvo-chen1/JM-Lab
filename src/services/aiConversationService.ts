@@ -3,7 +3,6 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 
 // 媒体内容类型定义
 export interface MediaContent {

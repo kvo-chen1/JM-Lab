@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { Search, Star, Heart, X, ChevronRight, Sparkles, Grid3X3, Layers } from 'lucide-react';
+import { Search, Star, Heart, X, Sparkles, Grid3X3, Layers } from 'lucide-react';
 import { PRESET_STYLES } from '../types/agent';
 import type { StyleOption } from '../types/agent';
 

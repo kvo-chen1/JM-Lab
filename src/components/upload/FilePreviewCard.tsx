@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Eye, GripVertical, Play, Pause, FileType } from 'lucide-react';
+import { X, Eye, Play } from 'lucide-react';
 import { FileTypeIcon, FileTypeBadge, getFileCategory, formatFileSize } from './FileTypeIcon';
 
 interface FilePreviewCardProps {

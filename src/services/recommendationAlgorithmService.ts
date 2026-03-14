@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import {
   RecommendationCandidate,
-  RecommendationAlgorithm,
   CollaborativeFilteringConfig,
   ContentBasedConfig,
   HybridConfig,

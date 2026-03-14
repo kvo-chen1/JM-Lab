@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import { historyService, HistoryItem, HistoryFilter } from '@/services/historyService';
+import { historyService, HistoryFilter } from '@/services/historyService';
 
 export default function OperationHistory() {
   const { isDark } = useTheme();

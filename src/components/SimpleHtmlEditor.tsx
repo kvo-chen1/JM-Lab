@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Eye, Code, Maximize2, Minimize2, Bold, Italic, Underline, Strikethrough, List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Heading1, Heading2, Heading3, Quote, Link, Image, Undo, Redo } from 'lucide-react';
+import { Eye, Code, Maximize2, Minimize2, Bold, Italic, Underline, Strikethrough, List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Heading1, Heading2, Heading3, Quote, Link, Undo, Redo } from 'lucide-react';
 
 interface SimpleHtmlEditorProps {
   content: string;
@@ -25,7 +25,7 @@ export const SimpleHtmlEditor: React.FC<SimpleHtmlEditorProps> = ({
 
   // 处理 HTML 内容，确保在预览中安全渲染
   const sanitizeHtml = (html: string): string => {
-    let sanitized = html
+    const sanitized = html
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
       .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '');
     return sanitized;

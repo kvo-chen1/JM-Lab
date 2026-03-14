@@ -4,25 +4,18 @@
  */
 
 import React, { useState, useEffect, useContext } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   Flame, 
   Lightbulb,
-  Hash,
   Trophy,
   Wand2,
   Video,
-  TrendingUp,
-  Eye,
-  Heart,
   ChevronDown,
   Clock,
-  ExternalLink,
   FileText,
-  BarChart3,
   Zap,
   Sparkles,
-  RotateCcw,
   RefreshCw,
   Search,
   X,
@@ -391,7 +384,7 @@ const InspirationHub: React.FC = () => {
         const hotspots = hotspotsRes.data || [];
 
         // 转换为 TrendingTopic 格式
-        let mappedTopics: TrendingTopic[] = [
+        const mappedTopics: TrendingTopic[] = [
           // 老字号数据
           ...brands.map((brand: any, index: number) => ({
             id: `brand-${brand.id}`,
@@ -505,7 +498,7 @@ const InspirationHub: React.FC = () => {
         setRisingStars(mappedTopics.filter(t => t.trend === 'rising').slice(0, 5));
       } else if (activeMainCategory === 'creative-events') {
         // 加载创作活动数据 - 从真实数据库
-        let query = supabase
+        const query = supabase
           .from('events')
           .select('*')
           .eq('status', 'published')

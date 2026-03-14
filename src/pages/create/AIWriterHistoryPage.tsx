@@ -11,9 +11,7 @@ import {
   FileText, 
   Clock, 
   ChevronLeft,
-  MoreVertical,
-  Edit3,
-  Copy
+  Edit3
 } from 'lucide-react';
 
 export default function AIWriterHistoryPage() {

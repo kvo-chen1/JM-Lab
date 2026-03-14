@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Clock, Users, Trophy, FileCheck, AlertCircle, Info, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, Users, Trophy, AlertCircle, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import type { Event } from '@/types';

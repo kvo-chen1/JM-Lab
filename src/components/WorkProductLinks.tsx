@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ShoppingBag, ExternalLink, DollarSign, TrendingUp, MousePointer2 } from 'lucide-react';
-import { toast } from 'sonner';
 import * as orderExecutionService from '@/services/orderExecutionService';
 
 interface ProductLinkCardProps {

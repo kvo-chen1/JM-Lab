@@ -23,7 +23,6 @@ import {
   Award,
   Users,
   Coins,
-  Image as ImageIcon,
 } from 'lucide-react';
 
 interface PrizeDisplayProps {

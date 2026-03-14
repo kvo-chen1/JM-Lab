@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { supabase } from '@/lib/supabase';
 import analyticsService, { DataPoint, DataStats, AnalyticsQueryParams } from '@/services/analyticsService';
 import { signRequest } from '@/utils/security';
 

@@ -14,7 +14,6 @@ import {
   DataManagementSettings as DataManagementSettingsType,
 } from '@/services/organizerSettingsService';
 import {
-  Settings,
   User,
   Bell,
   Shield,
@@ -33,12 +32,7 @@ import {
   Trash2,
   Plus,
   X,
-  CheckCircle,
-  AlertCircle,
   RefreshCw,
-  Moon,
-  Sun,
-  Monitor,
 } from 'lucide-react';
 
 // 设置项类型

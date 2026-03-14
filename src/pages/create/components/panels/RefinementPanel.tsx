@@ -6,7 +6,7 @@ import { llmService } from '@/services/llmService';
 import { toast } from 'sonner';
 import { 
   ImagePlus, Expand, Paintbrush, Wand2, 
-  Upload, X, Check, ArrowRight, ArrowLeft,
+  Upload, X, ArrowRight, ArrowLeft,
   ArrowUp, ArrowDown, Maximize, Loader2
 } from 'lucide-react';
 

@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Bookmark, Share2, MoreHorizontal, Loader2 } from 'lucide-react';
+import { Heart, Bookmark, Share2, Loader2 } from 'lucide-react';
 import LazyImage from '../components/LazyImage';
 import { useResponsive } from '../utils/responsiveDesign';
 

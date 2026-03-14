@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useContext } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -22,27 +22,18 @@ type ApplicationStatus = LicenseApplication['status'];
 import {
   Shield,
   Plus,
-  Eye,
   Edit3,
   Trash2,
   CheckCircle,
   XCircle,
   MessageSquare,
-  TrendingUp,
   Users,
   Package,
   DollarSign,
-  Clock,
-  Search,
-  Filter,
-  ChevronDown,
-  MoreHorizontal,
-  RefreshCw,
   Loader2,
   FileText,
   Phone,
-  Mail,
-  User
+  Mail
 } from 'lucide-react';
 
 // 状态标签组件

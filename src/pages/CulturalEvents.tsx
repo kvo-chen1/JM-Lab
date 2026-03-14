@@ -12,10 +12,9 @@ import RightSidebar from '@/components/events/RightSidebar';
 import EventDetailModal from '@/components/events/EventDetailModal';
 import EventBannerCarousel from '@/components/events/EventBannerCarousel';
 import MobileEventSearchPage from '@/components/events/MobileEventSearchPage';
-import { Menu, X, Sparkles, Search, SlidersHorizontal, Plus } from 'lucide-react';
+import { X, Sparkles, Search, SlidersHorizontal, Plus } from 'lucide-react';
 import { AuthContext } from '@/contexts/authContext';
 import { eventParticipationService, ParticipationStats } from '@/services/eventParticipationService';
-import { userService } from '@/services/userService';
 
 // 辅助函数：解析日期值（处理各种日期格式）
 const parseEventDate = (dateValue: any): Date | null => {

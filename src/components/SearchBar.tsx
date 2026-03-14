@@ -1,5 +1,4 @@
 import React, { useCallback, useRef, memo, useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import './SearchBar.css'
 import { apiClient } from '@/lib/apiClient'
 import { useDebounce } from '@/hooks/useDebounce'

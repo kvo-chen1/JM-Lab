@@ -3,13 +3,12 @@
  * 实现认证系统与RBAC系统的无缝集成
  */
 
-import { AuthContext, User } from '../contexts/authContext';
+import { User } from '../contexts/authContext';
 import rbacService from './rbacService';
 import eventBus from './eventBus';
 import { EventType } from './eventBus';
-import { securityService } from './securityService';
 import errorService from './errorService';
-import { Permission, Role, UserRole } from '../types';
+import { Permission, Role } from '../types';
 
 // 认证和RBAC集成配置
 export interface AuthRbacConfig {

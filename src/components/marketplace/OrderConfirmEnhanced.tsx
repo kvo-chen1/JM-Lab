@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin,
   Truck,
@@ -9,7 +9,8 @@ import {
   ChevronRight,
   ShieldCheck,
   Gift,
-  Tag
+  Tag,
+  X
 } from 'lucide-react';
 
 interface OrderItem {
@@ -55,8 +56,17 @@ const OrderConfirmEnhanced: React.FC<OrderConfirmEnhancedProps> = ({
   const [couponApplied, setCouponApplied] = useState(false);
   const [selectedShipping, setSelectedShipping] = useState('standard');
   const [selectedPayment, setSelectedPayment] = useState('wechat');
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [editedAddress, setEditedAddress] = useState<ShippingAddress>(shippingAddress);
 
   const total = subtotal + shipping - discount;
+
+  const handleSaveAddress = () => {
+    if (onAddressChange) {
+      onAddressChange(editedAddress);
+    }
+    setIsEditingAddress(false);
+  };
 
   const shippingMethods = [
     { id: 'standard', name: '标准配送', time: '3-5个工作日', price: 0, icon: Truck },
@@ -88,23 +98,108 @@ const OrderConfirmEnhanced: React.FC<OrderConfirmEnhancedProps> = ({
           </div>
           <h2 className="text-lg font-bold text-gray-900">收货地址</h2>
         </div>
-        
-        <div className="bg-gray-50 rounded-xl p-4">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="font-semibold text-gray-900">{shippingAddress.name}</span>
-                <span className="text-gray-600">{shippingAddress.phone}</span>
+
+        <AnimatePresence mode="wait">
+          {isEditingAddress ? (
+            <motion.div
+              key="edit"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-gray-50 rounded-xl p-4 space-y-3"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  value={editedAddress.name}
+                  onChange={(e) => setEditedAddress({ ...editedAddress, name: e.target.value })}
+                  placeholder="收货人姓名"
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C02C38] focus:border-transparent text-sm"
+                />
+                <input
+                  type="text"
+                  value={editedAddress.phone}
+                  onChange={(e) => setEditedAddress({ ...editedAddress, phone: e.target.value })}
+                  placeholder="联系电话"
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C02C38] focus:border-transparent text-sm"
+                />
               </div>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                {shippingAddress.province} {shippingAddress.city} {shippingAddress.district} {shippingAddress.address}
-              </p>
-            </div>
-            <button className="text-[#C02C38] text-sm font-medium flex items-center gap-1">
-              修改 <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+              <div className="grid grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  value={editedAddress.province || ''}
+                  onChange={(e) => setEditedAddress({ ...editedAddress, province: e.target.value })}
+                  placeholder="省"
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C02C38] focus:border-transparent text-sm"
+                />
+                <input
+                  type="text"
+                  value={editedAddress.city || ''}
+                  onChange={(e) => setEditedAddress({ ...editedAddress, city: e.target.value })}
+                  placeholder="市"
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C02C38] focus:border-transparent text-sm"
+                />
+                <input
+                  type="text"
+                  value={editedAddress.district || ''}
+                  onChange={(e) => setEditedAddress({ ...editedAddress, district: e.target.value })}
+                  placeholder="区"
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C02C38] focus:border-transparent text-sm"
+                />
+              </div>
+              <input
+                type="text"
+                value={editedAddress.address}
+                onChange={(e) => setEditedAddress({ ...editedAddress, address: e.target.value })}
+                placeholder="详细地址"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#C02C38] focus:border-transparent text-sm"
+              />
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleSaveAddress}
+                  className="flex-1 bg-[#C02C38] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#991b1b] transition-colors"
+                >
+                  保存
+                </button>
+                <button
+                  onClick={() => {
+                    setEditedAddress(shippingAddress);
+                    setIsEditingAddress(false);
+                  }}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="display"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="bg-gray-50 rounded-xl p-4"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-semibold text-gray-900">{shippingAddress.name}</span>
+                    <span className="text-gray-600">{shippingAddress.phone}</span>
+                  </div>
+                  <p className="text-gray-600 text-sm leading-relaxed">
+                    {shippingAddress.province} {shippingAddress.city} {shippingAddress.district} {shippingAddress.address}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsEditingAddress(true)}
+                  className="text-[#C02C38] text-sm font-medium flex items-center gap-1 hover:opacity-80 transition-opacity"
+                >
+                  修改 <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       <motion.div

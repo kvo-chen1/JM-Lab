@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { llmService, AVAILABLE_MODELS, LLMModel, ModelConfig, ModelRole, ConnectionStatus } from '../services/llmService';

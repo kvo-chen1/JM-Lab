@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
 // 流式内容显示组件属性
@@ -363,7 +363,7 @@ export const StreamingContentDisplay: React.FC<StreamingContentDisplayProps> = (
   // 解析行内Markdown（粗体、斜体、代码等）
   const parseInlineMarkdown = (text: string): React.ReactNode => {
     const parts: React.ReactNode[] = [];
-    let remaining = text;
+    const remaining = text;
     let key = 0;
 
     // 处理粗体 **text**

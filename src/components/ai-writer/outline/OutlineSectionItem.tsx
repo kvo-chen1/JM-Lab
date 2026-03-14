@@ -11,7 +11,6 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
-  GripVertical,
   MoreHorizontal,
 } from 'lucide-react';
 

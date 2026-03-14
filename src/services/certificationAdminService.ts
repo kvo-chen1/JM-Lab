@@ -1,4 +1,3 @@
-import { supabaseAdmin } from '@/lib/supabaseClient';
 import { apiClient } from '@/lib/apiClient';
 import eventBus from '@/lib/eventBus';
 import { toast } from 'sonner';

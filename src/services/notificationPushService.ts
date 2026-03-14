@@ -3,9 +3,7 @@ import type {
   Notification,
   NotificationPushPayload,
   NotificationType,
-  NotificationPriority,
-  NotificationSettings,
-  NotificationSoundConfig
+  NotificationSettings
 } from '../types/notification';
 import {
   NOTIFICATION_SOUNDS,

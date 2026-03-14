@@ -4,7 +4,7 @@
  */
 
 import { callCurrentModel } from './modelCaller';
-import { IntentType, IntentRecognitionResult } from './intentRecognition';
+import { IntentType } from './intentRecognition';
 
 // 意图示例库 - 用于语义匹配
 interface IntentExample {

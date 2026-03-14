@@ -1,32 +1,25 @@
 import { useState, useContext, useEffect, useMemo, useCallback, memo } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { useTheme } from '@/hooks/useTheme'
 import { AuthContext } from '@/contexts/authContext'
 import { toast } from 'sonner'
-import { markPrefetched, isPrefetched } from '@/services/prefetch'
 import { componentPreloader } from '@/utils/performanceOptimization.tsx'
 import { throttle } from '@/utils/performance'
 import clsx from 'clsx'
-import { TianjinImage } from './TianjinStyleComponents'
 import useLanguage from '@/contexts/LanguageContext'
 import { useTranslation } from 'react-i18next'
 import { navigationGroups, bottomNavItems } from '@/config/navigationConfig'
 import { navItemIdToTranslationKey, navGroupIdToTranslationKey } from '@/utils/navigationUtils'
 import {
-  ANIMATION_VARIANTS,
-  INTERACTION_VARIANTS,
   getResponsiveDuration,
   getResponsiveDelay
 } from '@/config/animationConfig'
 import {
   useScreenReader,
-  createAriaAttributes,
   useHighContrast,
   useReducedMotion
 } from '@/utils/accessibility'
 
-import PWAInstallButton from './PWAInstallButton'
 import { userStateService } from '@/services/userStateService'
 
 // 响应式动画速度控制

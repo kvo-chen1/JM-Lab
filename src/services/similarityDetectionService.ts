@@ -2,14 +2,12 @@
  * 相似度检测和侵权预警服务
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import type {
   SimilarityResult,
   InfringementAlert,
   SimilarityCheckRequest,
   SimilarityCheckResponse,
-  ImageFeature,
-  TextFeature,
   AlertSeverity,
   SimilarityStats
 } from '@/types/similarity-detection';

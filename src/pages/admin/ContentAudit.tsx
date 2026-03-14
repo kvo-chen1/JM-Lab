@@ -23,7 +23,6 @@ import {
   BarChart3,
   Clock,
   ChevronDown,
-  MoreHorizontal,
   Eye,
   CheckSquare,
   X,
@@ -721,8 +720,8 @@ export default function ContentAudit() {
       return true;
     })
     .sort((a, b) => {
-      let aValue = a[sortBy as keyof ContentItem];
-      let bValue = b[sortBy as keyof ContentItem];
+      const aValue = a[sortBy as keyof ContentItem];
+      const bValue = b[sortBy as keyof ContentItem];
       
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortOrder === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);

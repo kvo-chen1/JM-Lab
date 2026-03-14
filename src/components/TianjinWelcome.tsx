@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, Calendar, Compass } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface WelcomeSlide {
   id: number;

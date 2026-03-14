@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef } from 'react';
-import { dynamicWorkflowGenerator, Workflow, WorkflowStep } from '../services/dynamicWorkflowGenerator';
+import { dynamicWorkflowGenerator, Workflow } from '../services/dynamicWorkflowGenerator';
 import { useAgentStore } from './useAgentStore';
 import { toast } from 'sonner';
 

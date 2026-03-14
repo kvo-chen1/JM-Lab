@@ -3,7 +3,6 @@
 
 import * as React from 'react';
 import { clsx } from 'clsx';
-import { ChevronRight } from 'lucide-react';
 
 // DropdownMenu 根组件
 const DropdownMenuContext = React.createContext<{

@@ -8,8 +8,7 @@ import {
   Trash2, 
   Check,
   X,
-  Loader2,
-  Wand2
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 

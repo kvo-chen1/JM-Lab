@@ -3,14 +3,13 @@
  * 确保多设备间数据一致性，实现离线数据同步和冲突解决
  */
 
-import { ApiResponse, BaseEntity, User, Work, Comment, Post } from '../types';
+import { ApiResponse } from '../types';
 import apiClient from '../lib/apiClient';
 import { websocketService } from './websocketService';
 import eventBus from './enhancedEventBus';
 import { EventType } from '../types/events';
 import errorService from './errorService';
 import { validate } from '../lib/dataValidator';
-import authRbacIntegration from './authRbacIntegration';
 
 // 同步操作类型
 export type SyncOperationType = 'create' | 'update' | 'delete' | 'sync' | 'batch';
@@ -513,7 +512,7 @@ export class DataSyncService {
    */
   private async executeSyncOperation(operation: SyncOperation): Promise<any> {
     const { type, entityType, entityId, payload } = operation;
-    let url = `/api/sync/${entityType}`;
+    const url = `/api/sync/${entityType}`;
 
     // 根据操作类型构建请求
     switch (type) {

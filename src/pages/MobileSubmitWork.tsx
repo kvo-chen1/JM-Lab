@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useRef, useCallback } from 'react';
+import { useState, useContext, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
@@ -7,7 +7,6 @@ import { useEventService } from '@/hooks/useEventService';
 import { eventParticipationService } from '@/services/eventParticipationService';
 import { eventSubmissionService } from '@/services/eventSubmissionService';
 import { useDraftWithFiles } from '@/hooks/useDraftWithFiles';
-import { ImageCarousel } from '@/components/ImageCarousel';
 import { toast } from 'sonner';
 import {
   ChevronLeft,
@@ -18,7 +17,6 @@ import {
   FileAudio,
   FileText,
   AlertCircle,
-  CheckCircle,
   Loader2,
   Trash2,
   Sparkles,

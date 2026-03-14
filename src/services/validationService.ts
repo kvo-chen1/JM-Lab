@@ -1,6 +1,5 @@
 // 数据验证服务
 import { z } from 'zod';
-import { Work } from '../mock/works';
 
 // 作品验证模式
 export const workSchema = z.object({

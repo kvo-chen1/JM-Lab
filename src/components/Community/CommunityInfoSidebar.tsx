@@ -15,17 +15,12 @@ import {
   Shield, 
   Calendar,
   ChevronDown,
-  ChevronUp,
   UserPlus,
   Megaphone,
   Settings,
-  MoreHorizontal,
   Crown,
   Hash,
   Link as LinkIcon,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
   Mail
 } from 'lucide-react';
 import { CommunityInviteDialog } from '@/components/CommunityInviteDialog';

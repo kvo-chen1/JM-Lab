@@ -8,7 +8,6 @@ import type {
   NotificationPriority,
   NotificationFilterOptions
 } from '../types/notification';
-import { DEFAULT_NOTIFICATION_SETTINGS } from '../types/notification';
 import { notificationBatchService } from '../services/notificationBatchService';
 import { notificationPushService } from '../services/notificationPushService';
 import { notificationAggregationService } from '../services/notificationAggregationService';

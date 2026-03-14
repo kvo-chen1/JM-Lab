@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { HistoryItem, HistoryItemType, HistoryGroup, HistoryFilter } from '@/types/history';
+import { HistoryItem, HistoryItemType, HistoryGroup } from '@/types/history';
 import { getHistory, removeHistoryItem, clearAllHistory, addHistory } from '@/utils/browseHistory';
 
 export function useBrowseHistory() {

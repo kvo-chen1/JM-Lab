@@ -3,7 +3,6 @@
 
 import React, { ReactNode } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
-import { communityAnimations } from './CommunityTheme';
 
 // 页面过渡动画
 interface PageTransitionProps {

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { EventCreateRequest, Media } from '@/types';
+import { EventCreateRequest } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 
 interface EventPreviewProps {

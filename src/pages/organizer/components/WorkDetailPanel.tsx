@@ -6,9 +6,7 @@ import {
   FileText,
   Send,
   Eye,
-  EyeOff,
   History,
-  ChevronLeft,
   Image as ImageIcon,
   Loader2,
 } from 'lucide-react';

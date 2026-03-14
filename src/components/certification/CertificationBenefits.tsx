@@ -4,10 +4,8 @@ import { AuthContext } from '@/contexts/authContext';
 import certificationService from '@/services/certificationService';
 import {
   CertificationInfo,
-  CertificationLevel,
   CERTIFICATION_LEVELS,
 } from '@/types/certification';
-import { toast } from 'sonner';
 
 interface BenefitItem {
   id: string;

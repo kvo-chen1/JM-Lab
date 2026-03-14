@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
 import useCreatorDashboard, { TimePeriod, ReportSchedule } from '@/hooks/useCreatorDashboard';
-import { TimeGranularity } from '@/services/creatorDashboardService';
 import DashboardMetricsCards from '@/components/creator-dashboard/DashboardMetricsCards';
 import TrendChart from '@/components/creator-dashboard/TrendChart';
 import TopWorksList from '@/components/creator-dashboard/TopWorksList';

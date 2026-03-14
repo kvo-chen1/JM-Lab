@@ -1,10 +1,9 @@
-import { useState, useEffect, useContext, useCallback } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useTheme } from '@/hooks/useTheme';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { AuthContext } from '@/contexts/authContext';
 import { brandShowcaseService, BrandShowcase, BrandShowcaseRequest } from '@/services/brandShowcaseService';
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { uploadImage } from '@/services/imageService';
 import {
@@ -22,17 +21,8 @@ import {
   Mail,
   MapPin,
   Award,
-  Image as ImageIcon,
-  Video,
-  Link,
   CheckCircle2,
-  AlertCircle,
-  ChevronRight,
-  Sparkles,
   History,
-  Package,
-  Palette,
-  ExternalLink,
 } from 'lucide-react';
 
 // 表单字段类型

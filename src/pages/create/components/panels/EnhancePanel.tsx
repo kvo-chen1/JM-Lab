@@ -2,12 +2,11 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
-import { TRADITIONAL_PATTERNS, AI_FILTERS } from '@/constants/creativeData';
-import { imageProcessingService } from '@/services/imageProcessingService';
+import { TRADITIONAL_PATTERNS } from '@/constants/creativeData';
 import { llmService } from '@/services/llmService';
 import { toast } from 'sonner';
 import { Slider } from '@/components/ui/Slider';
-import { Eye, Check, RotateCcw, Sparkles, Loader2 } from 'lucide-react';
+import { Eye, Check, RotateCcw, Loader2 } from 'lucide-react';
 
 // 智能美化模式
 type EnhanceMode = 'smart' | 'filter' | 'pattern';

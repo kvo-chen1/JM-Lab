@@ -6,7 +6,6 @@ import {
   User,
   Check,
   Sparkles,
-  ArrowRight,
   Zap,
   Coins,
   Gem,

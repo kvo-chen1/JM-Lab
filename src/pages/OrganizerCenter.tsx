@@ -26,9 +26,8 @@ import { useDraftAutoSave } from '@/hooks/useDraftAutoSave';
 import { AutoSaveStatus } from '@/components/AutoSaveStatus';
 import { PrizeManager } from '@/components/prize';
 import { aiGenerationService, ImageGenerationParams, VideoGenerationParams, GenerationTask } from '@/services/aiGenerationService';
-import { llmService } from '@/services/llmService';
 import Modal from '@/components/ui/Modal';
-import { Wand2, Image as ImageIcon2, Film, Sparkles, CheckCircle2, XCircle, RefreshCw, Loader2, Wallet } from 'lucide-react';
+import { Wand2, Image as ImageIcon2, Film, Sparkles, CheckCircle2, XCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { Prize, PrizeCreateRequest } from '@/types/prize';
 import { prizeService } from '@/services/prizeService';
 import EventTypeSelector from '@/components/events/EventTypeSelector';
@@ -52,7 +51,6 @@ import {
   Building2,
   Shield,
   ArrowLeft,
-  Calendar,
   BarChart3,
   Settings,
   Save,
@@ -63,8 +61,6 @@ import {
   AlertCircle,
   Info,
   MoreHorizontal,
-  RotateCcw,
-  Heart,
   Trophy,
   Gift,
   Target,

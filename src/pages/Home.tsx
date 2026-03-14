@@ -1,17 +1,15 @@
-import { useState, useRef, useEffect, lazy, Suspense, useMemo, useCallback, useContext } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, useContext } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { ExternalLink } from 'lucide-react';
-import { TianjinImage, TianjinButton, TianjinTag, TianjinAvatar } from '@/components/TianjinStyleComponents';
-import LazyVideo from '@/components/LazyVideo';
+import { TianjinImage, TianjinTag, TianjinAvatar } from '@/components/TianjinStyleComponents';
 import { llmService } from '@/services/llmService'
 import voiceService from '@/services/voiceService'
-import { workService, userService } from '@/services/apiService'
+import { workService } from '@/services/apiService'
 import { useTranslation } from 'react-i18next'
-import PromptInput from '@/components/PromptInput'
 import eventBus from '@/lib/eventBus' // 导入事件总线
 import HomeRecommendationSection from '@/components/HomeRecommendationSection'
 import JinMaiTemplatesSection from '@/components/JinMaiTemplatesSection'
@@ -20,9 +18,6 @@ import PartnerBrandsSection from '@/components/PartnerBrandsSection'
 import { recordUserAction } from '@/services/recommendationService'
 import pendingMessageService from '@/services/pendingMessageService'
 import {
-  ANIMATION_VARIANTS,
-  INTERACTION_VARIANTS,
-  SCROLL_TRIGGER_CONFIG,
   getResponsiveDuration,
   getResponsiveDelay
 } from '@/config/animationConfig'

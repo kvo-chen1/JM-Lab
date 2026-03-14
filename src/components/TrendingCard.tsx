@@ -9,12 +9,9 @@ import {
   Eye,
   Heart,
   Lightbulb,
-  ExternalLink,
   Bookmark,
   Share2,
   Flame,
-  Zap,
-  Clock,
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { TrendingTopic } from '@/services/trendingService';

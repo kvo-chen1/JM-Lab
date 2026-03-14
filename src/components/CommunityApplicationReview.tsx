@@ -4,9 +4,8 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { toast } from 'sonner';
 import Button from '@/components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
@@ -19,18 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/DropdownMenu';
+
+
 import { useCommunityJoinRequests } from '@/hooks/useCommunityInvitation';
 import type { CommunityJoinRequest } from '@/types/community-invitation';
 import {
   Check,
   X,
-  MoreVertical,
   User,
   Clock,
   FileText,

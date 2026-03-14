@@ -8,9 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
 import {
-  Search, Filter, Building2, Calendar, DollarSign, Percent,
-  ChevronDown, Sparkles, Eye, ArrowRight, X, Loader2,
-  MapPin, ShoppingBag, Clock, CheckCircle2, Tag
+  Search, Filter, Building2,
+  ChevronDown, Sparkles, Eye, ArrowRight, X, Loader2
 } from 'lucide-react';
 import { copyrightLicenseService } from '@/services/copyrightLicenseService';
 import type { LicenseRequest, RequestFilters } from '@/types/copyright-license';

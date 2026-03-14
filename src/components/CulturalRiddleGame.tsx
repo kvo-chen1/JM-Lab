@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
-import culturalRiddleGameService, { RiddleLevel, Riddle, RiddleGameProgress } from '@/services/culturalRiddleGameService';
+import culturalRiddleGameService, { RiddleLevel, Riddle } from '@/services/culturalRiddleGameService';
 import LazyImage from './LazyImage';
+import GameScreenshot from './GameScreenshot';
 
 interface CulturalRiddleGameProps {
   isOpen: boolean;
@@ -556,7 +557,12 @@ const CulturalRiddleGame: React.FC<CulturalRiddleGameProps> = ({ isOpen, onClose
                 </p>
 
                 {/* 得分统计 */}
-                <div className={`p-4 rounded-lg mb-6 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <GameScreenshot 
+                  onScreenshotGenerated={(dataUrl) => {
+                    toast.success('截图已生成，点击按钮下载');
+                  }}
+                  className={`p-4 rounded-lg mb-6 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}
+                >
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                       <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>最终得分</p>
@@ -575,7 +581,7 @@ const CulturalRiddleGame: React.FC<CulturalRiddleGameProps> = ({ isOpen, onClose
                       <p className="text-xl font-bold">{selectedLevel.riddles.length}</p>
                     </div>
                   </div>
-                </div>
+                </GameScreenshot>
 
                 {/* 奖励信息 */}
                 <div className={`p-4 rounded-lg mb-6 ${isDark ? 'bg-yellow-900 bg-opacity-30' : 'bg-yellow-100'} border ${isDark ? 'border-yellow-700' : 'border-yellow-200'}`}>

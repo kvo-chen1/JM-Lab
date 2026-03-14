@@ -8,10 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
 import {
-  Search, Filter, Shield, CheckCircle2, X, Loader2,
-  Briefcase, DollarSign, Calendar, Download, Eye,
-  Settings, TrendingUp, FileText, Award, Clock,
-  ChevronDown, Plus, AlertCircle, Lock, Unlock,
+  Search, Filter, Shield, Loader2, DollarSign, Download, Eye, Award,
+  ChevronDown, Unlock,
   ShoppingBag
 } from 'lucide-react';
 import ipService, { type CopyrightAsset, type IPAsset } from '@/services/ipService';

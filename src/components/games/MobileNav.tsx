@@ -5,7 +5,6 @@ import {
   Gamepad2, 
   Trophy, 
   User,
-  BookOpen,
   Target
 } from 'lucide-react';
 

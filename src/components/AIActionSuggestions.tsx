@@ -8,7 +8,6 @@ import {
   Sparkles,
   Lightbulb,
   Palette,
-  Wand2,
   ArrowRight,
   MessageSquare,
   Search,
@@ -382,7 +381,7 @@ export const AIActionSuggestions: React.FC<AIActionSuggestionsProps> = ({
     setCulturalKnowledge(null);
 
     // 提取提示词
-    let prompt = input.trim();
+    const prompt = input.trim();
     const prefixes = ['文化', '历史', '传统', '杨柳青', '泥人张', '风筝'];
     for (const prefix of prefixes) {
       if (prompt.toLowerCase().includes(prefix.toLowerCase())) {

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef } from 'react';
 
 // 导入共享的Intersection Observer相关变量
 let sharedObserver: IntersectionObserver | null = null;
-let observerTargets = new Map<Element, () => void>();
+const observerTargets = new Map<Element, () => void>();
 
 // 初始化共享的Intersection Observer
 const initSharedObserver = () => {

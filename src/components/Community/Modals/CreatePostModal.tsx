@@ -3,12 +3,11 @@ import { createPortal } from 'react-dom';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import UploadBox from '@/components/UploadBox';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { Community } from '@/services/communityService';
 import { MentionInput, MentionInputRef } from '@/components/MentionInput';
 import { MentionSelector } from '@/components/MentionSelector';
-import { mentionService, CommunityMember } from '@/services/mentionService';
-import { toast } from 'sonner';
+import { mentionService } from '@/services/mentionService';
 
 interface CreatePostModalProps {
   isOpen: boolean;

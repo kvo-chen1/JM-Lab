@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, memo, useRef } from 'react';
+import { useState, useEffect, memo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
-import { workService, communityService, eventService } from '@/services/apiService';
+import { workService, communityService } from '@/services/apiService';
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabaseClient';
 import { ChevronRight, Search } from 'lucide-react';

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Star,
   X,
@@ -8,29 +8,17 @@ import {
   TrendingUp,
   Users,
   Clock,
-  Award,
-  BarChart3,
-  Filter,
-  ChevronDown,
-  ChevronUp,
   Flag,
   CheckCircle2,
-  Share2,
   Bookmark,
-  MoreHorizontal,
-  Search,
-  SortAsc,
-  Heart,
-  Eye
+  SortAsc
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip';
-import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/Avatar';
-import { Progress } from '@/components/ui/Progress';
 import {
   DropdownMenu,
   DropdownMenuContent,

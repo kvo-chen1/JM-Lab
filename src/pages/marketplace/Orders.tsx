@@ -12,9 +12,7 @@ import {
   CheckCircle,
   XCircle,
   ArrowLeft,
-  ChevronRight,
   Search,
-  Filter,
   Loader2,
   AlertCircle,
   ShoppingBag
@@ -26,7 +24,6 @@ import { Button } from '@/components/ui/Button';
 
 // Hooks
 import { useAuth } from '@/hooks/useAuth';
-import { useOrders } from '@/hooks/useOrders';
 import { getOrders, cancelOrder, completeOrder } from '@/services/orderService';
 
 // 订单状态类型
@@ -202,19 +199,21 @@ const OrdersPage: React.FC = () => {
   // 支付订单
   const handlePayOrder = useCallback(async (orderId: string) => {
     console.log('[Orders] 点击支付，订单ID:', orderId);
-    
+
     // 直接调用支付 API 测试
     const { payOrder } = await import('@/services/orderService');
     const { data, error } = await payOrder(orderId, 'wechat');
-    
+
     console.log('[Orders] 支付结果:', { data, error });
-    
+
     if (error) {
       toast.error('支付失败：' + error);
     } else {
       toast.success('支付成功！');
-      // 刷新订单列表
-      fetchOrders();
+      // 延迟刷新订单列表，确保数据库已更新
+      setTimeout(() => {
+        fetchOrders();
+      }, 500);
     }
   }, [fetchOrders]);
 
@@ -408,14 +407,19 @@ const OrdersPage: React.FC = () => {
                       {order.items?.map((item: any, itemIndex: number) => (
                         <div key={item.id || itemIndex} className={`flex gap-4 ${itemIndex > 0 ? 'mt-4 pt-4 border-t border-gray-100' : ''}`}>
                           <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                            <img
-                              src={item.product_image || '/images/placeholder-product.jpg'}
-                              alt={item.product_name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = '/images/placeholder-product.jpg';
-                              }}
-                            />
+                            {item.product_image ? (
+                              <img
+                                src={item.product_image}
+                                alt={item.product_name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-full h-full flex items-center justify-center bg-gray-200 ${item.product_image ? 'hidden' : 'flex'}`}>
+                              <Package className="w-8 h-8 text-gray-400" />
+                            </div>
                           </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-gray-900 text-sm line-clamp-2">

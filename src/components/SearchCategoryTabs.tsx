@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useMemo } from 'react'
+import { motion } from 'framer-motion'
 import {
   Grid3X3,
   Image,

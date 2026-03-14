@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { Search, X, ChevronRight, Store, Star, Check } from 'lucide-react';
+import { Search, X, ChevronRight, Store, Check } from 'lucide-react';
 import { BRANDS } from '@/lib/brands';
 import type { Brand } from '@/lib/brands';
 

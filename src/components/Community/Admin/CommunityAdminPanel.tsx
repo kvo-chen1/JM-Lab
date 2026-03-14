@@ -14,11 +14,8 @@ import {
   Mail,
   Link as LinkIcon,
   CheckCircle,
-  XCircle,
   Trash2,
   UserPlus,
-  ChevronLeft,
-  BarChart3,
   Clock
 } from 'lucide-react';
 import ModerationPanel, { ModerationContent, ModerationRule } from '../Moderation/ModerationPanel';

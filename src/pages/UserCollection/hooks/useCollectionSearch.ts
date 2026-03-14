@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
-import { CollectionItem, CollectionType } from '../types/collection';
+import { CollectionItem } from '../types/collection';
 
 /**
  * 搜索历史存储键

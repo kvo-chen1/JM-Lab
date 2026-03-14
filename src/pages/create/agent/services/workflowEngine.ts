@@ -1,6 +1,6 @@
 // 智能工作流引擎 - 自动化任务分解与执行
 
-import { AgentType, DesignTask } from '../types/agent';
+import { AgentType } from '../types/agent';
 import { getPredictionService, BehaviorType } from './predictionService';
 import { getRAGService } from './ragService';
 

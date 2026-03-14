@@ -17,8 +17,6 @@ import {
   type LotteryStatistics,
 } from '@/services/lotteryAdminService';
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   PieChart,
@@ -43,10 +41,8 @@ import {
   Pause,
   RotateCcw,
   Download,
-  Filter,
   ChevronLeft,
   ChevronRight,
-  Calendar,
   Users,
   Gift,
   TrendingUp,
@@ -55,12 +51,9 @@ import {
   X,
   Check,
   AlertCircle,
-  MoreHorizontal,
   BarChart3,
   PieChart as PieChartIcon,
   Clock,
-  MapPin,
-  Smartphone,
   Settings,
   Percent,
   Coins,
@@ -68,7 +61,6 @@ import {
   Award,
   Save,
   GripVertical,
-  RefreshCw,
   Upload,
 } from 'lucide-react';
 

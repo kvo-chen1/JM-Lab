@@ -1,6 +1,6 @@
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
-import { Image, Eye, Heart, FileText, Video, FileAudio, MoreHorizontal, ExternalLink } from 'lucide-react';
+import { Image, FileText, Video, FileAudio, MoreHorizontal, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRef } from 'react';
 

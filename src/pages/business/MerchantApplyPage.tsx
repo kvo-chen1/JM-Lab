@@ -10,7 +10,6 @@ import {
   Phone, 
   Mail, 
   FileText,
-  CreditCard,
   ArrowLeft,
   CheckCircle,
   AlertCircle,

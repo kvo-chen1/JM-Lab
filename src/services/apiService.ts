@@ -2,8 +2,7 @@ import apiClient from '../lib/apiClient';
 import { Work } from '@/types';
 import { validationService } from './validationService';
 import { historyService } from './historyService';
-import { toast } from 'sonner';
-import apiOptimizer, { withOptimization } from '../utils/apiOptimizer';
+import { withOptimization } from '../utils/apiOptimizer';
 
 // 本地定义 User 类型以避免循环引用
 interface User {

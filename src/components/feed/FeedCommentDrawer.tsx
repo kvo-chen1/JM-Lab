@@ -12,14 +12,12 @@ import feedService from '@/services/feedService';
 import { getFollowingList, getFollowersList } from '@/services/postService';
 import {
   Heart,
-  MessageCircle,
   Send,
   Loader2,
   MoreHorizontal,
   Edit2,
   Trash2,
   X,
-  ChevronDown,
   ChevronUp,
 } from 'lucide-react';
 

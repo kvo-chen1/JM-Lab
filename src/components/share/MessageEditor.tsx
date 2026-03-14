@@ -1,6 +1,6 @@
 import { useTheme } from '@/hooks/useTheme';
 import { useState, useCallback } from 'react';
-import { Smile, Paperclip, Send } from 'lucide-react';
+import { Smile, Paperclip } from 'lucide-react';
 
 interface MessageEditorProps {
   value: string;

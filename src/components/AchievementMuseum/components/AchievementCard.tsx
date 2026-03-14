@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { Lock, Unlock, Star, Zap, ChevronRight } from 'lucide-react';
+import { Lock, Unlock, Zap, ChevronRight } from 'lucide-react';
 import type { Achievement, ViewMode } from '../types';
 import { rarityConfig } from '../hooks/useAchievements';
 import { AchievementIcon } from './AchievementIcon';

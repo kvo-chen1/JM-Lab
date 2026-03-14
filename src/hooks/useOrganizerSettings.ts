@@ -8,9 +8,7 @@ import {
   BrandInfo,
   SecuritySettings,
   NotificationSettings,
-  PermissionSettings,
   DataManagementSettings,
-  OrganizerMember,
   OrganizerRole,
 } from '@/services/organizerSettingsService';
 

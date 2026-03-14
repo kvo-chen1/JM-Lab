@@ -2,11 +2,10 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, DERIVATIVE_OPTIONS } from '../hooks/useAgentStore';
-import WorkCard, { WorkCardData } from './WorkCard';
+import WorkCard from './WorkCard';
 import CharacterDesignWorkflow from './CharacterDesignWorkflow';
 import CanvasControls from './DraggableCanvas/CanvasControls';
 import {
-  Maximize2,
   Download,
   Share2,
   Heart,

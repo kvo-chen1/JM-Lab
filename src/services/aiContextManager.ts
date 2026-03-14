@@ -4,7 +4,7 @@
  * 实现智能上下文压缩、主题追踪、意图理解
  */
 
-import { Message, ConversationSession } from './llmService';
+import { Message } from './llmService';
 
 // 上下文片段类型
 export interface ContextSegment {

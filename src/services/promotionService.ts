@@ -341,7 +341,7 @@ class PromotionService {
                 }
 
                 // 获取缩略图，优先使用 thumbnail，其次 cover_url
-                let thumbnail = w.thumbnail || w.cover_url || '';
+                const thumbnail = w.thumbnail || w.cover_url || '';
 
                 return {
                   id: w.id?.toString() || '',
@@ -655,7 +655,7 @@ class PromotionService {
 
       // 获取关联的订单信息
       const orderIds = promotedWorks.map(pw => pw.order_id).filter(Boolean);
-      let orderMap = new Map();
+      const orderMap = new Map();
 
       if (orderIds.length > 0) {
         const { data: orders, error: orderError } = await supabase
@@ -1114,7 +1114,7 @@ class PromotionService {
 
       // 获取关联的订单信息
       const orderIds = promotedWorks.map(pw => pw.order_id).filter(Boolean);
-      let orderMap = new Map();
+      const orderMap = new Map();
 
       if (orderIds.length > 0) {
         const { data: orders, error: orderError } = await supabase

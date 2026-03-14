@@ -14,9 +14,6 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
-  PieChart,
-  Pie,
-  Cell,
   AreaChart,
   Area
 } from 'recharts';
@@ -104,7 +101,7 @@ export default function BrandTaskAudit() {
     setLoading(true);
     try {
       // 使用 Supabase 获取所有品牌任务
-      let query = supabaseAdmin
+      const query = supabaseAdmin
         .from('brand_tasks')
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });

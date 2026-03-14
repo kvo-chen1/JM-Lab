@@ -9,7 +9,7 @@ import { usePrediction } from '../hooks/usePrediction';
 import { useABTesting } from '../hooks/useABTesting';
 import { useDynamicWorkflow } from '../hooks/useDynamicWorkflow';
 import { useJinbi } from '@/hooks/useJinbi';
-import { Send, Image as ImageIcon, Mic, Sparkles, Trash2, Bot, X, ChevronDown, Wand2, Layers, Store, Coins, AlertCircle } from 'lucide-react';
+import { Send, Image as ImageIcon, Sparkles, Trash2, Wand2, Layers, Store, Coins, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import ChatMessage from './ChatMessage';
 import AgentAvatar from './AgentAvatar';
@@ -29,18 +29,16 @@ import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 import type { InspirationHint, StyleOption } from '../types/agent';
 import type { Brand } from '@/lib/brands';
 import {
-  agentOrchestrator,
   processWithOrchestrator,
   ConversationContext
 } from '../services/agentOrchestrator';
 import {
   analyzeDesignRequirements
 } from '../services/agentService';
-import { agentScheduler, AgentResponse } from '../services/agentScheduler';
 import { getResourceManager } from '../services/resourceManager';
 import { errorHandler } from '../services/errorHandler';
 import { llmService } from '@/services/llmService';
-import type { DesignTask, AgentMessage, AgentType, OrchestratorResponse, LLMModelType } from '../types/agent';
+import type { AgentMessage, AgentType, OrchestratorResponse } from '../types/agent';
 import { AGENT_CONFIG, PRESET_STYLES, LLM_MODELS, getLLMModelConfig } from '../types/agent';
 import { Suggestion } from '../services/suggestionEngine';
 

@@ -3,7 +3,7 @@
  * 使用千问(Qwen)API分析用户创作行为，生成个性化画像和建议
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { llmService } from './llmService';
 
 // 行为类型定义

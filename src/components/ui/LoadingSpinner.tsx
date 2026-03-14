@@ -1,6 +1,5 @@
 // src/components/ui/LoadingSpinner.tsx
 
-import { ReactNode } from 'react';
 import { clsx } from 'clsx';
 
 // 加载器大小类型

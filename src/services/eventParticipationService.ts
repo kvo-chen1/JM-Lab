@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { apiService } from './apiService';
 
 // 参与状态类型
 export type ParticipationStatus = 'registered' | 'reviewing' | 'completed' | 'awarded' | 'cancelled';

@@ -1,15 +1,13 @@
 import { useState, useEffect, useContext } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/contexts/authContext';
 import { brandShowcaseService, BrandShowcase as BrandShowcaseType } from '@/services/brandShowcaseService';
-import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
   Globe,
-  MapPin,
   Phone,
   Mail,
   Eye,
@@ -22,7 +20,6 @@ import {
   Building2,
   ChevronRight,
   ExternalLink,
-  Play,
   Image as ImageIcon,
 } from 'lucide-react';
 

@@ -28,10 +28,8 @@ import {
   Share2,
   GraduationCap,
   Calendar,
-  Heart,
   Eye,
   Bookmark,
-  MoreHorizontal,
 } from 'lucide-react';
 
 interface OutlineTemplateManagerProps {

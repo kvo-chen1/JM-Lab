@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import type { Thread } from '@/pages/Community';
 import { TianjinAvatar } from '@/components/TianjinStyleComponents';
-import { HoverCard, FadeIn } from '@/components/Community/DesignSystem';
+import { HoverCard } from '@/components/Community/DesignSystem';
 import { useAuth } from '@/hooks/useAuth';
 import { FeedShareModal } from '@/components/feed/FeedShareModal';
 import { MentionSelector } from '@/components/MentionSelector';

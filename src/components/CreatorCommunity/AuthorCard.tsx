@@ -1,7 +1,7 @@
 // 津脉社区作者卡片组件 - 优化版
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, CheckCircle, Users, Plus, UserCheck, MessageCircle, Send, UserPlus, MapPin, Calendar, ExternalLink } from 'lucide-react'
+import { User, CheckCircle, Users, Plus, UserCheck, MessageCircle, Send, UserPlus, MapPin } from 'lucide-react'
 import LazyImage from '../LazyImage'
 import type { UserProfile } from '../../lib/supabase'
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
 import { useCreatorCenter } from '@/hooks/useCreatorCenter';
@@ -11,9 +11,6 @@ import type { OrderAudit } from '@/services/orderAuditService';
 import {
   Briefcase,
   Search,
-  Filter,
-  Clock,
-  DollarSign,
   Users,
   Building2,
   CheckCircle2,
@@ -26,14 +23,11 @@ import {
   Zap,
   Crown,
   Gem,
-  ArrowUpRight,
   Send,
   BookOpen,
   RefreshCw,
   ChevronRight,
-  MoreHorizontal,
   MapPin,
-  Calendar,
   Clock3,
 } from 'lucide-react';
 

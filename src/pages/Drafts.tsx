@@ -13,7 +13,6 @@ import {
   DraftsRightSidebar,
   DraftsMainContent
 } from '@/components/drafts';
-import { Loader2, Cloud, CloudOff } from 'lucide-react';
 
 interface DraftData {
   id?: string;

@@ -1588,7 +1588,7 @@ class AdminService {
 
       // 获取作品
       if (type === 'all' || type === 'work') {
-        let worksQuery = supabaseAdmin
+        const worksQuery = supabaseAdmin
           .from('works')
           .select('*', { count: 'exact' })
           .eq('source', '津脉广场') // 只获取津脉广场的作品
@@ -1666,7 +1666,7 @@ class AdminService {
 
       // 获取评论
       if (type === 'all' || type === 'comment') {
-        let commentsQuery = supabaseAdmin
+        const commentsQuery = supabaseAdmin
           .from('comments')
           .select('*', { count: 'exact' });
 
@@ -1929,7 +1929,7 @@ class AdminService {
       }
 
       // 获取创作者信息
-      let query = supabaseAdmin
+      const query = supabaseAdmin
         .from('users')
         .select('*')
         .in('id', creatorIds);

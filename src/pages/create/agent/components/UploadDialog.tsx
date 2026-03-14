@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { X, Upload, Image, Trash2 } from 'lucide-react';
-import { uploadImage, uploadImages } from '../services/uploadService';
+import { X, Upload, Trash2 } from 'lucide-react';
+import { uploadImages } from '../services/uploadService';
 
 interface UploadDialogProps {
   isOpen: boolean;

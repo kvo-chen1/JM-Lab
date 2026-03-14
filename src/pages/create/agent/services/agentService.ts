@@ -2,19 +2,15 @@
 
 import { AgentMessage, DesignTask, GeneratedOutput, AgentType, PRESET_STYLES } from '../types/agent';
 import { llmService } from '@/services/llmService';
-import { callQwenChat, callKimiChat, callDeepseekChat } from '@/services/llm/chatProviders';
+import { callQwenChat } from '@/services/llm/chatProviders';
 import { callCurrentModel } from './modelCaller';
 import { aiGenerationService } from '@/services/aiGenerationService';
 import {
-  DIRECTOR_SYSTEM_PROMPT,
-  DESIGNER_SYSTEM_PROMPT,
   REQUIREMENT_ANALYSIS_PROMPT,
-  buildImageGenerationPrompt,
-  STYLE_RECOMMENDATION_PROMPT,
-  getAgentSystemPrompt
+  STYLE_RECOMMENDATION_PROMPT
 } from './agentPrompts';
 import { getMemoryService } from './memoryService';
-import { errorHandler, ErrorHandleResult } from './errorHandler';
+import { errorHandler } from './errorHandler';
 import { AgentErrorType } from './errors';
 import { getRAGService } from './ragService';
 import { getPromptBuilder } from './promptBuilder';

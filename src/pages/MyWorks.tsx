@@ -16,9 +16,7 @@ import {
   Grid3X3,
   List,
   Search,
-  Filter,
   ChevronLeft,
-  AlertCircle,
   CheckSquare,
   Square,
   X

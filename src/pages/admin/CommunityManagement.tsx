@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import { adminService } from '@/services/adminService';
 import { supabaseAdmin } from '@/lib/supabaseClient';
 
 interface Community {

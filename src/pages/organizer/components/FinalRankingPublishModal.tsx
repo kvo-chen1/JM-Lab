@@ -16,7 +16,7 @@ import {
   BarChart3,
   Target,
 } from 'lucide-react';
-import { workScoringService, WorkScoringData } from '@/services/workScoringService';
+import { WorkScoringData } from '@/services/workScoringService';
 import { supabase } from '@/lib/supabase';
 
 // 排名数据接口

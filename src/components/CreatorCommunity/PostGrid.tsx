@@ -1,6 +1,6 @@
 // 津脉社区帖子列表组件
-import React, { useState, useEffect, useCallback } from 'react'
-import { Heart, MessageCircle, Eye, Grid, List } from 'lucide-react'
+import React, { useState } from 'react'
+import { Heart, MessageCircle, Eye, Grid } from 'lucide-react'
 import LazyImage from '../LazyImage'
 import { AuthorCard } from './AuthorCard'
 import type { PostWithAuthor } from '../../lib/supabase'

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, Input, Button, HamsterWheelLoader } from '@/components/ui';
+import { Card, Button, HamsterWheelLoader } from '@/components/ui';
 import { MessageSquare, UserPlus, UserMinus, MessageCircle, Users, Heart, UserCheck } from 'lucide-react';
 import { getFollowingList, getFollowersList, followUser, unfollowUser } from '@/services/postService';
 import { getConversations, getUnreadMessageCounts, Conversation } from '@/services/messageService';

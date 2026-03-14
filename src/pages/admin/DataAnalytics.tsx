@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { adminService } from '@/services/adminService';
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseClient';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AlertRulesModal from '@/components/admin/AlertRulesModal';
 import {
@@ -15,11 +15,7 @@ import {
   checkAlert,
   subscribeToAlerts,
   formatTimeAgo,
-  metricNames,
-  operatorNames,
   severityNames,
-  severityColors,
-  channelNames,
   type AlertRule,
   type AlertRecord,
   type AlertStats,
@@ -3120,7 +3116,7 @@ export default function DataAnalytics() {
 
       // 计算会话统计
       let totalOnlineTime = 0;
-      let longestSession = 0;
+      const longestSession = 0;
       const sessions: number[] = [];
 
       if (behaviorLogs && behaviorLogs.length > 1) {

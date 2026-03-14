@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Clock, MapPin, Crown } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Clock, Crown } from 'lucide-react';
 
 interface TimelineEvent {
   id: number;

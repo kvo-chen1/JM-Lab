@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, ChevronDown, Loader2, CheckCircle2, AlertCircle, Sparkles, FileText, Clock, ArrowRight } from 'lucide-react';
+import { Trophy, ChevronDown, Loader2, CheckCircle2, Sparkles, FileText, Clock, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
-import { eventService, type Event as EventServiceEvent } from '@/services/eventService';
+import { eventService } from '@/services/eventService';
 import { eventParticipationService } from '@/services/eventParticipationService';
 import { eventSubmissionService } from '@/services/eventSubmissionService';
 

@@ -4,14 +4,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  RefreshCw, 
   Search, 
   CheckCircle, 
   XCircle,
   Eye,
-  Clock,
-  Package,
-  MessageSquare,
   Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';

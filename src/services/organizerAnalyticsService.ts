@@ -497,7 +497,7 @@ class OrganizerAnalyticsService {
       }));
 
       // 排序
-      let sortedSubmissions = [...submissionsWithStats];
+      const sortedSubmissions = [...submissionsWithStats];
       switch (sortBy) {
         case 'likes':
           sortedSubmissions.sort((a, b) => (b.like_count || 0) - (a.like_count || 0));
@@ -588,7 +588,7 @@ class OrganizerAnalyticsService {
       // 获取活动相关的最近作品提交
       let submissions: any[] = [];
       if (eventIds.length > 0) {
-        let submissionsQuery = supabase
+        const submissionsQuery = supabase
           .from('event_submissions')
           .select('id, title, user_id, created_at, event_id')
           .in('event_id', eventIds)

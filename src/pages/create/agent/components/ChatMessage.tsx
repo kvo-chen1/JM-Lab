@@ -14,7 +14,7 @@ import FeedbackButtons from './FeedbackButtons';
 import DelegationIndicator from './DelegationIndicator';
 import { generateVideo } from '../services/agentService';
 import { AgentError } from '../types/errors';
-import { ChevronDown, ChevronUp, Lightbulb, Wand2, ArrowRight, Users, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Lightbulb, Wand2, Users, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 

@@ -19,21 +19,14 @@ import {
 import {
   Flag,
   Search,
-  Filter,
   Eye,
   CheckCircle,
   XCircle,
   Clock,
   AlertTriangle,
   Trash2,
-  ChevronRight,
   User,
   Calendar,
-  MessageSquare,
-  Image as ImageIcon,
-  ExternalLink,
-  MoreHorizontal,
-  BarChart3,
   PieChart as PieChartIcon
 } from 'lucide-react';
 import {

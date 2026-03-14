@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Link2, Check, MessageCircle, Users, Share2 } from 'lucide-react';
+import { X, Link2, Check, MessageCircle, Share2 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { getFollowingList, getFollowersList } from '@/services/postService';

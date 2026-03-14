@@ -1,5 +1,5 @@
-import { supabase, supabaseAdmin } from '@/lib/supabase';
-import type { EventSubmission, SubmissionVote, SubmissionLike, SubmissionRating, UserInteraction } from '@/types';
+import { supabase } from '@/lib/supabase';
+import type { EventSubmission, SubmissionRating, UserInteraction } from '@/types';
 
 export interface SubmissionWithStats extends EventSubmission {
   voteCount: number;

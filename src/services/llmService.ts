@@ -6,8 +6,6 @@
 // 导入知识库服务
 
 import { aiTaskQueueService, AITask, TaskPriority } from './aiTaskQueueService';
-import apiClient from '@/lib/apiClient';
-import { handleSseStreamingResponse } from './llm/streaming';
 import { callKimiChat, callQwenChat, callDeepseekChat } from './llm/chatProviders';
 
 // 模型类型定义
@@ -622,7 +620,7 @@ export interface WorkReviewResult {
 
     try {
       const savedModelId = localStorage.getItem('LLM_CURRENT_MODEL');
-      let modelIdToUse = savedModelId;
+      const modelIdToUse = savedModelId;
       
       if (modelIdToUse) {
         // 检查保存的模型是否存在于可用模型列表中

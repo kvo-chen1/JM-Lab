@@ -7,15 +7,12 @@ import {
   Archive,
   CheckCircle,
   Circle,
-  ChevronDown,
   Filter,
-  MoreHorizontal,
   AlertTriangle
 } from 'lucide-react';
 import type {
   Notification,
   NotificationCategory,
-  NotificationType,
   NotificationPriority,
   NotificationFilterOptions
 } from '../../types/notification';

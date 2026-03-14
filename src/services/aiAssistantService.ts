@@ -4,10 +4,10 @@
  */
 
 import { aiKnowledgeService, NavigationTarget, KnowledgeItem } from './aiKnowledgeService';
-import { aiMemoryService, Conversation, ConversationMessage } from './aiMemoryService';
-import { culturalExpertService, CulturalElement, CulturalElementType } from './culturalExpertService';
-import { personalizationService, Recommendation, CreativeSuggestion } from './personalizationService';
-import { llmService, Message as LLMMessage } from './llmService';
+import { aiMemoryService, Conversation } from './aiMemoryService';
+import { culturalExpertService, CulturalElement } from './culturalExpertService';
+import { personalizationService } from './personalizationService';
+import { llmService } from './llmService';
 import { supabase } from '@/lib/supabase';
 
 export interface AIResponse {

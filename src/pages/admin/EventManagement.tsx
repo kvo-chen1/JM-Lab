@@ -19,12 +19,9 @@ import {
   Plus,
   RefreshCw,
   MapPin,
-  TrendingUp,
   Activity,
   LayoutGrid,
   List,
-  MoreVertical,
-  ArrowUpRight,
   Sparkles,
   Layers,
   Timer,
@@ -32,7 +29,6 @@ import {
   FileEdit,
   Trash2,
   ChevronRight,
-  Percent,
   Target,
   User
 } from 'lucide-react';
@@ -313,7 +309,7 @@ export default function EventManagement() {
       const organizerIds = [...new Set((eventsData || []).map((e: any) => e.organizer_id).filter(Boolean))];
       
       // 获取组织者信息
-      let organizersMap = new Map();
+      const organizersMap = new Map();
       if (organizerIds.length > 0) {
         const { data: organizersData } = await supabaseAdmin
           .from('users')

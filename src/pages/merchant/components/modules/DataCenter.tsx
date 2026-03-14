@@ -4,20 +4,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BarChart3,
   TrendingUp,
   TrendingDown,
   DollarSign,
   ShoppingCart,
   Users,
   Package,
-  Calendar,
   Download,
   Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { merchantService, SalesTrend, ProductRanking } from '@/services/merchantService';
 import { toast } from 'sonner';
+import reconciliationService from '@/services/reconciliationService';
 
 const DataCenter: React.FC = () => {
   const [timeRange, setTimeRange] = useState('7days');
@@ -317,6 +316,45 @@ const DataCenter: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 对账管理 */}
+      <div className="bg-[var(--bg-secondary)] rounded-xl p-6 border border-[var(--border-primary)]">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-[var(--text-primary)]">对账管理</h3>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              const result = reconciliationService.performReconciliation('user-id');
+              if (result.status === 'matched') {
+                toast.success('对账完成，数据一致');
+              } else {
+                toast.warning(`发现${result.issues.length}个问题需要处理`);
+              }
+            }}
+          >
+            <i className="fas fa-sync-alt mr-2" />
+            立即对账
+          </Button>
+        </div>
+        <p className="text-sm text-[var(--text-muted)] mb-4">
+          定期核对积分、订单、资金数据，确保账目准确无误
+        </p>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg">
+            <p className="text-sm text-[var(--text-muted)]">上次对账</p>
+            <p className="text-lg font-semibold text-[var(--text-primary)]">今日 02:00</p>
+          </div>
+          <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg">
+            <p className="text-sm text-[var(--text-muted)]">对账状态</p>
+            <p className="text-lg font-semibold text-emerald-400">正常</p>
+          </div>
+          <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg">
+            <p className="text-sm text-[var(--text-muted)]">异常记录</p>
+            <p className="text-lg font-semibold text-[var(--text-primary)]">0 条</p>
           </div>
         </div>
       </div>

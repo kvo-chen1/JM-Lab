@@ -107,8 +107,8 @@ export default function ContentManagement() {
 
       // 获取点赞数和评论数 - 优先使用 posts 表中的统计字段
       const postIds = (data || []).map((item: any) => item.id).filter(Boolean);
-      let likesMap: Record<string, number> = {};
-      let commentsMap: Record<string, number> = {};
+      const likesMap: Record<string, number> = {};
+      const commentsMap: Record<string, number> = {};
       
       // 从 posts 表中获取统计字段
       (data || []).forEach((post: any) => {

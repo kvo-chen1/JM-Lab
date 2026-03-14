@@ -1,5 +1,5 @@
-import { useState, useEffect, useContext } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useContext } from 'react';
+import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { Event } from '@/types';
 import { AuthContext } from '@/contexts/authContext';
@@ -11,7 +11,6 @@ import {
   Trophy,
   User,
   MapPin,
-  TrendingUp,
   Star,
   Zap,
   Check

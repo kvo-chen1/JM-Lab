@@ -16,17 +16,14 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
-  BarChart3,
-  Filter,
-  Download,
-  Eye
+  BarChart3
 } from 'lucide-react';
 import { OutlineSection } from './types';
 import Button from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 
 interface OutlineVersion {
   id: string;

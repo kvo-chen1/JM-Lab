@@ -1,5 +1,5 @@
 // 存储服务 - 替代 Supabase Storage
-import { uploadFile, uploadImage, deleteFile, getPublicUrl } from './storageServiceNew';
+import { uploadFile, uploadImage, deleteFile } from './storageServiceNew';
 
 // 默认 bucket 名称（现在作为文件夹使用）
 const DEFAULT_FOLDER = 'images';

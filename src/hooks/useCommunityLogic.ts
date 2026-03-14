@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useContext, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AuthContext } from '@/contexts/authContext';
-import { useNotifications, useNotificationWithNavigate } from '@/contexts/NotificationContext';
+import { useNotificationWithNavigate } from '@/contexts/NotificationContext';
 import type { Thread, ChatMessage } from '@/pages/Community';
 import { useChatStore } from '@/stores/chatStore';
 import { apiService, communityService as apiCommunityService } from '@/services/apiService';

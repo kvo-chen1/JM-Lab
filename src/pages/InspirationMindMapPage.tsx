@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
 
 // 导入津脉脉络组件
 import {
@@ -29,9 +28,8 @@ import {
   StoryGenerator,
   useMindMap,
 } from '@/components/InspirationMindMap';
-import { MindNode, AISuggestion, CreationStory } from '@/components/InspirationMindMap/types';
+import { MindNode, CreationStory } from '@/components/InspirationMindMap/types';
 import { AuthContext } from '@/contexts/authContext';
-import { inspirationMindMapService } from '@/services/inspirationMindMapService';
 
 // 天津风格装饰组件
 const TianjinDecoration = () => (

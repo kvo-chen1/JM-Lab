@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { X, Share2, Copy, Link, Globe, Lock, Check, Twitter, MessageCircle } from 'lucide-react';
+import { X, Share2, Copy, Globe, Lock, Check, Twitter, MessageCircle } from 'lucide-react';
 import { CollectionFolder, FolderVisibility } from '@/types/collectionFolder';
 import { collectionFolderService } from '@/services/collectionFolderService';
 import { toast } from 'sonner';

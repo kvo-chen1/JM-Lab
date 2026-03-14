@@ -2,14 +2,8 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { uploadImage } from '@/services/imageService';
-import { 
-  FadeIn, 
-  ScaleIn, 
-  StaggerContainer, 
-  StaggerItem,
-  AnimatedButton 
-} from '@/components/Community/DesignSystem';
-import { communityColors, communityShadows, communityRadius } from '@/components/Community/DesignSystem';
+
+
 
 // 社群分类数据
 const COMMUNITY_CATEGORIES = [

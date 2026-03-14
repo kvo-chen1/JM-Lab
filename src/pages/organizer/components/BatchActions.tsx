@@ -3,7 +3,6 @@ import {
   CheckSquare,
   X,
   Send,
-  Trash2,
 } from 'lucide-react';
 
 interface BatchActionsProps {

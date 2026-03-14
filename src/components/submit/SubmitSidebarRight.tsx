@@ -6,7 +6,6 @@ import {
   Sparkles,
   Lightbulb,
   Save,
-  Clock,
   FileCheck,
   AlertTriangle,
   Image as ImageIcon,

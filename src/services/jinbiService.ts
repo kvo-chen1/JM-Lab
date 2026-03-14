@@ -3,7 +3,7 @@
  * 实现与后端数据库的真实数据交互
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import eventBus from '@/lib/eventBus';
 
 // ==================== 类型定义 ====================

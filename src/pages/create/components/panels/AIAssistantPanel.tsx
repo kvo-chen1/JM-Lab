@@ -91,6 +91,7 @@ export default function AIAssistantPanel() {
     aspectRatio: '16:9'
   });
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>(llmService.getCurrentModel().id);
 
   // 历史记录
   const [history, setHistory] = useState<any[]>([]);
@@ -835,7 +836,7 @@ export default function AIAssistantPanel() {
     // 处理内联 Markdown 格式（粗体、斜体、行内代码）
     const renderInlineMarkdown = (text: string): React.ReactNode => {
       // 处理粗体 **text**
-      let parts = text.split(/(\*\*[^*]+\*\*)/g);
+      const parts = text.split(/(\*\*[^*]+\*\*)/g);
       return parts.map((part, idx) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return <strong key={idx} className="font-semibold">{part.slice(2, -2)}</strong>;
@@ -2107,6 +2108,35 @@ export default function AIAssistantPanel() {
                                 )}>{preset.name}</p>
                               </motion.button>
                             ))}
+                          </div>
+                        </div>
+
+                        {/* AI模型选择 */}
+                        <div>
+                          <p className={clsx(
+                            "text-[11px] font-medium mb-2",
+                            isDark ? "text-gray-500" : "text-gray-400"
+                          )}>AI模型</p>
+                          <div className="relative">
+                            <select
+                              value={selectedModel}
+                              onChange={(e) => {
+                                const modelId = e.target.value;
+                                setSelectedModel(modelId);
+                                llmService.setCurrentModel(modelId);
+                              }}
+                              className={clsx(
+                                'w-full p-2.5 pr-8 rounded-xl border text-xs appearance-none transition-all',
+                                isDark
+                                  ? 'bg-gray-800 border-gray-700 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20'
+                                  : 'bg-white border-gray-200 text-gray-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20'
+                              )}
+                            >
+                              <option value="qwen">通义千问</option>
+                              <option value="kimi">Kimi</option>
+                              <option value="deepseek">DeepSeek</option>
+                            </select>
+                            <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none" />
                           </div>
                         </div>
 

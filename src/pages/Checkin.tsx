@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
@@ -15,12 +15,9 @@ import {
   Crown,
   Gem,
   CheckCircle2,
-  Clock,
-  TrendingUp,
   Zap,
   History,
   Sparkles,
-  ArrowRight,
   Home,
   Compass,
   MessageCircle,
@@ -29,12 +26,9 @@ import {
   Heart,
   FileText,
   Users,
-  Bell,
-  Settings,
   Target,
   Coins
 } from 'lucide-react';
-import checkinService, { CheckinStatus, CheckinRecord } from '@/services/checkinService';
 import { useSupabasePoints } from '@/hooks/useSupabasePoints';
 import achievementService from '@/services/achievementService';
 

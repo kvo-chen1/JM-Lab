@@ -1,4 +1,4 @@
-import React, { memo, useRef, useEffect } from 'react';
+import React, { memo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Clock, TrendingUp, Sparkles } from 'lucide-react';
 import { SearchResultType } from './SearchBar';

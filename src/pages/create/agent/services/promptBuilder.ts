@@ -3,7 +3,7 @@
 import { getRAGService } from './ragService';
 import { getMemoryService } from './memoryService';
 import { getIntentRecognitionService, IntentType } from './intentRecognition';
-import { AgentType, PRESET_STYLES, AGENT_CONFIG } from '../types/agent';
+import { AgentType, AGENT_CONFIG } from '../types/agent';
 
 // Token估算配置
 const TOKEN_CONFIG = {

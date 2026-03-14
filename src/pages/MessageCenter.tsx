@@ -31,7 +31,6 @@ import {
   messageService,
   getConversations,
   getUnreadMessageCounts,
-  getMessages,
   getDirectMessages,
   sendDirectMessage,
   markMessagesAsRead,

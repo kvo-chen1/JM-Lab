@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Search, Lightbulb, Send, CheckCircle, ArrowRight, Sparkles, FileText } from 'lucide-react';
+import { Search, Lightbulb, Send, CheckCircle, ArrowRight } from 'lucide-react';
 
 interface ProcessSectionProps {
   isDark: boolean;

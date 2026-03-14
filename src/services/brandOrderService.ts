@@ -1,6 +1,5 @@
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import type { OrderAudit } from './orderAuditService';
-import type { OrderExecution } from './orderExecutionService';
 
 // ============================================================================
 // 类型定义

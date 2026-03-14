@@ -38,7 +38,6 @@ import { FeedCommentDrawer } from '@/components/feed/FeedCommentDrawer';
 // 导入图标
 import {
   Loader2,
-  RefreshCw,
   Sparkles,
 } from 'lucide-react';
 
@@ -138,7 +137,7 @@ export default function Feed() {
       if (currentFilter === 'all' && allFeedsCache.length > 0) {
         console.log('[loadFeeds] Using cached data for filter:', currentFilter, 'sort:', currentSort);
         // 从缓存中筛选和排序
-        let filteredFeeds = [...allFeedsCache];
+        const filteredFeeds = [...allFeedsCache];
 
         // 排序 - 确保按时间正确排序
         switch (currentSort) {

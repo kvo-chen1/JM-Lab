@@ -1,7 +1,7 @@
 // 好友请求组件
 import React, { useEffect } from 'react'
 import { useCommunityStore } from '../../stores/communityStore'
-import { UserPlus, Check, X, User, Bell } from 'lucide-react'
+import { UserPlus, Check, X, Bell } from 'lucide-react'
 import LazyImage from '../LazyImage'
 
 interface FriendRequestsProps {

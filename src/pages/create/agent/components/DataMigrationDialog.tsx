@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { getDataMigrationService } from '../services/dataMigration';
-import { toast } from 'sonner';
 
 /**
  * 数据迁移组件 - 自动在后台执行

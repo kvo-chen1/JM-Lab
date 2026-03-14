@@ -4,29 +4,23 @@ import {
   DollarSign, 
   Wallet, 
   CreditCard,
-  Briefcase,
   Star,
   Clock,
-  AlertCircle,
   Gift,
   FileText,
   Loader2,
   Coins,
-  Send,
-  BookOpen,
   ChevronRight,
-  CheckCircle2,
   Sparkles,
   ArrowUpRight,
   Building2,
-  Users,
   PiggyBank,
   Target,
   TrendingUp
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { useCreatorCenter, RevenueRecord } from '@/hooks/useCreatorCenter';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 import {

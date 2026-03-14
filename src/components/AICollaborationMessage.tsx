@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Message } from '@/services/llmService';
 import { useTheme } from '@/hooks/useTheme';
 import SmartMarkdownTable from './SmartMarkdownTable';

@@ -5,8 +5,7 @@ import { WorkPerformance } from '@/services/creatorDashboardService';
 import { 
   Eye, 
   Heart, 
-  MessageCircle, 
-  Share2,
+  MessageCircle,
   TrendingUp,
   TrendingDown,
   Minus,

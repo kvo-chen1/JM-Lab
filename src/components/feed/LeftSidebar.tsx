@@ -10,12 +10,9 @@ import type { FeedFilterType } from '@/types/feed';
 import type { User } from '@/types/index';
 import {
   Home,
-  Compass,
-  Video,
   Image,
   FileText,
   Calendar,
-  Building2,
   Users,
   Settings,
   HelpCircle,

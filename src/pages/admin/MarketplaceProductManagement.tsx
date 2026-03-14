@@ -16,8 +16,6 @@ import {
   List,
   Plus,
   MoreVertical,
-  CheckCircle,
-  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { Event } from '@/types';
@@ -13,10 +13,7 @@ import {
   TrendingUp,
   Users,
   Clock,
-  Filter,
-  X,
-  LayoutGrid,
-  List
+  X
 } from 'lucide-react';
 import { SortOption } from '@/hooks/useEventFilters';
 

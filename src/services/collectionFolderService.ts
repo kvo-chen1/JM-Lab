@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { CollectionType } from './collectionService';
 import {
   CollectionFolder,
-  CollectionFolderItem,
   FolderVisibility,
   CreateFolderData,
   UpdateFolderData,

@@ -357,7 +357,7 @@ class SharedService {
     const userAgent = navigator.userAgent
     let name = 'Unknown'
     let version = 'Unknown'
-    let platform = navigator.platform
+    const platform = navigator.platform
     
     // 检测浏览器名称和版本
     if (/chrome|chromium|crios/i.test(userAgent)) {

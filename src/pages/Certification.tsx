@@ -5,10 +5,8 @@ import { AuthContext } from '@/contexts/authContext';
 import certificationService from '@/services/certificationService';
 import {
   CertificationLevel,
-  CertificationType,
   CertificationInfo,
   CERTIFICATION_LEVELS,
-  CERTIFICATION_TYPE_NAMES,
 } from '@/types/certification';
 import CertificationApplicationForm from '@/components/certification/CertificationApplicationForm';
 import CertificationStatusCard from '@/components/certification/CertificationStatusCard';

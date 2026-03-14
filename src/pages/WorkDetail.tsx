@@ -15,11 +15,14 @@ import type { UserProfile } from '@/lib/supabase';
 import { supabase } from '@/lib/supabase';
 import styles from './WorkDetail.module.scss';
 import WorkShareModal from '@/components/share/WorkShareModal';
-import { Users, MessageCircle, Link2, X, AtSign } from 'lucide-react';
+import { Users, MessageCircle, Link2, X, AtSign, ShoppingBag, FileText } from 'lucide-react';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { trackWorkView } from '@/utils/browseHistory';
 import { MentionPicker } from '@/components/comment/MentionPicker';
 import { incrementWorkViewCount } from '@/services/analyticsService';
+import { WorkProductLinks } from '@/components/WorkProductLinks';
+import ProductMockupPreview from '@/components/ProductMockupPreview';
+import { exportToWord } from '@/services/wordExportService';
 
 // 缓存用户名到用户ID的映射（与 MentionText 组件共享逻辑）
 const userIdCache: Map<string, string | null> = new Map();
@@ -1120,6 +1123,30 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
                   ))}
                 </div>
               )}
+
+              {/* 关联产品链接 */}
+              <div className="mt-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <ShoppingBag className="w-5 h-5 text-gray-500" />
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">相关产品</h3>
+                </div>
+                <WorkProductLinks 
+                  workId={id || ''}
+                  isDark={isDark}
+                />
+              </div>
+
+              {/* 制作周边 */}
+              {post.image && (
+                <div className="mt-6">
+                  <ProductMockupPreview 
+                    imageUrl={post.image}
+                    onCustomize={(productType) => {
+                      toast.success(`正在跳转到${productType === 'tshirt' ? 'T恤' : productType === 'mug' ? '马克杯' : '帆布袋'}定制页面...`);
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* 评论区 */}
@@ -1558,6 +1585,38 @@ const WorkDetail: React.FC<WorkDetailProps> = ({ currentUser: propUser }) => {
                     <div className="flex-1 text-left">
                       <p className="font-medium text-gray-900 dark:text-white">复制链接</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">复制链接分享给其他人</p>
+                    </div>
+                    <i className="fas fa-chevron-right text-gray-400"></i>
+                  </button>
+
+                  {/* 导出Word */}
+                  <button
+                    onClick={async () => {
+                      if (post) {
+                        try {
+                          const htmlContent = `
+                            <h1>${post.title}</h1>
+                            <p>${post.description || '暂无描述'}</p>
+                            <p>作者: ${typeof post.author === 'object' ? post.author?.username : post.author}</p>
+                            <p>发布时间: ${new Date(post.createdAt).toLocaleDateString('zh-CN')}</p>
+                          `;
+                          await exportToWord(htmlContent, `作品-${post.title}`);
+                          toast.success('Word文档已导出');
+                        } catch (error) {
+                          toast.error('导出失败，请重试');
+                        }
+                      }
+                    }}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${
+                      isDark ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-gray-900 dark:text-white">导出Word</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">将作品信息导出为Word文档</p>
                     </div>
                     <i className="fas fa-chevron-right text-gray-400"></i>
                   </button>

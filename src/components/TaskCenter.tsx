@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import taskService, { Task, TaskProgress } from '@/services/taskService';
+import taskService, { Task } from '@/services/taskService';
 import pointsService from '@/services/pointsService';
 import { CheckCircle, Clock, Trophy, Gift, Target, Calendar, Star } from 'lucide-react';
 

@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   FolderOpen,
   Image,
   MoreVertical,
-  Move,
-  Trash2,
   Eye,
   Calendar,
   CheckSquare,

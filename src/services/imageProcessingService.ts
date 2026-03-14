@@ -1,5 +1,4 @@
 import { llmService } from './llmService';
-import { toast } from 'sonner';
 
 export interface ImageProcessingParams {
   imageUrl: string;

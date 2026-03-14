@@ -1,30 +1,26 @@
-import { useState, useEffect, useMemo, useContext, useCallback } from 'react';
+import { useState, useEffect, useMemo, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend, LineChart, Line, AreaChart, Area
+  CartesianGrid, Tooltip, Legend
 } from 'recharts';
 import { TianjinImage } from '@/components/TianjinStyleComponents';
 import ipService, { 
   IPAsset, 
   IPStage as ServiceIPStage, 
   CommercialOpportunity,
-  CopyrightAsset,
   IPActivity,
   IPStats,
   SampleIPAsset
 } from '@/services/ipService';
 import { AuthContext } from '@/contexts/authContext';
 import {
-  Route, Gem, Handshake, Shield, BarChart3, Plus, Search,
-  Filter, ChevronDown, MoreHorizontal, ArrowRight, Sparkles,
-  TrendingUp, Clock, CheckCircle2, Circle, AlertCircle,
-  Lightbulb, Target, Zap, Award, FileText, Share2, Download,
-  Archive, ExternalLink, Bell, Calendar, RefreshCw, Loader2,
-  X, ChevronLeft, Edit3, Trash2, Eye, Building2, Award as AwardIcon
+  Route, Gem, Handshake, Shield, BarChart3, Plus, Search, ChevronDown, Sparkles,
+  TrendingUp, Clock, CheckCircle2, Circle,
+  Lightbulb, Target, Zap, Award, FileText, Share2, Loader2, Building2, Award as AwardIcon
 } from 'lucide-react';
 import { BrandLicenseBrowser } from './ip-incubation/BrandLicenseBrowser';
 import { MyLicenses } from './ip-incubation/MyLicenses';

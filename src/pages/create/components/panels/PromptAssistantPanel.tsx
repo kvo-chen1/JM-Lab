@@ -4,7 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useCreateStore } from '../../hooks/useCreateStore';
 import { llmService } from '@/services/llmService';
 import { toast } from 'sonner';
-import { Sparkles, Wand2, History, Trash2, Check, X, Lightbulb, AlertCircle, Send, Wand, Edit3, Eye, ArrowRight } from 'lucide-react';
+import { Sparkles, Wand2, History, Trash2, Check, X, Lightbulb, AlertCircle, Wand, Edit3, ArrowRight } from 'lucide-react';
 
 // 提示词模板
 const PROMPT_TEMPLATES = [

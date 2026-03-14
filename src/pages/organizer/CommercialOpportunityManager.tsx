@@ -11,9 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   Plus,
   Search,
-  Filter,
   Edit3,
-  Trash2,
   Eye,
   Pause,
   Play,
@@ -22,35 +20,14 @@ import {
   Users,
   FileText,
   DollarSign,
-  TrendingUp,
-  Calendar,
-  ChevronRight,
-  BarChart3,
   Clock,
-  AlertCircle,
-  MoreHorizontal,
-  ChevronDown,
-  ArrowLeft,
   Briefcase,
-  Target,
-  Award,
-  Sparkles,
-  Zap,
-  ArrowUpRight,
-  Activity,
-  Layers,
-  Hash,
   MessageSquare,
-  Heart,
   User,
-  Tag,
-  FilterX,
-  RefreshCw,
   X,
-  Handshake,
   Inbox,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import ipService, { CommercialOpportunity, CommercialPartnership } from '@/services/ipService';
 
 // ============================================================================

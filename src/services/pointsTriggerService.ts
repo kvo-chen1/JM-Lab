@@ -4,7 +4,7 @@
 
 import { supabase } from '@/lib/supabase';
 import eventBus from '@/lib/eventBus';
-import pointsRulesService, { PointsRuleType, PointsRule } from './pointsRulesService';
+import pointsRulesService, { PointsRuleType } from './pointsRulesService';
 import pointsService from './pointsService';
 
 export interface PointsTriggerResult {

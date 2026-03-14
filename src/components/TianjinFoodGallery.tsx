@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Star, MapPin, Clock, Flame } from 'lucide-react';
+import { X, Star, Clock, Flame } from 'lucide-react';
 
 interface FoodItem {
   id: number;

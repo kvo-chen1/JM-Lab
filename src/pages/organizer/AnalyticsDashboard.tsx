@@ -13,7 +13,6 @@ import organizerAnalyticsService, {
   Activity,
   EventSummary,
 } from '@/services/organizerAnalyticsService';
-import { eventParticipationService } from '@/services/eventParticipationService';
 import { StatCard } from './components/StatCard';
 import { TrendChart } from './components/TrendChart';
 import { DistributionChart } from './components/DistributionChart';
@@ -24,13 +23,11 @@ import {
   Upload,
   Eye,
   Heart,
-  MessageCircle,
   Star,
   CheckCircle,
   Clock,
   RefreshCw,
   Download,
-  Filter,
   ChevronDown,
   BarChart3,
   PieChart,

@@ -4,7 +4,6 @@ import { useTheme } from '@/hooks/useTheme';
 import type { OutlineValidationResult } from './types';
 import {
   CheckCircle,
-  AlertCircle,
   AlertTriangle,
   XCircle,
   Shield,

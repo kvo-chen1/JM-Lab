@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, PRESET_STYLES } from '../hooks/useAgentStore';
-import { Shuffle, ChevronRight, Sparkles } from 'lucide-react';
+import { Shuffle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { llmService } from '@/services/llmService';
 

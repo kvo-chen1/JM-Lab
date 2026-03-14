@@ -4,7 +4,6 @@
  */
 
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { apiClient } from '@/lib/apiClient';
 import eventBus from '@/lib/eventBus';
 
 // ==================== 类型定义 ====================
@@ -997,7 +996,7 @@ class MembershipService {
 
       // 计算过期时间
       const now = new Date();
-      let expiresAt = new Date();
+      const expiresAt = new Date();
       switch (order.period) {
         case 'monthly':
           expiresAt.setMonth(expiresAt.getMonth() + 1);

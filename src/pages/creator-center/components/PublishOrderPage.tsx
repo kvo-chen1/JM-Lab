@@ -9,8 +9,6 @@ import {
   Briefcase,
   DollarSign,
   Calendar,
-  MapPin,
-  Users,
   Target,
   FileText,
   Upload,

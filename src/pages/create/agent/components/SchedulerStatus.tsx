@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { agentScheduler } from '../services/agentScheduler';
 import { networkMonitor } from '../services/networkMonitor';
-import { Wifi, WifiOff, Activity, Clock, Layers, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Wifi, WifiOff, Activity, Clock, Layers, ChevronDown } from 'lucide-react';
 
 export default function SchedulerStatus() {
   const { isDark } = useTheme();

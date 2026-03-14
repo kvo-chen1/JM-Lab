@@ -627,6 +627,12 @@ const AIAssistantMobile = createLazyComponent(() => import(/* webpackChunkName: 
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'ai-assistant-mobile'
 });
+
+// AI助手桌面端页面 - 懒加载
+const AIAssistant = createLazyComponent(() => import(/* webpackChunkName: "pages-ai" */ "@/pages/AIAssistant"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'ai-assistant'
+});
 const AnalyticsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/Analytics"), {
   priority: ROUTE_PRIORITIES.LOW,
   name: 'analytics'
@@ -736,6 +742,10 @@ import FavoritesPage from "@/pages/marketplace/Favorites";
 const OrdersPage = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/Orders"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'marketplace-orders'
+});
+const OrderDetailPage = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/OrderDetail"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'marketplace-order-detail'
 });
 
 // ============================================
@@ -1164,7 +1174,7 @@ export default function App() {
           <Route path="/ai-writer" element={<LazyComponent><DesignPlatformGuard><AIWriterV2 /></DesignPlatformGuard></LazyComponent>} />
           
           {/* 津小脉AI助手移动端页面 */}
-          <Route path="/ai-assistant" element={<LazyComponent><PrivateRoute><AIAssistantMobile /></PrivateRoute></LazyComponent>} />
+          <Route path="/ai-assistant" element={<LazyComponent><PrivateRoute>{isMobile ? <AIAssistantMobile /> : <AIAssistant />}</PrivateRoute></LazyComponent>} />
           
           {/* 动态内容展示页面 */}
           <Route path="/feed" element={<PrivateRoute><Feed /></PrivateRoute>} />
@@ -1299,6 +1309,7 @@ export default function App() {
           <Route path="/marketplace/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
           <Route path="/marketplace/order/confirm" element={<LazyComponent><PrivateRoute><OrderConfirm /></PrivateRoute></LazyComponent>} />
           <Route path="/marketplace/order/pay/:orderId" element={<LazyComponent><PrivateRoute><OrderPayPage /></PrivateRoute></LazyComponent>} />
+          <Route path="/marketplace/order/:orderId" element={<LazyComponent><PrivateRoute><OrderDetailPage /></PrivateRoute></LazyComponent>} />
           <Route path="/marketplace/licensed-products" element={<LazyComponent><LicensedProducts /></LazyComponent>} />
           <Route path="/marketplace/search" element={<LazyComponent><SearchResultsPage /></LazyComponent>} />
           <Route path="/marketplace/orders" element={<LazyComponent><PrivateRoute><OrdersPage /></PrivateRoute></LazyComponent>} />

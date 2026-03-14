@@ -11,7 +11,7 @@ import { getSemanticIntentAnalyzer } from './semanticIntentAnalyzer';
 import { getEntityExtractor, EntityType } from './entityExtractor';
 
 // 上下文理解增强
-import { getDialogStateTracker, DialogState } from './dialogStateTracker';
+import { getDialogStateTracker } from './dialogStateTracker';
 import { getSmartContextCompressor } from './smartContextCompressor';
 import { getCoreferenceResolver } from './coreferenceResolver';
 

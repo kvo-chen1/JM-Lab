@@ -6,9 +6,7 @@
 
 import { AgentMessage } from '../types/agent';
 import {
-  SmartContextCompressor,
-  getSmartContextCompressor,
-  CompressionResult
+  getSmartContextCompressor
 } from './smartContextCompressor';
 
 // 上下文配置

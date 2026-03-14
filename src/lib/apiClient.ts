@@ -1,6 +1,4 @@
 // 导入错误服务
-import errorService from '../services/errorService';
-import { securityService } from '../services/securityService';
 import { recordNetworkRequest } from '../utils/performanceMonitor';
 import eventBus from './eventBus'; // 导入事件总线
 
@@ -661,7 +659,7 @@ export async function apiRequest<TResp, TBody = unknown>(
         
         // 处理错误响应
         let errorMessage: string
-        let errorData: any = data
+        const errorData: any = data
         
         // 统一错误信息格式
         if (typeof data === 'object' && data !== null) {

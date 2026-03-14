@@ -3,7 +3,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import uploadService, { UserUpload } from '@/services/uploadService';
-import { uploadImage } from '@/services/imageService';
 import { AuthContext } from '@/contexts/authContext';
 import { useCreateStore } from '../../hooks/useCreateStore';
 

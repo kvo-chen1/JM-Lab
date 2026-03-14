@@ -343,22 +343,34 @@ function generateVerificationEmailTemplate(code) {
 </html>`;
 }
 
-// 生成 JWT Token
-// 生成安全的随机Token
+// 生成标准的JWT Token（与Supabase兼容）
 function generateToken(user) {
-  const timestamp = Date.now();
-  const randomPart = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  const userPart = Buffer.from(JSON.stringify({
-    id: user.id,
-    userId: user.id,
-    sub: user.id,
-    email: user.email,
-    username: user.username,
-    iat: Math.floor(timestamp / 1000),
-    exp: Math.floor(timestamp / 1000) + (7 * 24 * 60 * 60)
+  const timestamp = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({
+    alg: 'HS256',
+    typ: 'JWT'
   })).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-  return `jm_${timestamp}_${randomPart}_${userPart}`;
+  const payload = Buffer.from(JSON.stringify({
+    aud: 'authenticated',
+    exp: timestamp + (7 * 24 * 60 * 60),
+    iat: timestamp,
+    sub: user.id,
+    email: user.email,
+    user_metadata: {
+      username: user.username,
+      avatar_url: user.avatar_url
+    },
+    role: 'authenticated'
+  })).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+  // 使用简单的签名（实际生产环境应该使用HMAC-SHA256）
+  const secret = process.env.SUPABASE_JWT_SECRET || process.env.JWT_SECRET || 'default-secret';
+  const signature = Buffer.from(
+    require('crypto').createHmac('sha256', secret).update(`${header}.${payload}`).digest()
+  ).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+  return `${header}.${payload}.${signature}`;
 }
 
 // Vercel API Handler

@@ -21,8 +21,9 @@ interface Post {
   views: number;
   likes_count: number;
   comments_count: number;
-  created_at: string; // Supabase returns string
+  created_at: string | number; // Supabase returns string, but may be number in some cases
   updated_at: string;
+  images?: string[]; // 可选的图片数组
   user?: {
     username: string;
     avatar_url: string;
@@ -37,7 +38,7 @@ interface User {
   posts_count?: number;
   likes_count?: number;  // 数据库字段名
   views?: number;        // 数据库字段名
-  created_at: string;
+  created_at: string | number;
   updated_at: string;
 }
 
@@ -67,22 +68,14 @@ const Leaderboard: React.FC = () => {
   const [stats, setStats] = useState<{ users_count: number; posts_count: number; total_points: number } | null>(null);
   const navigate = useNavigate();
 
-  // 动态颜色类
-  const activeBtnClass = theme === 'pink' 
-    ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-900/40'
-    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/40';
+  // 动态颜色类 - 使用 isDark 替代不存在的 'pink' 主题
+  const activeBtnClass = 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/40';
   
-  const primaryBtnClass = theme === 'pink'
-    ? 'bg-pink-600 hover:bg-pink-700'
-    : 'bg-blue-600 hover:bg-blue-700';
+  const primaryBtnClass = 'bg-blue-600 hover:bg-blue-700';
     
-  const textHoverClass = theme === 'pink'
-    ? 'group-hover:text-pink-600 dark:group-hover:text-pink-400'
-    : 'group-hover:text-blue-600 dark:group-hover:text-blue-400';
+  const textHoverClass = 'group-hover:text-blue-600 dark:group-hover:text-blue-400';
 
-  const gradientText = theme === 'pink'
-    ? 'from-pink-600 to-purple-600'
-    : 'from-blue-600 to-cyan-600';
+  const gradientText = 'from-blue-600 to-cyan-600';
 
   useEffect(() => {
     // 测试 Supabase 连接
@@ -555,7 +548,7 @@ const Leaderboard: React.FC = () => {
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">数据加载失败</h3>
               <p className="text-gray-500 dark:text-gray-400 mb-6">{error}</p>
               <button
-                onClick={fetchLeaderboard}
+                onClick={() => fetchLeaderboard()}
                 className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-6 py-2.5 rounded-xl font-medium hover:opacity-90 transition-opacity"
               >
                 重试加载
@@ -723,7 +716,7 @@ const Leaderboard: React.FC = () => {
                                 {post.category_id === 1 ? '插画' : '设计'}
                               </span>
                               <span>•</span>
-                              <span>{new Date(post.created_at * 1000).toLocaleDateString()}</span>
+                              <span>{new Date(typeof post.created_at === 'number' ? post.created_at * 1000 : post.created_at).toLocaleDateString()}</span>
                             </div>
                           </div>
                           <div className="flex-shrink-0 -mt-2 -mr-2 scale-90">
@@ -740,12 +733,12 @@ const Leaderboard: React.FC = () => {
                                 className="w-full h-full object-cover"
                                 muted
                                 loop
-                                autoPlay
+                                autoPlay={true}
                                 playsInline
                                 preload="metadata"
                               />
                             ) : (
-                              <LazyImage src={post.thumbnail || post.images[0]} alt={post.title} className="w-full h-full object-cover" />
+                              <LazyImage src={post.thumbnail || (post.images && post.images[0])} alt={post.title} className="w-full h-full object-cover" />
                             )}
                             {post.type === 'video' && (
                               <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
@@ -803,7 +796,7 @@ const Leaderboard: React.FC = () => {
                         onClick={() => handleUserClick(user)}
                       >
                         {/* 装饰背景 */}
-                        <div className={`h-24 w-full absolute top-0 left-0 z-0 ${theme === 'pink' ? 'bg-gradient-to-br from-pink-50 via-purple-50 to-white dark:from-pink-900/20 dark:via-purple-900/20 dark:to-gray-800' : 'bg-gradient-to-br from-blue-50 via-cyan-50 to-white dark:from-blue-900/20 dark:via-cyan-900/20 dark:to-gray-800'}`}></div>
+                        <div className={`h-24 w-full absolute top-0 left-0 z-0 bg-gradient-to-br from-blue-50 via-cyan-50 to-white dark:from-blue-900/20 dark:via-cyan-900/20 dark:to-gray-800`}></div>
                         
                         <div className="p-6 relative z-10 flex flex-col items-center flex-1">
                           <div className="absolute top-3 left-3">
@@ -831,7 +824,7 @@ const Leaderboard: React.FC = () => {
                           
                           <p className="text-xs text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-1 bg-gray-100 dark:bg-gray-700/50 px-2 py-1 rounded-full">
                             <i className="fas fa-calendar-alt text-xs opacity-70"></i>
-                            加入于 {new Date(user.created_at * 1000).toLocaleDateString()}
+                            加入于 {new Date(typeof user.created_at === 'number' ? user.created_at * 1000 : user.created_at).toLocaleDateString()}
                           </p>
                           
                           <div className="grid grid-cols-2 gap-3 w-full mt-auto">

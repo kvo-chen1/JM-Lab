@@ -690,21 +690,39 @@ class MerchantService {
     }
 
     // 先获取商家的 user_id，因为订单表中的 seller_id 存储的是 user_id 而不是 merchant.id
+    console.log('[MerchantService] 查询商家 user_id，merchantId:', merchantId);
     const { data: merchantData, error: merchantError } = await supabase
       .from('merchants')
-      .select('user_id')
+      .select('*')
       .eq('id', merchantId)
       .single();
+
+    console.log('[MerchantService] 商家数据查询结果:', { merchantData, merchantError });
 
     if (merchantError) {
       console.error('[MerchantService] 获取商家 user_id 失败:', merchantError);
       throw merchantError;
     }
 
-    const userId = merchantData?.user_id;
+    // 尝试不同的字段名
+    const userId = merchantData?.user_id || merchantData?.userId || (merchantData as any)?.user_id;
+    console.log('[MerchantService] 提取的 user_id:', userId, '原始数据:', merchantData);
+
     if (!userId) {
       console.error('[MerchantService] 商家没有关联的 user_id');
       return [];
+    }
+
+    return this.getOrdersByUserId(userId, params);
+  }
+
+  async getOrdersByUserId(userId: string, params?: { status?: string; startDate?: string; endDate?: string }): Promise<Order[]> {
+    if (this.isMockMode) {
+      let orders = [...mockOrders];
+      if (params?.status) {
+        orders = orders.filter(o => o.status === params.status);
+      }
+      return orders;
     }
 
     console.log('[MerchantService] 使用 user_id 查询订单:', userId);

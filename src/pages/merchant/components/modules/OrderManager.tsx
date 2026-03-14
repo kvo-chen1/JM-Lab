@@ -30,8 +30,10 @@ const OrderManager: React.FC = () => {
         console.log('[OrderManager] 当前商户:', merchant);
         if (merchant) {
           setMerchantId(merchant.id);
-          console.log('[OrderManager] 商户ID:', merchant.id);
-          const merchantOrders = await merchantService.getOrders(merchant.id);
+          console.log('[OrderManager] 商户ID:', merchant.id, 'user_id:', (merchant as any).user_id);
+          // 使用 user_id 查询订单，因为订单表的 seller_id 存储的是 user_id
+          const userId = (merchant as any).user_id || merchant.id;
+          const merchantOrders = await merchantService.getOrdersByUserId(userId);
           console.log('[OrderManager] 获取到的订单:', merchantOrders);
           setOrders(merchantOrders);
         }

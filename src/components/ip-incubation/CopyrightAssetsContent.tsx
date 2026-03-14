@@ -600,7 +600,7 @@ export function CopyrightAssetsContent({ ipAssets = [] }: CopyrightAssetsContent
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className={theme.textMuted}>价格</span>
-                      <span className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{product.price.toFixed(2)}</span>
+                      <span className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>¥{Number(product.price || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className={theme.textMuted}>库存</span>
@@ -618,7 +618,7 @@ export function CopyrightAssetsContent({ ipAssets = [] }: CopyrightAssetsContent
                 {/* 操作按钮 */}
                 <div className="flex gap-2">
                   <button
-                    onClick={() => window.open(`/marketplace/products/${product.id}`, '_blank')}
+                    onClick={() => window.open(`/marketplace/product/${product.id}`, '_blank')}
                     className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all ${theme.bgTertiary} ${theme.textSecondary} ${isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-200'}`}
                   >
                     <Eye className="w-4 h-4" />

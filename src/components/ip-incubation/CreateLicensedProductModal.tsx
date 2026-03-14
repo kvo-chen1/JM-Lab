@@ -135,7 +135,7 @@ export function CreateLicensedProductModal({
   // 查看产品详情
   const handleViewProduct = () => {
     if (createdProduct?.id) {
-      window.open(`/marketplace/products/${createdProduct.id}`, '_blank');
+      window.open(`/marketplace/product/${createdProduct.id}`, '_blank');
     }
     handleClose();
   };

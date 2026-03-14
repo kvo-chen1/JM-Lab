@@ -55,7 +55,7 @@ export default function InputHub() {
               variant="audio"
               title="上传语音"
               description="支持拖拽与点击选择，自动转文字"
-              onFile={async (file) => { setLoadingVoice(true); const t = await voiceService.transcribeAudio(file); setText(t); setLoadingVoice(false) }}
+              onFile={async (file) => { setLoadingVoice(true); const audioFile = Array.isArray(file) ? file[0] : file; const t = await voiceService.transcribeAudio(audioFile); setText(t); setLoadingVoice(false) }}
               className="mb-3"
             />
             <UploadBox
@@ -64,7 +64,7 @@ export default function InputHub() {
               title="上传图片"
               description="支持拖拽与点击选择，自动显示预览"
               previewUrl={image || undefined}
-              onFile={(file) => { const url = URL.createObjectURL(file); setImage(url) }}
+              onFile={(file) => { const imageFile = Array.isArray(file) ? file[0] : file; const url = URL.createObjectURL(imageFile); setImage(url) }}
             />
             {loadingVoice && <div className="text-sm mt-2">语音转文字中...</div>}
           </div>

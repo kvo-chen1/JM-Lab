@@ -1,6 +1,5 @@
 export { default as EnhancedButton } from './EnhancedButton';
-export { default as Toast } from './Toast';
-export type { ToastProviderProps, ToastContextType, Toast } from './Toast';
+export { default as ToastComponent } from './Toast';
 export { ToastProvider, useToast } from './Toast';
 export { default as EmptyState } from './EmptyState';
 export { default as ErrorState } from './ErrorState';

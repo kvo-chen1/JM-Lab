@@ -689,11 +689,31 @@ class MerchantService {
       return orders;
     }
 
-    // 订单表中使用的是 seller_id
+    // 先获取商家的 user_id，因为订单表中的 seller_id 存储的是 user_id 而不是 merchant.id
+    const { data: merchantData, error: merchantError } = await supabase
+      .from('merchants')
+      .select('user_id')
+      .eq('id', merchantId)
+      .single();
+
+    if (merchantError) {
+      console.error('[MerchantService] 获取商家 user_id 失败:', merchantError);
+      throw merchantError;
+    }
+
+    const userId = merchantData?.user_id;
+    if (!userId) {
+      console.error('[MerchantService] 商家没有关联的 user_id');
+      return [];
+    }
+
+    console.log('[MerchantService] 使用 user_id 查询订单:', userId);
+
+    // 订单表中使用的是 seller_id（即 user_id）
     let query = supabase
       .from('orders')
       .select('*')
-      .eq('seller_id', merchantId);
+      .eq('seller_id', userId);
 
     if (params?.status) query = query.eq('status', params.status);
     if (params?.startDate) query = query.gte('created_at', params.startDate);

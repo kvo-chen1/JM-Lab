@@ -62,9 +62,9 @@ export default function AlertRulesModal({ isOpen, onClose, isDark }: AlertRulesM
     description: '',
     metric_type: 'users' as MetricType,
     threshold: 0,
-    operator: 'gt' as const,
+    operator: 'gt' as 'gt' | 'lt' | 'eq' | 'gte' | 'lte',
     time_window: 60,
-    severity: 'warning' as const,
+    severity: 'warning' as 'info' | 'warning' | 'error' | 'critical',
     enabled: true,
     notify_channels: ['dashboard'] as string[],
   });
@@ -137,13 +137,13 @@ export default function AlertRulesModal({ isOpen, onClose, isDark }: AlertRulesM
     setFormData({
       name: '',
       description: '',
-      metric_type: 'users',
+      metric_type: 'users' as MetricType,
       threshold: 0,
-      operator: 'gt',
+      operator: 'gt' as 'gt' | 'lt' | 'eq' | 'gte' | 'lte',
       time_window: 60,
-      severity: 'warning',
+      severity: 'warning' as 'info' | 'warning' | 'error' | 'critical',
       enabled: true,
-      notify_channels: ['dashboard'],
+      notify_channels: ['dashboard'] as string[],
     });
   };
 

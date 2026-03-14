@@ -236,7 +236,8 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
               </TianjinButton>
             )}
 
-            {participation.participationStatus === 'submitted' && (
+            {/* 注意：'submitted' 不是有效的 ParticipationStatus，使用 'reviewing' 替代 */}
+            {participation.participationStatus === 'reviewing' && participation.submittedWorkId && (
               <div className={`p-4 rounded-lg text-center ${isEventEnded ? (isDark ? 'bg-gray-900/20' : 'bg-gray-50') : (isDark ? 'bg-purple-900/20' : 'bg-purple-50')}`}>
                 <i className={`fas fa-check-circle ${isEventEnded ? 'text-gray-500' : 'text-purple-500'} text-2xl mb-2`}></i>
                 <p className={`text-sm font-medium ${isEventEnded ? (isDark ? 'text-gray-400' : 'text-gray-600') : 'text-purple-700 dark:text-purple-400'}`}>

@@ -367,7 +367,7 @@ const OrderDetailPage: React.FC = () => {
                   )}
                   <div className="flex items-center justify-between mt-3">
                     <span className="text-[#C02C38] font-bold">
-                      ¥{item.price?.toFixed(2)}
+                      ¥{Number(item.price || 0).toFixed(2)}
                     </span>
                     <span className="text-gray-500">x{item.quantity}</span>
                   </div>

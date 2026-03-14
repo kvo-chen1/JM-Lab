@@ -20,6 +20,7 @@ interface AdminSidebarProps {
   user?: {
     username?: string;
     avatar?: string;
+    avatar_url?: string;
   } | null;
   onLogout?: () => void;
   notifications?: NavNotificationsMap;

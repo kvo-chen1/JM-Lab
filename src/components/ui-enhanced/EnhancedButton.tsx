@@ -88,7 +88,7 @@ export const EnhancedButton = ({
       {/* 内容 */}
       <span className={isLoading ? 'opacity-0' : 'flex items-center gap-2'}>
         {leftIcon && <span className="shrink-0">{leftIcon}</span>}
-        {children}
+        <>{children}</>
         {rightIcon && <span className="shrink-0">{rightIcon}</span>}
       </span>
     </motion.button>

@@ -126,7 +126,22 @@ const OrdersPage: React.FC = () => {
   useEffect(() => {
     if (location.state?.refresh) {
       console.log('[Orders] 检测到刷新标记，重新获取订单数据');
-      fetchOrders();
+      // 支付成功后，进行多次轮询确保获取到最新状态
+      let pollCount = 0;
+      const maxPolls = 5;
+      const pollInterval = 800; // 800ms 间隔
+
+      const pollOrders = () => {
+        fetchOrders();
+        pollCount++;
+        if (pollCount < maxPolls) {
+          setTimeout(pollOrders, pollInterval);
+        }
+      };
+
+      // 立即执行第一次刷新
+      pollOrders();
+
       // 清除 state 避免重复刷新
       navigate(location.pathname, { replace: true, state: {} });
     }
@@ -210,10 +225,21 @@ const OrdersPage: React.FC = () => {
       toast.error('支付失败：' + error);
     } else {
       toast.success('支付成功！');
-      // 延迟刷新订单列表，确保数据库已更新
-      setTimeout(() => {
+      // 支付成功后，进行多次轮询确保获取到最新状态
+      let pollCount = 0;
+      const maxPolls = 5;
+      const pollInterval = 800; // 800ms 间隔
+
+      const pollOrders = () => {
         fetchOrders();
-      }, 500);
+        pollCount++;
+        if (pollCount < maxPolls) {
+          setTimeout(pollOrders, pollInterval);
+        }
+      };
+
+      // 立即执行第一次刷新
+      pollOrders();
     }
   }, [fetchOrders]);
 

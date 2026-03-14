@@ -306,7 +306,7 @@ const LicensedProductsPage: React.FC = () => {
                       {/* 价格和销量 */}
                       <div className="flex items-center justify-between">
                         <span className="text-lg font-bold text-emerald-400">
-                          ¥{product.price.toFixed(2)}
+                          ¥{Number(product.price || 0).toFixed(2)}
                         </span>
                         <span className={`text-xs ${DARK_THEME.textMuted}`}>
                           已售 {product.salesCount}
@@ -353,7 +353,7 @@ const LicensedProductsPage: React.FC = () => {
                           </p>
                         </div>
                         <span className="text-xl font-bold text-emerald-400">
-                          ¥{product.price.toFixed(2)}
+                          ¥{Number(product.price || 0).toFixed(2)}
                         </span>
                       </div>
 

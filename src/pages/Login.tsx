@@ -45,8 +45,8 @@ export default function Login() {
         const data = await response.json();
         if (data.success) {
           // 更新配置状态集合
-          const configured = new Set(
-            data.providers.filter((p: any) => p.configured).map((p: any) => p.name)
+          const configured = new Set<string>(
+            data.providers.filter((p: any) => p.configured).map((p: any) => p.name as string)
           );
           setConfiguredProviders(configured);
         }

@@ -4,6 +4,9 @@
 // 跳过SSL证书验证（用于Supabase连接）
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
+// 导入 crypto 模块（ES Module 方式）
+import crypto from 'crypto';
+
 // 数据库连接池（延迟初始化）
 let pool = null;
 let dbAvailable = false;
@@ -372,7 +375,7 @@ function generateToken(user) {
   // 使用简单的签名（实际生产环境应该使用HMAC-SHA256）
   const secret = process.env.SUPABASE_JWT_SECRET || process.env.JWT_SECRET || 'default-secret';
   const signature = Buffer.from(
-    require('crypto').createHmac('sha256', secret).update(`${header}.${payload}`).digest()
+    crypto.createHmac('sha256', secret).update(`${header}.${payload}`).digest()
   ).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
   return `${header}.${payload}.${signature}`;

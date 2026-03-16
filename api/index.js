@@ -4,9 +4,6 @@
 // 跳过SSL证书验证（用于Supabase连接）
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-// 内存中存储验证码（作为数据库的备选）
-const verificationCodes = new Map();
-
 // 数据库连接池（延迟初始化）
 let pool = null;
 let dbAvailable = false;
@@ -224,15 +221,14 @@ async function saveUser(user) {
   }
 }
 
-// 保存验证码（优先数据库，失败则使用内存）
+// 保存验证码（强制使用数据库，Vercel Serverless环境不支持内存存储）
 async function saveVerificationCode(email, code, expiresAt) {
-  verificationCodes.set(email, { code, expiresAt, attempts: 0 });
-  console.log('[Memory] Code saved for', email);
+  const pool = await getDbPool();
+  if (!pool) {
+    throw new Error('Database not configured. Please set DATABASE_URL environment variable.');
+  }
 
   try {
-    const pool = await getDbPool();
-    if (!pool) return;
-
     await ensureVerificationTable();
     await queryWithRetry('DELETE FROM verification_codes WHERE email = $1', [email]);
     await queryWithRetry(
@@ -242,50 +238,54 @@ async function saveVerificationCode(email, code, expiresAt) {
     console.log('[DB] Code saved for', email);
   } catch (error) {
     console.error('[DB] Save code error:', error.message);
+    throw error;
   }
 }
 
-// 获取验证码
+// 获取验证码（强制使用数据库）
 async function getVerificationCode(email) {
-  const memoryData = verificationCodes.get(email);
-  if (memoryData) {
-    return { code: memoryData.code, expires_at: new Date(memoryData.expiresAt), attempts: memoryData.attempts };
+  const pool = await getDbPool();
+  if (!pool) {
+    throw new Error('Database not configured. Please set DATABASE_URL environment variable.');
   }
 
   try {
-    const pool = await getDbPool();
-    if (!pool) return null;
-
     await ensureVerificationTable();
     const result = await queryWithRetry('SELECT * FROM verification_codes WHERE email = $1', [email]);
     return result.rows[0] || null;
   } catch (error) {
     console.error('[DB] Get code error:', error.message);
-    return null;
+    throw error;
   }
 }
 
-// 更新尝试次数
+// 更新尝试次数（强制使用数据库）
 async function incrementAttempts(email) {
-  const memoryData = verificationCodes.get(email);
-  if (memoryData) memoryData.attempts++;
+  const pool = await getDbPool();
+  if (!pool) {
+    throw new Error('Database not configured. Please set DATABASE_URL environment variable.');
+  }
 
   try {
-    const pool = await getDbPool();
-    if (pool) await queryWithRetry('UPDATE verification_codes SET attempts = attempts + 1 WHERE email = $1', [email]);
+    await queryWithRetry('UPDATE verification_codes SET attempts = attempts + 1 WHERE email = $1', [email]);
   } catch (error) {
     console.error('[DB] Increment attempts error:', error.message);
+    throw error;
   }
 }
 
-// 删除验证码
+// 删除验证码（强制使用数据库）
 async function deleteVerificationCode(email) {
-  verificationCodes.delete(email);
+  const pool = await getDbPool();
+  if (!pool) {
+    throw new Error('Database not configured. Please set DATABASE_URL environment variable.');
+  }
+
   try {
-    const pool = await getDbPool();
-    if (pool) await queryWithRetry('DELETE FROM verification_codes WHERE email = $1', [email]);
+    await queryWithRetry('DELETE FROM verification_codes WHERE email = $1', [email]);
   } catch (error) {
     console.error('[DB] Delete code error:', error.message);
+    throw error;
   }
 }
 

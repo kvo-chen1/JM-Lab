@@ -229,13 +229,14 @@ async function saveVerificationCode(email, code, expiresAt) {
   }
 
   try {
+    console.log('[DB] Saving code for', email, 'expiresAt:', expiresAt, 'date:', new Date(expiresAt));
     await ensureVerificationTable();
     await queryWithRetry('DELETE FROM verification_codes WHERE email = $1', [email]);
-    await queryWithRetry(
-      'INSERT INTO verification_codes (email, code, expires_at, attempts) VALUES ($1, $2, $3, $4)',
+    const result = await queryWithRetry(
+      'INSERT INTO verification_codes (email, code, expires_at, attempts) VALUES ($1, $2, $3, $4) RETURNING *',
       [email, code, new Date(expiresAt), 0]
     );
-    console.log('[DB] Code saved for', email);
+    console.log('[DB] Code saved for', email, 'result:', result.rows[0]);
   } catch (error) {
     console.error('[DB] Save code error:', error.message);
     throw error;
@@ -250,8 +251,10 @@ async function getVerificationCode(email) {
   }
 
   try {
+    console.log('[DB] Getting code for', email);
     await ensureVerificationTable();
     const result = await queryWithRetry('SELECT * FROM verification_codes WHERE email = $1', [email]);
+    console.log('[DB] Got code for', email, 'result:', result.rows[0] || 'not found');
     return result.rows[0] || null;
   } catch (error) {
     console.error('[DB] Get code error:', error.message);
@@ -497,6 +500,11 @@ export default async function handler(req, res) {
       return handleRankings(req, res, path);
     }
 
+    // 排行榜相关API (leaderboard)
+    if (path.startsWith('/leaderboard')) {
+      return handleLeaderboard(req, res, path);
+    }
+
     // 推荐相关API
     if (path.startsWith('/recommendations')) {
       return handleRecommendations(req, res, path);
@@ -604,8 +612,18 @@ async function handleAuthRequest(req, res, path) {
       const { email, code } = body;
       if (!email || !code) return res.status(400).json({ code: 1, message: '邮箱和验证码不能为空' });
 
-      const storedData = await getVerificationCode(email);
-      if (!storedData) return res.status(400).json({ code: 1, message: '验证码已过期' });
+      let storedData;
+      try {
+        storedData = await getVerificationCode(email);
+      } catch (error) {
+        console.error('[Auth] Get verification code error:', error);
+        return res.status(500).json({ code: 1, message: '验证服务错误: ' + error.message });
+      }
+
+      if (!storedData) return res.status(400).json({ code: 1, message: '验证码不存在或已过期' });
+
+      console.log('[Auth] Verifying code for', email, 'stored expires_at:', storedData.expires_at, 'now:', new Date());
+
       if (new Date() > new Date(storedData.expires_at)) {
         await deleteVerificationCode(email);
         return res.status(400).json({ code: 1, message: '验证码已过期' });
@@ -1913,6 +1931,210 @@ async function handleRankings(req, res, path) {
   } catch (error) {
     console.error('[Rankings API] Error:', error);
     return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理 Leaderboard 排行榜请求
+async function handleLeaderboard(req, res, path) {
+  try {
+    const pool = await getDbPool();
+    const url = new URL(req.url, `http://localhost`);
+    const searchParams = url.searchParams;
+
+    // 获取查询参数
+    const type = searchParams.get('type') || 'users';
+    const sortBy = searchParams.get('sortBy') || 'likes_count';
+    const timeRange = searchParams.get('timeRange') || 'week';
+    const limit = parseInt(searchParams.get('limit') || '10');
+
+    console.log('[Leaderboard API] Request:', { type, sortBy, timeRange, limit });
+
+    if (!pool) {
+      console.log('[Leaderboard API] Database not available, returning mock data');
+      return res.status(200).json({
+        code: 0,
+        data: {
+          users: [],
+          posts: [],
+          pointsUsers: []
+        }
+      });
+    }
+
+    // 构建时间范围条件
+    let timeCondition = '';
+    const now = new Date();
+    if (timeRange === 'day') {
+      const today = new Date(now.setHours(0, 0, 0, 0)).toISOString();
+      timeCondition = `AND created_at >= '${today}'`;
+    } else if (timeRange === 'week') {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      timeCondition = `AND created_at >= '${weekAgo}'`;
+    } else if (timeRange === 'month') {
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      timeCondition = `AND created_at >= '${monthAgo}'`;
+    }
+
+    // 处理 /leaderboard/stats 请求
+    if (path === '/leaderboard/stats') {
+      const usersResult = await queryWithRetry('SELECT COUNT(*) as count FROM users');
+      const postsResult = await queryWithRetry('SELECT COUNT(*) as count FROM posts');
+      const pointsResult = await queryWithRetry('SELECT COALESCE(SUM(balance), 0) as total FROM user_points');
+
+      return res.status(200).json({
+        code: 0,
+        data: {
+          users_count: parseInt(usersResult.rows[0]?.count || 0),
+          posts_count: parseInt(postsResult.rows[0]?.count || 0),
+          total_points: parseInt(pointsResult.rows[0]?.total || 0)
+        }
+      });
+    }
+
+    // 处理 /leaderboard/achievements 请求
+    if (path === '/leaderboard/achievements') {
+      const result = await queryWithRetry(`
+        SELECT 
+          u.id,
+          u.username,
+          u.avatar_url,
+          COUNT(ua.achievement_id) as achievement_count
+        FROM users u
+        LEFT JOIN user_achievements ua ON u.id = ua.user_id
+        GROUP BY u.id, u.username, u.avatar_url
+        ORDER BY achievement_count DESC
+        LIMIT $1
+      `, [limit]);
+
+      return res.status(200).json({
+        code: 0,
+        data: result.rows.map(row => ({
+          user_id: row.id,
+          username: row.username,
+          avatar_url: row.avatar_url,
+          achievement_count: parseInt(row.achievement_count)
+        }))
+      });
+    }
+
+    // 处理主 leaderboard 请求
+    if (type === 'posts') {
+      // 获取作品排行榜
+      const result = await queryWithRetry(`
+        SELECT 
+          p.id,
+          p.title,
+          p.content,
+          p.thumbnail,
+          p.user_id,
+          u.username,
+          u.avatar_url,
+          p.views,
+          p.likes_count,
+          p.comments_count,
+          p.created_at
+        FROM posts p
+        LEFT JOIN users u ON p.user_id = u.id::text
+        WHERE p.status = 'published' ${timeCondition}
+        ORDER BY p.${sortBy} DESC NULLS LAST
+        LIMIT $1
+      `, [limit]);
+
+      return res.status(200).json({
+        code: 0,
+        data: {
+          posts: result.rows.map(row => ({
+            id: row.id,
+            title: row.title,
+            content: row.content,
+            thumbnail: row.thumbnail,
+            user_id: row.user_id,
+            username: row.username,
+            avatar_url: row.avatar_url,
+            views: parseInt(row.views || 0),
+            likes_count: parseInt(row.likes_count || 0),
+            comments_count: parseInt(row.comments_count || 0),
+            created_at: row.created_at
+          }))
+        }
+      });
+    } else if (type === 'points') {
+      // 获取积分排行榜
+      const result = await queryWithRetry(`
+        SELECT 
+          up.user_id,
+          u.username,
+          u.avatar_url,
+          up.balance,
+          up.total_earned,
+          RANK() OVER (ORDER BY up.balance DESC) as rank
+        FROM user_points up
+        LEFT JOIN users u ON up.user_id = u.id::text
+        ORDER BY up.balance DESC
+        LIMIT $1
+      `, [limit]);
+
+      return res.status(200).json({
+        code: 0,
+        data: {
+          pointsUsers: result.rows.map(row => ({
+            user_id: row.user_id,
+            username: row.username || '未知用户',
+            avatar_url: row.avatar_url,
+            balance: parseInt(row.balance || 0),
+            total_earned: parseInt(row.total_earned || 0),
+            rank: parseInt(row.rank)
+          }))
+        }
+      });
+    } else {
+      // 获取用户排行榜 (默认)
+      let orderBy = 'u.likes_count';
+      if (sortBy === 'posts_count') {
+        orderBy = 'posts_count';
+      } else if (sortBy === 'views') {
+        orderBy = 'u.views';
+      }
+
+      const result = await queryWithRetry(`
+        SELECT 
+          u.id,
+          u.username,
+          u.avatar_url,
+          u.email,
+          u.likes_count,
+          u.views,
+          u.created_at,
+          COUNT(p.id) as posts_count
+        FROM users u
+        LEFT JOIN posts p ON u.id::text = p.user_id ${timeCondition.replace(/created_at/g, 'p.created_at')}
+        GROUP BY u.id, u.username, u.avatar_url, u.email, u.likes_count, u.views, u.created_at
+        ORDER BY ${orderBy} DESC NULLS LAST
+        LIMIT $1
+      `, [limit]);
+
+      return res.status(200).json({
+        code: 0,
+        data: {
+          users: result.rows.map(row => ({
+            id: row.id,
+            username: row.username,
+            avatar_url: row.avatar_url,
+            email: row.email,
+            likes_count: parseInt(row.likes_count || 0),
+            views: parseInt(row.views || 0),
+            posts_count: parseInt(row.posts_count || 0),
+            created_at: row.created_at
+          }))
+        }
+      });
+    }
+  } catch (error) {
+    console.error('[Leaderboard API] Error:', error);
+    return res.status(500).json({
+      code: 1,
+      message: '获取排行榜数据失败: ' + error.message
+    });
   }
 }
 

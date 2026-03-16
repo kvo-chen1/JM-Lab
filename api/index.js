@@ -41,15 +41,13 @@ async function getDbPool() {
 
     pool = new Pool({
       connectionString: databaseUrl,
-      ssl: true,
-      max: 20,
-      min: 2,
-      idleTimeoutMillis: 120000,
-      connectionTimeoutMillis: 60000,
-      statement_timeout: 60000,
-      query_timeout: 60000,
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      min: 0,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 30000,
+      statement_timeout: 30000,
+      query_timeout: 30000
     });
 
     pool.on('error', (err) => {
@@ -146,10 +144,12 @@ async function ensureUsersTable() {
 
 // 确保验证码表存在
 async function ensureVerificationTable() {
-  try {
-    const pool = await getDbPool();
-    if (!pool) return false;
+  const pool = await getDbPool();
+  if (!pool) {
+    throw new Error('Database pool not available');
+  }
 
+  try {
     await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS verification_codes (
         id SERIAL PRIMARY KEY,
@@ -162,10 +162,9 @@ async function ensureVerificationTable() {
       )
     `);
     console.log('[DB] Verification table ready');
-    return true;
   } catch (error) {
     console.error('[DB] Table creation error:', error.message);
-    return false;
+    throw error;
   }
 }
 
@@ -2019,24 +2018,27 @@ async function handleLeaderboard(req, res, path) {
 
     // 处理主 leaderboard 请求
     if (type === 'posts') {
-      // 获取作品排行榜
+      // 获取作品排行榜 - 使用 works 表
+      const worksTimeCondition = timeCondition.replace(/created_at/g, 'w.created_at');
+      // works 表使用 likes 而不是 likes_count
+      const worksSortBy = sortBy === 'likes_count' ? 'likes' : sortBy;
       const result = await queryWithRetry(`
         SELECT 
-          p.id,
-          p.title,
-          p.content,
-          p.thumbnail,
-          p.user_id,
+          w.id,
+          w.title,
+          w.description as content,
+          w.thumbnail,
+          w.creator_id as user_id,
           u.username,
           u.avatar_url,
-          p.views,
-          p.likes_count,
-          p.comments_count,
-          p.created_at
-        FROM posts p
-        LEFT JOIN users u ON p.user_id = u.id::text
-        WHERE p.status = 'published' ${timeCondition}
-        ORDER BY p.${sortBy} DESC NULLS LAST
+          w.views,
+          w.likes as likes_count,
+          w.comments as comments_count,
+          w.created_at
+        FROM works w
+        LEFT JOIN users u ON w.creator_id = u.id::text
+        WHERE w.hidden_in_square = FALSE ${worksTimeCondition}
+        ORDER BY w.${worksSortBy} DESC NULLS LAST
         LIMIT $1
       `, [limit]);
 

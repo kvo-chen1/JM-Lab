@@ -641,7 +641,15 @@ async function handleAuthRequest(req, res, path) {
 
       await deleteVerificationCode(email);
 
-      let user = await getUserByEmail(email);
+      console.log('[Auth] Getting user by email:', email);
+      let user;
+      try {
+        user = await getUserByEmail(email);
+        console.log('[Auth] getUserByEmail result:', user ? 'found' : 'not found');
+      } catch (error) {
+        console.error('[Auth] getUserByEmail error:', error);
+        return res.status(500).json({ code: 1, message: '获取用户信息失败: ' + error.message });
+      }
 
       if (!user) {
         user = {
@@ -656,9 +664,26 @@ async function handleAuthRequest(req, res, path) {
         console.log('[Auth] Existing user found:', email, 'ID:', user.id);
       }
 
-      await saveUser(user);
-      const token = generateToken(user);
+      console.log('[Auth] Saving user:', email);
+      try {
+        await saveUser(user);
+        console.log('[Auth] User saved successfully');
+      } catch (error) {
+        console.error('[Auth] saveUser error:', error);
+        return res.status(500).json({ code: 1, message: '保存用户失败: ' + error.message });
+      }
 
+      console.log('[Auth] Generating token for user:', user.id);
+      let token;
+      try {
+        token = generateToken(user);
+        console.log('[Auth] Token generated successfully');
+      } catch (error) {
+        console.error('[Auth] generateToken error:', error);
+        return res.status(500).json({ code: 1, message: '生成令牌失败: ' + error.message });
+      }
+
+      console.log('[Auth] Login successful for:', email);
       return res.status(200).json({ code: 0, message: '登录成功', data: { token, user } });
     }
 

@@ -1,21 +1,23 @@
 // 数据库客户端配置 - 使用 Supabase PostgreSQL
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// Supabase 配置 - 从环境变量读取
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+// Supabase 配置 - 从环境变量读取，Vercel部署时会注入
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 
 // 支持新的 publishable key 格式和旧的 anon key 格式
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
                         import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
                         import.meta.env.VITE_SUPABASE_ANON_KEY ||
-                        import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+                        import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+                        ''
 
 // Service Role Key - 用于管理员操作（绕过 RLS）
 // 支持新的 secret key 格式和旧的 JWT 格式
 const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SECRET_KEY ||
                            import.meta.env.SUPABASE_SECRET_KEY ||
                            import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-                           import.meta.env.SUPABASE_SERVICE_ROLE_KEY
+                           import.meta.env.SUPABASE_SERVICE_ROLE_KEY ||
+                           ''
 
 console.log('[DB] Environment:', import.meta.env.PROD ? 'production' : 'development')
 console.log('[DB] Supabase URL:', supabaseUrl)

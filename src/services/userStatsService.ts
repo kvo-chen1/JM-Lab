@@ -124,12 +124,50 @@ class UserStatsService {
     }
   }
 
+  // 从 follows 表获取真实的关注数据
+  private async fetchFollowStatsFromDB(userId: string): Promise<{ followingCount: number; followersCount: number } | null> {
+    if (!supabase) return null;
+
+    try {
+      // 查询关注数（我关注的人）
+      const { count: followingCount, error: followingError } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', userId);
+
+      if (followingError) {
+        console.warn('获取关注数失败:', followingError);
+      }
+
+      // 查询粉丝数（关注我的人）
+      const { count: followersCount, error: followersError } = await supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', userId);
+
+      if (followersError) {
+        console.warn('获取粉丝数失败:', followersError);
+      }
+
+      return {
+        followingCount: followingCount || 0,
+        followersCount: followersCount || 0
+      };
+    } catch (error) {
+      console.warn('从数据库获取关注数据失败:', error);
+      return null;
+    }
+  }
+
   // 获取用户统计数据
   public async getUserStats(userId: string): Promise<UserStats> {
     // 先从缓存获取
     if (this.statsCache.has(userId)) {
       return this.statsCache.get(userId)!;
     }
+
+    // 从 follows 表获取真实的关注数据
+    const followStats = await this.fetchFollowStatsFromDB(userId);
 
     // 从Supabase获取（如果可用）
     if (supabase) {
@@ -141,8 +179,14 @@ class UserStatsService {
           .single();
 
         if (data) {
-          this.statsCache.set(userId, data);
-          return data;
+          // 合并真实关注数据
+          const mergedStats = {
+            ...data,
+            followingCount: followStats?.followingCount ?? data.followingCount ?? 0,
+            followersCount: followStats?.followersCount ?? data.followersCount ?? 0,
+          };
+          this.statsCache.set(userId, mergedStats);
+          return mergedStats;
         }
       } catch (supabaseError) {
         console.warn('Supabase获取统计数据失败，使用localStorage:', supabaseError);
@@ -152,12 +196,24 @@ class UserStatsService {
     // 从localStorage获取
     const localStats = this.getStatsFromLocalStorage(userId);
     if (localStats) {
-      this.statsCache.set(userId, localStats);
-      return localStats;
+      // 合并真实关注数据
+      const mergedStats = {
+        ...localStats,
+        followingCount: followStats?.followingCount ?? localStats.followingCount ?? 0,
+        followersCount: followStats?.followersCount ?? localStats.followersCount ?? 0,
+      };
+      this.statsCache.set(userId, mergedStats);
+      return mergedStats;
     }
 
     // 如果都没有，初始化新的统计数据
-    return this.initializeUserStats(userId);
+    const newStats = await this.initializeUserStats(userId);
+    // 合并真实关注数据
+    return {
+      ...newStats,
+      followingCount: followStats?.followingCount ?? 0,
+      followersCount: followStats?.followersCount ?? 0,
+    };
   }
 
   // 检查统计数据完整性

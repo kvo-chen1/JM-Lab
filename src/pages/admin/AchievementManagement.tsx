@@ -111,12 +111,12 @@ export default function AchievementManagement() {
     setUsersLoading(true);
     try {
       // 从 supabase 获取用户数据
-      const { data: usersData, error } = await import('@/lib/supabase').then(m => m.supabase)
-        .then(supabase => supabase
-          .from('users')
-          .select('id, username, avatar_url, email, created_at')
-          .order('created_at', { ascending: false })
-        );
+      const supabaseModule = await import('@/lib/supabase');
+      const supabase = supabaseModule.supabase;
+      const { data: usersData, error } = await supabase
+        .from('users')
+        .select('id, username, avatar_url, email, created_at')
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 

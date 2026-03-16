@@ -356,7 +356,7 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
 
                 {/* IP类别标签 */}
                 <div className="flex flex-wrap gap-1.5 mb-4">
-                  {request.ipCategories.slice(0, 3).map((cat, i) => {
+                  {request.ipCategories?.slice(0, 3).map((cat, i) => {
                     const category = IP_CATEGORIES.find(c => c.id === cat);
                     return (
                       <span
@@ -367,7 +367,7 @@ export function BrandLicenseBrowser({ onClose }: BrandLicenseBrowserProps) {
                       </span>
                     );
                   })}
-                  {request.ipCategories.length > 3 && (
+                  {request.ipCategories && request.ipCategories.length > 3 && (
                     <span className={`px-2 py-0.5 rounded-md text-xs ${theme.bgSecondary} ${theme.textMuted}`}>
                       +{request.ipCategories.length - 3}
                     </span>

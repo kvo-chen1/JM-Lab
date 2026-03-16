@@ -1055,7 +1055,7 @@ export async function getOrderStats(): Promise<OrderStats> {
     // 获取各种状态的订单数量
     const { data: allOrders, error } = await supabase
       .from('exchange_records')
-      .select('status, points, created_at');
+      .select('status, points_cost, created_at');
 
     if (error) throw error;
 
@@ -1071,7 +1071,7 @@ export async function getOrderStats(): Promise<OrderStats> {
       refunded: orders.filter(o => o.status === 'refunded').length,
       totalPoints: orders
         .filter(o => o.status === 'completed')
-        .reduce((sum, o) => sum + (o.points || 0), 0),
+        .reduce((sum, o) => sum + (o.points_cost || 0), 0),
       todayOrders: todayOrders.length
     };
   } catch (error) {
@@ -1162,7 +1162,7 @@ export async function getSalesTrend(days: number = 7): Promise<{ date: string; c
       // 查询该日期的订单
       const { data, error } = await supabase
         .from('exchange_records')
-        .select('points, status')
+        .select('points_cost, status')
         .gte('created_at', `${dateStr}T00:00:00`)
         .lt('created_at', `${dateStr}T23:59:59`);
 
@@ -1174,7 +1174,7 @@ export async function getSalesTrend(days: number = 7): Promise<{ date: string; c
         count: orders.length,
         points: orders
           .filter(o => o.status === 'completed')
-          .reduce((sum, o) => sum + (o.points || 0), 0)
+          .reduce((sum, o) => sum + (o.points_cost || 0), 0)
       });
     }
 
@@ -1197,7 +1197,7 @@ export async function getTopSellingProducts(limit: number = 5): Promise<{
     // 查询兑换记录并按商品分组统计
     const { data, error } = await supabase
       .from('exchange_records')
-      .select('product_id, product_name, product_image, points, quantity, status')
+      .select('product_id, product_name, product_image, points_cost, quantity, status')
       .eq('status', 'completed');
 
     if (error) throw error;
@@ -1221,7 +1221,7 @@ export async function getTopSellingProducts(limit: number = 5): Promise<{
           productId: id,
           productName: record.product_name || '未知商品',
           productImage: record.product_image || '',
-          points: record.points || 0,
+          points: record.points_cost || 0,
           totalSold: record.quantity || 1
         });
       }
@@ -1381,98 +1381,83 @@ export async function deletePointsProduct(id: string): Promise<boolean> {
 
 // 平台统计数据接口
 export interface PlatformStats {
-  totalProducts: number;
-  totalBrands: number;
-  totalOrders: number;
-  positiveRate: number;
+  totalWorks: number;      // 总作品数
+  totalCreators: number;   // 创作者数
+  activeUsers: number;     // 今日活跃用户数
+  totalViews: number;      // 总浏览量
 }
 
 // 获取平台统计数据
 export async function getPlatformStats(): Promise<PlatformStats> {
   try {
-    // 获取在售商品数量（从 merchant_products 表，状态为 active）
-    const { count: productsCount, error: productsError } = await supabase
-      .from('merchant_products')
+    // 获取总作品数（从 posts 表，状态为 published）
+    const { count: worksCount, error: worksError } = await supabase
+      .from('posts')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'active');
+      .eq('status', 'published');
 
-    if (productsError) {
-      console.error('获取商品数量失败:', productsError);
-      // 尝试从 product_details 视图获取
-      const { count: pdCount, error: pdError } = await supabase
-        .from('product_details')
-        .select('*', { count: 'exact', head: true });
-      if (!pdError) {
-        console.log('从 product_details 获取到商品数量:', pdCount);
-      }
+    if (worksError) {
+      console.error('获取作品数量失败:', worksError);
     }
 
-    // 获取入驻品牌数量（从 merchants 表，状态为 approved）
-    const { count: brandsCount, error: brandsError } = await supabase
-      .from('merchants')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'approved');
-
-    if (brandsError) {
-      console.error('获取品牌数量失败:', brandsError);
-      // 尝试从 merchant_applications 表获取
-      const { count: maCount, error: maError } = await supabase
-        .from('merchant_applications')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'approved');
-      if (!maError) {
-        console.log('从 merchant_applications 获取到品牌数量:', maCount);
-      }
-    }
-
-    // 获取累计订单数量（从 orders 表）
-    const { count: ordersCount, error: ordersError } = await supabase
-      .from('orders')
+    // 获取创作者数量（从 users 表，有发布过作品的）
+    const { count: creatorsCount, error: creatorsError } = await supabase
+      .from('users')
       .select('*', { count: 'exact', head: true });
 
-    if (ordersError) {
-      console.error('获取订单数量失败:', ordersError);
+    if (creatorsError) {
+      console.error('获取创作者数量失败:', creatorsError);
     }
 
-    // 获取好评率（从商品评价表）
-    const { data: reviewsData, error: reviewsError } = await supabase
-      .from('product_reviews')
-      .select('rating');
+    // 获取今日活跃用户数（从 user_activities 表，今日有活动的）
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { count: activeCount, error: activeError } = await supabase
+      .from('user_activities')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', today.toISOString());
 
-    if (reviewsError) {
-      console.error('获取评价数据失败:', reviewsError);
+    if (activeError) {
+      console.error('获取活跃用户数量失败:', activeError);
     }
 
-    const reviews = reviewsData || [];
-    const positiveReviews = reviews.filter(r => r.rating >= 4).length;
-    const positiveRate = reviews.length > 0 ? Math.round((positiveReviews / reviews.length) * 100) : 99;
+    // 获取总浏览量（从 posts 表的 views 字段汇总）
+    const { data: viewsData, error: viewsError } = await supabase
+      .from('posts')
+      .select('views');
+
+    if (viewsError) {
+      console.error('获取浏览量数据失败:', viewsError);
+    }
+
+    const totalViewsCount = viewsData?.reduce((sum, post) => sum + (post.views || 0), 0) || 0;
 
     // 使用实际获取到的数据或回退方案
-    const finalProductsCount = productsCount ?? 0;
-    const finalBrandsCount = brandsCount ?? 0;
-    const finalOrdersCount = ordersCount ?? 0;
+    const finalWorksCount = worksCount ?? 0;
+    const finalCreatorsCount = creatorsCount ?? 0;
+    const finalActiveCount = activeCount ?? 0;
 
     console.log('平台统计数据:', {
-      totalProducts: finalProductsCount,
-      totalBrands: finalBrandsCount,
-      totalOrders: finalOrdersCount,
-      positiveRate,
+      totalWorks: finalWorksCount,
+      totalCreators: finalCreatorsCount,
+      activeUsers: finalActiveCount,
+      totalViews: totalViewsCount,
     });
 
     return {
-      totalProducts: finalProductsCount,
-      totalBrands: finalBrandsCount,
-      totalOrders: finalOrdersCount,
-      positiveRate: positiveRate || 99,
+      totalWorks: finalWorksCount,
+      totalCreators: finalCreatorsCount,
+      activeUsers: finalActiveCount,
+      totalViews: totalViewsCount,
     };
   } catch (error) {
     console.error('获取平台统计数据失败:', error);
     // 返回默认值
     return {
-      totalProducts: 0,
-      totalBrands: 0,
-      totalOrders: 0,
-      positiveRate: 99,
+      totalWorks: 0,
+      totalCreators: 0,
+      activeUsers: 0,
+      totalViews: 0,
     };
   }
 }

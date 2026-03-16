@@ -2,22 +2,15 @@
  * 平台统计数据 Hook
  */
 import { useState, useEffect } from 'react';
-import productService from '@/services/productService';
-
-export interface PlatformStats {
-  totalProducts: number;
-  totalBrands: number;
-  totalOrders: number;
-  positiveRate: number;
-}
+import productService, { PlatformStats } from '@/services/productService';
 
 // 获取平台统计数据
 export function usePlatformStats() {
   const [stats, setStats] = useState<PlatformStats>({
-    totalProducts: 0,
-    totalBrands: 0,
-    totalOrders: 0,
-    positiveRate: 99,
+    totalWorks: 0,
+    totalCreators: 0,
+    activeUsers: 0,
+    totalViews: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

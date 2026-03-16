@@ -736,6 +736,10 @@ const LicensedProducts = createLazyComponent(() => import(/* webpackChunkName: "
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'licensed-products'
 });
+const LicensedProductDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/LicensedProductDetail"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'licensed-product-detail'
+});
 
 // 新增商城页面
 const SearchResultsPage = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/SearchResults"), {
@@ -1324,6 +1328,7 @@ export default function App() {
           <Route path="/marketplace/order/pay/:orderId" element={<LazyComponent><PrivateRoute><OrderPayPage /></PrivateRoute></LazyComponent>} />
           <Route path="/marketplace/order/:orderId" element={<LazyComponent><PrivateRoute><OrderDetailPage /></PrivateRoute></LazyComponent>} />
           <Route path="/marketplace/licensed-products" element={<LazyComponent><LicensedProducts /></LazyComponent>} />
+          <Route path="/marketplace/licensed-product/:id" element={<LazyComponent><LicensedProductDetail /></LazyComponent>} />
           <Route path="/marketplace/search" element={<LazyComponent><SearchResultsPage /></LazyComponent>} />
           <Route path="/marketplace/orders" element={<LazyComponent><PrivateRoute><OrdersPage /></PrivateRoute></LazyComponent>} />
           <Route path="/favorites" element={<PrivateRoute><FavoritesPage /></PrivateRoute>} />

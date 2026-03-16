@@ -34,7 +34,8 @@ if (!isVercel) {
 // 数据库类型枚举
 export const DB_TYPE = {
   POSTGRESQL: 'postgresql',
-  SUPABASE: 'supabase' // Alias for POSTGRESQL with auto-config
+  SUPABASE: 'supabase', // Alias for POSTGRESQL with auto-config
+  MEMORY: 'memory' // 内存数据库（本地开发降级方案）
 }
 
 // 日志助手
@@ -96,22 +97,27 @@ const connectionString = getPostgresConnectionString()
 const config = {
   // 数据库类型选择
   dbType: currentDbType,
-  
+
   // PostgreSQL (Supabase/Standard) 配置 - 优化连接池
   postgresql: {
     connectionString: connectionString,
     options: {
-      // 连接池大小：减少连接数以避免超过数据库限制
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '2'),
-      // 最小连接数：保持1个空闲连接以避免冷启动延迟
-      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '1'),
-      // 空闲连接超时：增加超时时间以保持连接更久
-      idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '60000'),
-      // 连接超时：增加超时时间以适应 Neon 数据库连接较慢的情况
-      connectionTimeoutMillis: isVercel ? 30000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '60000'),
-      // 连接最大生命周期：增加生命周期以减少重新连接
-      maxLifetime: parseInt(process.env.POSTGRES_MAX_LIFETIME || '600000'), // 10分钟
-      // SSL 配置：Supabase 需要 SSL，但允许自签名证书
+      // 连接池大小：增加连接数以提高并发性能
+      // Neon 免费版支持 10 个并发连接，这里设置为 5 以预留余量
+      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '5'),
+      // 最小连接数：保持 2 个空闲连接以避免冷启动延迟
+      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '2'),
+      // 空闲连接超时：增加到 2 分钟以保持连接更久，减少重新连接开销
+      idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '120000'),
+      // 连接超时：增加到 30 秒以适应 Neon 数据库连接较慢的情况
+      connectionTimeoutMillis: isVercel ? 30000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '30000'),
+      // 连接最大生命周期：增加到 30 分钟以减少重新连接
+      maxLifetime: parseInt(process.env.POSTGRES_MAX_LIFETIME || '1800000'), // 30分钟
+      // 连接创建超时：限制创建新连接的时间
+      createTimeoutMillis: 10000,
+      // 连接销毁超时
+      destroyTimeoutMillis: 5000,
+      // SSL 配置：Supabase/Neon 需要 SSL，但允许自签名证书
       ssl: (connectionString && !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1')) ? {
         rejectUnauthorized: false,
         requestCert: true,
@@ -121,15 +127,19 @@ const config = {
       statement_timeout: isVercel ? 30000 : 60000,
       // 客户端编码设置
       client_encoding: 'UTF8',
-      // Keep-alive 设置：保持连接活跃
+      // Keep-alive 设置：保持连接活跃，减少连接重建
       keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
+      keepAliveInitialDelayMillis: 5000, // 减少到 5 秒更快启动 keepalive
       // 连接重试策略
       retry: {
-        maxRetries: isVercel ? 2 : 3,
-        delay: 1000,
+        maxRetries: isVercel ? 3 : 5,
+        delay: 500, // 减少初始延迟
         backoff: 'exponential'
-      }
+      },
+      // 启用 prepared statements 缓存以提高查询性能
+      preparedStatementCacheSize: 100,
+      // 连接池监控
+      monitorPool: true
     }
   }
 }
@@ -220,6 +230,137 @@ async function initMongoDBCollections(db) {
   }
 }
 
+// 内存数据库存储
+const memoryStore = {
+  users: new Map(),
+  orders: new Map(),
+  order_items: new Map(),
+  works: new Map(),
+  favorites: new Map(),
+  achievements: new Map(),
+  friends: new Map(),
+  messages: new Map(),
+  communities: new Map(),
+  notifications: new Map(),
+  events: new Map(),
+  email_login_codes: new Map(),
+  _sequences: {
+    users: 1,
+    orders: 1,
+    order_items: 1,
+    works: 1
+  }
+};
+
+/**
+ * 内存数据库初始化（本地开发降级方案）
+ */
+async function initMemoryDB() {
+  log('Initializing MEMORY database for local development...', 'INFO');
+  
+  // 模拟 PostgreSQL Pool 接口
+  const memoryPool = {
+    _isMemoryDB: true,
+    
+    // 模拟查询方法
+    query: async (sql, params = []) => {
+      // 简单的 SQL 解析，支持基本的 CRUD 操作
+      const sqlLower = sql.toLowerCase().trim();
+      
+      // SELECT 查询
+      if (sqlLower.startsWith('select')) {
+        // 从 SQL 中提取表名
+        const tableMatch = sqlLower.match(/from\s+(\w+)/);
+        const tableName = tableMatch ? tableMatch[1] : null;
+        
+        if (tableName && memoryStore[tableName]) {
+          const rows = Array.from(memoryStore[tableName].values());
+          return { rows, rowCount: rows.length };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+      
+      // INSERT 插入
+      if (sqlLower.startsWith('insert')) {
+        const tableMatch = sqlLower.match(/into\s+(\w+)/);
+        const tableName = tableMatch ? tableMatch[1] : null;
+        
+        if (tableName && memoryStore[tableName]) {
+          const id = memoryStore._sequences[tableName]++;
+          const newItem = { id, ...params[0], created_at: Date.now(), updated_at: Date.now() };
+          memoryStore[tableName].set(String(id), newItem);
+          return { rows: [newItem], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+      
+      // UPDATE 更新
+      if (sqlLower.startsWith('update')) {
+        const tableMatch = sqlLower.match(/update\s+(\w+)/);
+        const tableName = tableMatch ? tableMatch[1] : null;
+        
+        if (tableName && memoryStore[tableName]) {
+          // 简单实现：更新所有匹配的记录
+          let updatedCount = 0;
+          for (const [key, item] of memoryStore[tableName]) {
+            Object.assign(item, params[0], { updated_at: Date.now() });
+            updatedCount++;
+          }
+          return { rows: [], rowCount: updatedCount };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+      
+      // DELETE 删除
+      if (sqlLower.startsWith('delete')) {
+        const tableMatch = sqlLower.match(/from\s+(\w+)/);
+        const tableName = tableMatch ? tableMatch[1] : null;
+        
+        if (tableName && memoryStore[tableName]) {
+          const count = memoryStore[tableName].size;
+          memoryStore[tableName].clear();
+          return { rows: [], rowCount: count };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+      
+      return { rows: [], rowCount: 0 };
+    },
+    
+    // 模拟连接方法
+    connect: async () => {
+      return {
+        query: memoryPool.query,
+        release: () => {}
+      };
+    },
+    
+    // 模拟结束方法
+    end: async () => {
+      log('MEMORY database pool ended', 'INFO');
+    },
+    
+    // 连接池状态
+    get totalCount() { return 1; },
+    get idleCount() { return 1; },
+    get waitingCount() { return 0; }
+  };
+  
+  // 标记连接状态
+  connectionStatus.postgresql = {
+    connected: true,
+    lastConnected: Date.now(),
+    error: null,
+    poolStatus: { totalCount: 1, idleCount: 1, waitingCount: 0 },
+    _isMemoryDB: true
+  };
+  
+  log('MEMORY database initialized successfully', 'INFO');
+  log('WARNING: Data will NOT be persisted! All data will be lost when server restarts.', 'WARN');
+  
+  return memoryPool;
+}
+
 /**
  * PostgreSQL 连接初始化 (支持 Connection Pooling)
  */
@@ -228,6 +369,11 @@ async function initPostgreSQL() {
     let { connectionString, options } = config.postgresql
     
     if (!connectionString) {
+      // 本地开发环境：如果没有配置数据库，使用内存模式
+      if (!isVercel) {
+        log('PostgreSQL Connection String not configured. Falling back to MEMORY mode for local development.', 'WARN');
+        return initMemoryDB();
+      }
       const errorMsg = 'PostgreSQL Connection String not configured. Please set DATABASE_URL in Vercel Environment Variables. (Format: postgres://user:pass@host:port/db)';
       console.error(errorMsg); // 确保在 Vercel 日志中可见
       throw new Error(errorMsg);
@@ -281,14 +427,16 @@ async function initPostgreSQL() {
       client.release()
       
       // 初始化表结构（仅在非Vercel环境执行，避免Serverless冷启动超时）
-      // 改为异步执行，不阻塞服务器启动
+      // 同步执行，确保表创建完成后再启动服务器
       if (!isVercel) {
-        console.log('[DB] Starting table initialization in background...')
-        createPostgreSQLTables(pool).then(() => {
+        console.log('[DB] Starting table initialization...')
+        try {
+          await createPostgreSQLTables(pool)
           console.log('[DB] Table initialization completed')
-        }).catch(err => {
+        } catch (err) {
           console.error('[DB] Table initialization failed:', err.message)
-        })
+          // 表创建失败不阻塞服务器启动，但会记录错误
+        }
       } else {
         console.log('[DB] Vercel环境：跳过表结构初始化，假设表已存在')
       }
@@ -307,22 +455,43 @@ async function initPostgreSQL() {
       retryCounts.postgresql = 0
       
       log('PostgreSQL initialized successfully')
-      
-      // 启动连接保持机制 - 每30秒执行一次简单查询以保持连接活跃
+
+      // 连接预热：预先创建最小连接数的连接，减少首次查询延迟
+      try {
+        const minConnections = config.postgresql.options.min
+        log(`Preheating pool with ${minConnections} connections...`)
+        const preheatPromises = []
+        for (let i = 0; i < minConnections; i++) {
+          preheatPromises.push(
+            pool.connect().then(client => {
+              return client.query('SELECT 1').then(() => client.release())
+            })
+          )
+        }
+        await Promise.all(preheatPromises)
+        log(`Pool preheated with ${minConnections} connections`)
+      } catch (preheatError) {
+        log(`Pool preheat warning: ${preheatError.message}`, 'WARNING')
+      }
+
+      // 启动连接保持机制 - 每60秒执行一次简单查询以保持连接活跃
+      // 增加间隔以减少网络开销，同时保持连接活跃
       const keepAliveInterval = setInterval(async () => {
         try {
-          const client = await pool.connect()
-          await client.query('SELECT 1')
-          client.release()
-          // 静默执行，不记录日志以避免噪音
+          // 只在连接池有连接时才执行 keep-alive
+          if (pool.totalCount > 0 && pool.idleCount > 0) {
+            const client = await pool.connect()
+            await client.query('SELECT 1')
+            client.release()
+          }
         } catch (err) {
           log(`Keep-alive query failed: ${err.message}`, 'WARNING')
         }
-      }, 30000)
-      
+      }, 60000) // 增加到60秒
+
       // 将 interval 附加到 pool 对象以便后续清理
       pool._keepAliveInterval = keepAliveInterval
-      
+
       return pool
     } catch (connectionError) {
       log(`PostgreSQL connection failed: ${connectionError.message}`, 'ERROR')
@@ -1525,6 +1694,109 @@ async function createPostgreSQLTables(pool) {
       await createIndex('CREATE INDEX IF NOT EXISTS idx_licensed_products_brand_id ON licensed_ip_products(brand_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_licensed_products_creator_id ON licensed_ip_products(creator_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_licensed_products_status ON licensed_ip_products(status);')
+
+      // 创建分析事件表 (analytics_events)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS analytics_events (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          session_id TEXT NOT NULL,
+          event_type TEXT NOT NULL,
+          page_url TEXT NOT NULL,
+          element_selector TEXT,
+          metadata JSONB DEFAULT '{}',
+          timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          device_info JSONB DEFAULT '{}'
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_analytics_events_user_id ON analytics_events(user_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_analytics_events_session_id ON analytics_events(session_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_analytics_events_event_type ON analytics_events(event_type);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_analytics_events_timestamp ON analytics_events(timestamp);')
+
+      // 创建性能指标表 (performance_metrics)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS performance_metrics (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          session_id TEXT NOT NULL,
+          page_url TEXT NOT NULL,
+          load_time INTEGER,
+          dom_content_loaded INTEGER,
+          first_paint INTEGER,
+          first_contentful_paint INTEGER,
+          largest_contentful_paint INTEGER,
+          time_to_interactive INTEGER,
+          timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_performance_metrics_user_id ON performance_metrics(user_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_performance_metrics_session_id ON performance_metrics(session_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_performance_metrics_timestamp ON performance_metrics(timestamp);')
+
+      // 创建用户会话表 (user_sessions)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS user_sessions (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          session_id TEXT UNIQUE NOT NULL,
+          user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          start_time TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          end_time TIMESTAMP WITH TIME ZONE,
+          page_views INTEGER DEFAULT 0,
+          duration INTEGER,
+          referrer TEXT,
+          landing_page TEXT,
+          exit_page TEXT
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_user_sessions_session_id ON user_sessions(session_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_user_sessions_start_time ON user_sessions(start_time);')
+
+      // 创建订单表 (orders)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS orders (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          order_no TEXT UNIQUE NOT NULL,
+          customer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          seller_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'pending_payment',
+          shipping_address JSONB DEFAULT '{}',
+          tracking_no TEXT,
+          tracking_company TEXT,
+          remark TEXT,
+          paid_at TIMESTAMP WITH TIME ZONE,
+          shipped_at TIMESTAMP WITH TIME ZONE,
+          completed_at TIMESTAMP WITH TIME ZONE,
+          cancelled_at TIMESTAMP WITH TIME ZONE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_orders_seller_id ON orders(seller_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_orders_order_no ON orders(order_no);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);')
+
+      // 创建订单商品表 (order_items)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS order_items (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+          product_id TEXT NOT NULL,
+          product_name TEXT NOT NULL,
+          product_image TEXT,
+          product_specs JSONB DEFAULT '[]',
+          price DECIMAL(10,2) NOT NULL DEFAULT 0,
+          quantity INTEGER NOT NULL DEFAULT 1,
+          subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id);')
 
       // 插入默认设置
       const defaultSettings = [

@@ -1466,6 +1466,13 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 预警管理路由
+  if (path.startsWith('/api/admin/alerts')) {
+    console.log('[Route] Delegating to moderation routes (alerts):', path)
+    await moderationRoutes(req, res)
+    return
+  }
+
   // IP孵化中心路由
   if (path.startsWith('/api/ip')) {
     console.log('[Route] Delegating to IP incubation routes:', path)

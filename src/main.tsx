@@ -5,6 +5,13 @@ import * as ReactDOMClient from "react-dom/client";
 import "./index.css";
 import "./styles/themes/index.ts";
 
+// 首先加载 supabase 客户端，确保它在其他模块之前初始化
+// 这必须在其他导入之前，以避免循环依赖问题
+import { supabase, supabaseAdmin } from './lib/supabase';
+if (typeof window !== 'undefined') {
+  console.log('[Main] Supabase client loaded:', !!supabase, !!supabaseAdmin);
+}
+
 // 初始化 Sentry 错误监控（在应用启动前初始化）
 import { initSentry } from './lib/sentry';
 initSentry();
@@ -26,11 +33,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // 动态加载Font Awesome CSS，避免阻塞初始渲染
 import('@fortawesome/fontawesome-free/css/all.min.css').catch(err => console.error('Failed to load Font Awesome CSS:', err));
-
-// 加载工具模块
-
-// 导入 supabase 以暴露到 window 对象（用于调试）
-import './lib/supabase';
 
 // 应用渲染
 const root = document.getElementById("root");

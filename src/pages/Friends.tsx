@@ -628,7 +628,7 @@ const FriendsPage: React.FC = () => {
                     />
                   ) : (
                     followingList.map((user) => (
-                      <React.Fragment key={user.id}>
+                      <React.Fragment key={`following-${user.id}`}>
                         {renderUserCard(user, true)}
                         {renderUserCardDesktop(user, true)}
                       </React.Fragment>
@@ -648,7 +648,7 @@ const FriendsPage: React.FC = () => {
                     />
                   ) : (
                     followersList.map((user) => (
-                      <React.Fragment key={user.id}>
+                      <React.Fragment key={`followers-${user.id}`}>
                         {renderUserCard(user, false)}
                         {renderUserCardDesktop(user, false)}
                       </React.Fragment>
@@ -669,7 +669,7 @@ const FriendsPage: React.FC = () => {
                     />
                   ) : (
                     friendsList.map((user) => (
-                      <React.Fragment key={user.id}>
+                      <React.Fragment key={`friends-${user.id}`}>
                         {renderUserCard(user, true, true)}
                         {renderUserCardDesktop(user, true, true)}
                       </React.Fragment>
@@ -689,7 +689,7 @@ const FriendsPage: React.FC = () => {
                     />
                   ) : (
                     chatList.map((chat) => (
-                      <React.Fragment key={chat.userId}>
+                      <React.Fragment key={`chat-${chat.userId}`}>
                         {renderChatCard(chat)}
                         {renderChatCardDesktop(chat)}
                       </React.Fragment>

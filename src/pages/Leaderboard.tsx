@@ -168,19 +168,19 @@ const Leaderboard: React.FC = () => {
       let query;
       
       // 构建时间范围查询
-      // 注意：数据库中的 created_at 是 bigint (Unix 时间戳)，不是 ISO 字符串
+      // 注意：数据库中的 created_at 是 timestamp with time zone (ISO 日期字符串)
       const now = new Date();
-      let startTime = 0; // Default to all time (Unix timestamp)
+      let startTime = new Date(0).toISOString(); // Default to all time
       
       if (timeRange === 'day') {
         now.setHours(0, 0, 0, 0);
-        startTime = Math.floor(now.getTime() / 1000);
+        startTime = now.toISOString();
       } else if (timeRange === 'week') {
         now.setDate(now.getDate() - 7);
-        startTime = Math.floor(now.getTime() / 1000);
+        startTime = now.toISOString();
       } else if (timeRange === 'month') {
         now.setMonth(now.getMonth() - 1);
-        startTime = Math.floor(now.getTime() / 1000);
+        startTime = now.toISOString();
       }
 
       if (leaderboardType === 'points') {

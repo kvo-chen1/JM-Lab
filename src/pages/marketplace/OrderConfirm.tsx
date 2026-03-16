@@ -103,7 +103,13 @@ const OrderConfirmPage: React.FC = () => {
 
     // 获取卖家ID（假设所有商品来自同一个卖家，或者取第一个商品的卖家）
     // 如果商品没有 seller_id，使用一个默认的系统卖家ID
-    const sellerId = selectedItems[0]?.product?.seller_id || '00000000-0000-0000-0000-000000000001';
+    const firstProduct = selectedItems[0]?.product;
+    console.log('[OrderConfirm] 第一个商品信息:', firstProduct);
+    console.log('[OrderConfirm] 商品 seller_id:', firstProduct?.seller_id);
+    
+    const sellerId = firstProduct?.seller_id || '00000000-0000-0000-0000-000000000001';
+    console.log('[OrderConfirm] 使用的 sellerId:', sellerId);
+    
     if (!sellerId) {
       toast.error('商品信息有误');
       return;
@@ -167,6 +173,13 @@ const OrderConfirmPage: React.FC = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#C02C38] mx-auto"></div>
           <p className="mt-4 text-gray-600">加载商品信息...</p>
+          <p className="mt-2 text-sm text-gray-400">商品ID: {directProductId}</p>
+          <button
+            onClick={() => navigate('/marketplace')}
+            className="mt-6 px-4 py-2 text-sm text-[#C02C38] border border-[#C02C38] rounded-lg hover:bg-red-50 transition-colors"
+          >
+            返回商城
+          </button>
         </div>
       </div>
     );

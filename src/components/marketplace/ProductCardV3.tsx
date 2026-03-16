@@ -168,7 +168,7 @@ const ProductCardV3: React.FC<ProductCardV3Props> = ({
         {product.average_rating && (
           <div className="flex items-center gap-1 mb-2">
             <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-            <span className="text-sm text-gray-600">{product.average_rating.toFixed(1)}</span>
+            <span className="text-sm text-gray-600">{Number(product.average_rating).toFixed(1)}</span>
             {product.review_count && (
               <span className="text-sm text-gray-400">({product.review_count})</span>
             )}

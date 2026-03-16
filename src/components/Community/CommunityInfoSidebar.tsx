@@ -339,7 +339,8 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
       
       try {
         // 先更新用户在社区的活跃时间（标记在线）- 每5分钟更新一次
-        const { data: { session } } = await import('@/lib/supabase').then(m => m.supabase.auth.getSession());
+        const supabaseModule = await import('@/lib/supabase');
+        const { data: { session } } = await supabaseModule.supabase.auth.getSession();
         if (session?.user?.id) {
           const lastActiveKey = `last_active_${community.id}_${session.user.id}`;
           const lastActive = queryCache.get<number>(lastActiveKey);
@@ -347,7 +348,8 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
           
           // 每5分钟才更新一次活跃时间
           if (!lastActive || now - lastActive > 300) {
-            const { supabaseAdmin } = await import('@/lib/supabaseClient');
+            const supabaseAdminModule = await import('@/lib/supabaseClient');
+            const supabaseAdmin = supabaseAdminModule.supabaseAdmin;
             const { error: updateError } = await supabaseAdmin
               .from('community_members')
               .update({ last_active: now })
@@ -419,7 +421,8 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
       }
 
       try {
-        const { supabase } = await import('@/lib/supabaseClient');
+        const supabaseModule = await import('@/lib/supabaseClient');
+        const supabase = supabaseModule.supabase;
         const { count, error } = await supabase
           .from('community_members')
           .select('*', { count: 'exact', head: true })
@@ -451,8 +454,9 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
 
       try {
         // 获取社区成员
-        const { supabase } = await import('@/lib/supabaseClient');
-        const { supabaseAdmin } = await import('@/lib/supabaseClient');
+        const supabaseModule = await import('@/lib/supabaseClient');
+        const supabase = supabaseModule.supabase;
+        const supabaseAdmin = supabaseModule.supabaseAdmin;
         const { data: members, error: membersError } = await supabase
           .from('community_members')
           .select('user_id, role, joined_at')
@@ -512,8 +516,9 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
       try {
         // 获取社区成员加入记录（从 community_members 表）
         const { communityService } = await import('@/services/communityService');
-        const { supabase } = await import('@/lib/supabaseClient');
-        const { supabaseAdmin } = await import('@/lib/supabaseClient');
+        const supabaseModule = await import('@/lib/supabaseClient');
+        const supabase = supabaseModule.supabase;
+        const supabaseAdmin = supabaseModule.supabaseAdmin;
         const { data: members, error: membersError } = await supabase
           .from('community_members')
           .select('user_id, joined_at')

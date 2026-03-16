@@ -83,6 +83,14 @@ class AnalyticsService {
   private async initSession() {
     if (typeof window === 'undefined') return;
 
+    // 临时禁用会话初始化（表不存在）
+    // 启动定期刷新
+    this.startFlushInterval();
+
+    // 监听页面卸载
+    window.addEventListener('beforeunload', () => this.endSession());
+
+    /* 表创建后恢复以下代码：
     const session: UserSession = {
       session_id: this.sessionId,
       user_id: this.getUserId(),
@@ -103,6 +111,7 @@ class AnalyticsService {
 
     // 监听页面卸载
     window.addEventListener('beforeunload', () => this.endSession());
+    */
   }
 
   /**
@@ -143,6 +152,8 @@ class AnalyticsService {
     // 刷新剩余事件
     await this.flushEvents();
 
+    // 临时禁用会话更新（表不存在）
+    /* 表创建后恢复以下代码：
     // 更新会话结束信息
     try {
       await supabase
@@ -155,6 +166,7 @@ class AnalyticsService {
     } catch (error) {
       console.error('[Analytics] 结束会话失败:', error);
     }
+    */
   }
 
   /**
@@ -163,6 +175,12 @@ class AnalyticsService {
   private async flushEvents() {
     if (this.eventQueue.length === 0) return;
 
+    // 临时禁用 analytics 事件上报（表不存在）
+    // 清空队列但不写入数据库
+    this.eventQueue = [];
+    return;
+
+    /* 表创建后恢复以下代码：
     const events = [...this.eventQueue];
     this.eventQueue = [];
 
@@ -174,6 +192,7 @@ class AnalyticsService {
       // 失败时重新加入队列
       this.eventQueue.unshift(...events);
     }
+    */
   }
 
   /**
@@ -278,11 +297,15 @@ class AnalyticsService {
           }
         });
 
+        // 临时禁用性能指标上报（表不存在）
+        // 表创建后恢复以下代码：
+        /*
         try {
           await supabase.from(this.PERFORMANCE_TABLE).insert(data);
         } catch (error) {
           console.error('[Analytics] 追踪性能失败:', error);
         }
+        */
       }
     }
   }
@@ -354,7 +377,7 @@ class AnalyticsService {
         break;
       }
       
-      if (current.className) {
+      if (current.className && typeof current.className === 'string') {
         const classes = current.className.split(' ').filter(c => c).slice(0, 3);
         if (classes.length > 0) {
           selector += `.${classes.join('.')}`;

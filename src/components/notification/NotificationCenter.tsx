@@ -88,7 +88,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const loadNotifications = async () => {
     setIsLoading(true);
     try {
-      const { supabase } = await import('@/lib/supabaseClient');
+      const supabaseModule = await import('@/lib/supabaseClient');
+      const supabase = supabaseModule.supabase;
       const { data, error } = await supabase
         .from('notifications')
         .select('*')

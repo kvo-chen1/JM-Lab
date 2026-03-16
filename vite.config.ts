@@ -286,8 +286,7 @@ export default defineConfig({
           'utils': ['clsx', 'zod', 'date-fns', 'dayjs'],
           // 将样式库分离到单独的chunk中
           'style': ['tailwind-merge'],
-          // 将Supabase相关库分离到单独的chunk中
-          'supabase': ['@supabase/supabase-js'],
+          // 注意：Supabase 不单独分割，避免循环依赖问题
         },
       },
       // 优化插件配置

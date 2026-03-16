@@ -36,7 +36,7 @@ class UserPersonaService {
       contentId,
       contentType,
       behaviorType,
-      timestamp: new Date().toISOString(),
+      behaviorTimestamp: new Date().toISOString(),
       metadata: {
         ...metadata,
         platform: this.detectPlatform(),
@@ -85,7 +85,7 @@ class UserPersonaService {
           content_id: b.contentId,
           content_type: b.contentType,
           behavior_type: b.behaviorType,
-          timestamp: b.timestamp,
+          behavior_timestamp: b.behaviorTimestamp,
           duration: b.duration,
           value: b.value,
           metadata: b.metadata,
@@ -132,18 +132,18 @@ class UserPersonaService {
         .from(BEHAVIORS_TABLE)
         .select('*')
         .eq('user_id', userId)
-        .order('timestamp', { ascending: false });
+        .order('behavior_timestamp', { ascending: false });
 
       if (options?.limit) {
         query = query.limit(options.limit);
       }
 
       if (options?.startDate) {
-        query = query.gte('timestamp', options.startDate.toISOString());
+        query = query.gte('behavior_timestamp', options.startDate.toISOString());
       }
 
       if (options?.endDate) {
-        query = query.lte('timestamp', options.endDate.toISOString());
+        query = query.lte('behavior_timestamp', options.endDate.toISOString());
       }
 
       if (options?.behaviorTypes && options.behaviorTypes.length > 0) {
@@ -319,8 +319,8 @@ class UserPersonaService {
 
     behaviors.forEach((behavior, index) => {
       const weight = this.calculateBehaviorWeight(behavior, index);
-      const timestamp = new Date(behavior.timestamp);
-      
+      const timestamp = new Date(behavior.behaviorTimestamp);
+
       hourlyActivity[timestamp.getHours()] += weight;
       weeklyPattern[timestamp.getDay()] += weight;
 
@@ -435,7 +435,7 @@ class UserPersonaService {
           if (existing) {
             existing.score += weight;
             existing.behaviorCount += 1;
-            existing.lastUpdated = behavior.timestamp;
+            existing.lastUpdated = behavior.behaviorTimestamp;
             if (existing.recentBehaviors.length < 10) {
               existing.recentBehaviors.push(behavior.id);
             }
@@ -444,7 +444,7 @@ class UserPersonaService {
               tag,
               score: weight,
               category: behavior.metadata?.category,
-              lastUpdated: behavior.timestamp,
+              lastUpdated: behavior.behaviorTimestamp,
               behaviorCount: 1,
               recentBehaviors: [behavior.id],
             });
@@ -542,7 +542,7 @@ class UserPersonaService {
     if (!config) return 1;
 
     const baseWeight = config.weight;
-    const daysSinceBehavior = (Date.now() - new Date(behavior.timestamp).getTime()) / (1000 * 60 * 60 * 24);
+    const daysSinceBehavior = (Date.now() - new Date(behavior.behaviorTimestamp).getTime()) / (1000 * 60 * 60 * 24);
     const timeDecay = Math.pow(config.decayFactor, daysSinceBehavior / config.halfLife);
     const recencyBonus = 1 + (1 - recencyIndex / 100) * 0.2;
 
@@ -559,7 +559,7 @@ class UserPersonaService {
 
   private isDailyActive(behaviors: UserBehavior[]): boolean {
     const today = new Date().toDateString();
-    return behaviors.some(b => new Date(b.timestamp).toDateString() === today);
+    return behaviors.some(b => new Date(b.behaviorTimestamp).toDateString() === today);
   }
 
   private calculateSessionTrend(behaviors: UserBehavior[]): 'increasing' | 'stable' | 'decreasing' {
@@ -587,7 +587,7 @@ class UserPersonaService {
     const sessions = this.groupBehaviorsBySession(behaviors);
     const durations = sessions.map(session => {
       if (session.length < 2) return 0;
-      const timestamps = session.map(b => new Date(b.timestamp).getTime());
+      const timestamps = session.map(b => new Date(b.behaviorTimestamp).getTime());
       return (Math.max(...timestamps) - Math.min(...timestamps)) / 1000;
     });
     
@@ -605,15 +605,15 @@ class UserPersonaService {
     let lastTimestamp = 0;
 
     behaviors.forEach(behavior => {
-      const timestamp = new Date(behavior.timestamp).getTime();
-      
+      const timestamp = new Date(behavior.behaviorTimestamp).getTime();
+
       if (lastTimestamp > 0 && timestamp - lastTimestamp > SESSION_GAP) {
         if (currentSession.length > 0) {
           sessions.push(currentSession);
         }
         currentSession = [];
       }
-      
+
       currentSession.push(behavior);
       lastTimestamp = timestamp;
     });
@@ -734,7 +734,7 @@ class UserPersonaService {
       contentId: data.content_id,
       contentType: data.content_type,
       behaviorType: data.behavior_type,
-      timestamp: data.timestamp,
+      behaviorTimestamp: data.behavior_timestamp,
       duration: data.duration,
       value: data.value,
       metadata: data.metadata,

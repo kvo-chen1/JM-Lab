@@ -1,6 +1,6 @@
 /**
  * 优化的数据库连接模块
- * 针对 Neon PostgreSQL 进行性能优化
+ * 针对 Supabase PostgreSQL 进行性能优化
  */
 
 import { Pool } from 'pg'
@@ -35,54 +35,42 @@ const log = (msg, level = 'INFO') => {
 }
 
 /**
- * 获取优化的连接字符串
- * 优先使用直连地址而非 pooler 地址
+ * 获取数据库连接字符串
+ * 优先使用直连地址
  */
-const getOptimizedConnectionString = () => {
-  // 1. 优先使用非池化连接（直连）
-  const nonPoolingUrl = process.env.NEON_DATABASE_URL_UNPOOLED ||
-                       process.env.NEON_POSTGRES_URL_NON_POOLING ||
-                       process.env.POSTGRES_URL_NON_POOLING
-  
-  if (nonPoolingUrl) {
-    // 检查是否真的是非池化地址（不包含 -pooler）
-    if (!nonPoolingUrl.includes('-pooler')) {
-      log('Using direct (non-pooled) connection')
-      return nonPoolingUrl
-    }
+const getConnectionString = () => {
+  // 1. 优先使用 NON_POOLING (Session Mode, port 5432) 
+  // 这是 Vercel + Supabase Serverless 环境的最佳实践
+  if (process.env.POSTGRES_URL_NON_POOLING) {
+    log('Using POSTGRES_URL_NON_POOLING')
+    return process.env.POSTGRES_URL_NON_POOLING
   }
 
-  // 2. 尝试转换池化地址为直连地址
-  const poolerUrl = process.env.DATABASE_URL || 
-                   process.env.NEON_DATABASE_URL || 
-                   process.env.NEON_URL ||
-                   process.env.POSTGRES_URL
-  
-  if (poolerUrl && poolerUrl.includes('-pooler')) {
-    // 将 pooler 地址转换为直连地址
-    // ep-shy-bar-ajp9o0kn-pooler.c-3.us-east-2.aws.neon.tech -> ep-shy-bar-ajp9o0kn.c-3.us-east-2.aws.neon.tech
-    const directUrl = poolerUrl.replace(/-pooler(\.[a-z]-\d)/, '$1')
-    log('Converted pooler URL to direct connection')
-    return directUrl
+  // 2. 使用标准 DATABASE_URL
+  if (process.env.DATABASE_URL) {
+    log('Using DATABASE_URL')
+    return process.env.DATABASE_URL
   }
-
-  // 3. 使用原始地址
-  return poolerUrl
+  
+  // 3. 尝试 Supabase 相关变量
+  if (process.env.POSTGRES_URL) {
+    log('Using POSTGRES_URL')
+    return process.env.POSTGRES_URL
+  }
+  
+  return null
 }
 
 /**
  * 连接池配置
  */
 const getPoolConfig = () => {
-  const connectionString = getOptimizedConnectionString()
+  const connectionString = getConnectionString()
   
   if (!connectionString) {
-    throw new Error('No database connection string found')
+    throw new Error('No database connection string found. Please set DATABASE_URL or POSTGRES_URL environment variable.')
   }
 
-  // 判断是否为直连
-  const isDirectConnection = !connectionString.includes('-pooler')
-  
   // 基础配置
   const baseConfig = {
     connectionString,
@@ -91,31 +79,20 @@ const getPoolConfig = () => {
     },
     // 客户端编码
     client_encoding: 'UTF8',
-    // 应用名称（便于在 Neon 控制台识别）
+    // 应用名称（便于在 Supabase 控制台识别）
     application_name: 'jinmai-app',
   }
 
-  if (isDirectConnection) {
-    // 直连模式：减少连接池以避免超过数据库限制
-    return {
-      ...baseConfig,
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '2'),
-      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '1'),
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-      // 保持连接活跃
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
-    }
-  } else {
-    // Pooler 模式：使用较小的连接池
-    return {
-      ...baseConfig,
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '2'),
-      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '1'),
-      idleTimeoutMillis: 10000,
-      connectionTimeoutMillis: 15000,
-    }
+  // 连接池配置
+  return {
+    ...baseConfig,
+    max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '5'),
+    min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '1'),
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    // 保持连接活跃
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
   }
 }
 
@@ -163,7 +140,7 @@ export const initPool = async () => {
  * 预先建立最小连接数，减少首次查询延迟
  */
 const warmupPool = async () => {
-  const minConnections = parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '2')
+  const minConnections = parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '1')
   log(`Warming up pool with ${minConnections} connections...`)
 
   const warmupStart = Date.now()

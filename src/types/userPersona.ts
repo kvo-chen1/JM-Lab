@@ -33,7 +33,7 @@ export interface UserBehavior {
   contentId: string;
   contentType: ContentType;
   behaviorType: BehaviorType;
-  timestamp: string;
+  behaviorTimestamp: string;
   duration?: number;
   value?: number;
   metadata?: {

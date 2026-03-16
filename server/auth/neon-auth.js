@@ -1,4 +1,4 @@
-// Neon Auth 配置
+// Auth 配置
 import { getDB } from '../database.mjs';
 
 // 认证配置
@@ -48,105 +48,131 @@ export const userActions = {
       
       return rows[0];
     } catch (error) {
-      console.error('创建用户失败:', error);
-      throw error;
+      throw new Error(`创建用户失败: ${error.message}`);
     }
   },
   
-  // 通过邮箱查找用户
+  // 根据邮箱查找用户
   async findUserByEmail(email) {
     try {
       const db = await getDB();
       const { rows } = await db.query(
-        `SELECT id, email, password_hash, username
-         FROM users
-         WHERE email = $1`,
+        'SELECT * FROM users WHERE email = $1',
         [email]
       );
-      
       return rows[0] || null;
     } catch (error) {
-      console.error('查找用户失败:', error);
-      return null;
+      throw new Error(`查找用户失败: ${error.message}`);
     }
   },
   
-  // 更新用户信息
-  async updateUser(id, updates) {
-    try {
-      const db = await getDB();
-      const fields = Object.keys(updates);
-      const values = Object.values(updates);
-      const setClause = fields.map((field, index) => `${field} = $${index + 1}`).join(', ');
-      
-      const { rows } = await db.query(
-        `UPDATE users
-         SET ${setClause}
-         WHERE id = $${fields.length + 1}
-         RETURNING id, email, username`,
-        [...values, id]
-      );
-      
-      return rows[0] || null;
-    } catch (error) {
-      console.error('更新用户失败:', error);
-      return null;
-    }
-  },
-  
-  // 通过ID查找用户
+  // 根据ID查找用户
   async findUserById(id) {
     try {
       const db = await getDB();
       const { rows } = await db.query(
-        `SELECT id, email, password_hash, username
-         FROM users
-         WHERE id = $1`,
+        'SELECT id, email, username, avatar_url, created_at FROM users WHERE id = $1',
         [id]
       );
-      
       return rows[0] || null;
     } catch (error) {
-      console.error('查找用户失败:', error);
-      return null;
+      throw new Error(`查找用户失败: ${error.message}`);
     }
   }
 };
 
 // 认证相关操作
 export const authActions = {
-  // 验证密码
-  async verifyPassword(storedHash, password) {
-    // 这里应该使用密码哈希验证
-    // 暂时简化处理，实际应该使用bcrypt等库
-    return storedHash === password;
+  // 用户注册
+  async register(userData) {
+    const { email, password, name } = userData;
+    
+    // 检查用户是否已存在
+    const existingUser = await userActions.findUserByEmail(email);
+    if (existingUser) {
+      throw new Error('用户已存在');
+    }
+    
+    // 创建用户
+    const user = await userActions.createUser({
+      email,
+      password,
+      name
+    });
+    
+    return user;
   },
   
-  // 生成JWT令牌
-  generateToken(userId) {
-    const jwt = import('jsonwebtoken');
-    return jwt.then(jwtModule => {
-      return jwtModule.default.sign({ userId }, authConfig.jwt.secret, {
-        expiresIn: authConfig.jwt.expiresIn
-      });
-    });
+  // 用户登录
+  async login(credentials) {
+    const { email, password } = credentials;
+    
+    // 查找用户
+    const user = await userActions.findUserByEmail(email);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    
+    // 验证密码（这里简化处理，实际应该比较密码哈希）
+    // TODO: 实现密码验证逻辑
+    
+    return user;
   },
   
-  // 验证JWT令牌
-  verifyToken(token) {
-    const jwt = import('jsonwebtoken');
-    return jwt.then(jwtModule => {
-      try {
-        return jwtModule.default.verify(token, authConfig.jwt.secret);
-      } catch (error) {
-        return null;
-      }
-    });
+  // 用户登出
+  async logout(token) {
+    return await sessionActions.deleteSession(token);
+  },
+  
+  // 验证token
+  async verifyToken(token) {
+    return await sessionActions.validateSession(token);
   }
 };
 
-export default {
-  config: authConfig,
-  user: userActions,
-  auth: authActions
+// 会话相关操作
+export const sessionActions = {
+  // 创建会话
+  async createSession(userId, token) {
+    try {
+      const db = await getDB();
+      const { rows } = await db.query(
+        `INSERT INTO user_sessions (user_id, token, created_at, expires_at)
+         VALUES ($1, $2, NOW(), NOW() + INTERVAL '7 days')
+         RETURNING *`,
+        [userId, token]
+      );
+      return rows[0];
+    } catch (error) {
+      throw new Error(`创建会话失败: ${error.message}`);
+    }
+  },
+  
+  // 验证会话
+  async validateSession(token) {
+    try {
+      const db = await getDB();
+      const { rows } = await db.query(
+        `SELECT s.*, u.email, u.username 
+         FROM user_sessions s
+         JOIN users u ON s.user_id = u.id
+         WHERE s.token = $1 AND s.expires_at > NOW()`,
+        [token]
+      );
+      return rows[0] || null;
+    } catch (error) {
+      throw new Error(`验证会话失败: ${error.message}`);
+    }
+  },
+  
+  // 删除会话
+  async deleteSession(token) {
+    try {
+      const db = await getDB();
+      await db.query('DELETE FROM user_sessions WHERE token = $1', [token]);
+      return true;
+    } catch (error) {
+      throw new Error(`删除会话失败: ${error.message}`);
+    }
+  }
 };

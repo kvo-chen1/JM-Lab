@@ -462,6 +462,11 @@ export default async function handler(req, res) {
       return handleBrands(req, res, path);
     }
 
+    // IP孵化相关API
+    if (path.startsWith('/ip')) {
+      return handleIP(req, res, path);
+    }
+
     // 订单相关API
     if (path.startsWith('/orders')) {
       return handleOrders(req, res, path);
@@ -1188,6 +1193,41 @@ async function handleDbProxy(req, res, path) {
       });
     }
 
+    // 处理 /db/auth/v1/user 请求
+    if (path === '/db/auth/v1/user' && req.method === 'GET') {
+      const user = verifyAuthToken(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized', message: '未授权访问' });
+      }
+
+      try {
+        const result = await queryWithRetry(
+          'SELECT id, email, username, avatar_url, role, created_at, updated_at FROM users WHERE id = $1',
+          [user.sub || user.id || user.userId]
+        );
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'User not found', message: '用户不存在' });
+        }
+
+        const userData = result.rows[0];
+        return res.status(200).json({
+          id: userData.id,
+          email: userData.email,
+          user_metadata: {
+            username: userData.username,
+            avatar_url: userData.avatar_url,
+            role: userData.role
+          },
+          created_at: userData.created_at,
+          updated_at: userData.updated_at
+        });
+      } catch (error) {
+        console.error('[DB Proxy] Auth error:', error.message);
+        return res.status(500).json({ error: 'Server error', message: error.message });
+      }
+    }
+
     const body = await parseRequestBody(req);
     console.log('[DB Proxy]', req.method, path, body);
 
@@ -1647,6 +1687,124 @@ async function handleBrands(req, res, path) {
     return res.status(501).json({ code: 1, message: 'Brands endpoint not implemented' });
   } catch (error) {
     console.error('[Brands API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理IP孵化相关请求
+async function handleIP(req, res, path) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    // 处理商业合作申请审核 /ip/partnerships/:id/review
+    if (path.match(/\/ip\/partnerships\/[^\/]+\/review/) && req.method === 'PUT') {
+      const match = path.match(/\/ip\/partnerships\/([^\/]+)\/review/);
+      const applicationId = match ? match[1] : null;
+      
+      if (!applicationId) {
+        return res.status(400).json({ code: 1, message: '申请ID不能为空' });
+      }
+
+      const body = await parseRequestBody(req);
+      const { status, message } = body;
+
+      if (!status || !['approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ code: 1, message: '状态必须是 approved 或 rejected' });
+      }
+
+      const pool = await getDbPool();
+      if (!pool) {
+        return res.status(503).json({ code: 1, message: '数据库服务不可用' });
+      }
+
+      // 检查申请是否存在
+      const checkResult = await queryWithRetry(
+        'SELECT id, status FROM commercial_partnerships WHERE id = $1',
+        [applicationId]
+      );
+
+      if (checkResult.rows.length === 0) {
+        return res.status(404).json({ code: 1, message: '申请不存在' });
+      }
+
+      const currentStatus = checkResult.rows[0].status;
+      if (currentStatus !== 'pending') {
+        return res.status(400).json({ code: 1, message: '该申请已被处理' });
+      }
+
+      // 更新申请状态
+      await queryWithRetry(
+        `UPDATE commercial_partnerships 
+         SET status = $1, 
+             message = $2, 
+             updated_at = NOW(),
+             reviewed_at = NOW(),
+             reviewed_by = $3
+         WHERE id = $4`,
+        [status, message || null, decoded.userId || decoded.id, applicationId]
+      );
+
+      return res.status(200).json({ code: 0, message: '审核成功' });
+    }
+
+    // 获取商业合作申请列表 /ip/partnerships
+    if (path === '/ip/partnerships' && req.method === 'GET') {
+      const pool = await getDbPool();
+      if (!pool) {
+        return res.status(200).json({ code: 0, data: [] });
+      }
+
+      const result = await queryWithRetry(
+        `SELECT * FROM commercial_partnerships ORDER BY created_at DESC`,
+        []
+      );
+
+      return res.status(200).json({ code: 0, data: result.rows });
+    }
+
+    // 获取商业机会列表 /ip/opportunities
+    if (path === '/ip/opportunities' && req.method === 'GET') {
+      const pool = await getDbPool();
+      if (!pool) {
+        return res.status(200).json({ code: 0, data: [] });
+      }
+
+      const result = await queryWithRetry(
+        `SELECT * FROM commercial_opportunities ORDER BY created_at DESC`,
+        []
+      );
+
+      return res.status(200).json({ code: 0, data: result.rows });
+    }
+
+    // 获取某个机会的申请列表 /ip/opportunities/:id/applications
+    if (path.match(/\/ip\/opportunities\/[^\/]+\/applications/) && req.method === 'GET') {
+      const match = path.match(/\/ip\/opportunities\/([^\/]+)\/applications/);
+      const opportunityId = match ? match[1] : null;
+
+      if (!opportunityId) {
+        return res.status(400).json({ code: 1, message: '机会ID不能为空' });
+      }
+
+      const pool = await getDbPool();
+      if (!pool) {
+        return res.status(200).json({ code: 0, data: [] });
+      }
+
+      const result = await queryWithRetry(
+        `SELECT * FROM commercial_partnerships WHERE opportunity_id = $1 ORDER BY created_at DESC`,
+        [opportunityId]
+      );
+
+      return res.status(200).json({ code: 0, data: result.rows });
+    }
+
+    return res.status(501).json({ code: 1, message: 'IP endpoint not implemented: ' + path });
+  } catch (error) {
+    console.error('[IP API] Error:', error);
     return res.status(500).json({ code: 1, message: 'Internal server error' });
   }
 }

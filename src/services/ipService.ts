@@ -39,6 +39,10 @@ export interface CommercialPartnership {
   reward: string;
   status: 'pending' | 'negotiating' | 'approved' | 'rejected' | 'completed';
   ipAssetId: string;
+  opportunityId?: string;
+  applicantName?: string;
+  applicantEmail?: string;
+  message?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,6 +60,11 @@ export interface CommercialOpportunity {
   status: 'open' | 'matched' | 'closed';
   matchCriteria?: Record<string, any>;
   viewCount?: number;
+  applicationCount?: number;
+  type?: string;
+  rewardMin?: number;
+  rewardMax?: number;
+  contactInfo?: string;
   createdAt: string;
   updatedAt: string;
 }

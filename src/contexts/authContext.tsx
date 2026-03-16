@@ -530,7 +530,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           }
           
           if (userData && isAuthFlag === 'true') {
-            const userWithAvatar = { ...userData, avatar: userData.avatar || '' };
+            // 确保头像URL同时设置到 avatar 和 avatar_url 字段
+            const avatarUrl = userData.avatar_url || userData.avatar || '';
+            const userWithAvatar = { 
+              ...userData, 
+              avatar: avatarUrl,
+              avatar_url: avatarUrl 
+            };
             safeLocalStorage.setItem('user', JSON.stringify(userWithAvatar));
             
             // 尝试恢复 Supabase session
@@ -845,11 +851,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         ? userData.isNewUser 
         : (!userData.username || userData.username.trim() === '');
       
+      // 确保头像URL同时设置到 avatar 和 avatar_url 字段
+      const avatarUrl = userData.avatar_url || userData.avatar || '';
+      
       const userWithMembership: User = {
         id: userData.id || userData.user_id || '',
         email: userData.email || normalizedEmail,
         username: userData.username || userData.name || normalizedEmail.split('@')[0],
-        avatar: userData.avatar_url || userData.avatar || '',
+        avatar: avatarUrl,
+        avatar_url: avatarUrl,
         bio: userData.bio || '',
         is_verified: userData.is_verified || false,
         metadata: userData.metadata || {},
@@ -1252,12 +1262,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
             // 保存用户数据
             const { user, token, isNewUser } = event.data;
+            
+            // 确保头像URL同时设置到 avatar 和 avatar_url 字段
+            const avatarUrl = user.avatar_url || user.avatar || '';
+            const userWithAvatar = {
+              ...user,
+              avatar: avatarUrl,
+              avatar_url: avatarUrl,
+              isNewUser
+            };
+            
             localStorage.setItem('token', token);
-            localStorage.setItem('user', JSON.stringify({ ...user, isNewUser }));
+            localStorage.setItem('user', JSON.stringify(userWithAvatar));
             localStorage.setItem('isAuthenticated', 'true');
 
             // 更新状态
-            setUser({ ...user, isNewUser });
+            setUser(userWithAvatar);
             setIsAuthenticated(true);
 
             toast.success(isNewUser ? '欢迎新用户！' : '登录成功！');

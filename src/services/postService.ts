@@ -818,19 +818,15 @@ export async function getPostById(id: string, currentUserId?: string): Promise<P
      const { count: likeCount } = await supabase.from('likes').select('*', { count: 'exact', head: true }).match({ user_id: currentUserId, post_id: p.id });
      isLiked = !!likeCount;
 
-     // 检查 bookmarks 表是否存在 post_id 列
+     // 检查 bookmarks 表是否存在收藏记录
      try {
-       const { count: bookmarkCount, error: bookmarkError } = await supabase.from('bookmarks').select('*', { count: 'exact', head: true }).match({ user_id: currentUserId, post_id: p.id });
+       const { count: bookmarkCount, error: bookmarkError } = await supabase
+         .from('bookmarks')
+         .select('*', { count: 'exact', head: true })
+         .match({ user_id: currentUserId, target_type: 'post', target_id: p.id });
        if (bookmarkError) {
-         // 检查是否是列不存在的错误
-         if (bookmarkError.message?.includes('column "post_id" does not exist') ||
-             bookmarkError.code === '42703') {
-           console.warn('[enrichPostData] bookmarks 表没有 post_id 列');
-           isBookmarked = false;
-         } else {
-           console.error('[enrichPostData] Error checking bookmark:', bookmarkError);
-           isBookmarked = false;
-         }
+         console.error('[enrichPostData] Error checking bookmark:', bookmarkError);
+         isBookmarked = false;
        } else {
          isBookmarked = !!bookmarkCount;
        }
@@ -991,24 +987,19 @@ export async function getUserBookmarks(userId: string): Promise<string[]> {
     console.error('[getUserBookmarks] Error fetching works bookmarks:', worksError);
   }
 
-  // 获取帖子收藏（处理 bookmarks 表可能没有 post_id 列的情况）
+  // 获取帖子收藏（bookmarks 表使用 target_type 和 target_id 字段）
   let postIds: string[] = [];
   try {
     const { data: postBookmarks, error: postError } = await supabase
       .from('bookmarks')
-      .select('post_id')
-      .eq('user_id', userId);
+      .select('target_id')
+      .eq('user_id', userId)
+      .eq('target_type', 'post');
 
     if (postError) {
-      // 检查是否是列不存在的错误
-      if (postError.message?.includes('column "post_id" does not exist') ||
-          postError.code === '42703') {
-        console.warn('[getUserBookmarks] bookmarks 表没有 post_id 列');
-      } else {
-        console.error('[getUserBookmarks] Error fetching post bookmarks:', postError);
-      }
+      console.error('[getUserBookmarks] Error fetching post bookmarks:', postError);
     } else {
-      postIds = postBookmarks?.map(d => d.post_id?.toString()).filter(Boolean) || [];
+      postIds = postBookmarks?.map(d => d.target_id?.toString()).filter(Boolean) || [];
     }
   } catch (err: any) {
     console.warn('[getUserBookmarks] Error accessing bookmarks:', err);
@@ -2603,6 +2594,26 @@ export async function getAuthorById(userIdOrUsername: string): Promise<User | nu
       if (!rpcError && rpcData && rpcData.length > 0) {
         const userData = rpcData[0]
         console.log('[getAuthorById] Got current user from RPC:', userData)
+
+        // 获取粉丝数和关注数
+        let followersCount = 0
+        let followingCount = 0
+        try {
+          const { count: followers } = await supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('following_id', userData.id)
+          followersCount = followers || 0
+
+          const { count: following } = await supabase
+            .from('follows')
+            .select('*', { count: 'exact', head: true })
+            .eq('follower_id', userData.id)
+          followingCount = following || 0
+        } catch (e) {
+          console.log('[getAuthorById] Failed to get follow counts from RPC:', e)
+        }
+
         return {
           id: userData.id,
           username: userData.username || 'User',
@@ -2612,7 +2623,9 @@ export async function getAuthorById(userIdOrUsername: string): Promise<User | nu
           bio: userData.bio || '',
           location: userData.location || '',
           website: userData.website || '',
-          occupation: userData.occupation || ''
+          occupation: userData.occupation || '',
+          followersCount,
+          followingCount
         }
       }
     } catch (rpcErr) {
@@ -2670,6 +2683,26 @@ export async function getAuthorById(userIdOrUsername: string): Promise<User | nu
           if (!rpcError && rpcData && rpcData.length > 0) {
             const userData = rpcData[0]
             console.log('[getAuthorById] Got user from RPC:', userData)
+
+            // 获取粉丝数和关注数
+            let followersCount = 0
+            let followingCount = 0
+            try {
+              const { count: followers } = await supabase
+                .from('follows')
+                .select('*', { count: 'exact', head: true })
+                .eq('following_id', userData.id)
+              followersCount = followers || 0
+
+              const { count: following } = await supabase
+                .from('follows')
+                .select('*', { count: 'exact', head: true })
+                .eq('follower_id', userData.id)
+              followingCount = following || 0
+            } catch (e) {
+              console.log('[getAuthorById] Failed to get follow counts:', e)
+            }
+
             return {
               id: userData.id,
               username: userData.username || 'User',
@@ -2679,7 +2712,9 @@ export async function getAuthorById(userIdOrUsername: string): Promise<User | nu
               bio: userData.bio || '',
               location: userData.location || '',
               website: userData.website || '',
-              occupation: userData.occupation || ''
+              occupation: userData.occupation || '',
+              followersCount,
+              followingCount
             }
           }
         } catch (rpcErr) {
@@ -2701,6 +2736,26 @@ export async function getAuthorById(userIdOrUsername: string): Promise<User | nu
         
         if (!userError && userData) {
           console.log('[getAuthorById] Got user from Supabase:', userData)
+
+          // 获取粉丝数和关注数
+          let followersCount = 0
+          let followingCount = 0
+          try {
+            const { count: followers } = await supabase
+              .from('follows')
+              .select('*', { count: 'exact', head: true })
+              .eq('following_id', userData.id)
+            followersCount = followers || 0
+
+            const { count: following } = await supabase
+              .from('follows')
+              .select('*', { count: 'exact', head: true })
+              .eq('follower_id', userData.id)
+            followingCount = following || 0
+          } catch (e) {
+            console.log('[getAuthorById] Failed to get follow counts:', e)
+          }
+
           return {
             id: userData.id,
             username: userData.username || 'User',
@@ -2710,7 +2765,9 @@ export async function getAuthorById(userIdOrUsername: string): Promise<User | nu
             bio: userData.bio || '',
             location: userData.location || '',
             website: userData.website || '',
-            occupation: userData.occupation || ''
+            occupation: userData.occupation || '',
+            followersCount,
+            followingCount
           }
         }
       }
@@ -2858,7 +2915,8 @@ export async function getFollowingList(): Promise<{ id: string; username: string
   try {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!token) {
-      throw new Error('请先登录');
+      console.log('[getFollowingList] 用户未登录，返回空数组');
+      return [];
     }
 
     const response = await fetch('/api/follows/following', {
@@ -2866,6 +2924,34 @@ export async function getFollowingList(): Promise<{ id: string; username: string
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        console.log('[getFollowingList] 授权已过期，尝试使用本地 API 查询...');
+        // 尝试从 localStorage 获取用户ID并直接查询数据库
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            if (user.id) {
+              // 使用本地 API 查询
+              const apiUrl = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3030';
+              const response = await fetch(`${apiUrl}/api/follows/following?userId=${user.id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result.code === 0 && result.data) {
+                  console.log('[getFollowingList] 通过本地 API 查询成功:', result.data.length);
+                  return result.data;
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[getFollowingList] 备用查询失败:', e);
+          }
+        }
+        return [];
+      }
       const error = await response.json();
       throw new Error(error.message || '获取关注列表失败');
     }
@@ -2874,7 +2960,7 @@ export async function getFollowingList(): Promise<{ id: string; username: string
     return result.data || [];
   } catch (error: any) {
     console.error('[getFollowingList] 异常:', error);
-    throw error;
+    return []; // 出错时返回空数组而不是抛出错误
   }
 }
 
@@ -2883,7 +2969,8 @@ export async function getFollowersList(): Promise<{ id: string; username: string
   try {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!token) {
-      throw new Error('请先登录');
+      console.log('[getFollowersList] 用户未登录，返回空数组');
+      return [];
     }
 
     const response = await fetch('/api/follows/followers', {
@@ -2891,6 +2978,34 @@ export async function getFollowersList(): Promise<{ id: string; username: string
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        console.log('[getFollowersList] 授权已过期，尝试使用本地 API 查询...');
+        // 尝试从 localStorage 获取用户ID并直接查询数据库
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            if (user.id) {
+              // 使用本地 API 查询
+              const apiUrl = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3030';
+              const response = await fetch(`${apiUrl}/api/follows/followers?userId=${user.id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result.code === 0 && result.data) {
+                  console.log('[getFollowersList] 通过本地 API 查询成功:', result.data.length);
+                  return result.data;
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[getFollowersList] 备用查询失败:', e);
+          }
+        }
+        return [];
+      }
       const error = await response.json();
       throw new Error(error.message || '获取粉丝列表失败');
     }
@@ -2899,7 +3014,7 @@ export async function getFollowersList(): Promise<{ id: string; username: string
     return result.data || [];
   } catch (error: any) {
     console.error('[getFollowersList] 异常:', error);
-    throw error;
+    return []; // 出错时返回空数组而不是抛出错误
   }
 }
 

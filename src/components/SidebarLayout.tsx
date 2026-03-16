@@ -526,19 +526,45 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
   useEffect(() => {
     if (user?.id) {
       console.log('[SidebarLayout] Fetching user stats for user:', user.id, user.username);
-      
-      // 并行获取关注列表、粉丝列表和作品数量
+
+      // 并行获取关注数、粉丝数、作品数量和积分数据
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      
+
       Promise.all([
-        getFollowingList().catch((err) => {
-          console.error('[SidebarLayout] getFollowingList error:', err);
-          return [];
-        }),
-        getFollowersList().catch((err) => {
-          console.error('[SidebarLayout] getFollowersList error:', err);
-          return [];
-        }),
+        // 使用 API 获取关注数
+        token ? fetch('/api/follows/following', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).then(res => {
+          if (!res.ok) {
+            console.error('[SidebarLayout] Following API error:', res.status, res.statusText);
+            return [];
+          }
+          return res.json();
+        }).then(result => {
+          const count = result?.data?.length || 0;
+          console.log('[SidebarLayout] Following count from API:', count);
+          return count;
+        }).catch((err) => {
+          console.error('[SidebarLayout] Following fetch error:', err);
+          return 0;
+        }) : Promise.resolve(0),
+        // 使用 API 获取粉丝数
+        token ? fetch('/api/follows/followers', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).then(res => {
+          if (!res.ok) {
+            console.error('[SidebarLayout] Followers API error:', res.status, res.statusText);
+            return [];
+          }
+          return res.json();
+        }).then(result => {
+          const count = result?.data?.length || 0;
+          console.log('[SidebarLayout] Followers count from API:', count);
+          return count;
+        }).catch((err) => {
+          console.error('[SidebarLayout] Followers fetch error:', err);
+          return 0;
+        }) : Promise.resolve(0),
         // 获取作品数量 - 使用较大的limit确保获取所有作品
         token ? fetch(`/api/works?creator_id=${user.id}&limit=100`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -553,31 +579,31 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
         }) : Promise.resolve({ data: [] }),
         // 获取积分数据
         supabasePointsService.getUserBalance(user.id).catch(() => null)
-      ]).then(([following, followers, worksResult, pointsBalance]) => {
+      ]).then(([followingCount, followersCount, worksResult, pointsBalance]) => {
         // API返回的是data数组，直接使用数组长度
         const worksCount = worksResult?.data?.length || 0;
-        
+
         console.log('[SidebarLayout] User stats fetched:', {
-          followingCount: following.length,
-          followersCount: followers.length,
+          followingCount,
+          followersCount,
           worksCount: worksCount,
           userId: user.id
         });
 
         setUserStats({
           worksCount: worksCount,
-          followersCount: followers.length,
-          followingCount: following.length
+          followersCount: followersCount,
+          followingCount: followingCount
         })
 
         // 设置积分数据
         const points = pointsBalance?.balance || 0
         const validPoints = Math.max(0, points)
         setUserPoints(validPoints)
-        
+
         // 更新 achievementService 的积分状态
         achievementService['userPoints'] = validPoints
-        
+
         // 获取等级信息
         const levelInfo = achievementService.getCreatorLevelInfo(user.id)
         setCreatorLevelInfo(levelInfo)

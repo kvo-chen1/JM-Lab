@@ -55,8 +55,11 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
         setLoading(true);
         const merchant = await merchantService.getCurrentMerchant();
         if (merchant) {
+          // 使用 user_id 查询，因为订单表的 seller_id 存储的是 user_id
+          const userId = (merchant as any).user_id || merchant.id;
+          
           // 获取待处理订单数
-          const orders = await merchantService.getOrders(merchant.id, { status: 'paid' });
+          const orders = await merchantService.getOrdersByUserId(userId, { status: 'paid' });
           
           // 获取待处理售后数
           const afterSales = await merchantService.getAfterSalesRequests(merchant.id, { status: 'pending' });

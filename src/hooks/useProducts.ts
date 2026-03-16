@@ -170,17 +170,27 @@ export function useProduct(productId: string | null) {
       return;
     }
 
+    console.log('[useProduct] 开始获取商品详情:', productId);
     const fetchProduct = async () => {
       setLoading(true);
       setError(null);
       try {
-        const result = await productService.getProductById(productId);
+        // 添加超时处理
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('请求超时，请检查网络连接')), 10000)
+        );
+        const result = await Promise.race([
+          productService.getProductById(productId),
+          timeoutPromise
+        ]);
+        console.log('[useProduct] 获取结果:', result);
         if (result.error) {
           setError(result.error);
         } else {
           setProduct(result.data || null);
         }
       } catch (err: any) {
+        console.error('[useProduct] 获取失败:', err);
         setError(err.message || '获取商品详情失败');
       } finally {
         setLoading(false);

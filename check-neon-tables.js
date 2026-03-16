@@ -1,15 +1,19 @@
 import pg from 'pg';
 const { Pool } = pg;
 
+// 使用环境变量或默认的 Supabase 连接
+const connectionString = process.env.DATABASE_URL || 
+  'postgresql://postgres:csh200506207837@db.kizgwtrrsmkjeiddotup.supabase.co:5432/postgres';
+
 const pool = new Pool({
-  connectionString: 'postgresql://neondb_owner:npg_fV0Tzot3RCxh@ep-shy-bar-ajp9o0kn-pooler.c-3.us-east-2.aws.neon.tech/neondb',
+  connectionString,
   ssl: { rejectUnauthorized: false }
 });
 
 async function checkTables() {
   try {
     const client = await pool.connect();
-    console.log('✅ Connected to Neon database\n');
+    console.log('✅ Connected to Supabase database\n');
 
     // 检查现有表
     const tablesRes = await client.query(`

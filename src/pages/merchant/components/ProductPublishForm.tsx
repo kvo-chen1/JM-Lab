@@ -148,8 +148,17 @@ const ProductPublishForm: React.FC<ProductPublishFormProps> = ({
     setSubmitting(true);
 
     try {
+      // 获取当前商家的 user_id，因为商品表的 seller_id 应该存储 user_id
+      const { data: merchantData } = await supabase
+        .from('merchants')
+        .select('user_id')
+        .eq('id', merchantId)
+        .single();
+      
+      const sellerId = merchantData?.user_id || merchantId;
+      
       const productData = {
-        merchant_id: merchantId,
+        seller_id: sellerId,  // 使用 seller_id 而不是 merchant_id
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),

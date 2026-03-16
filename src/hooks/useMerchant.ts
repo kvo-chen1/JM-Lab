@@ -141,17 +141,18 @@ export function useMerchantProducts(merchantId: string, filters?: { status?: str
 
 // ==================== useMerchantOrders - 订单管理 ====================
 
-export function useMerchantOrders(merchantId: string, filters?: { status?: string; startDate?: string; endDate?: string }) {
+export function useMerchantOrders(userId: string, filters?: { status?: string; startDate?: string; endDate?: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchOrders = useCallback(async () => {
-    if (!merchantId) return;
+    if (!userId) return;
 
     try {
       setLoading(true);
-      const data = await merchantService.getOrders(merchantId, filters);
+      // 使用 userId 查询订单，因为订单表的 seller_id 存储的是 user_id
+      const data = await merchantService.getOrdersByUserId(userId, filters);
       setOrders(data);
     } catch (err) {
       setError(err as Error);
@@ -159,7 +160,7 @@ export function useMerchantOrders(merchantId: string, filters?: { status?: strin
     } finally {
       setLoading(false);
     }
-  }, [merchantId, filters?.status, filters?.startDate, filters?.endDate]);
+  }, [userId, filters?.status, filters?.startDate, filters?.endDate]);
 
   useEffect(() => {
     fetchOrders();

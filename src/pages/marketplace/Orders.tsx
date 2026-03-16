@@ -358,10 +358,20 @@ const OrdersPage: React.FC = () => {
               <AlertCircle className="w-12 h-12 text-red-500" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">加载失败</h3>
-            <p className="text-gray-500 mb-6">{error}</p>
-            <Button onClick={handleRefresh}>
-              重新加载
-            </Button>
+            <p className="text-gray-500 mb-2">{error}</p>
+            {error?.includes('超时') && (
+              <p className="text-sm text-gray-400 mb-6">
+                可能原因：本地数据库服务未启动或网络连接异常
+              </p>
+            )}
+            <div className="flex gap-3 justify-center">
+              <Button onClick={handleRefresh}>
+                重新加载
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/marketplace')}>
+                返回商城
+              </Button>
+            </div>
           </div>
         )}
 

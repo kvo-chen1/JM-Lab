@@ -26,7 +26,8 @@ const getCurrentUser = async () => {
     }
   }
 
-  const { supabase } = await import('@/lib/supabase');
+  const supabaseModule = await import('@/lib/supabase');
+  const supabase = supabaseModule.supabase;
   
   // 尝试获取 session
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();

@@ -157,10 +157,12 @@ function parseFilter(key, value) {
 function verifyToken(req) {
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('[verifyToken] No authorization header or not Bearer format')
     return null
   }
   const token = authHeader.slice(7)
   if (!token || token === 'null' || token === 'undefined') {
+    console.log('[verifyToken] Token is null or undefined')
     return null
   }
   try {
@@ -171,6 +173,7 @@ function verifyToken(req) {
         const userPart = parts.slice(3).join('_')
         const payload = JSON.parse(Buffer.from(userPart.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString())
         if (payload.exp && payload.exp < Date.now() / 1000) {
+          console.log('[verifyToken] jm_ token expired')
           return null
         }
         return payload
@@ -182,13 +185,17 @@ function verifyToken(req) {
     if (parts.length === 3) {
       const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString())
       if (payload.exp && payload.exp < Date.now() / 1000) {
+        console.log('[verifyToken] JWT token expired, exp:', payload.exp, 'now:', Date.now() / 1000)
         return null
       }
+      console.log('[verifyToken] JWT token verified, user:', payload.sub || payload.id)
       return payload
     }
 
+    console.log('[verifyToken] Unknown token format')
     return null
-  } catch {
+  } catch (error) {
+    console.error('[verifyToken] Error verifying token:', error.message)
     return null
   }
 }

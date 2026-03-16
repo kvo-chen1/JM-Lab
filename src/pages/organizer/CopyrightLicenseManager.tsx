@@ -992,7 +992,7 @@ const CopyrightLicenseManager: React.FC = () => {
                         </span>
                       </div>
 
-                      {request.ipCategories.length > 0 && (
+                      {request.ipCategories?.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-4">
                           {request.ipCategories.map(cat => (
                             <span key={cat} className={`px-2.5 py-1 rounded-lg text-xs ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-gray-100 text-gray-600'}`}>

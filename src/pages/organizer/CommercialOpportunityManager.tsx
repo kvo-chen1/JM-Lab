@@ -619,6 +619,18 @@ export default function CommercialOpportunityManager() {
         opportunity={selectedOpportunity}
         onSuccess={loadData}
       />
+
+      {/* 查看申请弹窗 */}
+      <ApplicationsModal
+        isOpen={showApplicationsModal}
+        onClose={() => {
+          setShowApplicationsModal(false);
+          setSelectedOpportunity(null);
+        }}
+        opportunity={selectedOpportunity}
+        applications={applications}
+        onReview={handleReviewApplication}
+      />
     </div>
   );
 }
@@ -826,7 +838,7 @@ function CreateOpportunityModal({ isOpen, onClose, opportunity, onSuccess }: Cre
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={`relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border ${isDark ? 'backdrop-blur-xl bg-slate-900/90 border-slate-800 shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]' : 'backdrop-blur-xl bg-white/90 border-gray-200 shadow-[0_0_30px_-5px_rgba(6,182,212,0.15)]'}`}
+            className={`relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border ${isDark ? 'bg-slate-900 border-slate-800 shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]' : 'bg-white border-gray-200 shadow-[0_0_30px_-5px_rgba(6,182,212,0.15)]'}`}
           >
             {/* 头部 */}
             <div className={`relative overflow-hidden`}>
@@ -896,10 +908,10 @@ function CreateOpportunityModal({ isOpen, onClose, opportunity, onSuccess }: Cre
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       {collaborationTypes.map((type) => (
-                        <button
+                        <div
                           key={type.id}
                           onClick={() => handleChange('type', type.id)}
-                          className={`p-3 rounded-xl border text-left transition-all ${
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer select-none ${
                             formData.type === type.id
                               ? isDark ? 'border-cyan-500 bg-cyan-500/10' : 'border-cyan-500 bg-cyan-50'
                               : isDark ? 'border-slate-700 hover:border-slate-600' : 'border-gray-200 hover:border-gray-300'
@@ -907,7 +919,7 @@ function CreateOpportunityModal({ isOpen, onClose, opportunity, onSuccess }: Cre
                         >
                           <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{type.name}</p>
                           <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>{type.description}</p>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -969,17 +981,17 @@ function CreateOpportunityModal({ isOpen, onClose, opportunity, onSuccess }: Cre
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {ipTypeOptions.map((type) => (
-                        <button
+                        <div
                           key={type.id}
                           onClick={() => handleTypeToggle(type.id)}
-                          className={`px-3 py-2 rounded-xl border text-sm transition-all ${
+                          className={`px-3 py-2 rounded-xl border text-sm transition-all cursor-pointer select-none ${
                             formData.matchCriteria.type.includes(type.id)
                               ? isDark ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-cyan-500 bg-cyan-50 text-cyan-600'
                               : isDark ? 'border-slate-700 hover:border-slate-600 text-slate-300' : 'border-gray-200 hover:border-gray-300 text-gray-600'
                           }`}
                         >
                           {type.icon} {type.name}
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1104,6 +1116,154 @@ function CreateOpportunityModal({ isOpen, onClose, opportunity, onSuccess }: Cre
                   >
                     {isSubmitting ? '发布中...' : '立即发布'}
                   </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ============================================================================
+// 查看申请弹窗组件
+// ============================================================================
+
+interface ApplicationsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  opportunity: OpportunityWithStats | null;
+  applications: CommercialPartnership[];
+  onReview: (applicationId: string, status: 'approved' | 'rejected') => void;
+}
+
+function ApplicationsModal({ isOpen, onClose, opportunity, applications, onReview }: ApplicationsModalProps) {
+  const { isDark } = useTheme();
+
+  if (!isOpen || !opportunity) return null;
+
+  const opportunityApplications = applications.filter(
+    app => app.opportunityId === opportunity.id
+  );
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* 背景遮罩 */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+
+          {/* 弹窗内容 */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className={`relative w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl border ${isDark ? 'bg-slate-900 border-slate-800 shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]' : 'bg-white border-gray-200 shadow-[0_0_30px_-5px_rgba(6,182,212,0.15)]'}`}
+          >
+            {/* 头部 */}
+            <div className={`relative overflow-hidden`}>
+              <div className={`absolute inset-0 bg-gradient-to-r ${isDark ? 'from-cyan-500 to-blue-600' : 'from-cyan-600 to-blue-700'} opacity-10`} />
+              <div className="relative p-6 flex items-center justify-between">
+                <div>
+                  <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    申请管理
+                  </h2>
+                  <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {opportunity.name} - 共 {opportunityApplications.length} 个申请
+                  </p>
+                </div>
+                <button
+                  onClick={onClose}
+                  className={`p-2 rounded-xl transition-colors ${isDark ? 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900'}`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* 申请列表 */}
+            <div className={`p-6 overflow-y-auto max-h-[calc(90vh-140px)] ${isDark ? 'bg-slate-950' : 'bg-gray-50'}`}>
+              {opportunityApplications.length === 0 ? (
+                <div className={`flex flex-col items-center justify-center py-12 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                  <Inbox className="w-12 h-12 mb-4 opacity-50" />
+                  <p>暂无申请</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {opportunityApplications.map((application, index) => (
+                    <motion.div
+                      key={application.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className={`p-4 rounded-xl border ${isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-gray-200'}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-cyan-500/20 to-blue-500/20' : 'bg-gradient-to-br from-cyan-100 to-blue-100'}`}>
+                            <User className={`w-5 h-5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                          </div>
+                          <div>
+                            <h3 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {application.applicantName || '未知用户'}
+                            </h3>
+                            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                              {application.applicantEmail || '无邮箱信息'}
+                            </p>
+                            {application.message && (
+                              <p className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
+                                "{application.message}"
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+                            application.status === 'pending'
+                              ? isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600'
+                              : application.status === 'approved'
+                              ? isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'
+                              : isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600'
+                          }`}>
+                            {application.status === 'pending' && <Clock className="w-3 h-3" />}
+                            {application.status === 'approved' && <CheckCircle2 className="w-3 h-3" />}
+                            {application.status === 'rejected' && <XCircle className="w-3 h-3" />}
+                            {application.status === 'pending' ? '待审核' : application.status === 'approved' ? '已通过' : '已拒绝'}
+                          </span>
+                          <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+                            {application.createdAt ? new Date(application.createdAt).toLocaleDateString('zh-CN') : '-'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 操作按钮 */}
+                      {application.status === 'pending' && (
+                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-dashed border-gray-200 dark:border-slate-700">
+                          <button
+                            onClick={() => onReview(application.id, 'approved')}
+                            className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isDark ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'}`}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            通过
+                          </button>
+                          <button
+                            onClick={() => onReview(application.id, 'rejected')}
+                            className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isDark ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
+                          >
+                            <XCircle className="w-4 h-4" />
+                            拒绝
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
                 </div>
               )}
             </div>

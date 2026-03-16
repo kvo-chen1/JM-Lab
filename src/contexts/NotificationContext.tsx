@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
+import { AuthContext } from '@/contexts/authContext';
 
 // 通知类型
 export type NotificationType =
@@ -155,8 +156,16 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   initialNotifications = [],
   initialSettings = {}
 }) => {
-  // 获取当前用户
-  const { user } = useAuth();
+  // 获取当前用户 - 使用 try-catch 防止 AuthProvider 未准备好时出错
+  let user = null;
+  try {
+    const auth = useAuth();
+    user = auth.user;
+  } catch (error) {
+    // AuthProvider 可能还未准备好，使用 AuthContext 作为降级方案
+    const authContext = useContext(AuthContext);
+    user = authContext?.user || null;
+  }
 
   // 状态管理
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);

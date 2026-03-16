@@ -347,6 +347,159 @@ export default async function moderationRoutes(req, res) {
       return
     }
     
+    // ========== 预警管理 ==========
+    
+    // 获取预警规则列表
+    if (req.method === 'GET' && path === '/api/admin/alerts/rules') {
+      const { data, error } = await supabaseServer
+        .from('alert_rules')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('[Moderation API] Get alert rules error:', error)
+        sendJson(res, 500, { code: 1, message: '获取预警规则失败' })
+        return
+      }
+      
+      sendJson(res, 200, { code: 0, data: data || [] })
+      return
+    }
+    
+    // 创建预警规则
+    if (req.method === 'POST' && path === '/api/admin/alerts/rules') {
+      const body = await readBody(req)
+      
+      const { error } = await supabaseServer
+        .from('alert_rules')
+        .insert({
+          name: body.name,
+          description: body.description,
+          metric: body.metric,
+          threshold: body.threshold,
+          operator: body.operator,
+          enabled: body.enabled ?? true,
+          channels: body.channels || ['dashboard'],
+          created_by: admin.userId || admin.sub || admin.id
+        })
+      
+      if (error) {
+        console.error('[Moderation API] Create alert rule error:', error)
+        sendJson(res, 500, { code: 1, message: '创建预警规则失败' })
+        return
+      }
+      
+      sendJson(res, 200, { code: 0, message: '创建成功' })
+      return
+    }
+    
+    // 更新预警规则
+    if (req.method === 'PUT' && path.match(/^\/api\/admin\/alerts\/rules\/[^\/]+$/)) {
+      const ruleId = path.split('/')[5]
+      const body = await readBody(req)
+      
+      const { error } = await supabaseServer
+        .from('alert_rules')
+        .update({
+          name: body.name,
+          description: body.description,
+          metric: body.metric,
+          threshold: body.threshold,
+          operator: body.operator,
+          enabled: body.enabled,
+          channels: body.channels,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', ruleId)
+      
+      if (error) {
+        console.error('[Moderation API] Update alert rule error:', error)
+        sendJson(res, 500, { code: 1, message: '更新预警规则失败' })
+        return
+      }
+      
+      sendJson(res, 200, { code: 0, message: '更新成功' })
+      return
+    }
+    
+    // 删除预警规则
+    if (req.method === 'DELETE' && path.match(/^\/api\/admin\/alerts\/rules\/[^\/]+$/)) {
+      const ruleId = path.split('/')[5]
+      
+      const { error } = await supabaseServer
+        .from('alert_rules')
+        .delete()
+        .eq('id', ruleId)
+      
+      if (error) {
+        console.error('[Moderation API] Delete alert rule error:', error)
+        sendJson(res, 500, { code: 1, message: '删除预警规则失败' })
+        return
+      }
+      
+      sendJson(res, 200, { code: 0, message: '删除成功' })
+      return
+    }
+    
+    // 获取预警记录列表
+    if (req.method === 'GET' && path === '/api/admin/alerts/records') {
+      const limit = parseInt(url.searchParams.get('limit') || '50')
+      const offset = parseInt(url.searchParams.get('offset') || '0')
+      const status = url.searchParams.get('status')
+      
+      let query = supabaseServer
+        .from('alert_records')
+        .select('*', { count: 'exact' })
+      
+      if (status) {
+        query = query.eq('status', status)
+      }
+      
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+      
+      if (error) {
+        console.error('[Moderation API] Get alert records error:', error)
+        sendJson(res, 500, { code: 1, message: '获取预警记录失败' })
+        return
+      }
+      
+      sendJson(res, 200, { 
+        code: 0, 
+        data: data || [],
+        pagination: {
+          total: count || 0,
+          limit,
+          offset
+        }
+      })
+      return
+    }
+    
+    // 确认预警
+    if (req.method === 'PUT' && path.match(/^\/api\/admin\/alerts\/records\/[^\/]+\/acknowledge$/)) {
+      const recordId = path.split('/')[5]
+      
+      const { error } = await supabaseServer
+        .from('alert_records')
+        .update({
+          status: 'acknowledged',
+          acknowledged_by: admin.userId || admin.sub || admin.id,
+          acknowledged_at: new Date().toISOString()
+        })
+        .eq('id', recordId)
+      
+      if (error) {
+        console.error('[Moderation API] Acknowledge alert error:', error)
+        sendJson(res, 500, { code: 1, message: '确认预警失败' })
+        return
+      }
+      
+      sendJson(res, 200, { code: 0, message: '确认成功' })
+      return
+    }
+    
     // 如果没有匹配的路由
     sendJson(res, 404, { code: 1, message: '接口不存在' })
     

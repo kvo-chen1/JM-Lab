@@ -278,7 +278,22 @@ router.post('/rpc/:function', async (req, res) => {
 router.get('/:table', async (req, res) => {
   try {
     const { table } = req.params
-    const { select = '*', ...filters } = req.query
+    const { select = '*', count, head, ...filters } = req.query
+
+    // 处理 count 查询
+    if (count === 'exact' && head === 'true') {
+      const { where, values } = buildWhere(filters)
+      let sql = `SELECT COUNT(*) as count FROM ${table}`
+      if (where) sql += ` ${where}`
+
+      const result = await pool.query(sql, values)
+      const rowCount = parseInt(result.rows[0]?.count || '0', 10)
+
+      // 返回符合 Supabase 格式的响应
+      res.setHeader('Content-Range', `0-${rowCount - 1}/${rowCount}`)
+      res.setHeader('X-Total-Count', rowCount.toString())
+      return res.json({ count: rowCount })
+    }
 
     // 解析查询参数
     const columns = parseSelect(select)
@@ -293,7 +308,7 @@ router.get('/:table', async (req, res) => {
     if (range) sql += ` ${range}`
 
     const result = await pool.query(sql, values)
-    
+
     res.json(result.rows)
   } catch (error) {
     console.error('Database query error:', error)

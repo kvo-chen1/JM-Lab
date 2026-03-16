@@ -10,6 +10,7 @@ import { Loader2, AlertCircle, Clock, Store } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { merchantApplicationService } from '@/services/merchantApplicationService';
 import { merchantStoreService, MerchantStore } from '@/services/merchantStoreService';
+import { merchantService } from '@/services/merchantService';
 import { Button } from '@/components/ui/Button';
 
 // 布局组件
@@ -48,9 +49,33 @@ const MerchantWorkbench: React.FC = () => {
     const checkStatus = async () => {
       try {
         setLoading(true);
-        
-        // 检查申请状态
+
+        // 首先尝试通过 merchantService 获取商家信息（备用方案）
+        const merchant = await merchantService.getCurrentMerchant();
+        console.log('[MerchantWorkbench] Merchant from service:', merchant);
+
+        if (merchant) {
+          // 如果通过 merchantService 获取到了商家信息，说明已入驻
+          setApplicationStatus('approved');
+          setHasStore(true);
+          setStoreInfo({
+            id: merchant.id,
+            merchant_id: merchant.id,
+            name: merchant.store_name,
+            description: merchant.store_description,
+            logo: merchant.store_logo,
+            status: 'active',
+            created_at: merchant.created_at,
+            updated_at: merchant.updated_at,
+          } as MerchantStore);
+          setLoading(false);
+          return;
+        }
+
+        // 如果没有通过 merchantService 获取到，尝试通过申请服务获取
         const application = await merchantApplicationService.getMyApplication();
+        console.log('[MerchantWorkbench] Application:', application);
+
         if (!application) {
           setApplicationStatus('none');
         } else {
@@ -59,15 +84,25 @@ const MerchantWorkbench: React.FC = () => {
             setRejectionReason(application.rejection_reason || '');
           }
         }
-        
+
         // 检查是否有店铺
         const store = await merchantStoreService.getMyStore();
         setHasStore(!!store);
         setStoreInfo(store);
       } catch (error) {
         console.error('检查状态失败:', error);
-        setApplicationStatus('none');
-        setHasStore(false);
+        // 出错时不应该直接设置为 'none'，而是尝试备用方案
+        try {
+          const merchant = await merchantService.getCurrentMerchant();
+          if (merchant) {
+            setApplicationStatus('approved');
+            setHasStore(true);
+          } else {
+            setApplicationStatus('none');
+          }
+        } catch {
+          setApplicationStatus('none');
+        }
       } finally {
         setLoading(false);
       }

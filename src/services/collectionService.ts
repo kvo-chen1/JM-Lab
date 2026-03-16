@@ -795,22 +795,17 @@ async function getBookmarkedCommunityPosts(
     console.log('[getBookmarkedCommunityPosts] Fetching bookmarks for user:', userId);
 
     // 从 bookmarks 表获取收藏的帖子ID
-    // 注意：bookmarks 表结构可能不一致，需要处理列不存在的情况
+    // bookmarks 表使用 target_type 和 target_id 字段
     let bookmarks;
     try {
       const { data, error } = await supabase
         .from('bookmarks')
-        .select('post_id, created_at')
+        .select('target_type, target_id, created_at')
         .eq('user_id', userId)
+        .eq('target_type', 'post')
         .order('created_at', { ascending: false });
 
       if (error) {
-        // 检查是否是列不存在的错误
-        if (error.message?.includes('column "post_id" does not exist') ||
-            error.code === '42703') {
-          console.warn('[getBookmarkedCommunityPosts] bookmarks 表没有 post_id 列，返回空数组');
-          return [];
-        }
         console.error('Error fetching community post bookmarks:', error);
         return [];
       }
@@ -826,7 +821,7 @@ async function getBookmarkedCommunityPosts(
     }
 
     // 获取帖子详情 - 从 posts 表查询
-    const postIds = bookmarks.map(b => b.post_id).filter(Boolean);
+    const postIds = bookmarks.map(b => b.target_id).filter(Boolean);
     console.log('[getBookmarkedCommunityPosts] Post IDs:', postIds);
 
     const { data: posts, error: postsError } = await supabase
@@ -1707,30 +1702,26 @@ export async function getUserCollectionStats(): Promise<UserCollectionStats> {
     }
 
     // 获取社区帖子收藏 - 只统计实际存在的帖子
+    // bookmarks 表使用 target_type 和 target_id 字段
     let communityPostBookmarks = 0;
     try {
       const { data: postBookmarks, error: postBookmarksError } = await supabase
         .from('bookmarks')
-        .select('post_id')
-        .eq('user_id', userId);
+        .select('target_id')
+        .eq('user_id', userId)
+        .eq('target_type', 'post');
 
       if (postBookmarksError) {
-        // 检查是否是列不存在的错误
-        if (postBookmarksError.message?.includes('column "post_id" does not exist') ||
-            postBookmarksError.code === '42703') {
-          console.warn('[getUserCollectionStats] bookmarks 表没有 post_id 列');
-        } else {
-          console.error('[getUserCollectionStats] Error fetching post bookmarks:', postBookmarksError);
-        }
+        console.error('[getUserCollectionStats] Error fetching post bookmarks:', postBookmarksError);
       } else if (postBookmarks && postBookmarks.length > 0) {
-        const postIds = postBookmarks.map(b => b.post_id).filter(Boolean);
+        const postIds = postBookmarks.map(b => b.target_id).filter(Boolean);
         if (postIds.length > 0) {
           const { data: existingPosts } = await supabase
             .from('posts')
             .select('id')
             .in('id', postIds);
           const existingPostIds = new Set(existingPosts?.map(p => p.id) || []);
-          communityPostBookmarks = postBookmarks.filter(b => existingPostIds.has(b.post_id)).length;
+          communityPostBookmarks = postBookmarks.filter(b => existingPostIds.has(b.target_id)).length;
         }
       }
     } catch (error: any) {
@@ -1909,25 +1900,20 @@ export async function toggleBookmark(
       }
     } else if (type === CollectionType.COMMUNITY_POST) {
       // 社区帖子收藏 - 使用 bookmarks 表
-      // 注意：bookmarks 表可能没有 post_id 列，需要处理错误
+      // bookmarks 表使用 target_type 和 target_id 字段
       try {
         // 检查是否已收藏
         const { data: existingBookmark, error: checkError } = await supabase
           .from('bookmarks')
           .select('*')
           .eq('user_id', userId)
-          .eq('post_id', id)
+          .eq('target_type', 'post')
+          .eq('target_id', id)
           .single();
 
-        if (checkError) {
-          // 检查是否是列不存在的错误
-          if (checkError.message?.includes('column "post_id" does not exist') ||
-              checkError.code === '42703') {
-            console.warn('[toggleBookmark] bookmarks 表没有 post_id 列，无法收藏社区帖子');
-            toast.error('收藏功能暂不可用');
-            return false;
-          }
-          // 其他错误（如记录不存在）继续处理
+        if (checkError && checkError.code !== 'PGRST116') {
+          // PGRST116 是记录不存在的错误，其他错误才需要处理
+          console.error('[toggleBookmark] Check error:', checkError);
         }
 
         if (existingBookmark) {
@@ -1936,7 +1922,8 @@ export async function toggleBookmark(
             .from('bookmarks')
             .delete()
             .eq('user_id', userId)
-            .eq('post_id', id);
+            .eq('target_type', 'post')
+            .eq('target_id', id);
 
           if (deleteError) {
             console.error('[toggleBookmark] Delete error:', deleteError);
@@ -1950,8 +1937,9 @@ export async function toggleBookmark(
             .from('bookmarks')
             .insert({
               user_id: userId,
-              post_id: id,
-              created_at: new Date().toISOString()
+              target_type: 'post',
+              target_id: id,
+              created_at: Date.now()
             });
 
           if (insertError) {
@@ -2138,35 +2126,25 @@ export async function removeBookmark(
       return false;
     } else if (type === CollectionType.COMMUNITY_POST) {
       // 社区帖子收藏 - 使用 bookmarks 表
-      // 注意：bookmarks 表可能没有 post_id 列，需要处理错误
+      // bookmarks 表使用 target_type 和 target_id 字段
       try {
         const { error: deleteError } = await supabase
           .from('bookmarks')
           .delete()
           .eq('user_id', userId)
-          .eq('post_id', id);
+          .eq('target_type', 'post')
+          .eq('target_id', id);
 
         if (deleteError) {
-          // 检查是否是列不存在的错误
-          if (deleteError.message?.includes('column "post_id" does not exist') ||
-              deleteError.code === '42703') {
-            console.warn('[removeBookmark] bookmarks 表没有 post_id 列，无法取消收藏社区帖子');
-            toast.error('取消收藏功能暂不可用');
-            return true; // 返回 true 表示操作失败
-          }
           console.error('[removeBookmark] Delete error:', deleteError);
           throw deleteError;
         }
         toast.success('已取消收藏');
         return false;
       } catch (error: any) {
-        if (error.message?.includes('column "post_id" does not exist') ||
-            error.code === '42703') {
-          console.warn('[removeBookmark] bookmarks 表没有 post_id 列');
-          toast.error('取消收藏功能暂不可用');
-          return true;
-        }
-        throw error;
+        console.error('[removeBookmark] Error:', error);
+        toast.error('取消收藏失败');
+        return true;
       }
     } else if (type === CollectionType.ACTIVITY) {
       // 活动收藏 - 使用 event_bookmarks 表

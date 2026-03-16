@@ -3,12 +3,14 @@
  * 使用真实数据库数据
  */
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Store, Settings, Bell, User, TrendingUp, DollarSign, Package, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { merchantService } from '@/services/merchantService';
 import { toast } from 'sonner';
 
 const HeaderBar: React.FC = () => {
+  const navigate = useNavigate();
   const [merchantInfo, setMerchantInfo] = useState({
     name: '津门文创旗舰店',
     logo: null as string | null,
@@ -152,6 +154,7 @@ const HeaderBar: React.FC = () => {
               className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
               icon={<Bell className="w-4 h-4" />}
               iconPosition="left"
+              onClick={() => navigate('/messages')}
             >
               消息
             </Button>
@@ -161,6 +164,7 @@ const HeaderBar: React.FC = () => {
               className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
               icon={<Settings className="w-4 h-4" />}
               iconPosition="left"
+              onClick={() => navigate('/settings')}
             >
               设置
             </Button>
@@ -170,6 +174,7 @@ const HeaderBar: React.FC = () => {
               className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
               icon={<User className="w-4 h-4" />}
               iconPosition="left"
+              onClick={() => navigate('/profile/edit')}
             >
               个人中心
             </Button>

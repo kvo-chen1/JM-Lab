@@ -38,21 +38,42 @@ const DataCenter: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        console.log('[DataCenter] Fetching data...');
         const merchant = await merchantService.getCurrentMerchant();
+        console.log('[DataCenter] Merchant:', merchant);
         if (merchant) {
           // 获取仪表盘统计数据
+          console.log('[DataCenter] Fetching dashboard stats for merchant:', merchant.id);
           const dashboardStats = await merchantService.getDashboardStats(merchant.id);
+          console.log('[DataCenter] Dashboard stats:', dashboardStats);
+          // 确保数据有默认值，避免 undefined
+          const safeStats = {
+            today_sales: dashboardStats?.today_sales ?? 0,
+            today_orders: dashboardStats?.today_orders ?? 0,
+            today_visitors: dashboardStats?.today_visitors ?? 0,
+            total_sales: dashboardStats?.total_sales ?? 0,
+            total_orders: dashboardStats?.total_orders ?? 0,
+          };
+          console.log('[DataCenter] Safe stats:', safeStats);
           setStats({
-            totalSales: dashboardStats.today_sales,
-            salesChange: 0, // 需要计算
-            totalOrders: dashboardStats.today_orders,
-            ordersChange: 0,
-            totalVisitors: dashboardStats.today_visitors,
+            totalSales: safeStats.total_sales,  // 使用累计销售额
+            salesChange: safeStats.today_sales > 0 && safeStats.total_sales > 0
+              ? Math.round((safeStats.today_sales / safeStats.total_sales) * 100)
+              : 0,
+            totalOrders: safeStats.total_orders,  // 使用累计订单数
+            ordersChange: safeStats.today_orders > 0 && safeStats.total_orders > 0
+              ? Math.round((safeStats.today_orders / safeStats.total_orders) * 100)
+              : 0,
+            totalVisitors: safeStats.today_visitors,
             visitorsChange: 0,
-            avgOrderValue: dashboardStats.today_orders > 0 
-              ? Math.round(dashboardStats.today_sales / dashboardStats.today_orders) 
+            avgOrderValue: safeStats.total_orders > 0
+              ? Math.round(safeStats.total_sales / safeStats.total_orders)
               : 0,
             aovChange: 0,
+          });
+          console.log('[DataCenter] Stats set:', {
+            totalSales: safeStats.total_sales,
+            totalOrders: safeStats.total_orders,
           });
 
           // 获取销售趋势
@@ -258,7 +279,7 @@ const DataCenter: React.FC = () => {
                   <p className="text-sm text-[var(--text-muted)]">销量 {product.sales} 件</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-[#5ba3d4]">¥{product.revenue.toLocaleString()}</p>
+                  <p className="font-semibold text-[#5ba3d4]">¥{(product.revenue ?? 0).toLocaleString()}</p>
                   <p className="text-sm text-[var(--text-muted)]">销售额</p>
                 </div>
               </motion.div>
@@ -324,11 +345,12 @@ const DataCenter: React.FC = () => {
       <div className="bg-[var(--bg-secondary)] rounded-xl p-6 border border-[var(--border-primary)]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-[var(--text-primary)]">对账管理</h3>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => {
-              const result = reconciliationService.performReconciliation('user-id');
+              const userId = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).id : 'user-id';
+              const result = reconciliationService.reconcile(userId);
               if (result.status === 'matched') {
                 toast.success('对账完成，数据一致');
               } else {

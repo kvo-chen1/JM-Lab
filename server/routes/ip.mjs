@@ -925,6 +925,85 @@ async function getAllPartnerships(req, res) {
   }
 }
 
+// 审核商业合作申请
+async function reviewPartnershipApplication(req, res, applicationId) {
+  try {
+    const body = await readBody(req);
+    const { status, message } = body;
+    const userId = await getUserId(req);
+    
+    if (!userId) {
+      return sendJson(res, 401, { error: '未登录' });
+    }
+    
+    if (!status || !['approved', 'rejected'].includes(status)) {
+      return sendJson(res, 400, { error: '无效的审核状态' });
+    }
+    
+    const pool = await getDB();
+    
+    // 检查申请是否存在并获取相关信息
+    const checkQuery = `
+      SELECT pa.*, co.brand_id 
+      FROM partnership_applications pa
+      JOIN commercial_opportunities co ON pa.opportunity_id = co.id
+      WHERE pa.id = $1
+    `;
+    const checkResult = await pool.query(checkQuery, [applicationId]);
+    
+    if (checkResult.rows.length === 0) {
+      return sendJson(res, 404, { error: '申请不存在' });
+    }
+    
+    const application = checkResult.rows[0];
+    
+    // 检查是否有权限审核（必须是机会发布者）
+    if (application.brand_id !== userId) {
+      return sendJson(res, 403, { error: '无权审核此申请' });
+    }
+    
+    // 更新申请状态
+    const updateQuery = `
+      UPDATE partnership_applications 
+      SET status = $1, 
+          review_message = $2,
+          reviewed_at = NOW(),
+          updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+    `;
+    
+    const result = await pool.query(updateQuery, [status, message || null, applicationId]);
+    
+    // 如果审核通过，创建商业合作关系
+    if (status === 'approved') {
+      const partnershipQuery = `
+        INSERT INTO ip_partnerships 
+        (user_id, opportunity_id, brand_name, description, reward, status, created_at, updated_at)
+        SELECT 
+          pa.applicant_id,
+          pa.opportunity_id,
+          co.brand_name,
+          co.description,
+          co.reward,
+          'active',
+          NOW(),
+          NOW()
+        FROM partnership_applications pa
+        JOIN commercial_opportunities co ON pa.opportunity_id = co.id
+        WHERE pa.id = $1
+        RETURNING *
+      `;
+      await pool.query(partnershipQuery, [applicationId]);
+    }
+    
+    sendJson(res, 200, { ok: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('[IP API] 审核申请失败:', error);
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
 // ============================================
 // 版权资产方法
 // ============================================
@@ -1221,6 +1300,14 @@ export default async function ipRoutes(req, res) {
   // 商业合作路由
   if (pathname === '/api/ip/partnerships' && method === 'GET') {
     await getAllPartnerships(req, res);
+    return;
+  }
+
+  // 匹配 /api/ip/partnerships/:id/review
+  const partnershipReviewMatch = pathname.match(/^\/api\/ip\/partnerships\/([^\/]+)\/review$/);
+  if (partnershipReviewMatch && method === 'PUT') {
+    const applicationId = partnershipReviewMatch[1];
+    await reviewPartnershipApplication(req, res, applicationId);
     return;
   }
 

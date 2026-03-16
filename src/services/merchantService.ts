@@ -164,6 +164,9 @@ export interface DashboardStats {
   total_products: number;
   active_products: number;
   inactive_products: number;
+  // 累计数据
+  total_sales: number;
+  total_orders: number;
 }
 
 export interface SalesTrend {
@@ -600,18 +603,27 @@ class MerchantService {
       return products;
     }
 
-    // 从 products 表查询（商家发布的商品）
+    console.log('[MerchantService] 查询商品，merchantId:', merchantId);
+
+    // 从 products 表查询
+    // 同时查询 seller_id 和 merchant_id 以兼容不同数据格式
+    // seller_id 和 merchant_id 都可能存储 merchant.id
     let query = supabase
       .from('products')
       .select('*')
-      .eq('merchant_id', merchantId);
+      .or(`seller_id.eq.${merchantId},merchant_id.eq.${merchantId}`);
 
     if (params?.status) query = query.eq('status', params.status);
     if (params?.category) query = query.eq('category', params.category);
 
     const { data, error } = await query.order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[MerchantService] 获取商品失败:', error);
+      throw error;
+    }
+    
+    console.log('[MerchantService] 获取商品成功:', data?.length || 0, '条记录');
     return data || [];
   }
 
@@ -689,31 +701,90 @@ class MerchantService {
       return orders;
     }
 
-    // 先获取商家的 user_id，因为订单表中的 seller_id 存储的是 user_id 而不是 merchant.id
-    console.log('[MerchantService] 查询商家 user_id，merchantId:', merchantId);
-    const { data: merchantData, error: merchantError } = await supabase
-      .from('merchants')
+    // 订单表中的 seller_id 存储的是商家的 merchant.id
+    console.log('[MerchantService] 使用 merchantId 查询订单:', merchantId);
+    
+    // 先获取订单列表
+    const { data: ordersData, error: ordersError } = await supabase
+      .from('orders')
       .select('*')
-      .eq('id', merchantId)
-      .single();
+      .eq('seller_id', merchantId)
+      .order('created_at', { ascending: false });
 
-    console.log('[MerchantService] 商家数据查询结果:', { merchantData, merchantError });
-
-    if (merchantError) {
-      console.error('[MerchantService] 获取商家 user_id 失败:', merchantError);
-      throw merchantError;
+    if (ordersError) {
+      console.error('[MerchantService] 获取订单失败:', ordersError);
+      throw ordersError;
     }
-
-    // 尝试不同的字段名
-    const userId = merchantData?.user_id || merchantData?.userId || (merchantData as any)?.user_id;
-    console.log('[MerchantService] 提取的 user_id:', userId, '原始数据:', merchantData);
-
-    if (!userId) {
-      console.error('[MerchantService] 商家没有关联的 user_id');
-      return [];
+    
+    // 获取所有买家ID
+    const buyerIds = (ordersData || [])
+      .map(order => order.customer_id)
+      .filter((id): id is string => !!id);
+    
+    // 去重
+    const uniqueBuyerIds = [...new Set(buyerIds)];
+    
+    // 获取买家信息
+    let buyersMap = new Map<string, { username: string; avatar_url: string }>();
+    if (uniqueBuyerIds.length > 0) {
+      const { data: buyersData } = await supabase
+        .from('users')
+        .select('id, username, avatar_url')
+        .in('id', uniqueBuyerIds);
+      
+      (buyersData || []).forEach((buyer: any) => {
+        buyersMap.set(buyer.id, buyer);
+      });
     }
-
-    return this.getOrdersByUserId(userId, params);
+    
+    // 获取所有订单ID，查询 order_items 表
+    const orderIds = (ordersData || []).map(order => order.id);
+    let orderItemsMap = new Map<string, any[]>();
+    
+    if (orderIds.length > 0) {
+      const { data: orderItemsData } = await supabase
+        .from('order_items')
+        .select('*')
+        .in('order_id', orderIds);
+      
+      // 按 order_id 分组
+      (orderItemsData || []).forEach((item: any) => {
+        const items = orderItemsMap.get(item.order_id) || [];
+        items.push(item);
+        orderItemsMap.set(item.order_id, items);
+      });
+    }
+    
+    // 处理数据，将买家信息和商品信息合并到订单中
+    const processedOrders = (ordersData || []).map((order: any) => {
+      // 如果 customer_name 为空，尝试从 users 表中获取
+      if (!order.customer_name && order.customer_id) {
+        const buyer = buyersMap.get(order.customer_id);
+        if (buyer) {
+          order.customer_name = buyer.username || '未知用户';
+          order.customer_avatar = buyer.avatar_url;
+        }
+      }
+      
+      // 如果 items 为空，从 order_items 表中获取
+      if ((!order.items || order.items.length === 0) && orderItemsMap.has(order.id)) {
+        const items = orderItemsMap.get(order.id) || [];
+        order.items = items.map((item: any) => ({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          product_image: item.product_image,
+          product_specs: item.product_specs,
+          price: item.price,
+          quantity: item.quantity,
+          subtotal: item.subtotal
+        }));
+      }
+      
+      return order;
+    });
+    
+    console.log('[MerchantService] 获取订单成功:', processedOrders?.length || 0, '条记录');
+    return processedOrders || [];
   }
 
   async getOrdersByUserId(userId: string, params?: { status?: string; startDate?: string; endDate?: string }): Promise<Order[]> {
@@ -725,27 +796,26 @@ class MerchantService {
       return orders;
     }
 
-    console.log('[MerchantService] 使用 user_id 查询订单:', userId);
+    // 先获取商家的 merchant.id，因为订单表中的 seller_id 存储的是 merchant.id
+    console.log('[MerchantService] 使用 user_id 查询商家信息:', userId);
+    const { data: merchantData, error: merchantError } = await supabase
+      .from('merchants')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    // 订单表中使用的是 seller_id（即 user_id）
-    let query = supabase
-      .from('orders')
-      .select('*')
-      .eq('seller_id', userId);
-
-    if (params?.status) query = query.eq('status', params.status);
-    if (params?.startDate) query = query.gte('created_at', params.startDate);
-    if (params?.endDate) query = query.lte('created_at', params.endDate);
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('[MerchantService] 获取订单失败:', error);
-      throw error;
+    if (merchantError) {
+      console.error('[MerchantService] 获取商家信息失败:', merchantError);
+      throw merchantError;
     }
-    
-    console.log('[MerchantService] 获取订单成功:', data?.length || 0, '条记录');
-    return data || [];
+
+    if (!merchantData) {
+      console.warn('[MerchantService] 未找到该用户的商家记录:', userId);
+      return [];
+    }
+
+    console.log('[MerchantService] 获取到 merchant.id:', merchantData.id);
+    return this.getOrders(merchantData.id, params);
   }
 
   async shipOrder(orderId: string, shippingInfo: { company: string; trackingNumber: string }): Promise<void> {
@@ -870,16 +940,102 @@ class MerchantService {
   // ==================== 数据中心 ====================
 
   async getDashboardStats(merchantId: string): Promise<DashboardStats> {
+    console.log('[MerchantService] getDashboardStats called with merchantId:', merchantId);
+
     if (this.isMockMode) {
+      console.log('[MerchantService] Using mock data');
       return mockDashboardStats;
     }
 
-    // 实际实现中，这里会从多个表聚合数据
-    const { data, error } = await supabase
-      .rpc('get_merchant_dashboard_stats', { merchant_id: merchantId });
+    // 从 orders 表实时统计真实数据
+    console.log('[MerchantService] Calculating real stats from orders table...');
+    return this.getDashboardStatsFallback(merchantId);
+  }
 
-    if (error) throw error;
-    return data;
+  // 备用方案：直接查询数据库
+  private async getDashboardStatsFallback(merchantId: string): Promise<DashboardStats> {
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+    // 获取今日订单数据
+    const { data: todayOrders, error: ordersError } = await supabase
+      .from('orders')
+      .select('total_amount, status')
+      .eq('seller_id', merchantId)
+      .gte('created_at', today)
+      .lte('created_at', today + 'T23:59:59');
+
+    if (ordersError) {
+      console.error('[MerchantService] Fallback query failed:', ordersError);
+    }
+
+    // 获取昨日订单数据
+    const { data: yesterdayOrders } = await supabase
+      .from('orders')
+      .select('total_amount')
+      .eq('seller_id', merchantId)
+      .gte('created_at', yesterday)
+      .lte('created_at', yesterday + 'T23:59:59');
+
+    // 获取待处理订单数
+    const { count: pendingOrders } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('seller_id', merchantId)
+      .eq('status', 'paid');
+
+    // 从 orders 表统计真实的累计数据
+    console.log('[MerchantService] Fallback: calculating real totals from orders table...');
+    const { data: allOrders, error: allOrdersError } = await supabase
+      .from('orders')
+      .select('total_amount')
+      .eq('seller_id', merchantId);
+    
+    if (allOrdersError) {
+      console.error('[MerchantService] Failed to fetch all orders:', allOrdersError);
+    }
+    
+    // 计算真实的累计数据
+    const realTotalOrders = allOrders?.length || 0;
+    const realTotalSales = allOrders?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
+    
+    console.log('[MerchantService] Fallback: real totals:', { realTotalOrders, realTotalSales });
+
+    // 计算统计数据
+    const todaySales = todayOrders?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
+    const todayOrdersCount = todayOrders?.length || 0;
+    const yesterdaySales = yesterdayOrders?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
+    const yesterdayOrdersCount = yesterdayOrders?.length || 0;
+
+    // 获取商品统计
+    const { count: totalProducts } = await supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+      .eq('merchant_id', merchantId);
+
+    const result = {
+      today_sales: todaySales,
+      today_orders: todayOrdersCount,
+      today_visitors: 0, // 需要访问日志表
+      today_conversion_rate: 0,
+      yesterday_sales: yesterdaySales,
+      yesterday_orders: yesterdayOrdersCount,
+      yesterday_visitors: 0,
+      yesterday_conversion_rate: 0,
+      pending_orders: pendingOrders || 0,
+      pending_aftersales: 0,
+      pending_reviews: 0,
+      low_stock_products: 0,
+      total_products: totalProducts || 0,
+      active_products: 0,
+      inactive_products: 0,
+      // 使用从 orders 表统计的真实数据
+      total_sales: realTotalSales,
+      total_orders: realTotalOrders,
+    };
+    
+    console.log('[MerchantService] Fallback: returning result:', result);
+    return result;
   }
 
   async getSalesTrend(merchantId: string, days: number = 7): Promise<SalesTrend[]> {

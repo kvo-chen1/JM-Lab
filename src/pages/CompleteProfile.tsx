@@ -430,7 +430,8 @@ export default function CompleteProfile() {
 
       if (isAuthenticated && user?.id) {
         try {
-          const { supabase } = await import('@/lib/supabase');
+          const supabaseModule = await import('@/lib/supabase');
+          const supabase = supabaseModule.supabase;
 
           // 尝试更新数据库
           const { error: dbError } = await supabase

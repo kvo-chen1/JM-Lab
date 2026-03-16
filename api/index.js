@@ -119,10 +119,12 @@ async function getDbClient() {
 
 // 确保用户表存在
 async function ensureUsersTable() {
-  try {
-    const pool = await getDbPool();
-    if (!pool) return false;
+  const pool = await getDbPool();
+  if (!pool) {
+    throw new Error('Database pool not available');
+  }
 
+  try {
     await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(255) PRIMARY KEY,
@@ -135,10 +137,9 @@ async function ensureUsersTable() {
       )
     `);
     console.log('[DB] Users table ready');
-    return true;
   } catch (error) {
     console.error('[DB] Users table creation error:', error.message);
-    return false;
+    throw error;
   }
 }
 
@@ -195,10 +196,12 @@ async function getUserByEmail(email) {
 
 // 保存或更新用户
 async function saveUser(user) {
-  try {
-    const pool = await getDbPool();
-    if (!pool) return user;
+  const pool = await getDbPool();
+  if (!pool) {
+    throw new Error('Database pool not available');
+  }
 
+  try {
     await ensureUsersTable();
 
     await queryWithRetry(`
@@ -216,7 +219,7 @@ async function saveUser(user) {
     return user;
   } catch (error) {
     console.error('[DB] Save user error:', error.message);
-    return user;
+    throw error;
   }
 }
 
@@ -1795,6 +1798,78 @@ async function handleIP(req, res, path) {
       );
 
       return res.status(200).json({ code: 0, data: result.rows });
+    }
+
+    // 获取版权资产列表 /ip/copyright
+    if (path === '/ip/copyright' && req.method === 'GET') {
+      const pool = await getDbPool();
+      if (!pool) {
+        return res.status(200).json({ code: 0, data: [] });
+      }
+
+      const userId = decoded.userId || decoded.id;
+      
+      // 解析 URL 获取 query 参数
+      const url = new URL(req.url, `http://localhost`);
+      const queryUserId = url.searchParams.get('userId');
+      const targetUserId = queryUserId || userId;
+
+      // 确保 works 表存在
+      await queryWithRetry(`
+        CREATE TABLE IF NOT EXISTS works (
+          id UUID PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          creator_id VARCHAR(255),
+          title VARCHAR(255),
+          description TEXT,
+          type VARCHAR(50) DEFAULT 'illustration',
+          thumbnail TEXT,
+          video_url TEXT,
+          likes INTEGER DEFAULT 0,
+          views INTEGER DEFAULT 0,
+          status VARCHAR(50) DEFAULT 'published',
+          hidden_in_square BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // 查询用户的作品作为版权资产（这里使用用户的作品模拟版权资产）
+      const result = await queryWithRetry(
+        `SELECT 
+          w.id,
+          w.title as name,
+          w.description,
+          w.type,
+          w.thumbnail,
+          w.created_at,
+          w.updated_at
+        FROM works w
+        WHERE (w.creator_id = $1 OR w.user_id = $1)
+          AND w.status = 'published'
+        ORDER BY w.created_at DESC`,
+        [targetUserId]
+      );
+
+      // 格式化返回数据（将作品转换为版权资产格式）
+      const copyrightAssets = result.rows.map(row => ({
+        id: row.id,
+        name: row.name || '未命名作品',
+        description: row.description || '',
+        type: row.type || 'illustration',
+        thumbnail: row.thumbnail,
+        status: 'registered', // 默认为已登记
+        canLicense: true,
+        licensePrice: 0,
+        licenseCount: 0,
+        totalLicenseRevenue: 0,
+        certificateUrl: null,
+        registeredAt: row.created_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+
+      return res.status(200).json({ code: 0, data: copyrightAssets });
     }
 
     // 获取某个机会的申请列表 /ip/opportunities/:id/applications

@@ -259,7 +259,6 @@ export default defineConfig({
       // 优化输入选项
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        landing: path.resolve(__dirname, 'landing.html'),
       },
       output: {
         // 优化资产输出

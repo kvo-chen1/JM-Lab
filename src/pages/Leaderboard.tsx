@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
-import { supabaseAdmin } from '@/lib/supabaseClient';
 import LazyImage from '@/components/LazyImage';
 import { useTheme } from '@/hooks/useTheme';
+import apiClient from '@/lib/apiClient';
 
 interface Post {
   id: number;
@@ -90,42 +90,22 @@ const Leaderboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      if (!supabase) {
-        console.error('[Leaderboard] Supabase client is not initialized');
-        return;
-      }
-      
       console.log('[Leaderboard] Fetching stats...');
       
-      // 使用 supabaseAdmin 绕过 RLS 限制获取用户数
-      const { count: usersCount, error: usersError } = await supabaseAdmin.from('users').select('id', { count: 'exact', head: true });
-      if (usersError) {
-        console.error('[Leaderboard] Error fetching users count:', usersError);
-      } else {
-        console.log('[Leaderboard] Users count:', usersCount);
-      }
+      // 使用后端 API 获取统计数据
+      const response = await apiClient.get<{ users_count: number; posts_count: number; total_points: number }>('/api/leaderboard/stats');
       
-      // 从 works 表获取作品总数（与津脉广场一致）- 使用 supabaseAdmin
-      const { count: postsCount, error: postsError } = await supabaseAdmin.from('works').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('visibility', 'public');
-      if (postsError) {
-        console.error('[Leaderboard] Error fetching works count:', postsError);
+      if (response.ok && response.data) {
+        setStats(response.data);
+        console.log('[Leaderboard] Stats fetched:', response.data);
       } else {
-        console.log('[Leaderboard] Works count:', postsCount);
+        console.error('[Leaderboard] Error fetching stats:', response.error);
+        // 使用默认值
+        setStats({ users_count: 0, posts_count: 0, total_points: 0 });
       }
-
-      // 获取总积分 - 使用 supabaseAdmin
-      const { data: pointsData, error: pointsError } = await supabaseAdmin
-        .from('user_points_balance')
-        .select('balance');
-      const totalPoints = pointsData?.reduce((sum, item) => sum + (item.balance || 0), 0) || 0;
-      
-      setStats({
-        users_count: usersCount || 0,
-        posts_count: postsCount || 0,
-        total_points: totalPoints
-      });
     } catch (e) {
       console.error('[Leaderboard] Failed to fetch stats', e);
+      setStats({ users_count: 0, posts_count: 0, total_points: 0 });
     }
   };
 
@@ -183,118 +163,32 @@ const Leaderboard: React.FC = () => {
         startTime = now.toISOString();
       }
 
+      // 使用后端 API 获取排行榜数据
+      const params = new URLSearchParams();
+      params.set('type', leaderboardType);
+      params.set('sortBy', sortBy);
+      params.set('timeRange', timeRange);
+      params.set('limit', '10');
+      
+      const response = await apiClient.get<{ posts?: Post[]; users?: User[]; pointsUsers?: PointsLeaderboardUser[] }>(`/api/leaderboard?${params}`);
+      
+      console.log('[Leaderboard] API response:', response);
+      
+      if (!response.ok) {
+        throw new Error(response.error || '获取排行榜数据失败');
+      }
+      
+      const data = response.data;
+      
       if (leaderboardType === 'points') {
-        // 积分排行榜 - 使用 points_leaderboard 视图 - 使用 supabaseAdmin
-        const { data, error } = await supabaseAdmin
-          .from('points_leaderboard')
-          .select('*')
-          .order('balance', { ascending: false })
-          .limit(20);
-
-        console.log('[Leaderboard] Points query result:', { data, error });
-        if (error) throw error;
-        
-        setPointsUsers(data as PointsLeaderboardUser[] || []);
-        setCache(prev => ({ ...prev, [cacheKey]: { posts: [], users: [], pointsUsers: data as PointsLeaderboardUser[], timestamp: Date.now() } }));
+        setPointsUsers(data?.pointsUsers || []);
+        setCache(prev => ({ ...prev, [cacheKey]: { posts: [], users: [], pointsUsers: data?.pointsUsers || [], timestamp: Date.now() } }));
       } else if (leaderboardType === 'posts') {
-        // 从 works 表获取作品列表（与津脉广场使用相同的数据源）- 使用 supabaseAdmin
-        let worksQuery = supabaseAdmin
-          .from('works')
-          .select('*')
-          .eq('status', 'published')
-          .eq('visibility', 'public');
-
-        // 如果不是"全部"时间范围，添加时间筛选
-        if (timeRange !== 'all') {
-          worksQuery = worksQuery.gte('created_at', startTime);
-        }
-
-        console.log('[Leaderboard] Works query params:', { timeRange, startTime, sortBy });
-
-        const { data: worksData, error: worksError } = await worksQuery
-          .order(sortBy, { ascending: false })
-          .limit(10);
-
-        console.log('[Leaderboard] Works query result:', { worksData, worksError });
-
-        if (worksError) throw worksError;
-        if (!worksData || worksData.length === 0) {
-          console.log('[Leaderboard] No works found');
-          setPosts([]);
-          return;
-        }
-
-        // 获取作者信息（works 表使用 creator_id 字段）- 使用 supabaseAdmin 绕过 RLS
-        const creatorIds = [...new Set(worksData.map(w => w.creator_id).filter(Boolean))].map(id => String(id));
-        let users: any[] = [];
-        if (creatorIds.length > 0) {
-          const { data: usersData, error: usersError } = await supabaseAdmin
-            .from('users')
-            .select('id, username, avatar_url')
-            .in('id', creatorIds);
-          if (!usersError && usersData) {
-            users = usersData;
-          }
-        }
-
-        // 将 works 数据格式转换为 posts 格式
-        const formattedPosts = worksData.map((work: any) => {
-          const user = users.find(u => u.id === work.creator_id);
-          return {
-            id: work.id,
-            title: work.title,
-            content: work.description || work.content || '',
-            thumbnail: work.thumbnail,
-            videoUrl: work.video_url,
-            type: work.type,
-            images: work.images || [],
-            user_id: work.creator_id,
-            author_id: work.creator_id,
-            username: user?.username || work.creator || 'Unknown',
-            avatar_url: user?.avatar_url || work.author_avatar || '',
-            category_id: work.category_id,
-            status: work.status,
-            views: work.views || 0,
-            likes_count: work.likes_count || work.likes || 0,
-            comments_count: work.comments_count || 0,
-            created_at: work.created_at,
-            updated_at: work.updated_at
-          };
-        });
-
-        setPosts(formattedPosts);
-        setCache(prev => ({ ...prev, [cacheKey]: { posts: formattedPosts, users: prev[cacheKey]?.users || [], timestamp: Date.now() } }));
+        setPosts(data?.posts || []);
+        setCache(prev => ({ ...prev, [cacheKey]: { posts: data?.posts || [], users: prev[cacheKey]?.users || [], timestamp: Date.now() } }));
       } else {
-        // 用户排行榜排序字段映射：前端显示用的字段名 -> 数据库实际字段名
-        const userSortByMap: Record<string, string> = {
-          'likes_count': 'likes_count',
-          'views': 'views',
-          'posts_count': 'posts_count'
-        };
-        const dbSortBy = userSortByMap[sortBy] || 'likes_count';
-
-        // 使用 supabaseAdmin 绕过 RLS 限制获取用户列表
-        query = supabaseAdmin
-          .from('users')
-          .select('*')
-          .order(dbSortBy, { ascending: false })
-          .limit(10);
-          
-        // If timeRange is not 'all', we might warn or just show all time. 
-        // Let's just query all users sorted by the stat.
-        
-        const { data, error } = await query;
-        console.log('[Leaderboard] Users query result:', { data, error });
-        if (error) throw error;
-        
-        if (!data || data.length === 0) {
-          console.log('[Leaderboard] No users found');
-        } else {
-          console.log(`[Leaderboard] Found ${data.length} users`);
-        }
-        
-        setUsers(data as User[]);
-        setCache(prev => ({ ...prev, [cacheKey]: { posts: prev[cacheKey]?.posts || [], users: data as User[], timestamp: Date.now() } }));
+        setUsers(data?.users || []);
+        setCache(prev => ({ ...prev, [cacheKey]: { posts: prev[cacheKey]?.posts || [], users: data?.users || [], timestamp: Date.now() } }));
       }
     } catch (err: any) {
       console.error('API request failed:', err.message);

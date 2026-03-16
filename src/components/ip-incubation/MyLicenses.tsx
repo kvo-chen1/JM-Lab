@@ -12,8 +12,9 @@ import {
 } from 'lucide-react';
 import { copyrightLicenseService } from '@/services/copyrightLicenseService';
 import type { LicenseApplication } from '@/types/copyright-license';
-import { CreateLicensedProductModal } from './CreateLicensedProductModal';
 import { useTheme } from '@/hooks/useTheme';
+import { useMerchantStatus } from '@/hooks/useMerchant';
+import { useNavigate } from 'react-router-dom';
 
 // 深色主题配色
 const DARK_THEME = {
@@ -79,12 +80,13 @@ interface MyLicensesProps {
 export function MyLicenses({ onClose }: MyLicensesProps) {
   const { isDark } = useTheme();
   const theme = useLicenseTheme(isDark);
+  const navigate = useNavigate();
+  const { isMerchant, status: merchantStatus } = useMerchantStatus();
   const [applications, setApplications] = useState<LicenseApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [selectedApplication, setSelectedApplication] = useState<LicenseApplication | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showCreateProductModal, setShowCreateProductModal] = useState(false);
 
   // 加载申请列表
   useEffect(() => {
@@ -138,10 +140,36 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
     }
   };
 
-  // 创建产品
+  // 创建产品 - 检查商家状态并决定跳转
   const handleCreateProduct = (application: LicenseApplication) => {
-    setSelectedApplication(application);
-    setShowCreateProductModal(true);
+    // 检查商家状态
+    if (merchantStatus === 'none') {
+      // 未入驻，引导入驻
+      toast.info('您需要先入驻商家才能创建产品');
+      // 使用自定义弹窗风格替代 confirm
+      const confirmed = window.confirm('您需要先入驻商家才能创建产品。是否立即入驻？');
+      if (confirmed) {
+        navigate('/merchant/create-store'); // 跳转到商家入驻页面
+      }
+      return;
+    }
+
+    if (merchantStatus === 'pending') {
+      toast.info('您的商家入驻申请正在审核中，请等待审核通过后再创建产品');
+      return;
+    }
+
+    if (merchantStatus === 'rejected') {
+      toast.error('您的商家入驻申请未通过，请重新申请');
+      navigate('/merchant/create-store');
+      return;
+    }
+
+    // 已入驻，跳转到商家工作台创建产品
+    if (isMerchant && merchantStatus === 'approved') {
+      // 携带授权申请ID，方便商家工作台预填充数据
+      navigate(`/merchant?action=publish&source=license&applicationId=${application.id}`);
+    }
   };
 
   // 格式化日期
@@ -390,18 +418,6 @@ export function MyLicenses({ onClose }: MyLicensesProps) {
         isDark={isDark}
       />
 
-      {/* 创建产品弹窗 */}
-      <CreateLicensedProductModal
-        isOpen={showCreateProductModal}
-        onClose={() => {
-          setShowCreateProductModal(false);
-          setSelectedApplication(null);
-        }}
-        application={selectedApplication}
-        onSuccess={() => {
-          toast.success('产品创建成功！');
-        }}
-      />
     </div>
   );
 }

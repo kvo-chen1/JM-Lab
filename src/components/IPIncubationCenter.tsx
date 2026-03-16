@@ -25,7 +25,6 @@ import {
 import { BrandLicenseBrowser } from './ip-incubation/BrandLicenseBrowser';
 import { MyLicenses } from './ip-incubation/MyLicenses';
 import { OpportunitiesContent } from './ip-incubation/OpportunitiesContent';
-import { CopyrightAssetsContent } from './ip-incubation/CopyrightAssetsContent';
 
 // 导航项类型
 interface NavItem {
@@ -408,7 +407,7 @@ function RightPanel({
             智能建议
           </h3>
           <ul className="space-y-2">
-            {selectedAsset && selectedAsset.stages[1]?.completed && !selectedAsset.stages[2]?.completed && (
+            {selectedAsset && selectedAsset.stages?.[1]?.completed && !selectedAsset.stages?.[2]?.completed && (
               <li className="flex items-start gap-2 text-xs text-amber-300">
                 <CheckCircle2 className="w-3 h-3 mt-0.5 flex-shrink-0" />
                 <span>您的作品"{selectedAsset.name}"已完成版权存证，可以开始申请商业合作</span>
@@ -621,8 +620,9 @@ function SampleIPAssetCard({
 }) {
   const theme = useIPTheme(isDark);
   const progress = useMemo(() => {
-    const completedStages = asset.stages.filter(s => s.completed).length;
-    return Math.round((completedStages / asset.stages.length) * 100);
+    const completedStages = asset.stages?.filter(s => s.completed).length || 0;
+    const totalStages = asset.stages?.length || 1;
+    return Math.round((completedStages / totalStages) * 100);
   }, [asset]);
 
   const getTypeLabel = (type: string) => {
@@ -682,7 +682,7 @@ function SampleIPAssetCard({
           />
         </div>
         <div className="flex flex-wrap gap-1 mt-3">
-          {asset.highlights.map((highlight, idx) => (
+          {asset.highlights?.map((highlight, idx) => (
             <span
               key={idx}
               className={`text-xs px-2 py-0.5 rounded-full ${theme.bgTertiary} ${theme.textMuted} border ${theme.borderSecondary}`}
@@ -712,8 +712,9 @@ function SampleAssetDetailModal({
 
   const progress = useMemo(() => {
     if (!asset) return 0;
-    const completedStages = asset.stages.filter(s => s.completed).length;
-    return Math.round((completedStages / asset.stages.length) * 100);
+    const completedStages = asset.stages?.filter(s => s.completed).length || 0;
+    const totalStages = asset.stages?.length || 1;
+    return Math.round((completedStages / totalStages) * 100);
   }, [asset]);
 
   if (!asset) return null;
@@ -799,7 +800,7 @@ function SampleAssetDetailModal({
                 孵化阶段
               </h3>
               <div className="space-y-3">
-                {asset.stages.map((stage, index) => (
+                {asset.stages?.map((stage, index) => (
                   <div
                     key={stage.id}
                     className={`flex items-center gap-3 p-3 rounded-xl border ${
@@ -840,7 +841,7 @@ function SampleAssetDetailModal({
                 作品亮点
               </h3>
               <div className="flex flex-wrap gap-2">
-                {asset.highlights.map((highlight, idx) => (
+                {asset.highlights?.map((highlight, idx) => (
                   <span
                     key={idx}
                     className="px-3 py-1.5 text-sm rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20"
@@ -1012,13 +1013,15 @@ function IncubationPathContent({
   const theme = useIPTheme(isDark);
   const progress = useMemo(() => {
     if (!selectedAsset) return 0;
-    const completedStages = selectedAsset.stages.filter(s => s.completed).length;
-    return Math.round((completedStages / selectedAsset.stages.length) * 100);
+    const completedStages = selectedAsset.stages?.filter(s => s.completed).length || 0;
+    const totalStages = selectedAsset.stages?.length || 1;
+    return Math.round((completedStages / totalStages) * 100);
   }, [selectedAsset]);
 
   const activeStage = useMemo(() => {
     if (!selectedAsset) return null;
-    return selectedAsset.stages.find(s => !s.completed) || selectedAsset.stages[selectedAsset.stages.length - 1];
+    const stages = selectedAsset.stages || [];
+    return stages.find(s => !s.completed) || stages[stages.length - 1];
   }, [selectedAsset]);
 
   if (isLoading) {
@@ -1113,6 +1116,7 @@ function IncubationPathContent({
         onSubmitWork={onSubmitWork}
         sampleAssets={sampleAssets}
         onViewSampleDetails={onViewSampleDetails}
+        isDark={isDark}
       />
     );
   }
@@ -1177,7 +1181,7 @@ function IncubationPathContent({
                 <div className={`p-3 rounded-xl text-center border ${theme.glass} ${theme.borderPrimary}`}>
                   <p className={`text-xs mb-1 ${theme.textMuted}`}>下一阶段</p>
                   <p className={`text-sm font-medium ${theme.textSecondary}`}>
-                    {selectedAsset.stages[selectedAsset.stages.indexOf(activeStage) + 1]?.name || '收益分成'}
+                    {selectedAsset.stages?.[selectedAsset.stages?.indexOf(activeStage) + 1]?.name || '收益分成'}
                   </p>
                 </div>
               </div>
@@ -1188,7 +1192,7 @@ function IncubationPathContent({
 
       {/* 阶段时间线 */}
       <StageTimeline
-        stages={selectedAsset.stages}
+        stages={selectedAsset.stages || []}
         assetId={selectedAsset.id}
         onUpdateStage={(stageId, completed) => onUpdateStage(selectedAsset.id, stageId, completed)}
         isLoading={isLoading}
@@ -1361,7 +1365,7 @@ function AnalyticsContent({
     const stages = ['创意设计', '版权存证', 'IP孵化', '商业合作', '收益分成'];
     return stages.map((stage, index) => {
       const completed = ipAssets.filter(asset => 
-        asset.stages[index]?.completed
+        asset.stages?.[index]?.completed
       ).length;
       return {
         name: stage,
@@ -1532,7 +1536,6 @@ export function IPIncubationCenter() {
     { id: 'opportunities', name: '商业机会', icon: Handshake, badge: opportunities.filter(o => o.status === 'open').length },
     { id: 'brand-licenses', name: '品牌授权', icon: Building2 },
     { id: 'my-licenses', name: '我的授权', icon: AwardIcon },
-    { id: 'copyright', name: '版权资产', icon: Shield },
     { id: 'analytics', name: '数据分析', icon: BarChart3 },
   ];
 
@@ -1587,9 +1590,9 @@ export function IPIncubationCenter() {
           if (asset.id === assetId) {
             return {
               ...asset,
-              stages: asset.stages.map(stage =>
+              stages: asset.stages?.map(stage =>
                 stage.id === stageId ? { ...stage, completed, completedAt: completed ? new Date().toISOString() : undefined } : stage
-              )
+              ) || []
             };
           }
           return asset;
@@ -1599,9 +1602,9 @@ export function IPIncubationCenter() {
         if (selectedAsset?.id === assetId) {
           setSelectedAsset(prev => prev ? {
             ...prev,
-            stages: prev.stages.map(stage =>
+            stages: prev.stages?.map(stage =>
               stage.id === stageId ? { ...stage, completed, completedAt: completed ? new Date().toISOString() : undefined } : stage
-            )
+            ) || []
           } : null);
         }
 
@@ -1626,8 +1629,9 @@ export function IPIncubationCenter() {
 
   // 计算进度
   const calculateProgress = (stages: ServiceIPStage[]) => {
-    const completed = stages.filter(s => s.completed).length;
-    return Math.round((completed / stages.length) * 100);
+    const completed = stages?.filter(s => s.completed).length || 0;
+    const total = stages?.length || 1;
+    return Math.round((completed / total) * 100);
   };
 
   // 提交作品
@@ -1654,6 +1658,7 @@ export function IPIncubationCenter() {
             onSubmitWork={handleSubmitWork}
             sampleAssets={sampleAssets}
             onViewSampleDetails={setSelectedSampleAsset}
+            isDark={isDark}
           />
         );
       case 'assets':
@@ -1692,13 +1697,7 @@ export function IPIncubationCenter() {
         );
       case 'opportunities':
         return (
-          <OpportunitiesContent 
-            ipAssets={ipAssets}
-          />
-        );
-      case 'copyright':
-        return (
-          <CopyrightAssetsContent 
+          <OpportunitiesContent
             ipAssets={ipAssets}
           />
         );

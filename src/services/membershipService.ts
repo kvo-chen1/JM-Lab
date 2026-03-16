@@ -3,7 +3,7 @@
  * 实现与后端数据库的真实数据交互
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import eventBus from '@/lib/eventBus';
 
 // ==================== 类型定义 ====================
@@ -575,8 +575,8 @@ class MembershipService {
 
       try {
         console.log('[MembershipService] 正在查询用户订单, userId:', userId);
-        // 使用 supabaseAdmin 绕过 RLS 限制，与后台管理保持一致
-        const { data: orders, error: ordersError } = await supabaseAdmin
+        // 使用普通 supabase 客户端查询用户自己的订单
+        const { data: orders, error: ordersError } = await supabase
           .from('membership_orders')
           .select('plan, status, paid_at, expires_at')
           .eq('user_id', userId)
@@ -857,8 +857,8 @@ class MembershipService {
     }
 
     try {
-      // 使用 supabaseAdmin 绕过 RLS 限制
-      let query = supabaseAdmin
+      // 使用普通 supabase 客户端查询用户自己的订单
+      let query = supabase
         .from('membership_orders')
         .select('*', { count: 'exact' })
         .eq('user_id', userId)
@@ -949,8 +949,8 @@ class MembershipService {
         refundedAt: null,
       };
 
-      // 使用 supabaseAdmin 绕过 RLS 限制
-      const { error } = await supabaseAdmin.from('membership_orders').insert({
+      // 使用普通 supabase 客户端插入订单
+      const { error } = await supabase.from('membership_orders').insert({
         id: order.id,
         user_id: order.userId,
         plan: order.plan,
@@ -983,8 +983,8 @@ class MembershipService {
     paymentData: Record<string, any>
   ): Promise<boolean> {
     try {
-      // 使用 supabaseAdmin 绕过 RLS 限制
-      const { data: order, error: fetchError } = await supabaseAdmin
+      // 使用普通 supabase 客户端查询订单
+      const { data: order, error: fetchError } = await supabase
         .from('membership_orders')
         .select('*')
         .eq('id', orderId)
@@ -1010,7 +1010,7 @@ class MembershipService {
       }
 
       // 更新订单状态
-      const { error: updateError } = await supabaseAdmin
+      const { error: updateError } = await supabase
         .from('membership_orders')
         .update({
           status: 'completed',
@@ -1535,15 +1535,23 @@ class MembershipService {
       }
 
       // 更新订单的津币发放记录
-      await supabaseAdmin
+      const { data: latestOrder } = await supabase
         .from('membership_orders')
-        .update({
-          jinbi_granted: grantAmount,
-        })
+        .select('id')
         .eq('user_id', userId)
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .single();
+      
+      if (latestOrder) {
+        await supabase
+          .from('membership_orders')
+          .update({
+            jinbi_granted: grantAmount,
+          })
+          .eq('id', latestOrder.id);
+      }
 
       return { success: true, granted: grantAmount };
     } catch (error: any) {

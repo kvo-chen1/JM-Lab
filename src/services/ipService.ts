@@ -584,8 +584,9 @@ class IPService {
    * 计算示例资产的孵化进度
    */
   calculateSampleProgress(stages: IPStage[]): number {
-    const completedStages = stages.filter(stage => stage.completed).length;
-    return Math.round((completedStages / stages.length) * 100);
+    const completedStages = stages?.filter(stage => stage.completed).length || 0;
+    const totalStages = stages?.length || 1;
+    return Math.round((completedStages / totalStages) * 100);
   }
 
   // ============================================

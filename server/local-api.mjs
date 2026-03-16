@@ -1501,6 +1501,129 @@ async function route(req, res, u, path) {
     return
   }
 
+  // 排行榜路由
+  if (path.startsWith('/api/leaderboard')) {
+    console.log('[Route] Processing leaderboard request:', path)
+    try {
+      const db = await getDB()
+      const url = new URL(req.url, `http://${req.headers.host}`)
+      
+      // 获取排行榜统计数据
+      if (path === '/api/leaderboard/stats') {
+        const usersResult = await db.query('SELECT COUNT(*) as count FROM users')
+        const worksResult = await db.query("SELECT COUNT(*) as count FROM works WHERE status = 'published' AND visibility = 'public'")
+        const pointsResult = await db.query('SELECT COALESCE(SUM(balance), 0) as total FROM user_points_balance')
+        
+        sendJson(res, 200, {
+          code: 0,
+          data: {
+            users_count: parseInt(usersResult.rows[0].count) || 0,
+            posts_count: parseInt(worksResult.rows[0].count) || 0,
+            total_points: parseInt(pointsResult.rows[0].total) || 0
+          }
+        })
+        return
+      }
+      
+      // 获取排行榜数据
+      if (path === '/api/leaderboard') {
+        const type = url.searchParams.get('type') || 'users'
+        const sortBy = url.searchParams.get('sortBy') || 'likes_count'
+        const timeRange = url.searchParams.get('timeRange') || 'all'
+        const limit = parseInt(url.searchParams.get('limit') || '10')
+        
+        // 构建时间筛选条件
+        let timeFilter = ''
+        if (timeRange !== 'all') {
+          const now = new Date()
+          if (timeRange === 'day') {
+            now.setHours(0, 0, 0, 0)
+          } else if (timeRange === 'week') {
+            now.setDate(now.getDate() - 7)
+          } else if (timeRange === 'month') {
+            now.setMonth(now.getMonth() - 1)
+          }
+          timeFilter = ` AND w.created_at >= '${now.toISOString()}'`
+        }
+        
+        if (type === 'posts') {
+          // 作品排行榜
+          const worksQuery = `
+            SELECT w.*, u.username, u.avatar_url
+            FROM works w
+            LEFT JOIN users u ON w.creator_id = u.id::text
+            WHERE w.status = 'published' AND w.visibility = 'public'${timeFilter}
+            ORDER BY w.${sortBy} DESC NULLS LAST
+            LIMIT $1
+          `
+          const { rows: works } = await db.query(worksQuery, [limit])
+          
+          const posts = works.map(work => ({
+            id: work.id,
+            title: work.title,
+            content: work.description || work.content || '',
+            thumbnail: work.thumbnail,
+            videoUrl: work.video_url,
+            type: work.type,
+            images: work.images || [],
+            user_id: work.creator_id,
+            author_id: work.creator_id,
+            username: work.username || work.creator || 'Unknown',
+            avatar_url: work.avatar_url || work.author_avatar || '',
+            category_id: work.category_id,
+            status: work.status,
+            views: work.views || 0,
+            likes_count: work.likes_count || work.likes || 0,
+            comments_count: work.comments_count || 0,
+            created_at: work.created_at,
+            updated_at: work.updated_at
+          }))
+          
+          sendJson(res, 200, { code: 0, data: { posts } })
+          return
+        } else if (type === 'points') {
+          // 积分排行榜
+          const { rows: pointsUsers } = await db.query(`
+            SELECT upb.*, u.username, u.avatar_url
+            FROM user_points_balance upb
+            JOIN users u ON upb.user_id::text = u.id::text
+            ORDER BY upb.balance DESC NULLS LAST
+            LIMIT $1
+          `, [limit])
+          
+          const formattedPointsUsers = pointsUsers.map((user, index) => ({
+            user_id: user.user_id,
+            username: user.username,
+            avatar_url: user.avatar_url,
+            balance: user.balance || 0,
+            total_earned: user.total_earned || 0,
+            rank: index + 1
+          }))
+          
+          sendJson(res, 200, { code: 0, data: { pointsUsers: formattedPointsUsers } })
+          return
+        } else {
+          // 用户排行榜
+          const validSortFields = ['likes_count', 'views', 'posts_count']
+          const dbSortBy = validSortFields.includes(sortBy) ? sortBy : 'likes_count'
+          
+          const { rows: users } = await db.query(`
+            SELECT * FROM users
+            ORDER BY ${dbSortBy} DESC NULLS LAST
+            LIMIT $1
+          `, [limit])
+          
+          sendJson(res, 200, { code: 0, data: { users } })
+          return
+        }
+      }
+    } catch (error) {
+      console.error('[Leaderboard API] Error:', error)
+      sendJson(res, 500, { code: 1, message: '获取排行榜数据失败: ' + error.message })
+      return
+    }
+  }
+
   // 发送邮箱验证码 - 必须在 authRoutes 之前处理
   if (req.method === 'POST' && (path === '/api/auth/send-email-code' || path === '/api/auth/send-code')) {
     console.log('[API] 收到发送验证码请求')
@@ -2740,8 +2863,8 @@ async function route(req, res, u, path) {
 
       const fullStats = {
         ...stats,
-        followers_count: 0,
-        following_count: 0,
+        followers_count: user?.followers_count || 0,
+        following_count: user?.following_count || 0,
         favorites: (await favoriteDB.getUserFavorites(decoded.userId)).length,
         bookmarks_count: bookmarksCount,
         likes: likesCount,

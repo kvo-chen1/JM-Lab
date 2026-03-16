@@ -562,6 +562,7 @@ export async function addToCart(
       .select('*')
       .eq('user_id', userId)
       .eq('product_id', productId)
+      .limit(1)
       .maybeSingle();
 
     if (existingItem) {

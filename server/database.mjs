@@ -1798,6 +1798,29 @@ async function createPostgreSQLTables(pool) {
       await createIndex('CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);')
       await createIndex('CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id);')
 
+      // 创建会员订单表 (membership_orders)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS membership_orders (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          plan TEXT NOT NULL,
+          plan_name TEXT NOT NULL,
+          period TEXT NOT NULL DEFAULT 'monthly',
+          amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+          currency TEXT NOT NULL DEFAULT 'CNY',
+          status TEXT NOT NULL DEFAULT 'pending',
+          payment_method TEXT,
+          payment_data JSONB DEFAULT '{}',
+          metadata JSONB DEFAULT '{}',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          paid_at TIMESTAMP WITH TIME ZONE,
+          expires_at TIMESTAMP WITH TIME ZONE
+        );
+      `)
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_membership_orders_user_id ON membership_orders(user_id);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_membership_orders_status ON membership_orders(status);')
+      await createIndex('CREATE INDEX IF NOT EXISTS idx_membership_orders_created_at ON membership_orders(created_at DESC);')
+
       // 插入默认设置
       const defaultSettings = [
         // 通用设置

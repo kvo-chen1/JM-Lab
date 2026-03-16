@@ -1312,7 +1312,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                       </div>
 
                       {/* 会员推广卡片 */}
-                      {user?.membershipStatus === 'active' ? (
+                      {user?.membershipStatus === 'active' && user?.membershipLevel !== 'free' ? (
                         <div
                           className={`px-3 py-2 mx-3 mt-3 rounded-lg cursor-pointer transition-all duration-200 hover:opacity-90 ${isDark ? 'bg-gradient-to-r from-amber-500/15 to-yellow-500/15 border border-amber-500/25' : 'bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100'}`}
                           onClick={(e) => {
@@ -1322,7 +1322,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                           }}
                         >
                           <p className={`text-sm font-medium ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>
-                            {user?.membershipLevel === 'vip' ? 'VIP会员' : '高级会员'} 生效中
+                            {user?.membershipLevel === 'vip' ? 'VIP会员' : user?.membershipLevel === 'premium' ? '高级会员' : '会员'} 生效中
                           </p>
                           <div className="flex items-center justify-between mt-1">
                             <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>享受专属特权与服务</p>

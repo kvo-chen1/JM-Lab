@@ -473,7 +473,8 @@ class MerchantService {
     const { data: existingMerchants, error: fetchError } = await supabase
       .from('merchants')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .limit(1);
 
     console.log('[MerchantService] 查询结果:', { existingMerchants, fetchError });
 
@@ -486,6 +487,7 @@ class MerchantService {
         .from('merchant_stores')
         .select('store_name, store_logo, store_description')
         .eq('user_id', userId)
+        .limit(1)
         .maybeSingle();
       
       // 如果 merchant_stores 有数据，同步到 merchants
@@ -802,6 +804,7 @@ class MerchantService {
       .from('merchants')
       .select('id')
       .eq('user_id', userId)
+      .limit(1)
       .maybeSingle();
 
     if (merchantError) {
@@ -1174,16 +1177,35 @@ class MerchantService {
       return { isMerchant: true, status: 'approved' };
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { isMerchant: false, status: 'none' };
+    // 使用与 getCurrentMerchant 一致的方式获取用户ID
+    const userId = getCurrentUserId();
+    if (!userId) {
+      console.error('[MerchantService] checkMerchantStatus: 无法获取用户ID');
+      return { isMerchant: false, status: 'none' };
+    }
+
+    console.log('[MerchantService] checkMerchantStatus: 检查商家状态，用户ID:', userId);
 
     const { data, error } = await supabase
       .from('merchants')
       .select('status')
-      .eq('user_id', user.id)
-      .single();
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
 
-    if (error || !data) return { isMerchant: false, status: 'none' };
+    console.log('[MerchantService] checkMerchantStatus: 查询结果:', { data, error });
+
+    if (error) {
+      console.error('[MerchantService] checkMerchantStatus: 查询失败:', error);
+      return { isMerchant: false, status: 'none' };
+    }
+    
+    if (!data) {
+      console.log('[MerchantService] checkMerchantStatus: 未找到商家记录');
+      return { isMerchant: false, status: 'none' };
+    }
+    
+    console.log('[MerchantService] checkMerchantStatus: 商家状态:', data.status);
     return { isMerchant: true, status: data.status };
   }
 }

@@ -1198,7 +1198,7 @@ export default function WorkSubmissionAudit() {
                   孵化阶段
                 </h3>
                 <div className="space-y-2">
-                  {selectedAsset.stages.map((stage, index) => (
+                  {selectedAsset.stages?.map((stage, index) => (
                     <div key={stage.id} className="flex items-center gap-2">
                       <div className={cn(
                         'w-2 h-2 rounded-full',

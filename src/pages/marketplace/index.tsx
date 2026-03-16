@@ -27,6 +27,7 @@ import HeroBanner from '@/components/marketplace/HeroBanner';
 // 商品组件
 import ProductGridV2 from '@/components/marketplace/ProductGridV2';
 import ProductCardV3 from '@/components/marketplace/ProductCardV3';
+import BlindBoxSection from '@/components/marketplace/BlindBoxSection';
 
 // Hooks
 import { 
@@ -396,14 +397,17 @@ const MarketplacePage: React.FC = () => {
           </motion.section>
         )}
 
-        {/* 授权IP产品 */}
+        {/* 盲盒专区 */}
+        <BlindBoxSection />
+
+        {/* 授权 IP 产品 */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45 }}
         >
           <LicensedProductSection
-            title="授权IP产品"
+            title="授权 IP 产品"
             subtitle="正版授权，品质保证，支持原创作者"
             type="hot"
             limit={8}

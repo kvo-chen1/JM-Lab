@@ -259,7 +259,6 @@ export default defineConfig({
       // 优化输入选项
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        landing: path.resolve(__dirname, 'landing.html'),
       },
       output: {
         // 优化资产输出
@@ -355,8 +354,8 @@ export default defineConfig({
     port: 3005,
     // 增加请求头大小限制，避免431错误
     maxHeaderSize: 32768, // 32KB
-    // 自动打开浏览器，直接打开landing.html
-    open: '/landing.html',
+    // 自动打开浏览器，直接打开首页
+    open: '/',
     // 优化热更新
     hmr: {
       timeout: 3000,

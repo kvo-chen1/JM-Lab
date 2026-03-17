@@ -818,7 +818,7 @@ export default function MobileDashboard({
 
                 {/* 商务与支持 */}
                 <SidebarSection title="商务与支持" isDark={isDark}>
-                  <SidebarItem icon="fas fa-handshake" label="商业合作" onClick={() => { navigate('/business'); setShowSidebar(false); }} isDark={isDark} />
+                  <SidebarItem icon="fas fa-handshake" label="品牌合作" onClick={() => { navigate('/business'); setShowSidebar(false); }} isDark={isDark} />
                   <SidebarItem icon="fas fa-building" label="主办方中心" onClick={() => { navigate('/organizer'); setShowSidebar(false); }} isDark={isDark} />
                   <SidebarItem icon="fas fa-lightbulb" label="IP孵化中心" onClick={() => { navigate('/ip-incubation'); setShowSidebar(false); }} isDark={isDark} />
                   <SidebarItem icon="fas fa-info-circle" label="帮助中心" onClick={() => { navigate('/help'); setShowSidebar(false); }} isDark={isDark} />

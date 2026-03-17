@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Minus, Plus, Trash2, Eye, Tag } from 'lucide-react';
+import { Minus, Plus, Trash2, Eye, Tag, AlertTriangle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/Checkbox';
 
 interface CartProduct {
@@ -19,6 +19,8 @@ interface CartItemEnhancedProps {
     product: CartProduct;
     quantity: number;
     selected: boolean;
+    isValid?: boolean;
+    stockStatus?: 'in_stock' | 'low_stock' | 'out_of_stock';
   };
   index?: number;
   onSelect?: (selected: boolean) => void;
@@ -35,7 +37,7 @@ const CartItemEnhanced: React.FC<CartItemEnhancedProps> = ({
   onRemove,
   onView
 }) => {
-  const { product, quantity, selected } = item;
+  const { product, quantity, selected, isValid = true, stockStatus = 'in_stock' } = item;
   const subtotal = product.price * quantity;
   const discount = product.originalPrice ? product.originalPrice - product.price : 0;
   const discountPercent = product.originalPrice
@@ -49,7 +51,7 @@ const CartItemEnhanced: React.FC<CartItemEnhancedProps> = ({
       transition={{ delay: index * 0.05 }}
       className={`bg-white rounded-2xl p-5 shadow-sm border border-gray-100 transition-all ${
         !selected ? 'opacity-60' : ''
-      }`}
+      } ${!isValid ? 'opacity-50 bg-gray-50' : ''}`}
     >
       <div className="flex gap-4">
         <div className="flex items-center pt-2">
@@ -110,6 +112,25 @@ const CartItemEnhanced: React.FC<CartItemEnhancedProps> = ({
                   </span>
                 </div>
               )}
+
+              {/* 库存状态 */}
+              <div className="flex items-center gap-2 mt-2">
+                {stockStatus === 'in_stock' && (
+                  <span className="text-xs text-green-600">✓ 有货</span>
+                )}
+                {stockStatus === 'low_stock' && (
+                  <div className="flex items-center gap-1 text-xs text-orange-600">
+                    <AlertTriangle className="w-3 h-3" />
+                    <span>库存紧张</span>
+                  </div>
+                )}
+                {stockStatus === 'out_of_stock' && (
+                  <div className="flex items-center gap-1 text-xs text-red-600">
+                    <AlertTriangle className="w-3 h-3" />
+                    <span>缺货</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <button

@@ -4,12 +4,17 @@ import { useTheme } from '@/hooks/useTheme';
 import productService, { Product, ProductCategory, ExchangeRecord } from '@/services/productService';
 import { useSupabasePoints } from '@/hooks/useSupabasePoints';
 import { toast } from 'sonner';
-import { Search, ShoppingCart, History, Package, CheckCircle, AlertCircle, Coins, Tag, Box } from 'lucide-react';
+import { Search, ShoppingCart, History, Package, CheckCircle, AlertCircle, Coins, Tag, Box, Gift } from 'lucide-react';
 import { AuthContext } from '@/contexts/authContext';
+import BlindBoxSection from '@/components/points-mall/BlindBoxSection';
+import blindBoxService, { BlindBox } from '@/services/blindBoxService';
+import membershipService from '@/services/membershipService';
+import { useNavigate } from 'react-router-dom';
 
 const PointsMall: React.FC = () => {
   const { isDark } = useTheme();
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'all'>('all');
   const [exchangeRecords, setExchangeRecords] = useState<ExchangeRecord[]>([]);
@@ -19,6 +24,8 @@ const PointsMall: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [selectedBlindBox, setSelectedBlindBox] = useState<BlindBox | null>(null);
+  const [showBlindBoxConfirm, setShowBlindBoxConfirm] = useState(false);
 
   // 使用 Supabase 积分服务获取真实积分
   const { balance, isLoading: pointsLoading, refreshBalance } = useSupabasePoints();
@@ -79,7 +86,7 @@ const PointsMall: React.FC = () => {
   useEffect(() => {
     let result = [...products];
     
-    if (selectedCategory !== 'all') {
+    if (selectedCategory !== 'all' && selectedCategory !== 'blind-box') {
       result = result.filter(product => product.category === selectedCategory);
     }
     
@@ -117,6 +124,95 @@ const PointsMall: React.FC = () => {
     
     setSelectedProduct(product);
     setShowConfirmDialog(true);
+  };
+
+  // 打开盲盒兑换确认对话框
+  const openBlindBoxExchangeDialog = (box: BlindBox) => {
+    if (!userId) {
+      toast.error('请先登录');
+      return;
+    }
+    
+    if (!box.available) {
+      toast.error('该盲盒已售罄');
+      return;
+    }
+    
+    if (currentPoints < box.price) {
+      toast.error('积分不足，快去完成任务获取积分吧！');
+      return;
+    }
+    
+    setSelectedBlindBox(box);
+    setShowBlindBoxConfirm(true);
+  };
+
+  // 处理盲盒兑换
+  const handleExchangeBlindBox = async () => {
+    if (!selectedBlindBox || !userId) return;
+
+    try {
+      setIsLoading(true);
+      
+      // 扣除积分（使用 membershipService）
+      const pointsResult = await membershipService.spendPoints(
+        userId,
+        selectedBlindBox.price,
+        'blind_box_exchange',
+        `兑换${selectedBlindBox.name}`
+      );
+      
+      if (!pointsResult.success) {
+        throw new Error(pointsResult.error || '积分扣减失败');
+      }
+      
+      // 购买盲盒（更新库存）
+      const success = blindBoxService.purchaseBlindBox(selectedBlindBox.id, userId);
+      
+      if (!success) {
+        throw new Error('盲盒购买失败');
+      }
+      
+      // 刷新积分余额
+      await refreshBalance();
+      
+      // 关闭对话框
+      setShowBlindBoxConfirm(false);
+      setSelectedBlindBox(null);
+      
+      // 显示成功消息
+      toast.success(
+        <div className="flex flex-col gap-1">
+          <div className="font-bold flex items-center gap-2">
+            <Gift className="w-5 h-5 text-green-500" />
+            兑换成功！
+          </div>
+          <div className="text-sm">{selectedBlindBox.name}</div>
+          <div className="text-sm text-red-400">消耗 {selectedBlindBox.price} 积分</div>
+        </div>
+      );
+      
+      // 触发积分更新事件
+      window.dispatchEvent(new CustomEvent('pointsUpdated', { 
+        detail: { 
+          newBalance: currentPoints - selectedBlindBox.price,
+          change: -selectedBlindBox.price,
+          type: 'spent',
+          source: 'blind_box'
+        }
+      }));
+      
+      // 跳转到盲盒开启页面
+      setTimeout(() => {
+        navigate(`/blind-box?boxId=${selectedBlindBox.id}&autoOpen=true`);
+      }, 1000);
+      
+    } catch (error: any) {
+      console.error('盲盒兑换失败:', error);
+      toast.error(error.message || '兑换失败，请稍后重试');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // 处理商品兑换
@@ -181,6 +277,7 @@ const PointsMall: React.FC = () => {
   // 分类选项
   const categories = [
     { value: 'all', label: '全部', icon: Box },
+    { value: 'blind-box', label: '盲盒', icon: Gift },
     { value: 'virtual', label: '虚拟商品', icon: Tag },
     { value: 'physical', label: '实物商品', icon: Package },
     { value: 'service', label: '服务', icon: ShoppingCart },
@@ -313,6 +410,14 @@ const PointsMall: React.FC = () => {
             })}
           </div>
         </div>
+
+        {/* 盲盒专区（当选择"全部"或"盲盒"分类时显示） */}
+        {(selectedCategory === 'all' || selectedCategory === 'blind-box') && (
+          <BlindBoxSection 
+            onExchangeBlindBox={openBlindBoxExchangeDialog}
+            currentPoints={currentPoints}
+          />
+        )}
 
         {/* 商品列表 */}
         {isLoading ? (
@@ -656,6 +761,109 @@ const PointsMall: React.FC = () => {
                       isDark
                         ? 'bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white'
                         : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
+                    } ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        处理中...
+                      </span>
+                    ) : (
+                      '确认兑换'
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 盲盒兑换确认对话框 */}
+        <AnimatePresence>
+          {showBlindBoxConfirm && selectedBlindBox && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4"
+              onClick={() => setShowBlindBoxConfirm(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 max-w-md w-full shadow-2xl`}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="text-center mb-6">
+                  <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${
+                    isDark ? 'bg-purple-500/20' : 'bg-purple-100'
+                  }`}>
+                    <Gift className="w-8 h-8 text-purple-500" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">确认兑换盲盒</h3>
+                  <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    您确定要兑换这个盲盒吗？
+                  </p>
+                </div>
+
+                <div className={`p-4 rounded-xl mb-6 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <div className="flex items-center gap-4 mb-4">
+                    <img 
+                      src={selectedBlindBox.image} 
+                      alt={selectedBlindBox.name}
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
+                    <div className="flex-1">
+                      <h4 className="font-bold">{selectedBlindBox.name}</h4>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {selectedBlindBox.description}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>稀有度</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      selectedBlindBox.rarity === 'legendary' ? 'bg-yellow-500/20 text-yellow-500' :
+                      selectedBlindBox.rarity === 'epic' ? 'bg-purple-500/20 text-purple-500' :
+                      selectedBlindBox.rarity === 'rare' ? 'bg-blue-500/20 text-blue-500' :
+                      'bg-gray-500/20 text-gray-500'
+                    }`}>
+                      {selectedBlindBox.rarity === 'legendary' ? '传奇' :
+                       selectedBlindBox.rarity === 'epic' ? '史诗' :
+                       selectedBlindBox.rarity === 'rare' ? '稀有' : '普通'}
+                    </span>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-600/20">
+                    <div className="flex justify-between items-center">
+                      <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>消耗积分</span>
+                      <span className="text-xl font-bold text-purple-500">{selectedBlindBox.price}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-2">
+                      <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>兑换后剩余</span>
+                      <span className="font-medium">{currentPoints - selectedBlindBox.price}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowBlindBoxConfirm(false)}
+                    className={`flex-1 px-4 py-3 rounded-xl font-medium transition-all ${
+                      isDark 
+                        ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                    }`}
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleExchangeBlindBox}
+                    disabled={isLoading}
+                    className={`flex-1 px-4 py-3 rounded-xl font-medium transition-all ${
+                      isDark
+                        ? 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white'
+                        : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white'
                     } ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                   >
                     {isLoading ? (

@@ -414,10 +414,10 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
   };
 
   return (
-    <div className={`flex flex-col h-full ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+    <div className={`flex flex-col h-full ${isDark ? 'bg-[#0a0f0a]' : 'bg-gray-50'}`}>
       {/* Toolbar - 固定在顶部 */}
       <div className={`flex-shrink-0 z-10 h-14 px-4 flex items-center justify-between border-b backdrop-blur-md ${
-        isDark ? 'bg-gray-900/50 border-gray-800' : 'bg-white/50 border-gray-200'
+        isDark ? 'bg-[#1a1f1a]/50 border-[#2a2f2a]' : 'bg-white/50 border-gray-200'
       }`}>
         <div className="flex items-center gap-2">
           <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>

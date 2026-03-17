@@ -1090,3 +1090,438 @@
     box-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
   }
 }
+
+/* ============================================
+   Agent 页面特定覆盖 - Agent Page Overrides
+   针对津小脉 Agent 页面的布局优化
+   ============================================ */
+
+/* Agent 页面主容器 */
+.delta-force .agent-layout,
+.delta-force [class*="agent-layout"],
+.delta-force .agent-page,
+.delta-force [class*="agent-page"] {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Agent Header 区域 */
+.delta-force .agent-header,
+.delta-force header[class*="agent"],
+.delta-force [class*="flex items-center justify-between"] header {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* Chat Panel 和 Canvas Panel 容器 */
+.delta-force [class*="chat-panel"],
+.delta-force [class*="canvas-panel"] {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* 消息气泡背景 */
+.delta-force [class*="message-bubble"],
+.delta-force [class*="chat-message"] [class*="bg-"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* 输入框区域 */
+.delta-force [class*="input-area"],
+.delta-force [class*="input-box"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* 工具栏和按钮组 */
+.delta-force [class*="toolbar"],
+.delta-force [class*="button-group"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* 侧边栏 */
+.delta-force .conversation-sidebar,
+.delta-force [class*="sidebar"] {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* 卡片和项目 */
+.delta-force .session-item,
+.delta-force [class*="session-item"] {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-secondary) !important;
+}
+
+/* 活跃状态 */
+.delta-force [class*="active"],
+.delta-force [aria-selected="true"] {
+  background-color: var(--bg-active) !important;
+  border-color: var(--border-accent) !important;
+}
+
+/* 悬停状态 */
+.delta-force [class*="hover\\:bg"]:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* 文本颜色强制覆盖 - 确保所有文本在深色主题下可见 */
+.delta-force h1,
+.delta-force h2,
+.delta-force h3,
+.delta-force h4,
+.delta-force h5,
+.delta-force h6 {
+  color: var(--text-primary) !important;
+}
+
+.delta-force p,
+.delta-force span,
+.delta-force div {
+  color: var(--text-primary) !important;
+}
+
+.delta-force .text-sm,
+.delta-force .text-xs,
+.delta-force .text-lg {
+  color: var(--text-secondary) !important;
+}
+
+/* 占位符文本 */
+.delta-force ::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* 分割线和边框 */
+.delta-force hr,
+.delta-force [class*="border-b"],
+.delta-force [class*="border-t"] {
+  border-color: var(--border-primary) !important;
+}
+
+/* 渐变背景覆盖 - 保持品牌色 */
+.delta-force [class*="from-\\[\\#C02C38\\]"],
+.delta-force [class*="to-\\[\\#E85D75\\]"],
+.delta-force [class*="bg-gradient"] {
+  /* 保留原有的渐变效果，不覆盖 */
+}
+
+/* 模态框和弹窗 */
+.delta-force [role="dialog"],
+.delta-force [class*="modal"],
+.delta-force [class*="popover"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-secondary) !important;
+}
+
+/* 下拉菜单 */
+.delta-force [role="listbox"],
+.delta-force [role="menu"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* 选项项目 */
+.delta-force [role="option"],
+.delta-force [role="menuitem"] {
+  color: var(--text-primary) !important;
+}
+
+.delta-force [role="option"]:hover,
+.delta-force [role="menuitem"]:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* 徽章和标签 */
+.delta-force [class*="badge"],
+.delta-force [class*="tag"],
+.delta-force [class*="pill"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-secondary) !important;
+}
+
+/* 进度条和加载状态 */
+.delta-force [class*="progress"],
+.delta-force [class*="skeleton"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* 表格 */
+.delta-force table,
+.delta-force [class*="table"] {
+  background-color: var(--bg-secondary) !important;
+}
+
+.delta-force th {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+.delta-force td {
+  color: var(--text-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* 代码块 */
+.delta-force pre,
+.delta-force code {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-secondary) !important;
+}
+
+/* 引用的块 */
+.delta-force blockquote {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-accent) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ============================================
+   Marketplace 右侧边栏特定覆盖
+   ============================================ */
+
+/* 右侧边栏卡片标题 */
+.delta-force .mp-sidebar-card-title,
+.delta-force [class*="sidebar-card"] h3,
+.delta-force [class*="mp-sidebar"] h3 {
+  color: var(--text-primary) !important;
+}
+
+/* 右侧边栏导航项 */
+.delta-force .mp-sidebar-nav-item,
+.delta-force [class*="sidebar-nav"] button,
+.delta-force [class*="sidebar"] nav * {
+  color: var(--text-primary) !important;
+}
+
+/* 右侧边栏卡片内的所有文本 */
+.delta-force .mp-sidebar-card *,
+.delta-force [class*="sidebar-card"] * {
+  color: var(--text-primary) !important;
+}
+
+/* 右侧边栏卡片内的次要文本 */
+.delta-force .mp-sidebar-card .text-xs,
+.delta-force .mp-sidebar-card .text-sm {
+  color: var(--text-secondary) !important;
+}
+
+/* 价格文本特殊处理 - 保持醒目 */
+.delta-force .mp-sidebar-card [class*="text-sky"],
+.delta-force .mp-sidebar-card [class*="text-blue"] {
+  color: var(--color-primary-light) !important;
+}
+
+/* 购物车、收藏等模块的标题 */
+.delta-force [class*="shopping-cart"] h3,
+.delta-force [class*="favorites"] h3,
+.delta-force [class*="promotions"] h3,
+.delta-force [class*="recommended"] h3 {
+  color: var(--text-primary) !important;
+}
+
+/* 空状态文本 */
+.delta-force [class*="empty-state"],
+.delta-force [class*="text-center"] p {
+  color: var(--text-secondary) !important;
+}
+
+/* 按钮文本 - 排除删除按钮等图标按钮 */
+.delta-force .mp-sidebar-card button:not(.remove-cart-btn),
+.delta-force [class*="sidebar-card"] button:not(.remove-cart-btn) {
+  color: var(--text-inverse) !important;
+}
+
+/* 删除按钮特殊处理 - 保留红色 */
+.delta-force .remove-cart-btn,
+.delta-force .remove-cart-btn:hover {
+  color: #f87171 !important;
+}
+
+.delta-force .remove-cart-btn:hover {
+  color: #fca5a5 !important;
+}
+
+/* 链接文本 */
+.delta-force .mp-sidebar-card a,
+.delta-force [class*="sidebar-card"] a {
+  color: var(--color-primary-light) !important;
+}
+
+/* ============================================
+   Marketplace 主页面特定覆盖
+   ============================================ */
+
+/* 区块标题文本 */
+.delta-force [class*="section-header"],
+.delta-force h2[class*="text-lg"],
+.delta-force [class*="flex items-center gap-2"] h2 {
+  color: var(--text-primary) !important;
+}
+
+/* 区块标题操作按钮 */
+.delta-force [class*="section-header"] button,
+.delta-force [class*="flex items-center gap-2"] button {
+  color: var(--text-secondary) !important;
+}
+
+.delta-force [class*="section-header"] button:hover,
+.delta-force [class*="flex items-center gap-2"] button:hover {
+  color: var(--color-primary-light) !important;
+}
+
+/* 商品卡片基础样式 */
+.delta-force .product-card,
+.delta-force [class*="product-card"],
+.delta-force [class*="bg-white"][class*="rounded"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* 商品卡片标题 */
+.delta-force .product-card h3,
+.delta-force [class*="product-card"] h3,
+.delta-force [class*="product-name"] {
+  color: var(--text-primary) !important;
+}
+
+/* 商品卡片价格 */
+.delta-force .product-card [class*="price"],
+.delta-force [class*="product-card"] [class*="price"],
+.delta-force [class*="text-sky-600"],
+.delta-force [class*="text-amber-600"],
+.delta-force [class*="text-emerald-600"] {
+  color: var(--color-primary-light) !important;
+}
+
+/* 商品卡片原价 */
+.delta-force .product-card [class*="original-price"],
+.delta-force [class*="product-card"] [class*="original-price"] {
+  color: var(--text-muted) !important;
+}
+
+/* 商品卡片描述 */
+.delta-force .product-card p,
+.delta-force [class*="product-card"] p {
+  color: var(--text-secondary) !important;
+}
+
+/* 商品卡片按钮 */
+.delta-force .product-card button,
+.delta-force [class*="product-card"] button {
+  /* 保留原有颜色，不覆盖 */
+}
+
+/* 加载状态 */
+.delta-force [class*="loading"],
+.delta-force [class*="skeleton"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* 空状态 */
+.delta-force [class*="empty"],
+.delta-force [class*="no-data"] {
+  color: var(--text-muted) !important;
+}
+
+/* 分类标签 */
+.delta-force [class*="category"],
+.delta-force [class*="tag"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-secondary) !important;
+}
+
+/* 销量、评价等统计信息 */
+.delta-force [class*="sales"],
+.delta-force [class*="reviews"],
+.delta-force [class*="stats"] {
+  color: var(--text-secondary) !important;
+}
+
+/* 折扣标签 */
+.delta-force [class*="discount"],
+.delta-force [class*="badge"] {
+  background-color: var(--color-error) !important;
+  color: #ffffff !important;
+}
+
+/* 轮播图和 Banner 组件 */
+.delta-force [class*="banner"],
+.delta-force [class*="carousel"] {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* 搜索框 */
+.delta-force input[type="search"],
+.delta-force input[type="text"][class*="search"] {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+.delta-force input[type="search"]::placeholder,
+.delta-force input[type="text"][class*="search"]::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* 下拉菜单 */
+.delta-force [class*="dropdown"],
+.delta-force [class*="filter"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* 排序选项 */
+.delta-force [class*="sort"] button,
+.delta-force [class*="filter"] button {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-secondary) !important;
+}
+
+/* 分页组件 */
+.delta-force [class*="pagination"] button {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-secondary) !important;
+}
+
+.delta-force [class*="pagination"] button:active,
+.delta-force [class*="pagination"] button.active {
+  background-color: var(--color-primary) !important;
+  color: var(--text-inverse) !important;
+}
+
+/* 左侧边栏 */
+.delta-force aside[class*="left"],
+.delta-force [class*="left-sidebar"] {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* 左侧边栏标题 */
+.delta-force [class*="left-sidebar"] h3,
+.delta-force [class*="left-sidebar"] h4 {
+  color: var(--text-primary) !important;
+}
+
+/* 左侧边栏导航项 */
+.delta-force [class*="left-sidebar"] nav button,
+.delta-force [class*="left-sidebar"] nav a {
+  color: var(--text-primary) !important;
+}
+
+.delta-force [class*="left-sidebar"] nav button:hover,
+.delta-force [class*="left-sidebar"] nav a:hover {
+  background-color: var(--bg-hover) !important;
+  color: var(--color-primary-light) !important;
+}
+
+/* 左侧边栏活跃项 */
+.delta-force [class*="left-sidebar"] nav button.active,
+.delta-force [class*="left-sidebar"] nav a.active {
+  background-color: var(--bg-active) !important;
+  color: var(--color-primary-light) !important;
+  border-color: var(--border-accent) !important;
+}

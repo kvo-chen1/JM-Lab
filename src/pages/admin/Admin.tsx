@@ -30,6 +30,7 @@ const AuditLog = lazy(() => import('./AuditLog'));
 const UserAudit = lazy(() => import('./UserAudit'));
 const EventManagement = lazy(() => import('./EventManagement'));
 const ProductManagement = lazy(() => import('./ProductManagement'));
+const BlindBoxManagement = lazy(() => import('./BlindBoxManagement'));
 const LotteryManagement = lazy(() => import('./LotteryManagement'));
 const PaymentAudit = lazy(() => import('./PaymentAudit'));
 const NotificationManagement = lazy(() => import('./NotificationManagement'));
@@ -4916,6 +4917,21 @@ export default function Admin() {
             </div>
           }>
             <ProductManagement />
+          </Suspense>
+        )}
+
+        {/* 盲盒管理页面 */}
+        {activeTab === 'blindBoxManagement' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-purple-200 border-t-purple-500 rounded-full"
+              />
+            </div>
+          }>
+            <BlindBoxManagement />
           </Suspense>
         )}
 

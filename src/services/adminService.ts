@@ -1,6 +1,32 @@
 // 管理后台数据服务
 import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 
+// 包装函数：安全地调用 supabaseAdmin，在失败时返回默认值
+// 注意：在生产环境中，supabaseAdmin 会降级为 supabase（anon key）
+// 因此某些需要管理员权限的操作可能会因为 RLS 而失败
+async function safeAdminQuery<T>(
+  queryFn: () => Promise<{ data: T | null; error: any }>,
+  defaultValue: T,
+  operationName: string
+): Promise<T> {
+  try {
+    const { data, error } = await queryFn();
+    if (error) {
+      // 只在开发环境打印详细错误
+      if (import.meta.env.DEV) {
+        console.warn(`[AdminService] ${operationName} 失败:`, error);
+      }
+      return defaultValue;
+    }
+    return data || defaultValue;
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn(`[AdminService] ${operationName} 异常:`, e);
+    }
+    return defaultValue;
+  }
+}
+
 export interface DashboardStats {
   totalUsers: number;
   totalWorks: number;
@@ -129,140 +155,69 @@ class AdminService {
     };
   }
 
-  // 获取用户活跃度数据（支持周/月/年）
+  // 获取用户活跃度数据（支持周/月/年）- 使用后端 API
   async getUserActivityData(period: 'week' | 'month' | 'year' = 'week'): Promise<ActivityData[]> {
     try {
-      const data: ActivityData[] = [];
-      const now = new Date();
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/user-activity?period=${period}`;
       
-      // 根据周期确定数据点数量和标签
-      let dataPoints: number;
-      let labels: string[];
-      let dateInterval: number; // 每个数据点之间的天数
-      
-      switch (period) {
-        case 'month':
-          dataPoints = 30;
-          dateInterval = 1;
-          labels = Array.from({ length: 30 }, (_, i) => `${i + 1}日`);
-          break;
-        case 'year':
-          dataPoints = 12;
-          dateInterval = 30;
-          labels = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-          break;
-        case 'week':
-        default:
-          dataPoints = 7;
-          dateInterval = 1;
-          labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-          break;
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        console.error('[AdminService] 获取用户活跃度数据失败:', response.status);
+        return [];
       }
 
-      for (let i = dataPoints - 1; i >= 0; i--) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - i * dateInterval);
-        const startOfDay = new Date(date.setHours(0, 0, 0, 0));
-        const endOfDay = new Date(date.setHours(23, 59, 59, 999));
-
-        // 获取当日新增用户
-        let newUsers = 0;
-        try {
-          const { count } = await supabaseAdmin
-            .from('users')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', startOfDay.toISOString())
-            .lte('created_at', endOfDay.toISOString());
-          newUsers = count || 0;
-        } catch (e) {
-          console.warn('获取当日新增用户失败:', e);
-        }
-
-        // 获取当日活跃用户（通过 user_behavior_logs 表统计）
-        let activeUsers = 0;
-        try {
-          const { count } = await supabaseAdmin
-            .from('user_behavior_logs')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', startOfDay.toISOString())
-            .lte('created_at', endOfDay.toISOString());
-          // 估算活跃用户数为行为日志记录数的 1/10（去重）
-          activeUsers = Math.round((count || 0) / 10);
-        } catch (e) {
-          console.warn('获取当日活跃用户失败:', e);
-        }
-
-        // 获取当日创作数量（从 works 表）
-        let worksCount = 0;
-        try {
-          const { count } = await supabaseAdmin
-            .from('works')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', startOfDay.toISOString())
-            .lte('created_at', endOfDay.toISOString());
-          worksCount = count || 0;
-        } catch (e) {
-          console.warn('获取当日创作数量失败:', e);
-        }
-
-        data.push({
-          name: labels[dataPoints - 1 - i],
-          新增用户: newUsers,
-          活跃用户: activeUsers || Math.round(newUsers * 1.5),
-          创作数量: worksCount
-        });
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return [];
       }
 
-      return data;
+      return result.data || [];
     } catch (error) {
       console.error('获取活跃度数据失败:', error);
       return [];
     }
   }
 
-  // 获取内容审核统计数据
+  // 获取内容审核统计数据 - 使用后端 API
   async getAuditStats(): Promise<AuditStats[]> {
     try {
-      // 待审核（从 works 表）
-      let pending = 0;
-      try {
-        const { count } = await supabaseAdmin
-          .from('works')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'pending');
-        pending = count || 0;
-      } catch (e) {
-        console.warn('获取待审核数失败:', e);
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/audit-stats`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        console.error('[AdminService] 获取审核统计失败:', response.status);
+        return [
+          { name: '待审核', value: 0 },
+          { name: '已通过', value: 0 },
+          { name: '已拒绝', value: 0 }
+        ];
       }
 
-      // 已通过（从 works 表）
-      let approved = 0;
-      try {
-        const { count } = await supabaseAdmin
-          .from('works')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'published');
-        approved = count || 0;
-      } catch (e) {
-        console.warn('获取已通过数失败:', e);
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return [
+          { name: '待审核', value: 0 },
+          { name: '已通过', value: 0 },
+          { name: '已拒绝', value: 0 }
+        ];
       }
 
-      // 已拒绝（从 works 表）
-      let rejected = 0;
-      try {
-        const { count } = await supabaseAdmin
-          .from('works')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'rejected');
-        rejected = count || 0;
-      } catch (e) {
-        console.warn('获取已拒绝数失败:', e);
-      }
-
-      return [
-        { name: '待审核', value: pending },
-        { name: '已通过', value: approved },
-        { name: '已拒绝', value: rejected }
+      return result.data || [
+        { name: '待审核', value: 0 },
+        { name: '已通过', value: 0 },
+        { name: '已拒绝', value: 0 }
       ];
     } catch (error) {
       console.error('获取审核统计失败:', error);
@@ -274,35 +229,35 @@ class AdminService {
     }
   }
 
-  // 获取待审核作品列表
+  // 获取待审核作品列表 - 使用后端 API
   async getPendingWorks(): Promise<PendingWork[]> {
     try {
-      const { data: works, error } = await supabaseAdmin
-        .from('works')
-        .select('id, title, thumbnail, creator_id, created_at, status')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(10);
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/pending-works`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
 
-      if (error) throw error;
-      if (!works || works.length === 0) return [];
+      if (!response.ok) {
+        console.error('[AdminService] 获取待审核作品失败:', response.status);
+        return [];
+      }
 
-      // 获取创作者信息
-      const creatorIds = works.map(w => w.creator_id).filter(Boolean);
-      const { data: users } = await supabaseAdmin
-        .from('users')
-        .select('id, username')
-        .in('id', creatorIds);
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return [];
+      }
 
-      const userMap = new Map(users?.map(u => [u.id, u.username]) || []);
-
-      return works.map(work => ({
+      return (result.data || []).map((work: any) => ({
         id: work.id,
         title: work.title,
-        creator: userMap.get(work.creator_id) || '未知用户',
-        creatorId: work.creator_id,
+        creator: work.creator || '未知用户',
+        creatorId: work.creatorId,
         thumbnail: work.thumbnail || 'https://via.placeholder.com/150',
-        submitTime: new Date(work.created_at).toLocaleString('zh-CN'),
+        submitTime: new Date(work.submitTime).toLocaleString('zh-CN'),
         status: work.status
       }));
     } catch (error) {
@@ -311,18 +266,29 @@ class AdminService {
     }
   }
 
-  // 审核作品
+  // 审核作品 - 使用后端 API
   async auditWork(workId: string, action: 'approve' | 'reject'): Promise<boolean> {
     try {
-      const { error } = await supabaseAdmin
-        .from('works')
-        .update({ 
-          status: action === 'approve' ? 'published' : 'rejected',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', workId);
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/works/${workId}/audit`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ action }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        console.error('[AdminService] 审核作品失败:', response.status);
+        return false;
+      }
+
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return false;
+      }
+
       return true;
     } catch (error) {
       console.error('审核作品失败:', error);
@@ -330,7 +296,7 @@ class AdminService {
     }
   }
 
-  // 获取数据分析概览统计
+  // 获取数据分析概览统计 - 使用后端 API
   async getAnalyticsOverview(timeRange: '7d' | '30d' | '90d' | '1y' | 'all' = '30d'): Promise<{
     totalUsers: number;
     totalWorks: number;
@@ -342,147 +308,44 @@ class AdminService {
     likesGrowth: number;
   }> {
     try {
-      const now = new Date();
-      let startDate: Date;
-      let prevStartDate: Date;
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/analytics?timeRange=${timeRange}`;
       
-      switch (timeRange) {
-        case '7d':
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          prevStartDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-          break;
-        case '30d':
-          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          prevStartDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
-          break;
-        case '90d':
-          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-          prevStartDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
-          break;
-        case '1y':
-          startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-          prevStartDate = new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          startDate = new Date(0);
-          prevStartDate = new Date(0);
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        console.error('[AdminService] 获取分析数据失败:', response.status);
+        return this.getDefaultAnalyticsOverview();
       }
 
-      // 获取累计总用户数（所有用户）
-      const { count: totalUsers } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true });
+      const result = await response.json();
+      
+      if (result.code !== 0 || !result.data) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return this.getDefaultAnalyticsOverview();
+      }
 
-      // 获取累计总作品数（所有作品）
-      const { count: totalWorks } = await supabaseAdmin
-        .from('works')
-        .select('*', { count: 'exact', head: true });
-
-      // 获取累计总浏览量（所有作品的 views 总和）
-      const { data: viewsData } = await supabaseAdmin
-        .from('works')
-        .select('view_count');
-      const totalViews = viewsData?.reduce((sum, work) => sum + (work.view_count || 0), 0) || 0;
-
-      // 获取累计总点赞数（所有作品的 likes 总和）
-      const { data: likesData } = await supabaseAdmin
-        .from('works')
-        .select('likes');
-      const totalLikes = likesData?.reduce((sum, work) => sum + (work.likes || 0), 0) || 0;
-
-      // 获取当前时间段新增用户数
-      const { count: currentPeriodUsers } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', startDate.toISOString());
-
-      // 获取上一时间段新增用户数
-      const { count: prevPeriodUsers } = await supabaseAdmin
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', prevStartDate.toISOString())
-        .lt('created_at', startDate.toISOString());
-
-      // 获取当前时间段新增作品数
-      const { count: currentPeriodWorks } = await supabaseAdmin
-        .from('works')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', startDate.toISOString());
-
-      // 获取上一时间段新增作品数
-      const { count: prevPeriodWorks } = await supabaseAdmin
-        .from('works')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', prevStartDate.toISOString())
-        .lt('created_at', startDate.toISOString());
-
-      // 获取当前时间段新增浏览量
-      const { data: currentViewsData } = await supabaseAdmin
-        .from('works')
-        .select('view_count')
-        .gte('created_at', startDate.toISOString());
-      const currentViews = currentViewsData?.reduce((sum, work) => sum + (work.view_count || 0), 0) || 0;
-
-      // 获取上一时间段新增浏览量
-      const { data: prevViewsData } = await supabaseAdmin
-        .from('works')
-        .select('view_count')
-        .gte('created_at', prevStartDate.toISOString())
-        .lt('created_at', startDate.toISOString());
-      const prevViews = prevViewsData?.reduce((sum, work) => sum + (work.view_count || 0), 0) || 0;
-
-      // 获取当前时间段新增点赞数
-      const { data: currentLikesData } = await supabaseAdmin
-        .from('works')
-        .select('likes')
-        .gte('created_at', startDate.toISOString());
-      const currentLikes = currentLikesData?.reduce((sum, work) => sum + (work.likes || 0), 0) || 0;
-
-      // 获取上一时间段新增点赞数
-      const { data: prevLikesData } = await supabaseAdmin
-        .from('works')
-        .select('likes')
-        .gte('created_at', prevStartDate.toISOString())
-        .lt('created_at', startDate.toISOString());
-      const prevLikes = prevLikesData?.reduce((sum, work) => sum + (work.likes || 0), 0) || 0;
-
-      // 计算增长率（基于时间段内新增数据）
-      const userGrowth = prevPeriodUsers && prevPeriodUsers > 0 
-        ? Math.round(((currentPeriodUsers || 0) - prevPeriodUsers) / prevPeriodUsers * 100) 
-        : (currentPeriodUsers || 0) > 0 ? 100 : 0;
-      const worksGrowth = prevPeriodWorks && prevPeriodWorks > 0 
-        ? Math.round(((currentPeriodWorks || 0) - prevPeriodWorks) / prevPeriodWorks * 100) 
-        : (currentPeriodWorks || 0) > 0 ? 100 : 0;
-      const viewsGrowth = prevViews > 0 
-        ? Math.round((currentViews - prevViews) / prevViews * 100) 
-        : currentViews > 0 ? 100 : 0;
-      const likesGrowth = prevLikes > 0 
-        ? Math.round((currentLikes - prevLikes) / prevLikes * 100) 
-        : currentLikes > 0 ? 100 : 0;
-
-      return {
-        totalUsers: totalUsers || 0,
-        totalWorks: totalWorks || 0,
-        totalViews,
-        totalLikes,
-        userGrowth,
-        worksGrowth,
-        viewsGrowth,
-        likesGrowth,
-      };
+      return result.data;
     } catch (error) {
       console.error('获取数据分析概览失败:', error);
-      return {
-        totalUsers: 0,
-        totalWorks: 0,
-        totalViews: 0,
-        totalLikes: 0,
-        userGrowth: 0,
-        worksGrowth: 0,
-        viewsGrowth: 0,
-        likesGrowth: 0,
-      };
+      return this.getDefaultAnalyticsOverview();
     }
+  }
+
+  // 默认分析数据
+  private getDefaultAnalyticsOverview() {
+    return {
+      totalUsers: 0,
+      totalWorks: 0,
+      totalViews: 0,
+      totalLikes: 0,
+      userGrowth: 0,
+      worksGrowth: 0,
+      viewsGrowth: 0,
+      likesGrowth: 0,
+    };
   }
 
   // 获取趋势数据
@@ -760,7 +623,7 @@ class AdminService {
     ];
   }
 
-  // 获取热门内容
+  // 获取热门内容 - 使用后端 API
   async getTopContent(limit: number = 5): Promise<{
     id: string;
     title: string;
@@ -769,30 +632,31 @@ class AdminService {
     author: string;
   }[]> {
     try {
-      const { data: works, error } = await supabaseAdmin
-        .from('works')
-        .select('id, title, view_count, likes, creator_id')
-        .order('view_count', { ascending: false })
-        .limit(limit);
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/top-content?limit=${limit}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
 
-      if (error) throw error;
-      if (!works || works.length === 0) return [];
+      if (!response.ok) {
+        console.error('[AdminService] 获取热门内容失败:', response.status);
+        return [];
+      }
 
-      // 获取创作者信息
-      const creatorIds = works.map(w => w.creator_id).filter(Boolean);
-      const { data: users } = await supabaseAdmin
-        .from('users')
-        .select('id, username')
-        .in('id', creatorIds);
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return [];
+      }
 
-      const userMap = new Map(users?.map(u => [u.id, u.username]) || []);
-
-      return works.map(work => ({
+      return (result.data || []).map((work: any) => ({
         id: work.id,
         title: work.title,
-        views: work.view_count || 0,
+        views: work.views || 0,
         likes: work.likes || 0,
-        author: userMap.get(work.creator_id) || '未知用户',
+        author: work.author || '未知用户',
       }));
     } catch (error) {
       console.error('获取热门内容失败:', error);
@@ -1795,7 +1659,7 @@ class AdminService {
 
   // ==================== 活动管理 ====================
 
-  // 获取活动列表
+  // 获取活动列表 - 使用后端 API
   async getEvents(options?: {
     page?: number;
     limit?: number;
@@ -1807,75 +1671,85 @@ class AdminService {
     try {
       const { page = 1, limit = 20, status } = options || {};
       
-      console.log('[AdminService] 获取活动列表, status:', status);
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/events?page=${page}&limit=${limit}${status ? `&status=${status}` : ''}`;
       
-      // 使用普通客户端查询，因为 events 表有 RLS 策略
-      // 管理员应该能看到所有活动
-      let query = supabase
-        .from('events')
-        .select('*', { count: 'exact' });
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
 
-      if (status && status !== 'all') {
-        query = query.eq('status', status);
+      if (!response.ok) {
+        console.error('[AdminService] 获取活动列表失败:', response.status);
+        return { events: [], total: 0 };
       }
 
-      const from = (page - 1) * limit;
-      const to = from + limit - 1;
+      const result = await response.json();
       
-      const { data, error, count } = await query
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (error) {
-        console.error('[AdminService] 查询活动失败:', error);
-        throw error;
+      if (result.code !== 0) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return { events: [], total: 0 };
       }
 
-      console.log('[AdminService] 获取到活动:', data?.length, '条, 总数:', count);
-
-      return {
-        events: data || [],
-        total: count || 0,
-      };
+      return result.data || { events: [], total: 0 };
     } catch (error) {
       console.error('获取活动列表失败:', error);
       return { events: [], total: 0 };
     }
   }
 
-  // 创建活动
+  // 创建活动 - 使用后端 API
   async createEvent(eventData: any): Promise<any | null> {
     try {
-      const { data, error } = await supabaseAdmin
-        .from('events')
-        .insert([{
-          ...eventData,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }])
-        .select()
-        .single();
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/events`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(eventData),
+      });
 
-      if (error) throw error;
-      return data;
+      if (!response.ok) {
+        console.error('[AdminService] 创建活动失败:', response.status);
+        return null;
+      }
+
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return null;
+      }
+
+      return result.data;
     } catch (error) {
       console.error('创建活动失败:', error);
       return null;
     }
   }
 
-  // 更新活动
+  // 更新活动 - 使用后端 API
   async updateEvent(eventId: string, eventData: any): Promise<boolean> {
     try {
-      const { error } = await supabaseAdmin
-        .from('events')
-        .update({
-          ...eventData,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', eventId);
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/events/${eventId}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify(eventData),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        console.error('[AdminService] 更新活动失败:', response.status);
+        return false;
+      }
+
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return false;
+      }
+
       return true;
     } catch (error) {
       console.error('更新活动失败:', error);
@@ -1883,15 +1757,28 @@ class AdminService {
     }
   }
 
-  // 删除活动
+  // 删除活动 - 使用后端 API
   async deleteEvent(eventId: string): Promise<boolean> {
     try {
-      const { error } = await supabaseAdmin
-        .from('events')
-        .delete()
-        .eq('id', eventId);
+      const apiUrl = `${this.getApiBaseUrl()}/api/admin/events/${eventId}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        console.error('[AdminService] 删除活动失败:', response.status);
+        return false;
+      }
+
+      const result = await response.json();
+      
+      if (result.code !== 0) {
+        console.error('[AdminService] API 返回错误:', result.message);
+        return false;
+      }
+
       return true;
     } catch (error) {
       console.error('删除活动失败:', error);

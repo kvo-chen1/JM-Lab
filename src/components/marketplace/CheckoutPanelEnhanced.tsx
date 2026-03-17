@@ -10,6 +10,7 @@ interface CheckoutPanelEnhancedProps {
   discount?: number;
   couponCode?: string;
   onApplyCoupon?: (code: string) => void;
+  onRemoveCoupon?: () => void;
   onCheckout?: () => void;
   loading?: boolean;
 }
@@ -21,11 +22,12 @@ const CheckoutPanelEnhanced: React.FC<CheckoutPanelEnhancedProps> = ({
   discount = 0,
   couponCode: initialCouponCode = '',
   onApplyCoupon,
+  onRemoveCoupon,
   onCheckout,
   loading = false
 }) => {
   const [couponCode, setCouponCode] = useState(initialCouponCode);
-  const [couponApplied, setCouponApplied] = useState(false);
+  const [couponApplied, setCouponApplied] = useState(!!initialCouponCode);
 
   const total = subtotal + shipping - discount;
   const canCheckout = selectedItems > 0;
@@ -33,8 +35,13 @@ const CheckoutPanelEnhanced: React.FC<CheckoutPanelEnhancedProps> = ({
   const handleApplyCoupon = () => {
     if (couponCode.trim() && onApplyCoupon) {
       onApplyCoupon(couponCode);
-      setCouponApplied(true);
     }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponCode('');
+    setCouponApplied(false);
+    onRemoveCoupon?.();
   };
 
   return (
@@ -96,7 +103,15 @@ const CheckoutPanelEnhanced: React.FC<CheckoutPanelEnhancedProps> = ({
                 <Tag className="w-4 h-4 text-green-600" />
                 <span className="text-sm font-medium text-green-700">优惠码已使用</span>
               </div>
-              <span className="text-green-700 font-bold">-¥{discount.toLocaleString()}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-green-700 font-bold">-¥{discount.toLocaleString()}</span>
+                <button
+                  onClick={handleRemoveCoupon}
+                  className="text-green-700 hover:text-green-900 text-sm font-medium"
+                >
+                  移除
+                </button>
+              </div>
             </motion.div>
           )}
 

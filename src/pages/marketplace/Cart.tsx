@@ -1,54 +1,88 @@
 /**
- * 购物车页面
+ * 购物车页面 - 优化版
+ * 集成：批量操作、优惠券、库存实时校验
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useCart, useUpdateCartItem, useRemoveFromCart } from '@/hooks/useProducts';
+import { useCartEnhanced } from '@/hooks/useCartEnhanced';
 import { Button } from '@/components/ui/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
-import { ArrowLeft, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Trash2, Heart } from 'lucide-react';
 import { toast } from 'sonner';
 import { CartItemEnhanced, CheckoutPanelEnhanced } from '@/components/marketplace';
 
 const CartPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { cartItems, cartStats, loading, refetch } = useCart(user?.id || null);
-  const { updateCartItem } = useUpdateCartItem();
-  const { removeFromCart } = useRemoveFromCart();
+  const {
+    cartItems,
+    cartStats,
+    loading,
+    error,
+    couponCode,
+    appliedCoupon,
+    fetchCart,
+    updateCartItem,
+    removeFromCart,
+    batchSelectItems,
+    batchRemoveItems,
+    selectAllItems,
+    validateCoupon,
+    removeCoupon,
+    moveToFavorites,
+  } = useCartEnhanced(user?.id || null);
+
+  const [couponInput, setCouponInput] = useState('');
 
   // 全选状态
   const allSelected = cartItems.length > 0 && cartItems.every((item) => item.selected);
 
   // 处理全选
   const handleSelectAll = async (checked: boolean) => {
-    if (!user) return;
-    for (const item of cartItems) {
-      await updateCartItem(item.id, { selected: checked });
-    }
-    refetch();
+    await selectAllItems(checked);
   };
 
   // 处理选择单个商品
   const handleSelectItem = async (itemId: string, checked: boolean) => {
-    await updateCartItem(itemId, { selected: checked });
-    refetch();
+    await batchSelectItems([itemId], checked);
   };
 
   // 处理数量变更
   const handleQuantityChange = async (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) return;
     await updateCartItem(itemId, { quantity: newQuantity });
-    refetch();
   };
 
   // 处理删除
   const handleRemove = async (itemId: string) => {
-    const success = await removeFromCart(itemId);
+    await removeFromCart(itemId);
+  };
+
+  // 处理批量删除
+  const handleBatchDelete = async () => {
+    const selectedIds = cartItems.filter(item => item.selected).map(item => item.id);
+    if (selectedIds.length === 0) {
+      toast.warning('请选择要删除的商品');
+      return;
+    }
+    await batchRemoveItems(selectedIds);
+  };
+
+  // 处理移入收藏
+  const handleMoveToFavorites = async (cartItemId: string) => {
+    await moveToFavorites(cartItemId);
+  };
+
+  // 处理优惠券验证
+  const handleValidateCoupon = async () => {
+    if (!couponInput.trim()) {
+      toast.warning('请输入优惠券码');
+      return;
+    }
+    const success = await validateCoupon(couponInput.trim());
     if (success) {
-      toast.success('已删除商品');
-      refetch();
+      setCouponInput('');
     }
   };
 
@@ -59,7 +93,18 @@ const CartPage: React.FC = () => {
       toast.error('请选择要购买的商品');
       return;
     }
-    navigate('/marketplace/order/confirm');
+    
+    // 检查是否有缺货商品
+    const outOfStockItems = selectedItems.filter(item => item.stock_status === 'out_of_stock');
+    if (outOfStockItems.length > 0) {
+      toast.warning('部分商品缺货，结算时会自动跳过');
+    }
+    
+    navigate('/marketplace/order/confirm', {
+      state: {
+        couponCode: appliedCoupon?.isValid ? couponCode : undefined
+      }
+    });
   };
 
   if (!user) {
@@ -129,13 +174,22 @@ const CartPage: React.FC = () => {
           {/* 商品列表 */}
           <div className="lg:col-span-2 space-y-4">
             {/* 全选栏 */}
-            <div className="bg-white rounded-xl p-4 flex items-center gap-4 shadow-sm">
-              <Checkbox
-                checked={allSelected}
-                onCheckedChange={handleSelectAll}
-              />
-              <span className="font-medium">全选</span>
-              <span className="text-gray-500">({cartItems.length}件商品)</span>
+            <div className="bg-white rounded-xl p-4 flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-4">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={handleSelectAll}
+                />
+                <span className="font-medium">全选</span>
+                <span className="text-gray-500">({cartItems.length}件商品)</span>
+              </div>
+              <button
+                onClick={handleBatchDelete}
+                className="flex items-center gap-2 text-red-500 hover:text-red-600 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>删除选中</span>
+              </button>
             </div>
 
             {/* 购物车商品 */}
@@ -149,12 +203,14 @@ const CartPage: React.FC = () => {
                     name: item.product?.name || '',
                     coverImage: item.product?.cover_image || '',
                     price: item.product?.price || 0,
-                    originalPrice: (item.product?.price || 0) * 1.2,
+                    originalPrice: item.product?.original_price || (item.product?.price || 0) * 1.2,
                     brand: item.product?.brand?.name || '',
                     spec: '默认规格'
                   },
                   quantity: item.quantity,
-                  selected: item.selected
+                  selected: item.selected,
+                  isValid: item.is_valid !== false, // 默认 true
+                  stockStatus: item.stock_status || 'in_stock'
                 }}
                 index={index}
                 onSelect={(selected) => handleSelectItem(item.id, selected)}
@@ -171,7 +227,10 @@ const CartPage: React.FC = () => {
               selectedItems={cartStats.selectedItems}
               subtotal={cartStats.totalPrice || 0}
               shipping={0}
-              discount={0}
+              discount={appliedCoupon?.isValid ? appliedCoupon.discount : 0}
+              couponCode={couponCode}
+              onApplyCoupon={handleValidateCoupon}
+              onRemoveCoupon={removeCoupon}
               onCheckout={handleCheckout}
             />
           </div>

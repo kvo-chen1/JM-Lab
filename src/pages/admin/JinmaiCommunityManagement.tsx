@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
-import { supabaseAdmin } from '@/lib/supabaseClient';
 import {
   Users,
   FileText,
@@ -149,162 +148,80 @@ export default function JinmaiCommunityManagement() {
   // 获取统计数据
   const fetchStats = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-      // 基础统计
-      const { count: totalCommunities } = await supabaseAdmin
-        .from('communities')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: activeCommunities } = await supabaseAdmin
-        .from('communities')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
-
-      const { count: totalPosts } = await supabaseAdmin
-        .from('posts')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: totalComments } = await supabaseAdmin
-        .from('comments')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: todayNewPosts } = await supabaseAdmin
-        .from('posts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', today);
-
-      const { count: todayNewComments } = await supabaseAdmin
-        .from('comments')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', today);
-
-      // 成员统计
-      const { count: totalMembers } = await supabaseAdmin
-        .from('community_members')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: todayNewMembers } = await supabaseAdmin
-        .from('community_members')
-        .select('*', { count: 'exact', head: true })
-        .gte('joined_at', today);
-
-      // 本周统计
-      const { count: weekPosts } = await supabaseAdmin
-        .from('posts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', weekAgo);
-
-      const { count: weekComments } = await supabaseAdmin
-        .from('comments')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', weekAgo);
-
-      // 获取最热门的社群
-      const { data: hotCommunities } = await supabaseAdmin
-        .from('communities')
-        .select('*')
-        .order('member_count', { ascending: false })
-        .limit(1);
-
-      // 获取活跃用户数量（最近7天有活动的用户）
-      const { count: activeUsers } = await supabaseAdmin
-        .from('posts')
-        .select('user_id', { count: 'exact', head: true })
-        .gte('created_at', weekAgo);
-
-      setStats({
-        totalCommunities: totalCommunities || 0,
-        activeCommunities: activeCommunities || 0,
-        totalPosts: totalPosts || 0,
-        totalComments: totalComments || 0,
-        todayNewPosts: todayNewPosts || 0,
-        todayNewComments: todayNewComments || 0,
-        totalMembers: totalMembers || 0,
-        todayNewMembers: todayNewMembers || 0,
-        weekPosts: weekPosts || 0,
-        weekComments: weekComments || 0,
-        hotCommunity: hotCommunities && hotCommunities.length > 0 ? {
-          id: hotCommunities[0].id,
-          name: hotCommunities[0].name,
-          description: hotCommunities[0].description || '',
-          avatar_url: hotCommunities[0].avatar,
-          cover_image: hotCommunities[0].cover_image,
-          member_count: hotCommunities[0].member_count || 0,
-          posts_count: hotCommunities[0].posts_count || 0,
-          status: hotCommunities[0].is_active ? 'active' : 'inactive',
-          created_at: hotCommunities[0].created_at,
-          creator_id: hotCommunities[0].creator_id,
-          category: hotCommunities[0].topic || '其他'
-        } as Community : null,
-        activeUsers: activeUsers || 0
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      console.log('[fetchStats] Token exists:', !!token);
+      
+      const response = await fetch('/api/admin/communities/stats', {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
       });
+
+      console.log('[fetchStats] Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('获取统计数据失败:', errorData);
+        toast.error(errorData.error || '获取统计数据失败');
+        return;
+      }
+
+      const result = await response.json();
+      if (result.code === 0 && result.data) {
+        const data = result.data;
+        setStats({
+          totalCommunities: data.totalCommunities || 0,
+          activeCommunities: data.activeCommunities || 0,
+          totalPosts: data.totalPosts || 0,
+          totalComments: data.totalComments || 0,
+          todayNewPosts: data.todayNewPosts || 0,
+          todayNewComments: data.todayNewComments || 0,
+          totalMembers: data.totalMembers || 0,
+          todayNewMembers: data.todayNewMembers || 0,
+          weekPosts: data.weekPosts || 0,
+          weekComments: data.weekComments || 0,
+          hotCommunity: data.hotCommunity ? {
+            id: data.hotCommunity.id,
+            name: data.hotCommunity.name,
+            description: data.hotCommunity.description || '',
+            avatar_url: data.hotCommunity.avatar,
+            cover_image: data.hotCommunity.cover_image,
+            member_count: data.hotCommunity.member_count || 0,
+            posts_count: data.hotCommunity.posts_count || 0,
+            status: data.hotCommunity.is_active ? 'active' : 'inactive',
+            created_at: data.hotCommunity.created_at,
+            creator_id: data.hotCommunity.creator_id,
+            category: data.hotCommunity.topic || '其他'
+          } as Community : null,
+          activeUsers: data.activeUsers || 0
+        });
+      }
     } catch (error) {
       console.error('获取统计数据失败:', error);
+      toast.error('获取统计数据失败');
     }
   };
 
   // 获取最近活动
   const fetchActivities = async () => {
     try {
-      // 获取最近的帖子
-      const { data: recentPosts } = await supabaseAdmin
-        .from('posts')
-        .select('id, title, user_id, created_at')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      // 获取最近的评论
-      const { data: recentComments } = await supabaseAdmin
-        .from('comments')
-        .select('id, content, user_id, created_at')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      // 获取用户信息
-      const userIds = [
-        ...(recentPosts || []).map(p => p.user_id),
-        ...(recentComments || []).map(c => c.user_id)
-      ].filter(Boolean);
-
-      let userMap: Record<string, any> = {};
-      if (userIds.length > 0) {
-        const { data: usersData } = await supabaseAdmin
-          .from('users')
-          .select('id, username, avatar_url')
-          .in('id', [...new Set(userIds)]);
-
-        if (usersData) {
-          userMap = usersData.reduce((acc: Record<string, any>, user: any) => {
-            acc[user.id] = user;
-            return acc;
-          }, {});
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const response = await fetch('/api/admin/communities/activities', {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
         }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('获取活动失败:', errorData);
+        return;
       }
 
-      const activities: ActivityItem[] = [
-        ...(recentPosts || []).map(post => ({
-          id: `post-${post.id}`,
-          type: 'post' as const,
-          user_name: userMap[post.user_id]?.username || '未知用户',
-          user_avatar: userMap[post.user_id]?.avatar_url,
-          content: `发布了新帖子`,
-          target: post.title || '无标题',
-          created_at: post.created_at
-        })),
-        ...(recentComments || []).map(comment => ({
-          id: `comment-${comment.id}`,
-          type: 'comment' as const,
-          user_name: userMap[comment.user_id]?.username || '未知用户',
-          user_avatar: userMap[comment.user_id]?.avatar_url,
-          content: `发表了评论`,
-          target: comment.content.slice(0, 30) + (comment.content.length > 30 ? '...' : ''),
-          created_at: comment.created_at
-        }))
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 8);
-
-      setActivities(activities);
+      const result = await response.json();
+      if (result.code === 0 && result.data) {
+        setActivities(result.data.slice(0, 8));
+      }
     } catch (error) {
       console.error('获取活动失败:', error);
     }
@@ -314,58 +231,51 @@ export default function JinmaiCommunityManagement() {
   const fetchCommunities = async () => {
     setLoading(true);
     try {
-      let query = supabaseAdmin
-        .from('communities')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
-
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const params = new URLSearchParams();
+      params.append('limit', pageSize.toString());
+      params.append('offset', ((currentPage - 1) * pageSize).toString());
       if (statusFilter !== 'all') {
-        query = query.eq('is_active', statusFilter === 'active');
+        params.append('status', statusFilter);
       }
-
       if (searchQuery) {
-        query = query.ilike('name', `%${searchQuery}%`);
+        params.append('search', searchQuery);
       }
 
-      const { data, error, count } = await query;
-      if (error) throw error;
-
-      const creatorIds = (data || []).map((item: any) => item.creator_id).filter(Boolean);
-      let creatorMap: Record<string, any> = {};
-
-      if (creatorIds.length > 0) {
-        const { data: usersData } = await supabaseAdmin
-          .from('users')
-          .select('id, username, avatar_url')
-          .in('id', creatorIds);
-
-        if (usersData) {
-          creatorMap = usersData.reduce((acc: Record<string, any>, user: any) => {
-            acc[user.id] = user;
-            return acc;
-          }, {});
+      const response = await fetch(`/api/admin/communities?${params.toString()}`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
         }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('获取社群列表失败:', errorData);
+        toast.error(errorData.error || '获取社群列表失败');
+        return;
       }
 
-      const formattedCommunities: Community[] = (data || []).map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description || '',
-        avatar_url: item.avatar,
-        cover_image: item.cover_image,
-        member_count: item.member_count || 0,
-        posts_count: item.posts_count || 0,
-        status: item.is_active ? 'active' : 'inactive',
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-        creator_id: item.creator_id,
-        creator_name: creatorMap[item.creator_id]?.username || '未知用户',
-        category: item.topic || '其他'
-      }));
+      const result = await response.json();
+      if (result.code === 0 && result.data) {
+        const formattedCommunities: Community[] = result.data.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description || '',
+          avatar_url: item.avatar,
+          cover_image: item.cover_image,
+          member_count: item.member_count || 0,
+          posts_count: item.posts_count || 0,
+          status: item.is_active ? 'active' : 'inactive',
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          creator_id: item.creator_id,
+          creator_name: item.creator_name || '未知用户',
+          category: item.topic || '其他'
+        }));
 
-      setCommunities(formattedCommunities);
-      setTotalCount(count || 0);
+        setCommunities(formattedCommunities);
+        setTotalCount(result.pagination?.total || 0);
+      }
     } catch (error) {
       console.error('获取社群列表失败:', error);
       toast.error('获取社群列表失败');

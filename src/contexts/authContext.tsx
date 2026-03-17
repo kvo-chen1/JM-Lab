@@ -871,8 +871,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       };
       
       // 存储用户信息和token到本地
-      const token = sessionData.access_token || sessionData.token || data.data?.token || '';
-      const refreshToken = sessionData.refresh_token || token || ''; // 如果没有 refresh_token，使用 token 作为备选
+      // 优先使用后端返回的 JWT token (data.data.token)，这是本地 API 生成的 token
+      // 备选方案：sessionData 中的 token（兼容性处理）
+      const token = data.data?.token || sessionData.token || sessionData.access_token || '';
+      const refreshToken = data.data?.refreshToken || sessionData.refresh_token || token || ''; // 如果没有 refresh_token，使用 token 作为备选
       
       if (!refreshToken) {
         console.warn('[loginWithCode] 警告: refreshToken 为空，Supabase session 可能无法恢复');

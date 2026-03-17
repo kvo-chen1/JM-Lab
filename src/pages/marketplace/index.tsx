@@ -27,7 +27,6 @@ import HeroBanner from '@/components/marketplace/HeroBanner';
 // 商品组件
 import ProductGridV2 from '@/components/marketplace/ProductGridV2';
 import ProductCardV3 from '@/components/marketplace/ProductCardV3';
-import BlindBoxSection from '@/components/marketplace/BlindBoxSection';
 
 // Hooks
 import { 
@@ -396,9 +395,6 @@ const MarketplacePage: React.FC = () => {
             />
           </motion.section>
         )}
-
-        {/* 盲盒专区 */}
-        <BlindBoxSection />
 
         {/* 授权 IP 产品 */}
         <motion.section

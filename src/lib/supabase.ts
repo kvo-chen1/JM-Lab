@@ -12,12 +12,15 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
                         ''
 
 // Service Role Key - 用于管理员操作（绕过 RLS）
-// 支持新的 secret key 格式和旧的 JWT 格式
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SECRET_KEY ||
-                           import.meta.env.SUPABASE_SECRET_KEY ||
-                           import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-                           import.meta.env.SUPABASE_SERVICE_ROLE_KEY ||
-                           ''
+// 警告：Service Role Key 不应该在前端使用！
+// 在生产环境中，supabaseAdmin 应该使用空密钥，防止安全风险
+const supabaseServiceKey = import.meta.env.PROD 
+  ? ''  // 生产环境不使用 Service Role Key
+  : (import.meta.env.VITE_SUPABASE_SECRET_KEY ||
+     import.meta.env.SUPABASE_SECRET_KEY ||
+     import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+     import.meta.env.SUPABASE_SERVICE_ROLE_KEY ||
+     '')
 
 console.log('[DB] Environment:', import.meta.env.PROD ? 'production' : 'development')
 console.log('[DB] Supabase URL:', supabaseUrl)
@@ -64,24 +67,37 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
 })
 
 // 创建管理员客户端（使用 service role key，绕过 RLS）
-export const supabaseAdmin: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-  global: {
-    headers: {
-      'x-application-name': 'creator-community-admin'
+// 警告：Service Role Key 不应该在前端使用！
+// 在生产环境中，所有管理员操作应该通过后端 API 进行
+let supabaseAdminInstance: SupabaseClient | null = null;
+
+// 只在开发环境中创建 supabaseAdmin，生产环境中返回一个抛出错误的代理
+if (import.meta.env.DEV && supabaseServiceKey) {
+  supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
-    fetch: fetchWithRetry
-  },
-  db: {
-    schema: 'public'
-  },
-  realtime: {
-    enabled: false
-  }
-})
+    global: {
+      headers: {
+        'x-application-name': 'creator-community-admin'
+      },
+      fetch: fetchWithRetry
+    },
+    db: {
+      schema: 'public'
+    },
+    realtime: {
+      enabled: false
+    }
+  });
+} else {
+  // 生产环境：创建一个代理对象，调用任何方法都会抛出错误
+  console.warn('[Supabase] supabaseAdmin 在生产环境中被禁用，请使用后端 API 进行管理员操作');
+}
+
+// 导出 supabaseAdmin，如果未初始化则使用 supabase 作为降级
+export const supabaseAdmin: SupabaseClient = supabaseAdminInstance || supabase;
 
 console.log('[Supabase] 客户端初始化成功')
 
@@ -95,12 +111,15 @@ if (typeof window !== 'undefined') {
       enumerable: true,
       configurable: false
     });
-    Object.defineProperty(window, 'supabaseAdmin', {
-      value: supabaseAdmin,
-      writable: false,
-      enumerable: true,
-      configurable: false
-    });
+    // 只在开发环境中暴露 supabaseAdmin
+    if (import.meta.env.DEV && supabaseAdminInstance) {
+      Object.defineProperty(window, 'supabaseAdmin', {
+        value: supabaseAdmin,
+        writable: false,
+        enumerable: true,
+        configurable: false
+      });
+    }
     console.log('[Supabase] 已暴露到 window 对象');
   } catch (e) {
     console.error('[Supabase] 暴露到 window 对象失败:', e);

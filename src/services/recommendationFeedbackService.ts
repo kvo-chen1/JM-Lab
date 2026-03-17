@@ -36,7 +36,7 @@ class RecommendationFeedbackService {
     }
   ): Promise<RecommendationFeedback> {
     const feedback: RecommendationFeedback = {
-      id: `fb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `fb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,        
       userId,
       itemId,
       itemType,
@@ -68,7 +68,7 @@ class RecommendationFeedbackService {
 
   private scheduleFlush(): void {
     if (this.flushTimer) return;
-    
+
     if (this.feedbackQueue.length >= this.BATCH_SIZE) {
       this.flushFeedbacks();
       return;
@@ -84,7 +84,7 @@ class RecommendationFeedbackService {
 
     const feedbacksToSend = [...this.feedbackQueue];
     this.feedbackQueue = [];
-    
+
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
@@ -107,7 +107,7 @@ class RecommendationFeedbackService {
 
       if (error) {
         console.error('Failed to flush feedbacks:', error);
-        this.feedbackQueue = [...feedbacksToSend, ...this.feedbackQueue];
+        this.feedbackQueue = [...feedbacksToSend, ...this.feedbackQueue];       
       }
     } catch (error) {
       console.error('Error flushing feedbacks:', error);
@@ -115,16 +115,16 @@ class RecommendationFeedbackService {
     }
   }
 
-  private updateLocalFeedbackCache(feedback: RecommendationFeedback): void {
+  private updateLocalFeedbackCache(feedback: RecommendationFeedback): void {    
     try {
       const cacheKey = `${FEEDBACK_CACHE_KEY}_${feedback.userId}`;
       const cached = localStorage.getItem(cacheKey);
       const feedbacks = cached ? JSON.parse(cached) : { feedbacks: [], timestamp: 0 };
-      
+
       feedbacks.feedbacks.unshift(feedback);
       feedbacks.feedbacks = feedbacks.feedbacks.slice(0, 100);
       feedbacks.timestamp = Date.now();
-      
+
       localStorage.setItem(cacheKey, JSON.stringify(feedbacks));
     } catch (error) {
       console.error('Error updating local feedback cache:', error);
@@ -201,7 +201,7 @@ class RecommendationFeedbackService {
 
       const stats: FeedbackStats = {
         totalFeedback: feedbacks.length,
-        likeCount: feedbacks.filter(f => f.feedback_type === 'like').length,
+        likeCount: feedbacks.filter(f => f.feedback_type === 'like').length,    
         dislikeCount: feedbacks.filter(f => f.feedback_type === 'dislike').length,
         notInterestedCount: feedbacks.filter(f => f.feedback_type === 'not_interested').length,
         reportCount: feedbacks.filter(f => f.feedback_type === 'inappropriate').length,
@@ -213,12 +213,12 @@ class RecommendationFeedbackService {
       };
 
       feedbacks.forEach(f => {
-        stats.feedbackByType[f.feedback_type as FeedbackType] = 
-          (stats.feedbackByType[f.feedback_type as FeedbackType] || 0) + 1;
-        
+        stats.feedbackByType[f.feedback_type as FeedbackType] =
+          (stats.feedbackByType[f.feedback_type as FeedbackType] || 0) + 1;     
+
         if (f.reason) {
-          stats.feedbackByReason[f.reason as FeedbackReason] = 
-            (stats.feedbackByReason[f.reason as FeedbackReason] || 0) + 1;
+          stats.feedbackByReason[f.reason as FeedbackReason] =
+            (stats.feedbackByReason[f.reason as FeedbackReason] || 0) + 1;      
         }
       });
 
@@ -247,7 +247,7 @@ class RecommendationFeedbackService {
     };
   }
 
-  async getFeedbackImpact(itemId: string): Promise<FeedbackImpact | null> {
+  async getFeedbackImpact(itemId: string): Promise<FeedbackImpact | null> {     
     try {
       const { data: feedbacks } = await supabase
         .from(FEEDBACK_TABLE)
@@ -258,7 +258,7 @@ class RecommendationFeedbackService {
 
       const likeCount = feedbacks.filter(f => f.feedback_type === 'like').length;
       const dislikeCount = feedbacks.filter(f => f.feedback_type === 'dislike').length;
-      
+
       const impactScore = (likeCount - dislikeCount * 2) / Math.max(feedbacks.length, 1);
 
       return {
@@ -280,7 +280,7 @@ class RecommendationFeedbackService {
   ): Promise<ABTestExperiment> {
     const newExperiment: ABTestExperiment = {
       ...experiment,
-      id: `exp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `exp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,       
       status: 'draft',
     };
 
@@ -363,7 +363,7 @@ class RecommendationFeedbackService {
     }
   }
 
-  async learnFromFeedback(userId: string): Promise<FeedbackLearningResult> {
+  async learnFromFeedback(userId: string): Promise<FeedbackLearningResult> {    
     const feedbacks = await this.getUserFeedbacks(userId, 100);
 
     const result: FeedbackLearningResult = {
@@ -407,15 +407,15 @@ class RecommendationFeedbackService {
       }
     });
 
-    result.updatedPreferences.interests = Array.from(tagDeltas.entries())
+    result.updatedPreferences.interests = Array.from(tagDeltas.entries())       
       .filter(([_, delta]) => Math.abs(delta) > 0.1)
       .map(([tag, scoreDelta]) => ({ tag, scoreDelta }));
 
-    result.updatedPreferences.categories = Array.from(categoryDeltas.entries())
+    result.updatedPreferences.categories = Array.from(categoryDeltas.entries()) 
       .filter(([_, delta]) => Math.abs(delta) > 0.1)
       .map(([category, scoreDelta]) => ({ category, scoreDelta }));
 
-    result.updatedPreferences.creators = Array.from(creatorDeltas.entries())
+    result.updatedPreferences.creators = Array.from(creatorDeltas.entries())    
       .filter(([_, delta]) => Math.abs(delta) > 0.1)
       .map(([creatorId, scoreDelta]) => ({ creatorId, scoreDelta }));
 
@@ -445,13 +445,13 @@ class RecommendationFeedbackService {
   ): string[] {
     const insights: string[] = [];
 
-    const likeRate = feedbacks.filter(f => f.feedbackType === 'like').length / 
+    const likeRate = feedbacks.filter(f => f.feedbackType === 'like').length /  
       Math.max(feedbacks.length, 1);
-    
+
     if (likeRate > 0.7) {
       insights.push('您对推荐内容的满意度很高，我们会继续保持');
     } else if (likeRate < 0.3) {
-      insights.push('我们注意到您对推荐内容不太满意，正在优化推荐策略');
+      insights.push('我们注意到您对推荐内容不太满意，正在优化推荐策略');        
     }
 
     if (result.updatedPreferences.interests.length > 5) {
@@ -466,7 +466,7 @@ class RecommendationFeedbackService {
     sampleSize: number = 50
   ): Promise<RecommendationQualityScore> {
     const feedbacks = await this.getUserFeedbacks(userId, sampleSize);
-    
+
     if (feedbacks.length === 0) {
       return {
         overall: 0.5,
@@ -480,7 +480,7 @@ class RecommendationFeedbackService {
       };
     }
 
-    const likeCount = feedbacks.filter(f => f.feedbackType === 'like').length;
+    const likeCount = feedbacks.filter(f => f.feedbackType === 'like').length;  
     const relevance = likeCount / feedbacks.length;
 
     const uniqueCategories = new Set(
@@ -493,10 +493,10 @@ class RecommendationFeedbackService {
       const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
       return feedbackTime > dayAgo;
     });
-    const novelty = recentFeedbacks.length > 0 ? 
+    const novelty = recentFeedbacks.length > 0 ?
       recentFeedbacks.filter(f => f.feedbackType === 'like').length / recentFeedbacks.length : 0.5;
 
-    const serendipity = feedbacks.filter(f => 
+    const serendipity = feedbacks.filter(f =>
       f.feedbackType === 'like' && f.reason === 'other'
     ).length / Math.max(feedbacks.length, 1);
 
@@ -506,7 +506,7 @@ class RecommendationFeedbackService {
       return feedbackTime > weekAgo;
     }).length / feedbacks.length;
 
-    const overall = (relevance * 0.4 + diversity * 0.2 + novelty * 0.15 + 
+    const overall = (relevance * 0.4 + diversity * 0.2 + novelty * 0.15 +       
                      serendipity * 0.1 + freshness * 0.15);
 
     return {
@@ -521,9 +521,9 @@ class RecommendationFeedbackService {
     };
   }
 
-  async getUserFeedbackProfile(userId: string): Promise<UserFeedbackProfile> {
+  async getUserFeedbackProfile(userId: string): Promise<UserFeedbackProfile> {  
     const feedbacks = await this.getUserFeedbacks(userId, 200);
-    
+
     if (feedbacks.length === 0) {
       return {
         userId,
@@ -564,7 +564,7 @@ class RecommendationFeedbackService {
 
     const lastFeedbackDate = feedbacks[0]?.createdAt || new Date().toISOString();
 
-    const likeRate = (feedbackTypeCounts['like'] || 0) / feedbacks.length;
+    const likeRate = (feedbackTypeCounts['like'] || 0) / feedbacks.length;      
     const feedbackQuality = likeRate > 0.6 ? 'high' : likeRate > 0.3 ? 'medium' : 'low';
 
     const uniqueCategories = new Set(
@@ -572,10 +572,10 @@ class RecommendationFeedbackService {
     );
     const likesDiversity = uniqueCategories.size > 3;
 
-    const novelFeedbacks = feedbacks.filter(f => 
+    const novelFeedbacks = feedbacks.filter(f =>
       f.feedbackType === 'like' && f.metadata?.source === 'discovery'
     );
-    const prefersNovelty = novelFeedbacks.length / feedbacks.length > 0.3;
+    const prefersNovelty = novelFeedbacks.length / feedbacks.length > 0.3;      
 
     const isSelective = feedbackTypeCounts['like'] && feedbackTypeCounts['dislike'] &&
       (feedbackTypeCounts['like'] / feedbackTypeCounts['dislike']) < 2;

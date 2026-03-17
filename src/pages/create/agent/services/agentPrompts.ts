@@ -588,22 +588,30 @@ ${delegationHistory.map(d => `- ${d.fromAgent} → ${d.toAgent}: ${d.taskDescrip
 /**
  * 获取 Agent 系统 Prompt
  */
-export function getAgentSystemPrompt(agentType: AgentType): string {
+export function getAgentSystemPrompt(agentType: AgentType, selectedBrand?: string, selectedStyle?: string): string {
+  const brandContext = selectedBrand 
+    ? `\n\n## 品牌背景\n用户正在为品牌"${selectedBrand}"进行设计。请在回复中考虑该品牌的文化背景、历史故事和品牌调性。`
+    : '';
+  
+  const styleContext = selectedStyle
+    ? `\n\n## 风格要求\n用户选择了"${selectedStyle}"风格。请在回复和设计中体现该风格的特点和美学特征。`
+    : '';
+
   switch (agentType) {
     case 'director':
-      return DIRECTOR_SYSTEM_PROMPT;
+      return DIRECTOR_SYSTEM_PROMPT + brandContext + styleContext;
     case 'designer':
-      return DESIGNER_SYSTEM_PROMPT;
+      return DESIGNER_SYSTEM_PROMPT + brandContext + styleContext;
     case 'illustrator':
-      return ILLUSTRATOR_SYSTEM_PROMPT;
+      return ILLUSTRATOR_SYSTEM_PROMPT + brandContext + styleContext;
     case 'copywriter':
-      return COPYWRITER_SYSTEM_PROMPT;
+      return COPYWRITER_SYSTEM_PROMPT + brandContext + styleContext;
     case 'animator':
-      return ANIMATOR_SYSTEM_PROMPT;
+      return ANIMATOR_SYSTEM_PROMPT + brandContext + styleContext;
     case 'researcher':
-      return RESEARCHER_SYSTEM_PROMPT;
+      return RESEARCHER_SYSTEM_PROMPT + brandContext + styleContext;
     default:
-      return DIRECTOR_SYSTEM_PROMPT;
+      return DIRECTOR_SYSTEM_PROMPT + brandContext + styleContext;
   }
 }
 

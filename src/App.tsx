@@ -765,6 +765,12 @@ const MarketplaceAdmin = createLazyComponent(() => import(/* webpackChunkName: "
   name: 'marketplace-admin'
 });
 
+// 评价页面
+const ReviewPage = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/ReviewPage"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'review-page'
+});
+
 // 导入新的骨架屏组件
 import { DashboardSkeleton, ProfileSkeleton, SimpleLoadingSkeleton } from '@/components/skeletons/PageSkeletons';
 
@@ -1331,6 +1337,7 @@ export default function App() {
           <Route path="/marketplace/licensed-product/:id" element={<LazyComponent><LicensedProductDetail /></LazyComponent>} />
           <Route path="/marketplace/search" element={<LazyComponent><SearchResultsPage /></LazyComponent>} />
           <Route path="/marketplace/orders" element={<LazyComponent><PrivateRoute><OrdersPage /></PrivateRoute></LazyComponent>} />
+          <Route path="/marketplace/order/review/:orderId/:itemId?" element={<PrivateRoute><ReviewPage /></PrivateRoute>} />
           <Route path="/favorites" element={<PrivateRoute><FavoritesPage /></PrivateRoute>} />
           
           {/* ============================================ */}
@@ -1461,8 +1468,8 @@ export default function App() {
       {/* 全局 Toast 通知 */}
       <Toaster position="top-center" richColors closeButton />
 
-      {/* AI智能客服机器人 */}
-      <AIChatBot />
+      {/* AI 智能客服机器人 - 只在帮助中心页面显示 */}
+      {location.pathname === '/help' && <AIChatBot />}
 
       {/* 天津主题特色功能 */}
       <TianjinThemeWrapper />

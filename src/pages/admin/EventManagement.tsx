@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import { useEventService } from '@/hooks/useEventService';
-import { supabaseAdmin } from '@/lib/supabaseClient';
+import { adminService } from '@/services/adminService';
 import { Event } from '@/types';
 import {
   Calendar,
@@ -56,7 +56,7 @@ interface EventStats {
   pendingEvents: number;
   ongoingEvents: number;
   endedEvents: number;
-  draftEvents: number;
+  rejectedEvents: number;
   totalParticipants: number;
   averageAttendance: number;
   approvalRate: number;
@@ -185,8 +185,8 @@ const StatusBadge = ({ status }: { status: EventStatus }) => {
     },
     rejected: {
       label: '已拒绝',
-      className: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
-      dot: 'bg-rose-500'
+      className: 'bg-red-500/10 text-red-600 border-red-500/20',
+      dot: 'bg-red-500'
     },
     ongoing: {
       label: '进行中',
@@ -276,7 +276,7 @@ export default function EventManagement() {
     pendingEvents: 0,
     ongoingEvents: 0,
     endedEvents: 0,
-    draftEvents: 0,
+    rejectedEvents: 0,
     totalParticipants: 0,
     averageAttendance: 0,
     approvalRate: 0
@@ -292,34 +292,16 @@ export default function EventManagement() {
   const fetchEvents = async () => {
     try {
       setIsLoading(true);
-      const { data: eventsData, error } = await supabaseAdmin
-        .from('events')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      
+      // 使用 adminService 获取活动列表
+      const result = await adminService.getEvents({ page: 1, limit: 100 });
+      const eventsData = result.events;
 
       // 调试：打印所有活动的原始状态
       console.log('=== 数据库原始数据 ===');
       (eventsData || []).forEach((e: any, i: number) => {
         console.log(`活动${i + 1}: ${e.title || e.name}, 状态: ${e.status}, 结束时间: ${e.end_date || e.end_time}`);
       });
-
-      // 获取所有组织者ID
-      const organizerIds = [...new Set((eventsData || []).map((e: any) => e.organizer_id).filter(Boolean))];
-      
-      // 获取组织者信息
-      const organizersMap = new Map();
-      if (organizerIds.length > 0) {
-        const { data: organizersData } = await supabaseAdmin
-          .from('users')
-          .select('id, username, avatar_url')
-          .in('id', organizerIds);
-        
-        (organizersData || []).forEach((org: any) => {
-          organizersMap.set(org.id, org);
-        });
-      }
 
       const now = new Date();
 
@@ -375,8 +357,6 @@ export default function EventManagement() {
           }
         }
 
-        const organizer = organizersMap.get(event.organizer_id);
-        
         return {
           id: event.id,
           title: event.title || event.name || '未命名活动',
@@ -386,8 +366,8 @@ export default function EventManagement() {
           endTime,
           location: event.location || '',
           organizerId: event.organizer_id || event.creator_id || event.user_id || '',
-          organizerName: organizer?.username || '未知用户',
-          organizerAvatar: organizer?.avatar_url,
+          organizerName: event.organizer_name || '未知用户',
+          organizerAvatar: event.organizer_avatar,
           createdAt: new Date(event.created_at || Date.now()),
           updatedAt: new Date(event.updated_at || Date.now()),
           maxParticipants: event.max_participants || event.maxParticipants || 0,
@@ -406,36 +386,34 @@ export default function EventManagement() {
         };
       });
 
-      setEvents(formattedEvents);
+      // 过滤掉草稿状态的活动
+      const nonDraftEvents = formattedEvents.filter(e => e.status !== 'draft');
+      setEvents(nonDraftEvents);
 
-      const pendingCount = formattedEvents.filter(e => e.status === 'pending').length;
-      const draftCount = formattedEvents.filter(e => e.status === 'draft').length;
-      const approvedCount = formattedEvents.filter(e => e.status === 'approved' || e.status === 'ongoing' || e.status === 'ended').length;
+      const pendingCount = nonDraftEvents.filter(e => e.status === 'pending').length;
+      const rejectedCount = nonDraftEvents.filter(e => e.status === 'rejected').length;
+      const approvedCount = nonDraftEvents.filter(e => e.status === 'approved' || e.status === 'ongoing' || e.status === 'ended').length;
 
       console.log('=== 统计信息 ===');
-      console.log('总活动数:', formattedEvents.length);
+      console.log('总活动数（排除草稿）:', nonDraftEvents.length);
       console.log('待审核:', pendingCount);
-      console.log('草稿:', draftCount);
-      console.log('已结束:', formattedEvents.filter(e => e.status === 'ended').length);
+      console.log('已拒绝:', rejectedCount);
+      console.log('已结束:', nonDraftEvents.filter(e => e.status === 'ended').length);
 
       setStats({
-        totalEvents: formattedEvents.length,
+        totalEvents: nonDraftEvents.length,
         pendingEvents: pendingCount,
-        ongoingEvents: formattedEvents.filter(e => {
-          const start = new Date(e.startTime);
-          const end = new Date(e.endTime);
-          return start <= now && end >= now;
-        }).length,
-        endedEvents: formattedEvents.filter(e => new Date(e.endTime) < now).length,
-        draftEvents: draftCount,
-        totalParticipants: formattedEvents.reduce((sum, e) => sum + (e.participants_count || 0), 0),
-        averageAttendance: formattedEvents.length > 0
-          ? Math.round(formattedEvents.reduce((sum, e) => sum + (e.participants_count || 0), 0) / formattedEvents.length)
+        ongoingEvents: nonDraftEvents.filter(e => e.status === 'ongoing').length,
+        endedEvents: nonDraftEvents.filter(e => e.status === 'ended').length,
+        rejectedEvents: rejectedCount,
+        totalParticipants: nonDraftEvents.reduce((sum, e) => sum + (e.participants_count || 0), 0),
+        averageAttendance: nonDraftEvents.length > 0
+          ? Math.round(nonDraftEvents.reduce((sum, e) => sum + (e.participants_count || 0), 0) / nonDraftEvents.length)
           : 0,
-        approvalRate: formattedEvents.length > 0 ? (approvedCount / formattedEvents.length) * 100 : 0
+        approvalRate: nonDraftEvents.length > 0 ? (approvedCount / nonDraftEvents.length) * 100 : 0
       });
 
-      fetchCategories(formattedEvents);
+      fetchCategories(nonDraftEvents);
     } catch (error) {
       console.error('获取活动列表失败:', error);
       toast.error('获取活动列表失败');
@@ -625,8 +603,7 @@ export default function EventManagement() {
   const filteredEvents = useMemo(() => {
     return events
       .filter(event => {
-        // 默认排除草稿状态的活动，除非用户明确选择查看草稿
-        if (statusFilter === 'all' && event.status === 'draft') return false;
+        // 注意：草稿状态的活动已在数据获取时过滤掉
         if (statusFilter !== 'all' && event.status !== statusFilter) return false;
         if (searchTerm && !event.title.toLowerCase().includes(searchTerm.toLowerCase())) return false;
         return true;
@@ -921,7 +898,7 @@ export default function EventManagement() {
           { label: '待审核', value: 'pending', count: stats.pendingEvents, color: 'from-amber-400 to-orange-500' },
           { label: '进行中', value: 'ongoing', count: stats.ongoingEvents, color: 'from-blue-400 to-indigo-500' },
           { label: '已结束', value: 'ended', count: stats.endedEvents, color: 'from-slate-400 to-slate-500' },
-          { label: '草稿', value: 'draft', count: stats.draftEvents, color: 'from-purple-400 to-purple-500' },
+          { label: '已拒绝', value: 'rejected', count: stats.rejectedEvents, color: 'from-red-400 to-red-500' },
         ].map((item) => (
           <motion.button
             key={item.value}

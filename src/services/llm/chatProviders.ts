@@ -12,7 +12,7 @@ interface ChatCallParams {
 }
 
 /**
- * 带有重试机制和超时控制的Fetch
+ * 带有重试机制和超时控制的 Fetch
  */
 async function fetchWithRetry(url: string, options: RequestInit & { timeout?: number, retries?: number } = {}): Promise<Response> {
   const { timeout = 60000, retries = 2, ...fetchOptions } = options;
@@ -23,7 +23,7 @@ async function fetchWithRetry(url: string, options: RequestInit & { timeout?: nu
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     
-    // 如果外部传入了signal，需要合并abort事件
+    // 如果外部传入了 signal，需要合并 abort 事件
     if (fetchOptions.signal) {
       fetchOptions.signal.addEventListener('abort', () => {
         clearTimeout(timeoutId);
@@ -43,7 +43,7 @@ async function fetchWithRetry(url: string, options: RequestInit & { timeout?: nu
       
       clearTimeout(timeoutId);
       
-      // 如果是5xx错误，尝试重试
+      // 如果是 5xx 错误，尝试重试
       if (response.status >= 500 && i < retries) {
         lastError = new Error(`Server Error: ${response.status}`);
         console.warn(`请求失败 ${response.status}，正在重试 (${i+1}/${retries})...`);
@@ -57,7 +57,7 @@ async function fetchWithRetry(url: string, options: RequestInit & { timeout?: nu
       clearTimeout(timeoutId);
       lastError = error;
       
-      // 如果是AbortError（超时或用户取消），不重试
+      // 如果是 AbortError（超时或用户取消），不重试
       if (error.name === 'AbortError') {
         throw error;
       }
@@ -85,6 +85,7 @@ export async function callKimiChat(params: ChatCallParams): Promise<string> {
   };
 
   try {
+    console.log('[KimiChat] Calling API with model:', params.model);
     const response = await fetchWithRetry('/api/kimi/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -92,10 +93,28 @@ export async function callKimiChat(params: ChatCallParams): Promise<string> {
       signal: params.signal,
     });
 
+    console.log('[KimiChat] Response status:', response.status);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ }));
       const errorMessage = errorData.error?.message || errorData.error || response.statusText;
-      throw new Error(`Kimi API请求失败: ${response.status} - ${errorMessage}`);
+      console.error('[KimiChat] API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData
+      });
+      
+      // 针对 401 错误提供友好的提示
+      if (response.status === 401) {
+        throw new Error('Kimi API 密钥无效或缺失。请检查服务器配置或联系管理员。');
+      }
+      
+      // 针对 503 错误（服务不可用）
+      if (response.status === 503) {
+        throw new Error('Kimi 服务暂时不可用，请稍后再试。');
+      }
+      
+      throw new Error(`Kimi API 请求失败：${response.status} - ${errorMessage}`);
     }
 
     if (params.onDelta) {
@@ -122,6 +141,7 @@ export async function callDeepseekChat(params: ChatCallParams): Promise<string> 
   };
 
   try {
+    console.log('[DeepSeekChat] Calling API with model:', params.model);
     const response = await fetchWithRetry('/api/deepseek/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -129,10 +149,28 @@ export async function callDeepseekChat(params: ChatCallParams): Promise<string> 
       signal: params.signal,
     });
 
+    console.log('[DeepSeekChat] Response status:', response.status);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ }));
       const errorMessage = errorData.error?.message || errorData.error || response.statusText;
-      throw new Error(`DeepSeek API请求失败: ${response.status} - ${errorMessage}`);
+      console.error('[DeepSeekChat] API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData
+      });
+      
+      // 针对 401 错误提供友好的提示
+      if (response.status === 401) {
+        throw new Error('DeepSeek API 密钥无效或缺失。请检查服务器配置或联系管理员。');
+      }
+      
+      // 针对 503 错误（服务不可用）
+      if (response.status === 503) {
+        throw new Error('DeepSeek 服务暂时不可用，请稍后再试。');
+      }
+      
+      throw new Error(`DeepSeek API 请求失败：${response.status} - ${errorMessage}`);
     }
 
     if (params.onDelta) {
@@ -159,6 +197,7 @@ export async function callQwenChat(params: ChatCallParams): Promise<string> {
   };
 
   try {
+    console.log('[QwenChat] Calling API with model:', params.model);
     const response = await fetchWithRetry('/api/qwen/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -166,10 +205,28 @@ export async function callQwenChat(params: ChatCallParams): Promise<string> {
       signal: params.signal,
     });
 
+    console.log('[QwenChat] Response status:', response.status);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ }));
       const errorMessage = errorData.error?.message || errorData.error || response.statusText;
-      throw new Error(`通义千问API请求失败: ${response.status} - ${errorMessage}`);
+      console.error('[QwenChat] API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData
+      });
+      
+      // 针对 401 错误提供友好的提示
+      if (response.status === 401) {
+        throw new Error('通义千问 API 密钥无效或缺失。请检查服务器配置或联系管理员。');
+      }
+      
+      // 针对 503 错误（服务不可用）
+      if (response.status === 503) {
+        throw new Error('通义千问服务暂时不可用，请稍后再试。');
+      }
+      
+      throw new Error(`通义千问 API 请求失败：${response.status} - ${errorMessage}`);
     }
 
     if (params.onDelta) {

@@ -114,7 +114,7 @@ export const navigationGroups: NavGroup[] = [
   },
   {
     id: 'business',
-    title: '商业服务',
+    title: '品牌合作',
     items: businessNavItems,
     priority: 'low',
     icon: 'fas fa-briefcase'
@@ -162,7 +162,7 @@ export const entertainmentNavItems: NavItem[] = [];
 export const oldBusinessNavItems: NavItem[] = [
   { id: 'marketplace', path: '/marketplace', label: '津脉文创商城', icon: 'fas fa-store', priority: 'high', badge: '新', description: '津门老字号文创产品交易平台' },
   { id: 'merchant', path: '/merchant', label: '商家工作台', icon: 'fas fa-briefcase', priority: 'high', badge: '新', description: '商家日常运营管理平台' },
-  { id: 'business', path: '/business', label: '商业合作', icon: 'fas fa-handshake', priority: 'medium' },
+  { id: 'business', path: '/business', label: '品牌合作', icon: 'fas fa-handshake', priority: 'medium' },
   { id: 'organizer', path: '/organizer', label: '主办方中心', icon: 'fas fa-building', priority: 'medium' },
   { id: 'ip-incubation', path: '/ip-incubation', label: 'IP孵化中心', icon: 'fas fa-lightbulb', priority: 'low' },
   { id: 'creator-center', path: '/creator-center', label: '创作者中心', icon: 'fas fa-star', priority: 'high', badge: '新' },

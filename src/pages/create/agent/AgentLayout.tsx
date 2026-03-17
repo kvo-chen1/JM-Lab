@@ -42,17 +42,17 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
   const currentSession = getCurrentSession();
 
   return (
-    <div className={`flex flex-col h-screen overflow-hidden ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+    <div className={`flex flex-col h-screen overflow-hidden ${isDark ? 'bg-[#0a0f0a]' : 'bg-gray-50'}`}>
       {/* Header - 添加 mt-3 为 SidebarLayout 的顶部导航栏留出空间 */}
       <header className={`h-14 px-4 mt-3 flex items-center justify-between border-b backdrop-blur-md z-20 ${
-        isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'
+        isDark ? 'bg-[#1a1f1a]/80 border-[#2a2f2a]' : 'bg-white/80 border-gray-200'
       }`}>
         <div className="flex items-center gap-3">
           {/* 会话侧边栏切换按钮 */}
           <motion.button
             onClick={() => setIsConversationSidebarOpen(!isConversationSidebarOpen)}
             className={`p-2 rounded-lg transition-colors ${
-              isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+              isDark ? 'hover:bg-[#3a3f3a] text-[#a0a0a0]' : 'hover:bg-gray-100 text-gray-600'
             }`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -71,19 +71,19 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                津小脉Agent
+              <h1 className={`font-bold text-lg ${isDark ? 'text-[#ffffff]' : 'text-gray-900'}`}>
+                津小脉 Agent
               </h1>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              <p className={`text-xs ${isDark ? 'text-[#a0a0a0]' : 'text-gray-500'}`}>
                 {currentSession?.title || (currentTask ? currentTask.title : '智能设计助手')}
               </p>
             </div>
           </div>
         </div>
 
-        {/* 当前Agent指示器 */}
+        {/* 当前 Agent 指示器 */}
         <div className="flex items-center gap-2">
-          <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>当前Agent:</span>
+          <span className={`text-xs ${isDark ? 'text-[#a0a0a0]' : 'text-gray-500'}`}>当前 Agent:</span>
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
             currentAgent === 'director'
               ? 'bg-gradient-to-r from-amber-500/20 to-orange-600/20 text-amber-600 border border-amber-500/30'

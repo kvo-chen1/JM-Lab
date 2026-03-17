@@ -1,7 +1,21 @@
+
 /**
  * 订单服务 - 管理文创商城订单
  */
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+
+// 订单状态枚举
+export enum OrderStatus {
+  PENDING_PAYMENT = 'pending_payment',
+  PAID = 'paid',
+  PROCESSING = 'processing',
+  SHIPPED = 'shipped',
+  DELIVERED = 'delivered',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+  REFUNDING = 'refunding',
+  REFUNDED = 'refunded'
+}
 
 // 订单类型定义
 export interface Order {
@@ -10,8 +24,7 @@ export interface Order {
   customer_id: string;
   seller_id: string;
   total_amount: number;
-
-  status: 'pending_payment' | 'paid' | 'shipped' | 'completed' | 'cancelled' | 'refunded' | 'refunding';
+  status: OrderStatus | 'pending_payment' | 'paid' | 'shipped' | 'completed' | 'cancelled' | 'refunded' | 'refunding';
   shipping_address?: ShippingAddress;
   tracking_no?: string;
   tracking_company?: string;

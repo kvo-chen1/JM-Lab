@@ -120,6 +120,40 @@ function detectStyleFromMessage(message: string): string | null {
   return null;
 }
 
+// 解析输入中的@提及（支持品牌和风格）
+function parseMentions(input: string): {
+  cleanInput: string;
+  brands: string[];
+  styles: string[];
+} {
+  const brandMentions: string[] = [];
+  const styleMentions: string[] = [];
+  const mentionRegex = /@([^\s,，.。!！?？]+)/g;
+  let match;
+  
+  while ((match = mentionRegex.exec(input)) !== null) {
+    const mention = match[1];
+    // 简单判断：如果提及匹配风格名，则认为是风格，否则认为是品牌
+    const styleNames = PRESET_STYLES.map(s => s.name);
+    const extendedStyleNames = [
+      '国潮风尚', '水墨意境', '青花瓷韵', '敦煌飞天', '剪纸艺术', '书法韵味',
+      '极简主义', '复古怀旧', '赛博朋克', '北欧风格',
+      '卡通动漫', '日式萌系', '童话梦幻'
+    ];
+    const allStyleNames = [...styleNames, ...extendedStyleNames];
+    
+    if (allStyleNames.includes(mention)) {
+      styleMentions.push(mention);
+    } else {
+      brandMentions.push(mention);
+    }
+  }
+  
+  const cleanInput = input.replace(mentionRegex, '').trim();
+  
+  return { cleanInput, brands: brandMentions, styles: styleMentions };
+}
+
 export default function ChatPanel() {
   const { isDark } = useTheme();
   const {
@@ -677,7 +711,16 @@ export default function ChatPanel() {
   const handleSend = async () => {
     if (!inputValue.trim() || isTyping) return;
 
-    const userMessage = inputValue.trim();
+    // 解析@提及
+    const { cleanInput, brands, styles } = parseMentions(inputValue);
+    
+    // 如果没有实际内容（只有@提及），不发送
+    if (!cleanInput && (brands.length > 0 || styles.length > 0)) {
+      toast.warning('请选择品牌/风格后输入您的需求');
+      return;
+    }
+
+    const userMessage = cleanInput || inputValue.trim();
 
     // 检查津币余额（仅限登录用户）
     if (userId && !userId.startsWith('anon_')) {
@@ -690,22 +733,26 @@ export default function ChatPanel() {
 
     setInputValue('');
 
-    // 添加用户消息到store
+    // 添加用户消息到 store - 使用原始输入值（包含@提及）
     const userMessageObj: AgentMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: userMessage,
+      content: inputValue.trim(), // 使用原始输入，包含@提及
       timestamp: Date.now(),
-      type: 'text'
+      type: 'text',
+      metadata: {
+        brands, // 附加品牌信息
+        styles  // 附加风格信息
+      }
     };
     addMessage({
       role: 'user',
-      content: userMessage,
+      content: inputValue.trim(), // 显示原始输入，包含@提及
       type: 'text'
     });
 
-    // 检测用户消息中是否包含风格关键词，自动设置风格
-    const detectedStyle = detectStyleFromMessage(userMessage);
+    // 检测用户消息中是否包含风格关键词，自动设置风格（使用清理后的内容）
+    const detectedStyle = detectStyleFromMessage(cleanInput);
     if (detectedStyle && !selectedStyle) {
       console.log('[ChatPanel] 从用户消息中检测到风格:', detectedStyle);
       selectStyle(detectedStyle);
@@ -720,7 +767,7 @@ export default function ChatPanel() {
       const consumeResult = await consumeJinbi(
         jinbiCost,
         'agent_chat',
-        'Agent对话消费',
+        'Agent 对话消费',
         { serviceParams: { agentType: currentAgent } }
       );
       if (consumeResult.success) {
@@ -734,25 +781,25 @@ export default function ChatPanel() {
     }
 
     try {
-      // 如果没有当前任务，先分析需求并创建任务
+      // 如果没有当前任务，先分析需求并创建任务（使用清理后的内容）
       if (!currentTask) {
-        const analysis = await analyzeDesignRequirements(userMessage);
-        createTask(analysis.type, getTaskTitle(analysis.type), userMessage);
+        const analysis = await analyzeDesignRequirements(cleanInput);
+        createTask(analysis.type, getTaskTitle(analysis.type), cleanInput);
 
         // 更新任务需求
         updateTaskRequirements({
-          description: userMessage
+          description: cleanInput
         });
       } else {
         // 已有任务，累积更新需求描述
         // 智能提取用户消息中的实际内容（去除指令词）
         const generationKeywords = ['直接生成', '开始生成', '生成吧', '开始吧', '直接做', '就这样', '可以生成了', '可以开始了', '开始制作', '不用调整', '不用修改', '直接出图', '出图吧'];
-        let extractedContent = userMessage;
+        let extractedContent = cleanInput;
 
         // 如果用户消息包含生成指令，尝试提取实际内容
         for (const keyword of generationKeywords) {
-          if (userMessage.includes(keyword)) {
-            const parts = userMessage.split(keyword);
+          if (cleanInput.includes(keyword)) {
+            const parts = cleanInput.split(keyword);
             if (parts[0] && parts[0].trim().length > 0) {
               extractedContent = parts[0].trim().replace(/[,，、]$/g, '');
             }
@@ -781,7 +828,8 @@ export default function ChatPanel() {
         taskDescription: currentTask?.requirements.description,
         delegationHistory,
         requirementCollection,
-        selectedStyle,
+        selectedStyle: styles.length > 0 ? styles[0] : selectedStyle, // 使用@提及的风格优先
+        selectedBrand: brands.length > 0 ? brands[0] : undefined, // 传递第一个提到的品牌
         currentTask: currentTask ? {
           type: currentTask.type,
           requirements: currentTask.requirements
@@ -952,33 +1000,29 @@ export default function ChatPanel() {
 
   // 处理风格库选择
   const handleStyleLibrarySelect = (style: StyleOption) => {
-    selectStyle(style.id);
-    toast.success(`已选择风格：${style.name}`);
+    // 在输入框中显示 @风格名，并保留用户已输入的内容
+    setInputValue(prev => {
+      const mention = `@${style.name} `;
+      return prev ? `${prev} ${mention}` : mention;
+    });
+    toast.success(`已选择风格：${style.name}，请在输入框中描述您的需求`);
     setShowStyleLibrary(false);
+    // 聚焦到输入框
+    inputRef.current?.focus();
   };
 
   // 处理品牌选择
   const handleBrandSelect = (brand: Brand) => {
     setSelectedBrand(brand);
-    toast.success(`已选择品牌：${brand.name}`);
-    
-    // 将品牌信息添加到对话中
-    addMessage({
-      role: 'user',
-      content: `我选择的品牌是：${brand.name}。${brand.story}`,
-      type: 'text'
+    // 在输入框中显示 @品牌名，并保留用户已输入的内容
+    setInputValue(prev => {
+      const mention = `@${brand.name} `;
+      return prev ? `${prev} ${mention}` : mention;
     });
-    
-    // 触发Agent响应
-    setTimeout(() => {
-      addMessage({
-        role: 'designer',
-        content: `好的！我来为${brand.name}进行设计创作。这个品牌${brand.story}我会将这些元素融入到设计中。`,
-        type: 'text'
-      });
-    }, 500);
-    
+    toast.success(`已选择品牌：${brand.name}，请在输入框中描述您的需求`);
     setShowBrandLibrary(false);
+    // 聚焦到输入框
+    inputRef.current?.focus();
   };
 
   // 快速操作
@@ -1052,7 +1096,7 @@ export default function ChatPanel() {
   };
 
   return (
-    <div className={`flex flex-col h-full ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+    <div className={`flex flex-col h-full ${isDark ? 'bg-[#1a1f1a]' : 'bg-white'}`}>
       {/* Agent Switcher Modal */}
       <AgentSwitcher
         fromAgent={switcherFromAgent}
@@ -1245,7 +1289,7 @@ export default function ChatPanel() {
       </div>
 
       {/* Input Area */}
-      <div className={`p-4 border-t ${isDark ? 'border-gray-800 bg-gray-900/80' : 'border-gray-200 bg-white/80'}`}>
+      <div className={`p-4 border-t ${isDark ? 'border-[#2a2f2a] bg-[#1a1f1a]/80' : 'border-gray-200 bg-white/80'}`}>
         {/* Model Selector */}
         <div className="flex items-center gap-2 mb-3">
           <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>AI模型:</span>
@@ -1352,7 +1396,7 @@ export default function ChatPanel() {
         </div>
 
         {/* Input Box - 优化深色主题样式 */}
-        <div className={`flex items-end gap-2 p-3 rounded-xl border ${
+        <div className={`flex items-end gap-2 p-3 mt-6 rounded-xl border ${
           isDark
             ? 'bg-[#14141F] border-[#2A2A3E] focus-within:border-[#8B5CF6]/50 focus-within:shadow-[0_0_0_3px_rgba(139,92,246,0.1)]'
             : 'bg-white border-gray-200 focus-within:border-gray-300'
@@ -1436,11 +1480,6 @@ export default function ChatPanel() {
           ) : (
             <div />
           )}
-
-          {/* 右侧：快捷键提示 */}
-          <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            Enter 发送 · Shift+Enter 换行
-          </p>
         </div>
       </div>
 

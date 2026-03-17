@@ -48,8 +48,9 @@ export interface ConversationContext {
   delegationHistory: DelegationTask[];
   requirementCollection?: RequirementCollection; // 需求收集状态
   selectedStyle?: string; // 用户选择的风格
-  sessionId?: string; // 会话ID（用于增强功能）
-  userId?: string; // 用户ID（用于增强功能）
+  selectedBrand?: string; // 用户选择的品牌
+  sessionId?: string; // 会话 ID（用于增强功能）
+  userId?: string; // 用户 ID（用于增强功能）
   currentTask?: {
     type: string;
     requirements: {
@@ -1013,7 +1014,7 @@ export class AgentOrchestrator {
     }
 
     try {
-      const systemPrompt = getAgentSystemPrompt(context.currentAgent);
+      const systemPrompt = getAgentSystemPrompt(context.currentAgent, context.selectedBrand, context.selectedStyle);
       const aiResponse = await this.smartCallAgent(
         systemPrompt,
         context.messages,
@@ -1075,7 +1076,7 @@ export class AgentOrchestrator {
     );
 
     // 调用目标 Agent
-    const systemPrompt = getAgentSystemPrompt(targetAgent);
+    const systemPrompt = getAgentSystemPrompt(targetAgent, context.selectedBrand, context.selectedStyle);
 
     // 构建历史消息（包含上下文）
     const historyMessages: AgentMessage[] = context.messages.map(msg => ({
@@ -1111,7 +1112,7 @@ export class AgentOrchestrator {
 
     // 协作模式：并行调用所有目标 Agents，带超时和错误处理
     const collaborationPromises = targetAgents.map(async (agent) => {
-      const systemPrompt = getAgentSystemPrompt(agent);
+      const systemPrompt = getAgentSystemPrompt(agent, context.selectedBrand, context.selectedStyle);
       const collaborationMessage = `协作任务：${userMessage}\n\n请从你的专业角度提供见解和建议。`;
 
       try {
@@ -1200,7 +1201,7 @@ export class AgentOrchestrator {
 
 请继续为用户提供服务。`;
 
-    const systemPrompt = getAgentSystemPrompt(targetAgent);
+    const systemPrompt = getAgentSystemPrompt(targetAgent, context.selectedBrand, context.selectedStyle);
     const aiResponse = await this.smartCallAgent(
       systemPrompt,
       [], // 清空历史，新 Agent 接管
@@ -1229,7 +1230,7 @@ export class AgentOrchestrator {
 
     // 当前只执行第一个 Agent，后续通过队列处理
     const firstAgent = chainQueue[0];
-    const systemPrompt = getAgentSystemPrompt(firstAgent);
+    const systemPrompt = getAgentSystemPrompt(firstAgent, context.selectedBrand, context.selectedStyle);
 
     const chainMessage = `这是一个多步骤任务的第 1/${chainQueue.length} 步。
 
@@ -1264,7 +1265,7 @@ export class AgentOrchestrator {
     if (remainingQueue.length === 0) return null;
 
     const nextAgent = remainingQueue[0];
-    const systemPrompt = getAgentSystemPrompt(nextAgent);
+    const systemPrompt = getAgentSystemPrompt(nextAgent, undefined, undefined); // chain 场景没有 selectedBrand 和 selectedStyle
 
     const chainMessage = `这是一个多步骤任务的第 ${remainingQueue.length}/${remainingQueue.length + 1} 步。
 
@@ -1302,7 +1303,7 @@ export class AgentOrchestrator {
 
     // 并行调用所有 Agents
     const promises = agents.map(async (agent) => {
-      const systemPrompt = getAgentSystemPrompt(agent);
+      const systemPrompt = getAgentSystemPrompt(agent, context.selectedBrand, context.selectedStyle);
       const collaborateMessage = `这是一个协作任务，你需要与${agents.length - 1}位同事一起完成。
 
 任务描述：${taskDescription}

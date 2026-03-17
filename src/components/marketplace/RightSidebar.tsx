@@ -239,8 +239,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                         e.stopPropagation();
                         handleRemoveFromCartClick(item.id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                      className="opacity-0 group-hover:opacity-100 transition-all p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-xl remove-cart-btn"
                       type="button"
+                      aria-label="删除商品"
                     >
                       <Trash2 className="w-4 h-4" strokeWidth={2} />
                     </button>
@@ -490,17 +491,17 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-100">
-            <p className="text-xl font-bold text-sky-600">{(platformStats?.totalProducts || 0).toLocaleString()}</p>
-            <p className="text-xs text-gray-500 mt-0.5">在售商品</p>
+          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-100 dark:bg-gradient-to-br dark:from-sky-900/30 dark:to-blue-900/30 dark:border-sky-700/50">
+            <p className="text-xl font-bold text-sky-600 dark:text-sky-400">{(platformStats?.totalProducts || 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-300 mt-0.5">在售商品</p>
           </div>
-          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100">
-            <p className="text-xl font-bold text-amber-600">{(platformStats?.totalBrands || 0).toLocaleString()}</p>
-            <p className="text-xs text-gray-500 mt-0.5">入驻品牌</p>
+          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 dark:bg-gradient-to-br dark:from-amber-900/30 dark:to-orange-900/30 dark:border-amber-700/50">
+            <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{(platformStats?.totalBrands || 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-300 mt-0.5">入驻品牌</p>
           </div>
-          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
-            <p className="text-xl font-bold text-emerald-600">{(platformStats?.totalOrders || 0).toLocaleString()}</p>
-            <p className="text-xs text-gray-500 mt-0.5">累计订单</p>
+          <div className="text-center p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 dark:bg-gradient-to-br dark:from-emerald-900/30 dark:to-teal-900/30 dark:border-emerald-700/50">
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{(platformStats?.totalOrders || 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-300 mt-0.5">累计订单</p>
           </div>
         </div>
       </motion.div>

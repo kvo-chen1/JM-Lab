@@ -5,6 +5,7 @@
  */
 import React, { ReactNode } from 'react';
 import { motion } from 'framer-motion';
+import { useTheme } from '@/hooks/useTheme';
 
 interface ThreeColumnLayoutProps {
   leftSidebar?: ReactNode;
@@ -18,8 +19,14 @@ const ThreeColumnLayout: React.FC<ThreeColumnLayoutProps> = ({
   children,
   className = '',
 }) => {
+  const { isDark, theme } = useTheme();
+  
+  // 根据当前主题确定应用的类
+  const themeClass = theme === 'delta-force' ? 'delta-force' : 'marketplace-theme';
+  const darkClass = isDark ? 'dark' : 'light';
+  
   return (
-    <div className={`min-h-screen bg-gray-50 marketplace-theme light ${className}`}>
+    <div className={`min-h-screen marketplace-theme ${themeClass} ${darkClass} ${className}`}>
       <div className="max-w-[1600px] mx-auto">
         <div className="flex gap-5 lg:gap-6 px-3 sm:px-4 lg:px-6 py-5 lg:py-6">
           {/* 中间内容区 - 占满左侧空间 */}

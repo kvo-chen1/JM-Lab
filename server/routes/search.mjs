@@ -128,10 +128,21 @@ export async function saveSearchHistory(req, res) {
         }
 
         // 直接插入搜索历史记录
+        // user 对象可能来自 Supabase token (sub 字段) 或本地 JWT (userId 字段)
+        const userId = user.userId || user.sub;
+        if (!userId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: '无法获取用户ID'
+          }));
+          return;
+        }
+        
         const { data, error } = await supabaseServer
           .from('user_search_history')
           .insert({
-            user_id: user.userId,
+            user_id: userId,
             query: query.trim(),
             search_type: searchType || 'general',
             result_count: resultCount || 0,
@@ -146,7 +157,7 @@ export async function saveSearchHistory(req, res) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             success: false,
-            error: '保存搜索记录失败'
+            error: '保存搜索记录失败: ' + (error.message || error)
           }));
           return;
         }

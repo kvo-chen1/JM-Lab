@@ -989,6 +989,7 @@ async function handleGetWorks(req, res) {
       CREATE TABLE IF NOT EXISTS works (
         id UUID PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
+        creator_id VARCHAR(255),
         title VARCHAR(255),
         description TEXT,
         thumbnail TEXT,
@@ -1001,10 +1002,24 @@ async function handleGetWorks(req, res) {
       )
     `);
 
-    const result = await queryWithRetry(
-      'SELECT * FROM works WHERE status = $1 ORDER BY created_at DESC LIMIT 50',
-      ['published']
-    );
+    // 解析查询参数
+    const url = new URL(req.url, `http://localhost`);
+    const creatorId = url.searchParams.get('creator_id');
+    const limit = parseInt(url.searchParams.get('limit') || '50');
+
+    let query = 'SELECT * FROM works WHERE status = $1';
+    let params = ['published'];
+
+    // 如果指定了创作者ID，添加筛选条件
+    if (creatorId) {
+      query += ' AND (user_id = $2 OR creator_id = $2)';
+      params.push(creatorId);
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const result = await queryWithRetry(query, params);
 
     const works = result.rows.map(work => ({
       id: work.id,
@@ -1087,6 +1102,7 @@ async function handleFollows(req, res, path) {
 
     const userId = decoded.userId || decoded.id || decoded.sub;
 
+    // 获取关注统计（关注数和粉丝数）
     if (path === '/follows/stats' || path === '/follows/counts') {
       const followersResult = await queryWithRetry(
         'SELECT COUNT(*) as count FROM follows WHERE following_id = $1',
@@ -1106,6 +1122,51 @@ async function handleFollows(req, res, path) {
       });
     }
 
+    // 获取关注列表
+    if (path === '/follows/following') {
+      const result = await queryWithRetry(`
+        SELECT f.*, u.username, u.avatar_url
+        FROM follows f
+        LEFT JOIN users u ON f.following_id = u.id::text
+        WHERE f.follower_id = $1
+        ORDER BY f.created_at DESC
+      `, [userId]);
+
+      return res.status(200).json({
+        code: 0,
+        data: result.rows.map(row => ({
+          id: row.id,
+          userId: row.following_id,
+          username: row.username,
+          avatarUrl: row.avatar_url,
+          createdAt: row.created_at
+        }))
+      });
+    }
+
+    // 获取粉丝列表
+    if (path === '/follows/followers') {
+      const result = await queryWithRetry(`
+        SELECT f.*, u.username, u.avatar_url
+        FROM follows f
+        LEFT JOIN users u ON f.follower_id = u.id::text
+        WHERE f.following_id = $1
+        ORDER BY f.created_at DESC
+      `, [userId]);
+
+      return res.status(200).json({
+        code: 0,
+        data: result.rows.map(row => ({
+          id: row.id,
+          userId: row.follower_id,
+          username: row.username,
+          avatarUrl: row.avatar_url,
+          createdAt: row.created_at
+        }))
+      });
+    }
+
+    // 检查是否关注某个用户
     if (path.startsWith('/follows/')) {
       const targetUserId = path.replace('/follows/', '').split('/')[0];
       if (targetUserId && targetUserId !== 'following' && targetUserId !== 'followers') {
@@ -1117,7 +1178,7 @@ async function handleFollows(req, res, path) {
       }
     }
 
-    return res.status(200).json({ code: 0, data: { isFollowing: false } });
+    return res.status(200).json({ code: 0, data: [] });
   } catch (error) {
     console.error('[API] Follows error:', error);
     return res.status(200).json({ code: 0, data: { isFollowing: false, followers: 0, following: 0 } });

@@ -432,6 +432,31 @@ export default async function handler(req, res) {
       return handleUserStats(req, res);
     }
 
+    // 用户统计API
+    if (path === '/user/stats' && req.method === 'GET') {
+      return handleUserStats(req, res);
+    }
+
+    // 用户点赞列表API
+    if (path === '/user/likes' && req.method === 'GET') {
+      return handleUserLikes(req, res);
+    }
+
+    // 用户收藏列表API
+    if (path === '/user/bookmarks' && req.method === 'GET') {
+      return handleUserBookmarks(req, res);
+    }
+
+    // 用户相关API - /users/:id
+    if (path.startsWith('/users/')) {
+      return handleUsers(req, res, path);
+    }
+
+    // Feeds API
+    if (path === '/feeds' || path.startsWith('/feeds/')) {
+      return handleFeeds(req, res, path);
+    }
+
     // 头像上传API
     if (path === '/upload/avatar' && req.method === 'POST') {
       return handleUploadAvatar(req, res);
@@ -695,6 +720,54 @@ async function handleAuthRequest(req, res, path) {
       return res.status(200).json({ code: 0, message: '登录成功', data: { token, user } });
     }
 
+    // 获取当前登录用户信息
+    if (path === '/auth/me' && req.method === 'GET') {
+      const decoded = verifyAuthToken(req);
+      if (!decoded) {
+        return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+      }
+
+      try {
+        const pool = await getDbPool();
+        if (!pool) {
+          return res.status(200).json({
+            code: 0,
+            data: {
+              id: decoded.id || decoded.sub,
+              email: decoded.email,
+              username: decoded.user_metadata?.username || decoded.email?.split('@')[0],
+              avatar_url: decoded.user_metadata?.avatar_url
+            }
+          });
+        }
+
+        const userId = decoded.id || decoded.sub;
+        const result = await queryWithRetry(
+          'SELECT id, email, username, avatar_url, created_at FROM users WHERE id = $1',
+          [userId]
+        );
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({ code: 1, message: '用户不存在' });
+        }
+
+        return res.status(200).json({
+          code: 0,
+          data: result.rows[0]
+        });
+      } catch (error) {
+        console.error('[Auth] Get me error:', error);
+        return res.status(200).json({
+          code: 0,
+          data: {
+            id: decoded.id || decoded.sub,
+            email: decoded.email,
+            username: decoded.user_metadata?.username
+          }
+        });
+      }
+    }
+
     return res.status(404).json({ code: 1, message: '未知的认证接口: ' + path });
 
   } catch (error) {
@@ -893,6 +966,106 @@ async function handleUserStats(req, res) {
       code: 0,
       data: { works_count: 0, total_likes: 0, total_views: 0, favorites_count: 0 }
     });
+  }
+}
+
+// 处理用户点赞列表
+async function handleUserLikes(req, res) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const pool = await getDbPool();
+    if (!pool) {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+
+    const userId = decoded.userId || decoded.id || decoded.sub;
+
+    await queryWithRetry(`
+      CREATE TABLE IF NOT EXISTS likes (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        work_id UUID,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, work_id)
+      )
+    `);
+
+    const result = await queryWithRetry(`
+      SELECT l.*, w.title, w.thumbnail, w.user_id as author_id
+      FROM likes l
+      LEFT JOIN works w ON l.work_id = w.id
+      WHERE l.user_id = $1
+      ORDER BY l.created_at DESC
+    `, [userId]);
+
+    return res.status(200).json({
+      code: 0,
+      data: result.rows.map(row => ({
+        id: row.id,
+        workId: row.work_id,
+        title: row.title,
+        thumbnail: row.thumbnail,
+        authorId: row.author_id,
+        createdAt: row.created_at
+      }))
+    });
+  } catch (error) {
+    console.error('[API] Get user likes error:', error);
+    return res.status(200).json({ code: 0, data: [] });
+  }
+}
+
+// 处理用户收藏列表
+async function handleUserBookmarks(req, res) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const pool = await getDbPool();
+    if (!pool) {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+
+    const userId = decoded.userId || decoded.id || decoded.sub;
+
+    await queryWithRetry(`
+      CREATE TABLE IF NOT EXISTS bookmarks (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL,
+        work_id UUID,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, work_id)
+      )
+    `);
+
+    const result = await queryWithRetry(`
+      SELECT b.*, w.title, w.thumbnail, w.user_id as author_id
+      FROM bookmarks b
+      LEFT JOIN works w ON b.work_id = w.id
+      WHERE b.user_id = $1
+      ORDER BY b.created_at DESC
+    `, [userId]);
+
+    return res.status(200).json({
+      code: 0,
+      data: result.rows.map(row => ({
+        id: row.id,
+        workId: row.work_id,
+        title: row.title,
+        thumbnail: row.thumbnail,
+        authorId: row.author_id,
+        createdAt: row.created_at
+      }))
+    });
+  } catch (error) {
+    console.error('[API] Get user bookmarks error:', error);
+    return res.status(200).json({ code: 0, data: [] });
   }
 }
 
@@ -3290,6 +3463,126 @@ async function handleAdmin(req, res, path) {
     return res.status(501).json({ code: 1, message: 'Admin endpoint not implemented: ' + path });
   } catch (error) {
     console.error('[Admin API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error', error: error.message });
+  }
+}
+
+// 处理用户相关请求
+async function handleUsers(req, res, path) {
+  try {
+    const pool = await getDbPool();
+
+    // 获取推荐用户 /users/recommended
+    if (path === '/users/recommended' && req.method === 'GET') {
+      const url = new URL(req.url, `http://localhost`);
+      const limit = parseInt(url.searchParams.get('limit') || '5');
+
+      if (!pool) {
+        return res.status(200).json({ code: 0, data: [] });
+      }
+
+      const result = await queryWithRetry(
+        'SELECT id, username, avatar_url FROM users ORDER BY created_at DESC LIMIT $1',
+        [limit]
+      );
+
+      return res.status(200).json({
+        code: 0,
+        data: result.rows.map(user => ({
+          id: user.id,
+          username: user.username,
+          avatar: user.avatar_url
+        }))
+      });
+    }
+
+    // 获取指定用户信息 /users/:id
+    const userIdMatch = path.match(/^\/users\/([^\/]+)$/);
+    if (userIdMatch && req.method === 'GET') {
+      const targetUserId = userIdMatch[1];
+
+      if (!pool) {
+        return res.status(200).json({
+          code: 0,
+          data: {
+            id: targetUserId,
+            username: '用户' + targetUserId.substring(0, 8),
+            avatar: ''
+          }
+        });
+      }
+
+      const result = await queryWithRetry(
+        'SELECT id, email, username, avatar_url, created_at FROM users WHERE id = $1',
+        [targetUserId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ code: 1, message: '用户不存在' });
+      }
+
+      const user = result.rows[0];
+      return res.status(200).json({
+        code: 0,
+        data: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          avatar: user.avatar_url,
+          createdAt: user.created_at
+        }
+      });
+    }
+
+    return res.status(501).json({ code: 1, message: 'Users endpoint not implemented: ' + path });
+  } catch (error) {
+    console.error('[Users API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error', error: error.message });
+  }
+}
+
+// 处理Feeds请求
+async function handleFeeds(req, res, path) {
+  try {
+    const pool = await getDbPool();
+
+    if (path === '/feeds' && req.method === 'GET') {
+      if (!pool) {
+        return res.status(200).json({ code: 0, data: [] });
+      }
+
+      // 获取作品作为动态内容
+      const result = await queryWithRetry(`
+        SELECT w.*, u.username, u.avatar_url
+        FROM works w
+        LEFT JOIN users u ON w.user_id = u.id::text
+        WHERE w.status = 'published'
+        ORDER BY w.created_at DESC
+        LIMIT 50
+      `);
+
+      const feeds = result.rows.map(work => ({
+        id: work.id,
+        type: 'work',
+        title: work.title,
+        content: work.description,
+        thumbnail: work.thumbnail,
+        author: {
+          id: work.user_id,
+          username: work.username || '用户' + work.user_id.substring(0, 8),
+          avatar: work.avatar_url
+        },
+        likes: work.likes || 0,
+        views: work.views || 0,
+        createdAt: work.created_at
+      }));
+
+      return res.status(200).json({ code: 0, data: feeds });
+    }
+
+    return res.status(501).json({ code: 1, message: 'Feeds endpoint not implemented: ' + path });
+  } catch (error) {
+    console.error('[Feeds API] Error:', error);
     return res.status(500).json({ code: 1, message: 'Internal server error', error: error.message });
   }
 }

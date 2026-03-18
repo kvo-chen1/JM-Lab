@@ -447,6 +447,11 @@ export default async function handler(req, res) {
       return handleUserBookmarks(req, res);
     }
 
+    // 获取用户加入的社区 /user/communities
+    if (path === '/user/communities' && req.method === 'GET') {
+      return handleUserCommunities(req, res);
+    }
+
     // 用户相关API - /users/:id
     if (path.startsWith('/users/')) {
       return handleUsers(req, res, path);
@@ -1414,36 +1419,51 @@ async function handleCommunities(req, res, path) {
       return res.status(200).json({ code: 0, data: [] });
     }
 
-    if (path === '/communities/featured' && req.method === 'GET') {
-      await queryWithRetry(`
-        CREATE TABLE IF NOT EXISTS communities (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(255) NOT NULL,
-          description TEXT,
-          avatar_url TEXT,
-          cover_url TEXT,
-          member_count INTEGER DEFAULT 0,
-          is_official BOOLEAN DEFAULT false,
-          tags TEXT[],
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
+    // 确保社区表存在
+    await queryWithRetry(`
+      CREATE TABLE IF NOT EXISTS communities (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        avatar_url TEXT,
+        cover_url TEXT,
+        member_count INTEGER DEFAULT 0,
+        is_official BOOLEAN DEFAULT false,
+        tags TEXT[],
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
+    // 确保社区成员表存在
+    await queryWithRetry(`
+      CREATE TABLE IF NOT EXISTS community_members (
+        id SERIAL PRIMARY KEY,
+        community_id INTEGER NOT NULL,
+        user_id VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'member',
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(community_id, user_id)
+      )
+    `);
+
+    // 获取推荐社区 /communities/featured
+    if (path === '/communities/featured' && req.method === 'GET') {
       const result = await queryWithRetry('SELECT * FROM communities ORDER BY member_count DESC LIMIT 6');
 
       if (result.rows.length === 0) {
         const defaultCommunities = [
-          { name: '天津文化', members: 12580, path: '/community/tianjin-culture', official: true, topic: '天津传统文化交流', tags: ['文化', '传统', '天津'], cover: '/images/communities/tianjin-culture.jpg', avatar: '/images/avatars/tianjin.jpg' },
-          { name: '创意灵感', members: 8920, path: '/community/creative-inspiration', official: true, topic: '创意设计与灵感分享', tags: ['设计', '创意', '灵感'], cover: '/images/communities/creative.jpg', avatar: '/images/avatars/creative.jpg' },
-          { name: '摄影爱好者', members: 6540, path: '/community/photography', official: false, topic: '摄影技巧与作品分享', tags: ['摄影', '艺术', '视觉'], cover: '/images/communities/photography.jpg', avatar: '/images/avatars/photo.jpg' },
-          { name: '文学创作', members: 4320, path: '/community/literature', official: false, topic: '文学创作与阅读交流', tags: ['文学', '写作', '阅读'], cover: '/images/communities/literature.jpg', avatar: '/images/avatars/literature.jpg' },
-          { name: '美食探店', members: 9870, path: '/community/food', official: false, topic: '天津美食推荐与探店', tags: ['美食', '探店', '天津'], cover: '/images/communities/food.jpg', avatar: '/images/avatars/food.jpg' },
-          { name: '旅行攻略', members: 7650, path: '/community/travel', official: false, topic: '旅行经验与攻略分享', tags: ['旅行', '攻略', '景点'], cover: '/images/communities/travel.jpg', avatar: '/images/avatars/travel.jpg' }
+          { id: 1, name: '天津文化', members: 12580, path: '/community/tianjin-culture', official: true, topic: '天津传统文化交流', tags: ['文化', '传统', '天津'], cover: '/images/communities/tianjin-culture.jpg', avatar: '/images/avatars/tianjin.jpg' },
+          { id: 2, name: '创意灵感', members: 8920, path: '/community/creative-inspiration', official: true, topic: '创意设计与灵感分享', tags: ['设计', '创意', '灵感'], cover: '/images/communities/creative.jpg', avatar: '/images/avatars/creative.jpg' },
+          { id: 3, name: '摄影爱好者', members: 6540, path: '/community/photography', official: false, topic: '摄影技巧与作品分享', tags: ['摄影', '艺术', '视觉'], cover: '/images/communities/photography.jpg', avatar: '/images/avatars/photo.jpg' },
+          { id: 4, name: '文学创作', members: 4320, path: '/community/literature', official: false, topic: '文学创作与阅读交流', tags: ['文学', '写作', '阅读'], cover: '/images/communities/literature.jpg', avatar: '/images/avatars/literature.jpg' },
+          { id: 5, name: '美食探店', members: 9870, path: '/community/food', official: false, topic: '天津美食推荐与探店', tags: ['美食', '探店', '天津'], cover: '/images/communities/food.jpg', avatar: '/images/avatars/food.jpg' },
+          { id: 6, name: '旅行攻略', members: 7650, path: '/community/travel', official: false, topic: '旅行经验与攻略分享', tags: ['旅行', '攻略', '景点'], cover: '/images/communities/travel.jpg', avatar: '/images/avatars/travel.jpg' }
         ];
         return res.status(200).json({ code: 0, data: defaultCommunities });
       }
 
       const communities = result.rows.map(row => ({
+        id: row.id,
         name: row.name,
         members: row.member_count,
         path: `/community/${row.id}`,
@@ -1455,6 +1475,137 @@ async function handleCommunities(req, res, path) {
       }));
 
       return res.status(200).json({ code: 0, data: communities });
+    }
+
+    // 获取所有社区列表 /communities
+    if (path === '/communities' && req.method === 'GET') {
+      const url = new URL(req.url, `http://localhost`);
+      const limit = parseInt(url.searchParams.get('limit') || '50');
+
+      const result = await queryWithRetry(
+        'SELECT * FROM communities ORDER BY member_count DESC LIMIT $1',
+        [limit]
+      );
+
+      if (result.rows.length === 0) {
+        const defaultCommunities = [
+          { id: 1, name: '天津文化', members: 12580, path: '/community/tianjin-culture', official: true, topic: '天津传统文化交流', tags: ['文化', '传统', '天津'], cover: '/images/communities/tianjin-culture.jpg', avatar: '/images/avatars/tianjin.jpg', description: '天津传统文化交流' },
+          { id: 2, name: '创意灵感', members: 8920, path: '/community/creative-inspiration', official: true, topic: '创意设计与灵感分享', tags: ['设计', '创意', '灵感'], cover: '/images/communities/creative.jpg', avatar: '/images/avatars/creative.jpg', description: '创意设计与灵感分享' },
+          { id: 3, name: '摄影爱好者', members: 6540, path: '/community/photography', official: false, topic: '摄影技巧与作品分享', tags: ['摄影', '艺术', '视觉'], cover: '/images/communities/photography.jpg', avatar: '/images/avatars/photo.jpg', description: '摄影技巧与作品分享' },
+          { id: 4, name: '文学创作', members: 4320, path: '/community/literature', official: false, topic: '文学创作与阅读交流', tags: ['文学', '写作', '阅读'], cover: '/images/communities/literature.jpg', avatar: '/images/avatars/literature.jpg', description: '文学创作与阅读交流' },
+          { id: 5, name: '美食探店', members: 9870, path: '/community/food', official: false, topic: '天津美食推荐与探店', tags: ['美食', '探店', '天津'], cover: '/images/communities/food.jpg', avatar: '/images/avatars/food.jpg', description: '天津美食推荐与探店' },
+          { id: 6, name: '旅行攻略', members: 7650, path: '/community/travel', official: false, topic: '旅行经验与攻略分享', tags: ['旅行', '攻略', '景点'], cover: '/images/communities/travel.jpg', avatar: '/images/avatars/travel.jpg', description: '旅行经验与攻略分享' }
+        ];
+        return res.status(200).json({ code: 0, data: defaultCommunities });
+      }
+
+      const communities = result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        members: row.member_count,
+        path: `/community/${row.id}`,
+        official: row.is_official,
+        topic: row.description,
+        description: row.description,
+        tags: row.tags || [],
+        cover: row.cover_url,
+        avatar: row.avatar_url
+      }));
+
+      return res.status(200).json({ code: 0, data: communities });
+    }
+
+    // 获取单个社区详情 /communities/:id
+    const communityDetailMatch = path.match(/^\/communities\/([^\/]+)$/);
+    if (communityDetailMatch && req.method === 'GET') {
+      const communityId = communityDetailMatch[1];
+
+      const result = await queryWithRetry(
+        'SELECT * FROM communities WHERE id = $1',
+        [communityId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ code: 1, message: '社区不存在' });
+      }
+
+      const row = result.rows[0];
+      return res.status(200).json({
+        code: 0,
+        data: {
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          members: row.member_count,
+          avatar: row.avatar_url,
+          cover: row.cover_url,
+          official: row.is_official,
+          tags: row.tags || []
+        }
+      });
+    }
+
+    // 加入社区 /communities/:id/join
+    const joinMatch = path.match(/^\/communities\/([^\/]+)\/join$/);
+    if (joinMatch && req.method === 'POST') {
+      const decoded = verifyAuthToken(req);
+      if (!decoded) {
+        return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+      }
+
+      const communityId = joinMatch[1];
+      const userId = decoded.userId || decoded.id || decoded.sub;
+
+      await queryWithRetry(`
+        INSERT INTO community_members (community_id, user_id, role)
+        VALUES ($1, $2, 'member')
+        ON CONFLICT (community_id, user_id) DO NOTHING
+      `, [communityId, userId]);
+
+      return res.status(200).json({ code: 0, message: '加入成功' });
+    }
+
+    // 离开社区 /communities/:id/leave
+    const leaveMatch = path.match(/^\/communities\/([^\/]+)\/leave$/);
+    if (leaveMatch && req.method === 'POST') {
+      const decoded = verifyAuthToken(req);
+      if (!decoded) {
+        return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+      }
+
+      const communityId = leaveMatch[1];
+      const userId = decoded.userId || decoded.id || decoded.sub;
+
+      await queryWithRetry(
+        'DELETE FROM community_members WHERE community_id = $1 AND user_id = $2',
+        [communityId, userId]
+      );
+
+      return res.status(200).json({ code: 0, message: '离开成功' });
+    }
+
+    // 获取社区成员 /communities/:id/members
+    const membersMatch = path.match(/^\/communities\/([^\/]+)\/members$/);
+    if (membersMatch && req.method === 'GET') {
+      const communityId = membersMatch[1];
+
+      const result = await queryWithRetry(`
+        SELECT cm.*, u.username, u.avatar_url
+        FROM community_members cm
+        LEFT JOIN users u ON cm.user_id = u.id::text
+        WHERE cm.community_id = $1
+      `, [communityId]);
+
+      return res.status(200).json({
+        code: 0,
+        data: result.rows.map(row => ({
+          id: row.user_id,
+          username: row.username,
+          avatar: row.avatar_url,
+          role: row.role,
+          joinedAt: row.joined_at
+        }))
+      });
     }
 
     return res.status(200).json({ code: 0, data: [] });
@@ -3538,6 +3689,76 @@ async function handleUsers(req, res, path) {
   } catch (error) {
     console.error('[Users API] Error:', error);
     return res.status(500).json({ code: 1, message: 'Internal server error', error: error.message });
+  }
+}
+
+// 处理用户社区请求
+async function handleUserCommunities(req, res) {
+  const decoded = verifyAuthToken(req);
+  if (!decoded) {
+    return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+  }
+
+  try {
+    const pool = await getDbPool();
+    if (!pool) {
+      return res.status(200).json({ code: 0, data: [] });
+    }
+
+    const userId = decoded.userId || decoded.id || decoded.sub;
+
+    // 确保表存在
+    await queryWithRetry(`
+      CREATE TABLE IF NOT EXISTS communities (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        avatar_url TEXT,
+        cover_url TEXT,
+        member_count INTEGER DEFAULT 0,
+        is_official BOOLEAN DEFAULT false,
+        tags TEXT[],
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await queryWithRetry(`
+      CREATE TABLE IF NOT EXISTS community_members (
+        id SERIAL PRIMARY KEY,
+        community_id INTEGER NOT NULL,
+        user_id VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'member',
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(community_id, user_id)
+      )
+    `);
+
+    const result = await queryWithRetry(`
+      SELECT c.*, cm.role, cm.joined_at
+      FROM communities c
+      INNER JOIN community_members cm ON c.id = cm.community_id
+      WHERE cm.user_id = $1
+      ORDER BY cm.joined_at DESC
+    `, [userId]);
+
+    return res.status(200).json({
+      code: 0,
+      data: result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        avatar: row.avatar_url,
+        cover: row.cover_url,
+        members: row.member_count,
+        official: row.is_official,
+        tags: row.tags || [],
+        role: row.role,
+        joinedAt: row.joined_at
+      }))
+    });
+  } catch (error) {
+    console.error('[API] Get user communities error:', error);
+    return res.status(200).json({ code: 0, data: [] });
   }
 }
 

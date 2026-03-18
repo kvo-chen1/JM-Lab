@@ -475,6 +475,11 @@ export default async function handler(req, res) {
       return handleCreateWork(req, res);
     }
 
+    // 单个作品相关API /works/:id
+    if (path.startsWith('/works/')) {
+      return handleWorkDetail(req, res, path);
+    }
+
     // 关注相关API
     if (path.startsWith('/follows/')) {
       return handleFollows(req, res, path);
@@ -553,6 +558,11 @@ export default async function handler(req, res) {
     // 分类相关API
     if (path.startsWith('/categories')) {
       return handleCategories(req, res, path);
+    }
+
+    // 健康检查 API
+    if (path.startsWith('/health/')) {
+      return handleHealth(req, res, path);
     }
 
     // 标签相关API
@@ -771,6 +781,17 @@ async function handleAuthRequest(req, res, path) {
           }
         });
       }
+    }
+
+    // 获取 OAuth 提供商列表 /auth/oauth-providers
+    if (path === '/auth/oauth-providers' && req.method === 'GET') {
+      return res.status(200).json({
+        code: 0,
+        data: [
+          { id: 'google', name: 'Google', enabled: true },
+          { id: 'github', name: 'GitHub', enabled: true }
+        ]
+      });
     }
 
     return res.status(404).json({ code: 1, message: '未知的认证接口: ' + path });
@@ -1152,6 +1173,189 @@ async function handleUploadAvatar(req, res) {
   } catch (error) {
     console.error('[API] Avatar upload error:', error);
     return res.status(500).json({ code: 1, message: '头像上传失败', error: error.message });
+  }
+}
+
+// 处理单个作品相关请求
+async function handleWorkDetail(req, res, path) {
+  try {
+    const pool = await getDbPool();
+    if (!pool) {
+      return res.status(200).json({ code: 0, data: null, message: 'Database not available' });
+    }
+
+    // 获取作品详情 /works/:id
+    const workIdMatch = path.match(/^\/works\/([^\/]+)$/);
+    if (workIdMatch && req.method === 'GET') {
+      const workId = workIdMatch[1];
+
+      const result = await queryWithRetry(`
+        SELECT w.*, u.username, u.avatar_url
+        FROM works w
+        LEFT JOIN users u ON w.user_id = u.id::text
+        WHERE w.id = $1
+      `, [workId]);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ code: 1, message: '作品不存在' });
+      }
+
+      const work = result.rows[0];
+      return res.status(200).json({
+        code: 0,
+        data: {
+          id: work.id,
+          title: work.title || '无标题',
+          description: work.description || '',
+          thumbnail: work.thumbnail || '',
+          videoUrl: work.video_url,
+          likes: work.likes || 0,
+          views: work.views || 0,
+          status: work.status,
+          createdAt: work.created_at,
+          author: {
+            id: work.user_id,
+            username: work.username || '用户' + work.user_id.substring(0, 8),
+            avatar: work.avatar_url
+          }
+        }
+      });
+    }
+
+    // 点赞作品 /works/:id/like
+    const likeMatch = path.match(/^\/works\/([^\/]+)\/like$/);
+    if (likeMatch && req.method === 'POST') {
+      const decoded = verifyAuthToken(req);
+      if (!decoded) {
+        return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+      }
+
+      const workId = likeMatch[1];
+      const userId = decoded.userId || decoded.id || decoded.sub;
+
+      // 确保 likes 表存在
+      await queryWithRetry(`
+        CREATE TABLE IF NOT EXISTS likes (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(255) NOT NULL,
+          work_id UUID,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, work_id)
+        )
+      `);
+
+      await queryWithRetry(`
+        INSERT INTO likes (user_id, work_id)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id, work_id) DO NOTHING
+      `, [userId, workId]);
+
+      // 更新作品点赞数
+      await queryWithRetry(`
+        UPDATE works SET likes = likes + 1 WHERE id = $1
+      `, [workId]);
+
+      return res.status(200).json({ code: 0, message: '点赞成功' });
+    }
+
+    // 取消点赞 /works/:id/unlike
+    const unlikeMatch = path.match(/^\/works\/([^\/]+)\/unlike$/);
+    if (unlikeMatch && req.method === 'POST') {
+      const decoded = verifyAuthToken(req);
+      if (!decoded) {
+        return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+      }
+
+      const workId = unlikeMatch[1];
+      const userId = decoded.userId || decoded.id || decoded.sub;
+
+      await queryWithRetry(
+        'DELETE FROM likes WHERE user_id = $1 AND work_id = $2',
+        [userId, workId]
+      );
+
+      // 更新作品点赞数
+      await queryWithRetry(`
+        UPDATE works SET likes = GREATEST(likes - 1, 0) WHERE id = $1
+      `, [workId]);
+
+      return res.status(200).json({ code: 0, message: '取消点赞成功' });
+    }
+
+    // 获取作品评论 /works/:id/comments
+    const commentsMatch = path.match(/^\/works\/([^\/]+)\/comments$/);
+    if (commentsMatch && req.method === 'GET') {
+      const workId = commentsMatch[1];
+
+      await queryWithRetry(`
+        CREATE TABLE IF NOT EXISTS work_comments (
+          id SERIAL PRIMARY KEY,
+          work_id UUID NOT NULL,
+          user_id VARCHAR(255) NOT NULL,
+          content TEXT NOT NULL,
+          likes INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      const result = await queryWithRetry(`
+        SELECT wc.*, u.username, u.avatar_url
+        FROM work_comments wc
+        LEFT JOIN users u ON wc.user_id = u.id::text
+        WHERE wc.work_id = $1
+        ORDER BY wc.created_at DESC
+      `, [workId]);
+
+      return res.status(200).json({
+        code: 0,
+        data: result.rows.map(row => ({
+          id: row.id,
+          content: row.content,
+          likes: row.likes,
+          createdAt: row.created_at,
+          author: {
+            id: row.user_id,
+            username: row.username,
+            avatar: row.avatar_url
+          }
+        }))
+      });
+    }
+
+    // 添加评论 /works/:id/comments
+    if (commentsMatch && req.method === 'POST') {
+      const decoded = verifyAuthToken(req);
+      if (!decoded) {
+        return res.status(401).json({ code: 1, error: 'UNAUTHORIZED', message: '未授权访问' });
+      }
+
+      const workId = commentsMatch[1];
+      const userId = decoded.userId || decoded.id || decoded.sub;
+
+      const body = await parseRequestBody(req);
+      const { content } = body;
+
+      if (!content) {
+        return res.status(400).json({ code: 1, message: '评论内容不能为空' });
+      }
+
+      const result = await queryWithRetry(`
+        INSERT INTO work_comments (work_id, user_id, content)
+        VALUES ($1, $2, $3)
+        RETURNING *
+      `, [workId, userId, content]);
+
+      return res.status(200).json({
+        code: 0,
+        message: '评论成功',
+        data: result.rows[0]
+      });
+    }
+
+    return res.status(501).json({ code: 1, message: 'Work endpoint not implemented: ' + path });
+  } catch (error) {
+    console.error('[Work API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error', error: error.message });
   }
 }
 
@@ -2712,6 +2916,78 @@ async function handleTags(req, res, path) {
     return res.status(200).json({ code: 0, data: [] });
   } catch (error) {
     console.error('[Tags API] Error:', error);
+    return res.status(500).json({ code: 1, message: 'Internal server error' });
+  }
+}
+
+// 处理健康检查请求
+async function handleHealth(req, res, path) {
+  try {
+    // 数据库健康检查 /health/db
+    if (path === '/health/db' || path === '/health/neon') {
+      const pool = await getDbPool();
+      if (!pool) {
+        return res.status(503).json({
+          code: 1,
+          status: 'error',
+          message: 'Database not configured'
+        });
+      }
+
+      try {
+        const client = await pool.connect();
+        const result = await client.query('SELECT NOW() as time');
+        client.release();
+
+        return res.status(200).json({
+          code: 0,
+          status: 'ok',
+          message: 'Database connected',
+          time: result.rows[0].time
+        });
+      } catch (error) {
+        return res.status(503).json({
+          code: 1,
+          status: 'error',
+          message: 'Database connection failed',
+          error: error.message
+        });
+      }
+    }
+
+    // 诊断检查 /health/diagnostics
+    if (path === '/health/diagnostics') {
+      const checks = {
+        database: false,
+        timestamp: new Date().toISOString()
+      };
+
+      const pool = await getDbPool();
+      if (pool) {
+        try {
+          const client = await pool.connect();
+          await client.query('SELECT 1');
+          client.release();
+          checks.database = true;
+        } catch (error) {
+          console.error('[Health] Database check failed:', error.message);
+        }
+      }
+
+      return res.status(200).json({
+        code: 0,
+        status: checks.database ? 'healthy' : 'degraded',
+        checks
+      });
+    }
+
+    return res.status(200).json({
+      code: 0,
+      status: 'ok',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[Health API] Error:', error);
     return res.status(500).json({ code: 1, message: 'Internal server error' });
   }
 }

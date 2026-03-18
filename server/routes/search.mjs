@@ -135,7 +135,7 @@ export async function saveSearchHistory(req, res) {
             query: query.trim(),
             search_type: searchType || 'general',
             result_count: resultCount || 0,
-            filters: filters || {},
+            search_filters: filters || {},
             created_at: new Date().toISOString()
           })
           .select()

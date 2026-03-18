@@ -19,7 +19,7 @@ import {
 // 热搜项接口
 interface HotSearchItem {
   id: string;
-  query: string;
+  keyword: string;
   search_count: number;
   unique_searchers: number;
   trend_score: number;
@@ -159,7 +159,7 @@ const HotSearchCard: React.FC<{
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h4 className={`font-semibold text-base truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {item.query}
+              {item.keyword}
             </h4>
             {index < 3 && (
               <motion.span
@@ -260,14 +260,14 @@ const HotSearchSection: React.FC<HotSearchSectionProps> = ({
       
       // 使用默认数据作为回退
       setHotSearches([
-        { id: '1', query: '国潮设计', search_count: 1256, unique_searchers: 892, trend_score: 95, category: '设计', is_active: true, last_searched_at: new Date().toISOString(), trend: 'up' },
-        { id: '2', query: '杨柳青年画', search_count: 1089, unique_searchers: 756, trend_score: 88, category: '非遗', is_active: true, last_searched_at: new Date().toISOString(), trend: 'up' },
-        { id: '3', query: '天津之眼', search_count: 967, unique_searchers: 689, trend_score: 82, category: '地标', is_active: true, last_searched_at: new Date().toISOString(), trend: 'stable' },
-        { id: '4', query: '泥人张', search_count: 845, unique_searchers: 612, trend_score: 75, category: '非遗', is_active: true, last_searched_at: new Date().toISOString(), trend: 'stable' },
-        { id: '5', query: '文创产品', search_count: 723, unique_searchers: 534, trend_score: 68, category: '产品', is_active: true, last_searched_at: new Date().toISOString(), trend: 'new' },
-        { id: '6', query: '五大道', search_count: 678, unique_searchers: 489, trend_score: 62, category: '地标', is_active: true, last_searched_at: new Date().toISOString(), trend: 'down' },
-        { id: '7', query: '狗不理包子', search_count: 612, unique_searchers: 445, trend_score: 58, category: '美食', is_active: true, last_searched_at: new Date().toISOString(), trend: 'stable' },
-        { id: '8', query: '风筝魏', search_count: 567, unique_searchers: 398, trend_score: 52, category: '非遗', is_active: true, last_searched_at: new Date().toISOString(), trend: 'new' },
+        { id: '1', keyword: '国潮设计', search_count: 1256, unique_searchers: 892, trend_score: 95, category: '设计', is_active: true, last_searched_at: new Date().toISOString(), trend: 'up' },
+        { id: '2', keyword: '杨柳青年画', search_count: 1089, unique_searchers: 756, trend_score: 88, category: '非遗', is_active: true, last_searched_at: new Date().toISOString(), trend: 'up' },
+        { id: '3', keyword: '天津之眼', search_count: 967, unique_searchers: 689, trend_score: 82, category: '地标', is_active: true, last_searched_at: new Date().toISOString(), trend: 'stable' },
+        { id: '4', keyword: '泥人张', search_count: 845, unique_searchers: 612, trend_score: 75, category: '非遗', is_active: true, last_searched_at: new Date().toISOString(), trend: 'stable' },
+        { id: '5', keyword: '文创产品', search_count: 723, unique_searchers: 534, trend_score: 68, category: '产品', is_active: true, last_searched_at: new Date().toISOString(), trend: 'new' },
+        { id: '6', keyword: '五大道', search_count: 678, unique_searchers: 489, trend_score: 62, category: '地标', is_active: true, last_searched_at: new Date().toISOString(), trend: 'down' },
+        { id: '7', keyword: '狗不理包子', search_count: 612, unique_searchers: 445, trend_score: 58, category: '美食', is_active: true, last_searched_at: new Date().toISOString(), trend: 'stable' },
+        { id: '8', keyword: '风筝魏', search_count: 567, unique_searchers: 398, trend_score: 52, category: '非遗', is_active: true, last_searched_at: new Date().toISOString(), trend: 'new' },
       ]);
     } finally {
       setIsLoading(false);
@@ -429,7 +429,7 @@ const HotSearchSection: React.FC<HotSearchSectionProps> = ({
                   item={item}
                   index={index}
                   isDark={isDark}
-                  onClick={() => handleSearchClick(item.query)}
+                  onClick={() => handleSearchClick(item.keyword)}
                   isHovered={hoveredIndex === index}
                   onHover={() => setHoveredIndex(index)}
                   onLeave={() => setHoveredIndex(null)}

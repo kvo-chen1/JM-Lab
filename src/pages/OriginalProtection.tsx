@@ -6,6 +6,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { createReport, getReports } from '@/services/reportService';
 import {
+  PlagiarismCheckModal,
+  WorkProtectionModal,
+  ExternalProtectionModal,
+  AuthorCertificationModal
+} from '@/components/original-protection';
+import {
   Shield,
   FileText,
   Users,
@@ -210,6 +216,13 @@ export default function OriginalProtection() {
   const [reportStep, setReportStep] = useState(1);
   const [videoPage, setVideoPage] = useState(1);
   const [showReportModal, setShowReportModal] = useState(false);
+  
+  // 新增弹窗状态
+  const [showPlagiarismModal, setShowPlagiarismModal] = useState(false);
+  const [showWorkProtectionModal, setShowWorkProtectionModal] = useState(false);
+  const [showExternalModal, setShowExternalModal] = useState(false);
+  const [showCertificationModal, setShowCertificationModal] = useState(false);
+  
   const [reportForm, setReportForm] = useState({
     type: '',
     content: '',
@@ -251,11 +264,33 @@ export default function OriginalProtection() {
 
   // 处理权益卡片点击
   const handleProtectionClick = (id: string) => {
-    if (id === 'infringement') {
-      setShowReportModal(true);
-    } else {
-      toast.info('功能开发中', { description: '该功能即将上线，敬请期待' });
+    switch (id) {
+      case 'infringement':
+        setShowReportModal(true);
+        break;
+      case 'plagiarism':
+        setShowPlagiarismModal(true);
+        break;
+      case 'protection':
+        setShowWorkProtectionModal(true);
+        break;
+      case 'external':
+        setShowExternalModal(true);
+        break;
+      case 'review':
+        toast.info('抄袭评审团功能开发中', { description: '该功能即将上线，敬请期待' });
+        break;
+      case 'legal':
+        toast.info('诉讼维权功能开发中', { description: '该功能即将上线，敬请期待' });
+        break;
+      default:
+        toast.info('功能开发中', { description: '该功能即将上线，敬请期待' });
     }
+  };
+
+  // 处理原创作者认证点击
+  const handleCertificationClick = () => {
+    setShowCertificationModal(true);
   };
 
   // 处理举报提交
@@ -354,6 +389,7 @@ export default function OriginalProtection() {
             key={status.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            onClick={() => status.id === 'certified' && handleCertificationClick()}
             className={`p-6 rounded-2xl border ${isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-white'} hover:shadow-lg transition-all cursor-pointer group`}
           >
             <div className="flex items-center gap-4">
@@ -1060,6 +1096,24 @@ export default function OriginalProtection() {
 
       {/* 举报弹窗 */}
       {renderReportModal()}
+
+      {/* 新增功能弹窗 */}
+      <PlagiarismCheckModal
+        isOpen={showPlagiarismModal}
+        onClose={() => setShowPlagiarismModal(false)}
+      />
+      <WorkProtectionModal
+        isOpen={showWorkProtectionModal}
+        onClose={() => setShowWorkProtectionModal(false)}
+      />
+      <ExternalProtectionModal
+        isOpen={showExternalModal}
+        onClose={() => setShowExternalModal(false)}
+      />
+      <AuthorCertificationModal
+        isOpen={showCertificationModal}
+        onClose={() => setShowCertificationModal(false)}
+      />
     </div>
   );
 }

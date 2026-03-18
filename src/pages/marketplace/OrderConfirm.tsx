@@ -220,7 +220,7 @@ const OrderConfirmPage: React.FC = () => {
           items={selectedItems.map((item) => ({
             id: item.product_id,
             name: item.product_name,
-            coverImage: item.product?.cover_image || '',
+            coverImage: item.product?.cover_image || (item.product?.images?.[0]) || '',
             price: item.product?.price || 0,
             quantity: item.quantity
           }))}

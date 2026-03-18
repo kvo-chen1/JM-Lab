@@ -495,6 +495,15 @@ const OrderDetailPage: React.FC = () => {
             </button>
           )}
 
+          {(order.status === 'completed' || order.status === 'delivered') && (
+            <button
+              onClick={() => navigate(`/marketplace/order/review/${order.id}`)}
+              className="w-full h-12 bg-[#C02C38] text-white rounded-xl font-medium hover:bg-[#991b1b] transition-colors"
+            >
+              评价商品
+            </button>
+          )}
+
           <button
             onClick={() => navigate('/marketplace/orders')}
             className="w-full h-12 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"

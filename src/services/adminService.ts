@@ -1,5 +1,19 @@
 // 管理后台数据服务
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin as originalSupabaseAdmin } from '@/lib/supabaseClient';
+
+// 浏览器环境中使用普通 supabase 客户端替代 supabaseAdmin
+// Service Role Key 不能在浏览器中使用
+const supabaseAdmin = typeof window !== 'undefined' ? supabase : originalSupabaseAdmin;
+
+// 判断是否使用 supabaseAdmin（仅在配置了 Service Role Key 且不在浏览器中使用）
+const useSupabaseAdmin = () => {
+  // Service Role Key 不能在浏览器中使用
+  // 检查是否在浏览器环境
+  if (typeof window !== 'undefined') {
+    return supabase; // 浏览器中使用普通 supabase 客户端
+  }
+  return originalSupabaseAdmin;
+};
 
 // 包装函数：安全地调用 supabaseAdmin，在失败时返回默认值
 // 注意：在生产环境中，supabaseAdmin 会降级为 supabase（anon key）
@@ -1452,14 +1466,19 @@ class AdminService {
 
       // 获取作品
       if (type === 'all' || type === 'work') {
-        const worksQuery = supabaseAdmin
+        const client = useSupabaseAdmin();
+        const worksQuery = client
           .from('works')
           .select('*', { count: 'exact' })
           .eq('source', '津脉广场') // 只获取津脉广场的作品
           .is('event_id', null); // 排除活动作品
 
-        const { data: works } = await worksQuery
+        const { data: works, error: worksError } = await worksQuery
           .order('created_at', { ascending: false });
+
+        if (worksError) {
+          console.error(`[adminService.getContents] 查询作品失败:`, worksError);
+        }
 
         console.log(`[adminService.getContents] Raw works from DB:`, works?.length || 0);
         if (works && works.length > 0) {
@@ -1467,54 +1486,39 @@ class AdminService {
         }
 
         if (works) {
-          // 过滤掉可疑的作品（标题太短、没有有效缩略图的）
-          const validWorks = works.filter(work => {
-            const thumbnail = work.thumbnail || work.cover_url || '';
-            const hasValidThumbnail = thumbnail &&
-                                     thumbnail.length > 0 &&
-                                     thumbnail !== 'EMPTY' &&
-                                     !thumbnail.toLowerCase().includes('empty');
-            const hasValidTitle = work.title && work.title.length >= 3;
-            return hasValidThumbnail && hasValidTitle;
-          });
-
-          console.log(`[adminService.getContents] Filtered ${works.length} works to ${validWorks.length} valid works`);
-          
-          // 调试：显示被过滤掉的作品
-          const filteredOutWorks = works.filter(work => {
-            const thumbnail = work.thumbnail || work.cover_url || '';
-            const hasValidThumbnail = thumbnail &&
-                                     thumbnail.length > 0 &&
-                                     thumbnail !== 'EMPTY' &&
-                                     !thumbnail.toLowerCase().includes('empty');
-            const hasValidTitle = work.title && work.title.length >= 3;
-            return !(hasValidThumbnail && hasValidTitle);
-          });
-          if (filteredOutWorks.length > 0) {
-            console.log('[adminService.getContents] Filtered out works:', filteredOutWorks.map(w => ({
-              id: w.id,
-              title: w.title,
-              source: w.source,
-              thumbnail: w.thumbnail?.substring(0, 30)
-            })));
-          }
+          // 与前台广场保持一致：显示所有津脉广场作品，不过滤缩略图和标题
+          const validWorks = works;
 
           // 获取创作者信息
           const creatorIds = validWorks.map(w => w.creator_id).filter(Boolean);
-          const { data: users } = await supabaseAdmin
-            .from('users')
-            .select('id, username, avatar_url')
-            .in('id', creatorIds);
+          console.log(`[adminService.getContents] 查询创作者信息, IDs:`, creatorIds);
 
-          const userMap = new Map(users?.map(u => [u.id, u]) || []);
+          let userMap = new Map();
+          if (creatorIds.length > 0) {
+            const { data: users, error: usersError } = await client
+              .from('users')
+              .select('id, username, avatar_url')
+              .in('id', creatorIds);
+
+            if (usersError) {
+              console.error(`[adminService.getContents] 查询用户失败:`, usersError);
+            } else {
+              console.log(`[adminService.getContents] 获取到 ${users?.length || 0} 个用户信息`);
+              userMap = new Map(users?.map(u => [u.id, u]) || []);
+            }
+          }
 
           const formattedWorks = validWorks.map(work => {
+            // AI 自动审核：所有作品默认状态为已通过
+            // 除非明确标记为 rejected，否则都视为 approved
+            const auditStatus = work.moderation_status === 'rejected' ? 'rejected' : 'approved';
+
             const formattedWork = {
               ...work,
               type: 'work',
               author: userMap.get(work.creator_id)?.username || '未知用户',
               author_avatar: userMap.get(work.creator_id)?.avatar_url,
-              status: work.status || 'approved', // 如果没有状态，默认为 approved
+              status: auditStatus, // AI 自动审核，默认为已通过
             };
             return formattedWork;
           });
@@ -1530,7 +1534,7 @@ class AdminService {
 
       // 获取评论
       if (type === 'all' || type === 'comment') {
-        const commentsQuery = supabaseAdmin
+        const commentsQuery = client
           .from('comments')
           .select('*', { count: 'exact' });
 
@@ -1548,7 +1552,7 @@ class AdminService {
 
           // 获取评论者信息
           const authorIds = validComments.map(c => c.author_id).filter(Boolean);
-          const { data: users } = await supabaseAdmin
+          const { data: users } = await client
             .from('users')
             .select('id, username, avatar_url')
             .in('id', authorIds);
@@ -1628,21 +1632,23 @@ class AdminService {
   // 删除内容
   async deleteContent(contentId: string, contentType: string): Promise<boolean> {
     try {
+      const client = useSupabaseAdmin();
+      
       if (contentType === 'work') {
         // 先删除关联数据
-        await supabaseAdmin.from('works_likes').delete().eq('work_id', contentId);
-        await supabaseAdmin.from('works_bookmarks').delete().eq('work_id', contentId);
-        await supabaseAdmin.from('work_comments').delete().eq('work_id', contentId);
+        await client.from('works_likes').delete().eq('work_id', contentId);
+        await client.from('works_bookmarks').delete().eq('work_id', contentId);
+        await client.from('work_comments').delete().eq('work_id', contentId);
         
         // 删除作品
-        const { error } = await supabaseAdmin
+        const { error } = await client
           .from('works')
           .delete()
           .eq('id', contentId);
 
         if (error) throw error;
       } else if (contentType === 'comment') {
-        const { error } = await supabaseAdmin
+        const { error } = await client
           .from('comments')
           .delete()
           .eq('id', contentId);

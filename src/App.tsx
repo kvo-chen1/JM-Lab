@@ -52,6 +52,7 @@ import AIChatBot from '@/components/AIChatBot';
 import Home from "@/pages/Home";
 import MobileHome from "@/pages/MobileHome";
 import ComponentShowcase from "@/pages/ComponentShowcase";
+import IPCharacterShowcase from "@/pages/IPCharacterShowcase";
 import ThemeTestPage from "@/pages/ThemeTestPage";
 import HamsterLoaderDemo from "@/pages/HamsterLoaderDemo";
 
@@ -538,6 +539,10 @@ const MobileOrganizerCenterPage = createLazyComponent(() => import(/* webpackChu
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'mobile-organizer-center'
 });
+const BrandProfileEdit = createLazyComponent(() => import(/* webpackChunkName: "pages-organizer" */ "@/pages/organizer/BrandProfileEdit"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'brand-profile-edit'
+});
      
       // 社区和互动相关 - 懒加载
 const Leaderboard = createLazyComponent(() => import(/* webpackChunkName: "pages-community" */ "@/pages/Leaderboard"), {
@@ -755,6 +760,10 @@ const OrdersPage = createLazyComponent(() => import(/* webpackChunkName: "pages-
 const OrderDetailPage = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/OrderDetail"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'marketplace-order-detail'
+});
+const AddressManagementPage = createLazyComponent(() => import(/* webpackChunkName: "pages-marketplace" */ "@/pages/marketplace/AddressManagement"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'marketplace-address'
 });
 
 // ============================================
@@ -1241,6 +1250,7 @@ export default function App() {
           <Route path="/notifications" element={<LazyComponent><PrivateRoute><Notifications /></PrivateRoute></LazyComponent>} />
           <Route path="/messages" element={<LazyComponent><PrivateRoute><MessageCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/component-showcase" element={<ComponentShowcase />} />
+          <Route path="/ip-character" element={<IPCharacterShowcase />} />
           <Route path="/hamster-loader-demo" element={<HamsterLoaderDemo />} />
           <Route path="/trending-card-demo" element={<LazyComponent><TrendingCardDemo /></LazyComponent>} />
           <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
@@ -1271,6 +1281,7 @@ export default function App() {
           <Route path="/organizer/analytics" element={<LazyComponent><PrivateRoute><OrganizerAnalyticsDashboard /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer/settings" element={<LazyComponent><PrivateRoute><OrganizerSettingsPage /></PrivateRoute></LazyComponent>} />
           <Route path="/organizer/mobile-center" element={<LazyComponent><PrivateRoute><MobileOrganizerCenterPage /></PrivateRoute></LazyComponent>} />
+          <Route path="/organizer/brand-profile" element={<LazyComponent><PrivateRoute><BrandProfileEdit /></PrivateRoute></LazyComponent>} />
           <Route path="/ranking/:eventId" element={<LazyComponent><PrivateRoute><EventRanking /></PrivateRoute></LazyComponent>} />
           
           {/* 创新功能路由 - 懒加载 */}
@@ -1337,6 +1348,7 @@ export default function App() {
           <Route path="/marketplace/licensed-product/:id" element={<LazyComponent><LicensedProductDetail /></LazyComponent>} />
           <Route path="/marketplace/search" element={<LazyComponent><SearchResultsPage /></LazyComponent>} />
           <Route path="/marketplace/orders" element={<LazyComponent><PrivateRoute><OrdersPage /></PrivateRoute></LazyComponent>} />
+          <Route path="/marketplace/address" element={<LazyComponent><PrivateRoute><AddressManagementPage /></PrivateRoute></LazyComponent>} />
           <Route path="/marketplace/order/review/:orderId/:itemId?" element={<PrivateRoute><ReviewPage /></PrivateRoute>} />
           <Route path="/favorites" element={<PrivateRoute><FavoritesPage /></PrivateRoute>} />
           

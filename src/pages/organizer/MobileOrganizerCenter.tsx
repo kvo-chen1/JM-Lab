@@ -6,6 +6,7 @@ import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
 import { Event } from '@/types';
 import { useEventService } from '@/hooks/useEventService';
+import apiClient from '@/lib/apiClient';
 import { brandPartnershipService, BrandPartnership } from '@/services/brandPartnershipService';
 import { userStateService } from '@/services/userStateService';
 import WorkScoring from './WorkScoring';
@@ -411,6 +412,9 @@ export default function MobileOrganizerCenter() {
         toast.success('活动已删除');
       } catch (error) {
         toast.error('删除活动失败');
+        // 清除API缓存并刷新列表，确保显示正确的数据
+        apiClient.cache.clearAll();
+        fetchEvents();
       }
     }
   };

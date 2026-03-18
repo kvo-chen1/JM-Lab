@@ -390,7 +390,7 @@ class IPService {
    * 获取所有商业合作
    */
   async getAllPartnerships(): Promise<CommercialPartnership[]> {
-    const response = await apiClient.get<CommercialPartnership[]>(`${this.baseUrl}/partnerships`);
+    const response = await apiClient.get<CommercialPartnership[]>(`${this.baseUrl}/partnerships`, { noCache: true });
     return response.data || [];
   }
 

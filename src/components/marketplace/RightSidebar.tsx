@@ -267,7 +267,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleCheckoutClick}
-                className="w-full py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-medium rounded-xl shadow-lg shadow-sky-500/25 hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-[#C02C38] text-white font-medium rounded-xl shadow-lg hover:bg-[#a82430] transition-all flex items-center justify-center gap-2"
                 type="button"
               >
                 去结算

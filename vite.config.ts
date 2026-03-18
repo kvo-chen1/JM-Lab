@@ -8,9 +8,11 @@ import viteCompression from 'vite-plugin-compression'
 import path from 'path'
 // import { createRequire } from 'node:module'
 // const require = createRequire(import.meta.url)
+// 从环境变量获取API端口，支持 VITE_LOCAL_API_URL 或 LOCAL_API_PORT
+const LOCAL_API_URL = process.env.VITE_LOCAL_API_URL || ''
 const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3030'
 // 使用127.0.0.1而不是localhost，避免IPv6连接问题
-const LOCAL_API_TARGET = `http://127.0.0.1:${LOCAL_API_PORT}`
+const LOCAL_API_TARGET = LOCAL_API_URL || `http://127.0.0.1:${LOCAL_API_PORT}`
 
 export default defineConfig({
   base: '/',

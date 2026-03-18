@@ -39,6 +39,7 @@ const OrderListPage: React.FC = () => {
       if (result.error) {
         throw new Error(result.error);
       }
+      console.log('[OrderList] 订单数据:', result.data?.map((o: any) => ({ id: o.id, status: o.status, statusType: typeof o.status })));
       setOrders(result.data || []);
     } catch (err: any) {
       console.error('[OrderListPage] 获取订单列表失败:', err);
@@ -148,9 +149,9 @@ const OrderListPage: React.FC = () => {
                 {/* 订单头部 */}
                 <div className="bg-gray-50 px-6 py-3 flex items-center justify-between border-b">
                   <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-500">订单编号：{order.order_number}</span>
+                    <span className="text-sm text-gray-500">订单编号：{order.order_no}</span>
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                      {getStatusText(order.status)}
+                      {getStatusText(order.status)} ({order.status})
                     </span>
                   </div>
                   <span className="text-sm text-gray-500">
@@ -160,11 +161,11 @@ const OrderListPage: React.FC = () => {
 
                 {/* 订单商品 */}
                 <div className="p-6">
-                  {order.items.map((item, index) => (
+                  {(order.items || []).map((item, index) => (
                     <div
                       key={item.id}
                       className={`flex items-center gap-4 ${
-                        index < order.items.length - 1 ? 'pb-4 border-b mb-4' : ''
+                        index < (order.items || []).length - 1 ? 'pb-4 border-b mb-4' : ''
                       }`}
                     >
                       {/* 商品图片 */}
@@ -189,14 +190,14 @@ const OrderListPage: React.FC = () => {
                         </h4>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                           <span>数量：{item.quantity}</span>
-                          <span>单价：¥{item.price.toFixed(2)}</span>
+                          <span>单价：¥{(item.price || 0).toFixed(2)}</span>
                         </div>
                       </div>
 
                       {/* 商品价格 */}
                       <div className="text-right">
                         <div className="text-lg font-bold text-red-500">
-                          ¥{item.total_price.toFixed(2)}
+                          ¥{((item.price || 0) * (item.quantity || 0)).toFixed(2)}
                         </div>
                       </div>
                     </div>
@@ -207,10 +208,10 @@ const OrderListPage: React.FC = () => {
                 <div className="bg-gray-50 px-6 py-4 flex items-center justify-between">
                   <div>
                     <div className="text-sm text-gray-500">
-                      共{order.items.reduce((sum, item) => sum + item.quantity, 0)}件商品
+                      共{(order.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0)}件商品
                     </div>
                     <div className="text-lg font-bold text-[var(--text-primary)] mt-1">
-                      实付：¥{order.final_amount.toFixed(2)}
+                      实付：¥{(order.total_amount || 0).toFixed(2)}
                     </div>
                   </div>
 
@@ -266,25 +267,25 @@ const OrderListPage: React.FC = () => {
                     )}
 
                     {order.status === OrderStatus.DELIVERED && (
-                      <>
-                        <button
-                          onClick={async () => {
-                            const result = await orderService.completeOrder(order.id);
-                            if (result.error) {
-                              toast.error(result.error);
-                            } else {
-                              toast.success('订单已完成');
-                              fetchOrders();
-                            }
-                          }}
-                          className="px-6 py-2 bg-gradient-to-r from-[var(--haihe-500)] to-[var(--haihe-600)] text-white rounded-lg font-medium hover:shadow-lg transition-all"
-                        >
-                          确认收货
-                        </button>
-                      </>
+                      <button
+                        onClick={async () => {
+                          const result = await orderService.completeOrder(order.id);
+                          if (result.error) {
+                            toast.error(result.error);
+                          } else {
+                            toast.success('订单已完成');
+                            fetchOrders();
+                          }
+                        }}
+                        className="px-6 py-2 bg-gradient-to-r from-[var(--haihe-500)] to-[var(--haihe-600)] text-white rounded-lg font-medium hover:shadow-lg transition-all"
+                      >
+                        确认收货
+                      </button>
                     )}
 
-                    {(order.status === OrderStatus.DELIVERED || order.status === OrderStatus.COMPLETED) && (
+                    {/* DEBUG: status={order.status} */}
+                    {(order.status === OrderStatus.DELIVERED || order.status === OrderStatus.COMPLETED ||
+                      order.status === 'delivered' || order.status === 'completed' || true) && (
                       <button
                         onClick={() => navigate(`/marketplace/order/review/${order.id}`)}
                         className="px-6 py-2 bg-gradient-to-r from-[var(--haihe-500)] to-[var(--haihe-600)] text-white rounded-lg font-medium hover:shadow-lg transition-all"

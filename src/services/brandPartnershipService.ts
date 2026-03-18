@@ -337,6 +337,75 @@ class BrandPartnershipService {
     }
   }
 
+  // 更新品牌资料（品牌方用）
+  async updateBrandProfile(
+    brandId: string,
+    updates: {
+      brand_name?: string;
+      brand_logo?: string;
+      description?: string;
+    }
+  ): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('brand_partnerships')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', brandId);
+
+      if (error) {
+        // 如果表不存在或更新失败，使用 localStorage 作为回退
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          return this.updateBrandProfileLocal(brandId, updates);
+        }
+        throw error;
+      }
+
+      // 同步更新 localStorage 中的数据
+      this.updateBrandProfileLocal(brandId, updates);
+      return true;
+    } catch (error) {
+      console.error('更新品牌资料失败:', error);
+      // 尝试使用 localStorage 作为回退
+      return this.updateBrandProfileLocal(brandId, updates);
+    }
+  }
+
+  // 使用 localStorage 更新品牌资料（回退方案）
+  private updateBrandProfileLocal(
+    brandId: string,
+    updates: {
+      brand_name?: string;
+      brand_logo?: string;
+      description?: string;
+    }
+  ): boolean {
+    try {
+      const partnerships = this.getPartnershipsLocal();
+      const index = partnerships.findIndex(p => p.id === brandId);
+      
+      if (index === -1) {
+        console.error('本地未找到品牌记录:', brandId);
+        return false;
+      }
+
+      partnerships[index] = {
+        ...partnerships[index],
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+
+      this.savePartnershipsLocal(partnerships);
+      console.log('品牌资料已更新到 LocalStorage');
+      return true;
+    } catch (error) {
+      console.error('本地更新品牌资料失败:', error);
+      return false;
+    }
+  }
+
   // ==================== 品牌活动管理 ====================
 
   // 创建品牌活动

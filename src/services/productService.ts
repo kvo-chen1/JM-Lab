@@ -1,7 +1,11 @@
 /**
  * 商品服务 - 管理文创商城商品
  */
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase, supabaseAdmin as originalSupabaseAdmin } from '@/lib/supabase';
+
+// 浏览器环境中使用普通 supabase 客户端替代 supabaseAdmin
+// Service Role Key 不能在浏览器中使用
+const supabaseAdmin = typeof window !== 'undefined' ? supabase : originalSupabaseAdmin;
 
 // 商品分类类型
 export interface ProductCategory {
@@ -165,7 +169,7 @@ export async function getProducts(
 ): Promise<{ data?: Product[]; count?: number; error?: string }> {
   try {
     console.log('[getMerchantProducts] 开始查询，参数:', options);
-    let query = supabase.from('product_details').select('*', { count: 'exact' });
+    let query = supabase.from('products').select('*', { count: 'exact' });
 
     if (options.categoryId) {
       query = query.eq('category_id', options.categoryId);
@@ -262,7 +266,7 @@ export async function getMerchantProducts(
   } = {}
 ): Promise<{ data?: Product[]; count?: number; error?: string }> {
   try {
-    let query = supabase.from('product_details').select('*', { count: 'exact' });
+    let query = supabase.from('products').select('*', { count: 'exact' });
 
     if (options.categoryId) {
       query = query.eq('category_id', options.categoryId);
@@ -316,7 +320,7 @@ export async function getMerchantProducts(
           query = query.order('view_count', { ascending: false });
           break;
         case 'sales':
-          query = query.order('sales_count', { ascending: false });
+          query = query.order('sold_count', { ascending: false });
           break;
       }
     } else {
@@ -334,6 +338,18 @@ export async function getMerchantProducts(
     const { data, error, count } = await query;
 
     console.log('[getMerchantProducts] 查询结果:', { data, error, count });
+    
+    // 调试输出每个商品的图片信息
+    if (data && data.length > 0) {
+      data.forEach((p: any, i: number) => {
+        console.log(`[getMerchantProducts] 商品 ${i + 1} [${p.name}]:`, {
+          cover_image: p.cover_image,
+          images: p.images,
+          cover_image_type: typeof p.cover_image,
+          images_type: typeof p.images
+        });
+      });
+    }
 
     if (error) throw error;
     return { data: data || [], count: count || 0 };

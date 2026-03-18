@@ -179,11 +179,11 @@ const ReviewPage: React.FC = () => {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* 返回按钮 */}
         <button
-          onClick={() => navigate('/marketplace/orders')}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>返回订单列表</span>
+          <span>返回</span>
         </button>
 
         {/* 商品选择 */}
@@ -370,7 +370,7 @@ const ReviewPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('/marketplace/orders')}
+                  onClick={() => navigate(-1)}
                   className="px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors"
                 >
                   取消

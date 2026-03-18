@@ -888,24 +888,50 @@ async function getAllPartnerships(req, res) {
     const columns = columnResult.rows.map(r => r.column_name);
     
     // 构建查询字段
-    const selectFields = ['id', 'ip_asset_id', 'brand_name', 'description', 'reward', 'status', 'created_at', 'updated_at'];
+    const selectFields = ['p.id', 'p.ip_asset_id', 'p.brand_name', 'p.description', 'p.reward', 'p.status', 'p.created_at', 'p.updated_at', 'p.user_id'];
     if (columns.includes('brand_logo')) {
-      selectFields.push('brand_logo');
+      selectFields.push('p.brand_logo');
     }
     if (columns.includes('opportunity_id')) {
-      selectFields.push('opportunity_id');
+      selectFields.push('p.opportunity_id');
     }
     
-    const query = `
-      SELECT ${selectFields.join(', ')}
-      FROM ip_partnerships
-      WHERE user_id = $1
-      ORDER BY created_at DESC
+    // 查询当前用户作为申请者的合作记录
+    const myPartnershipsQuery = `
+      SELECT ${selectFields.join(', ')}, 
+             u.username as applicant_name, 
+             u.email as applicant_email
+      FROM ip_partnerships p
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE p.user_id = $1
+      ORDER BY p.created_at DESC
     `;
     
-    const result = await pool.query(query, [userId]);
+    // 查询当前用户作为主办方的合作记录（其他用户申请了主办方的商业机会）
+    const organizerPartnershipsQuery = `
+      SELECT ${selectFields.join(', ')}, 
+             u.username as applicant_name, 
+             u.email as applicant_email
+      FROM ip_partnerships p
+      LEFT JOIN users u ON p.user_id = u.id
+      INNER JOIN commercial_opportunities co ON p.opportunity_id = co.id
+      WHERE co.brand_id = $1
+      ORDER BY p.created_at DESC
+    `;
     
-    const partnerships = result.rows.map(row => ({
+    // 执行两个查询
+    const [myResult, organizerResult] = await Promise.all([
+      pool.query(myPartnershipsQuery, [userId]),
+      pool.query(organizerPartnershipsQuery, [userId])
+    ]);
+    
+    // 合并结果，去重
+    const allRows = [...myResult.rows, ...organizerResult.rows];
+    const uniqueRows = allRows.filter((row, index, self) => 
+      index === self.findIndex(r => r.id === row.id)
+    );
+    
+    const partnerships = uniqueRows.map(row => ({
       id: row.id,
       ipAssetId: row.ip_asset_id,
       opportunityId: row.opportunity_id,
@@ -914,6 +940,8 @@ async function getAllPartnerships(req, res) {
       description: row.description,
       reward: row.reward,
       status: row.status,
+      applicantName: row.applicant_name,
+      applicantEmail: row.applicant_email,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
@@ -942,12 +970,12 @@ async function reviewPartnershipApplication(req, res, applicationId) {
     
     const pool = await getDB();
     
-    // 检查申请是否存在并获取相关信息
+    // 检查申请是否存在并获取相关信息（从 ip_partnerships 表查询）
     const checkQuery = `
-      SELECT pa.*, co.brand_id 
-      FROM partnership_applications pa
-      JOIN commercial_opportunities co ON pa.opportunity_id = co.id
-      WHERE pa.id = $1
+      SELECT p.*, co.brand_id 
+      FROM ip_partnerships p
+      JOIN commercial_opportunities co ON p.opportunity_id = co.id
+      WHERE p.id = $1
     `;
     const checkResult = await pool.query(checkQuery, [applicationId]);
     
@@ -962,40 +990,16 @@ async function reviewPartnershipApplication(req, res, applicationId) {
       return sendJson(res, 403, { error: '无权审核此申请' });
     }
     
-    // 更新申请状态
+    // 更新申请状态（在 ip_partnerships 表中更新）
     const updateQuery = `
-      UPDATE partnership_applications 
+      UPDATE ip_partnerships 
       SET status = $1, 
-          review_message = $2,
-          reviewed_at = NOW(),
           updated_at = NOW()
-      WHERE id = $3
+      WHERE id = $2
       RETURNING *
     `;
     
-    const result = await pool.query(updateQuery, [status, message || null, applicationId]);
-    
-    // 如果审核通过，创建商业合作关系
-    if (status === 'approved') {
-      const partnershipQuery = `
-        INSERT INTO ip_partnerships 
-        (user_id, opportunity_id, brand_name, description, reward, status, created_at, updated_at)
-        SELECT 
-          pa.applicant_id,
-          pa.opportunity_id,
-          co.brand_name,
-          co.description,
-          co.reward,
-          'active',
-          NOW(),
-          NOW()
-        FROM partnership_applications pa
-        JOIN commercial_opportunities co ON pa.opportunity_id = co.id
-        WHERE pa.id = $1
-        RETURNING *
-      `;
-      await pool.query(partnershipQuery, [applicationId]);
-    }
+    const result = await pool.query(updateQuery, [status, applicationId]);
     
     sendJson(res, 200, { ok: true, data: result.rows[0] });
   } catch (error) {

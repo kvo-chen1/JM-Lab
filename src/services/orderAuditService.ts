@@ -1,4 +1,7 @@
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+
+// API 基础 URL
+const API_BASE_URL = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3030';
 
 // ============================================================================
 // 类型定义
@@ -45,45 +48,69 @@ export interface AuditFilter {
   endDate?: string;
 }
 
+// 获取当前用户的 JWT token
+function getAuthToken(): string | null {
+  const session = localStorage.getItem('sb-kizgwtrrsmkjeiddotup-auth-token');
+  if (session) {
+    try {
+      const parsed = JSON.parse(session);
+      return parsed.access_token || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 // ============================================================================
 // 获取商单列表
 // ============================================================================
 
 export const getOrderAudits = async (filter: AuditFilter = {}): Promise<OrderAudit[]> => {
   try {
-    // 使用 supabaseAdmin 获取所有数据（绕过 RLS）
-    let query = supabaseAdmin
-      .from('order_audits')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    // 状态筛选
+    const params = new URLSearchParams();
+    
     if (filter.status) {
-      query = query.eq('status', filter.status);
+      params.append('status', filter.status);
     }
-
-    // 类型筛选
+    
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits?${params.toString()}`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || '获取商单审核列表失败');
+    }
+    
+    const result = await response.json();
+    let data = result.data || [];
+    
+    // 在前端进行额外的筛选（因为后端 API 可能不支持所有筛选条件）
     if (filter.type) {
-      query = query.eq('type', filter.type);
+      data = data.filter((item: OrderAudit) => item.type === filter.type);
     }
-
-    // 关键词搜索
+    
     if (filter.keyword) {
-      query = query.or(`title.ilike.%${filter.keyword}%,brand_name.ilike.%${filter.keyword}%`);
+      const keyword = filter.keyword.toLowerCase();
+      data = data.filter((item: OrderAudit) => 
+        item.title.toLowerCase().includes(keyword) ||
+        item.brand_name.toLowerCase().includes(keyword)
+      );
     }
-
-    // 时间范围筛选
+    
     if (filter.startDate) {
-      query = query.gte('created_at', filter.startDate);
+      data = data.filter((item: OrderAudit) => item.created_at >= filter.startDate!);
     }
+    
     if (filter.endDate) {
-      query = query.lte('created_at', filter.endDate);
+      data = data.filter((item: OrderAudit) => item.created_at <= filter.endDate!);
     }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-    return data || [];
+    
+    return data;
   } catch (error) {
     console.error('获取商单审核列表失败:', error);
     return [];
@@ -96,18 +123,26 @@ export const getOrderAudits = async (filter: AuditFilter = {}): Promise<OrderAud
 
 export const getAuditStats = async (): Promise<AuditStats> => {
   try {
-    // 使用 supabaseAdmin 获取所有数据（绕过 RLS）
-    const { data, error } = await supabaseAdmin
-      .from('order_audits')
-      .select('status', { count: 'exact' });
-
-    if (error) throw error;
-
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || '获取统计数据失败');
+    }
+    
+    const result = await response.json();
+    const data = result.data || [];
+    
     const stats: AuditStats = {
-      total: data?.length || 0,
-      pending: data?.filter(item => item.status === 'pending').length || 0,
-      approved: data?.filter(item => item.status === 'approved').length || 0,
-      rejected: data?.filter(item => item.status === 'rejected').length || 0,
+      total: data.length,
+      pending: data.filter((item: OrderAudit) => item.status === 'pending').length,
+      approved: data.filter((item: OrderAudit) => item.status === 'approved').length,
+      rejected: data.filter((item: OrderAudit) => item.status === 'rejected').length,
     };
 
     return stats;
@@ -128,19 +163,24 @@ export const auditOrder = async (
   auditorId: string
 ): Promise<boolean> => {
   try {
-    // 使用 supabaseAdmin 绕过 RLS
-    const { error } = await supabaseAdmin
-      .from('order_audits')
-      .update({
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits/${orderId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({
         status,
         audit_opinion: auditOpinion,
-        audited_by: auditorId,
-        audited_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', orderId);
-
-    if (error) throw error;
+      }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || '审核商单失败');
+    }
+    
     return true;
   } catch (error) {
     console.error('审核商单失败:', error);
@@ -159,20 +199,24 @@ export const batchAuditOrders = async (
   auditorId: string
 ): Promise<boolean> => {
   try {
-    // 使用 supabaseAdmin 绕过 RLS
-    const { error } = await supabaseAdmin
-      .from('order_audits')
-      .update({
-        status,
-        audit_opinion: auditOpinion,
-        audited_by: auditorId,
-        audited_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', orderIds);
-
-    if (error) throw error;
-    return true;
+    const token = getAuthToken();
+    const results = await Promise.all(
+      orderIds.map(id =>
+        fetch(`${API_BASE_URL}/api/order-audits/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify({
+            status,
+            audit_opinion: auditOpinion,
+          }),
+        })
+      )
+    );
+    
+    return results.every(res => res.ok);
   } catch (error) {
     console.error('批量审核失败:', error);
     return false;
@@ -185,15 +229,23 @@ export const batchAuditOrders = async (
 
 export const getOrderAuditDetail = async (orderId: string): Promise<OrderAudit | null> => {
   try {
-    // 使用 supabaseAdmin 绕过 RLS
-    const { data, error } = await supabaseAdmin
-      .from('order_audits')
-      .select('*')
-      .eq('id', orderId)
-      .single();
-
-    if (error) throw error;
-    return data;
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits/${orderId}`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      const error = await response.json();
+      throw new Error(error.message || '获取商单详情失败');
+    }
+    
+    const result = await response.json();
+    return result.data;
   } catch (error) {
     console.error('获取商单详情失败:', error);
     return null;
@@ -206,22 +258,23 @@ export const getOrderAuditDetail = async (orderId: string): Promise<OrderAudit |
 
 export const submitOrderForAudit = async (orderData: Partial<OrderAudit>): Promise<string | null> => {
   try {
-    // 使用 supabaseAdmin 绕过 RLS 和外键约束检查
-    const { data, error } = await supabaseAdmin
-      .from('order_audits')
-      .insert([
-        {
-          ...orderData,
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ])
-      .select('id')
-      .single();
-
-    if (error) throw error;
-    return data?.id || null;
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify(orderData),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || '提交商单审核失败');
+    }
+    
+    const result = await response.json();
+    return result.data?.id || null;
   } catch (error) {
     console.error('提交商单审核失败:', error);
     return null;
@@ -234,15 +287,7 @@ export const submitOrderForAudit = async (orderData: Partial<OrderAudit>): Promi
 
 export const getApprovedOrders = async (): Promise<OrderAudit[]> => {
   try {
-    // 使用 supabaseAdmin 绕过 RLS
-    const { data, error } = await supabaseAdmin
-      .from('order_audits')
-      .select('*')
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data || [];
+    return await getOrderAudits({ status: 'approved' });
   } catch (error) {
     console.error('获取已通过商单失败:', error);
     return [];

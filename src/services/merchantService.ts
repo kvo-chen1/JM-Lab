@@ -460,14 +460,14 @@ class MerchantService {
       return mockMerchant;
     }
 
-    // 获取当前用户ID
+    // 获取当前用户 ID
     const userId = getCurrentUserId();
     if (!userId) {
-      console.error('[MerchantService] 无法获取用户ID');
+      console.error('[MerchantService] 无法获取用户 ID');
       return null;
     }
 
-    console.log('[MerchantService] 获取商家信息，用户ID:', userId);
+    console.log('[MerchantService] 获取商家信息，用户 ID:', userId);
 
     // 先尝试获取现有商家记录
     const { data: existingMerchants, error: fetchError } = await supabase
@@ -478,97 +478,21 @@ class MerchantService {
 
     console.log('[MerchantService] 查询结果:', { existingMerchants, fetchError });
 
-    // 如果找到了商家记录，同步 merchant_stores 的数据
+    // 处理错误
+    if (fetchError) {
+      console.error('[MerchantService] 查询商家记录失败:', fetchError);
+      throw fetchError;
+    }
+
+    // 如果找到了商家记录，返回商家信息
     if (existingMerchants && existingMerchants.length > 0) {
       const merchant = existingMerchants[0];
-      
-      // 从 merchant_stores 获取最新的店铺信息
-      const { data: storeData } = await supabase
-        .from('merchant_stores')
-        .select('store_name, store_logo, store_description')
-        .eq('user_id', userId)
-        .limit(1)
-        .maybeSingle();
-      
-      // 如果 merchant_stores 有数据，同步到 merchants
-      if (storeData) {
-        // 更新 merchants 表的 logo 和名称
-        if (storeData.store_logo && storeData.store_logo !== merchant.store_logo) {
-          await supabase
-            .from('merchants')
-            .update({ store_logo: storeData.store_logo })
-            .eq('id', merchant.id);
-          merchant.store_logo = storeData.store_logo;
-        }
-        
-        if (storeData.store_name && storeData.store_name !== merchant.store_name) {
-          await supabase
-            .from('merchants')
-            .update({ store_name: storeData.store_name })
-            .eq('id', merchant.id);
-          merchant.store_name = storeData.store_name;
-        }
-        
-        if (storeData.store_description && storeData.store_description !== merchant.store_description) {
-          await supabase
-            .from('merchants')
-            .update({ store_description: storeData.store_description })
-            .eq('id', merchant.id);
-          merchant.store_description = storeData.store_description;
-        }
-      }
-      
+      console.log('[MerchantService] 找到商家记录:', merchant.id);
       return merchant;
     }
 
-    // 如果没有找到商家记录，自动创建一个新的
-    if (!existingMerchants || existingMerchants.length === 0) {
-      console.log('[MerchantService] 未找到商家记录，正在为用户创建新商家...', userId);
-      
-      // 尝试从 localStorage 获取用户信息
-      let userEmail = '';
-      let userName = '';
-      try {
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
-          const userData = JSON.parse(userStr);
-          userEmail = userData?.email || '';
-          userName = userData?.username || userData?.nickname || '店主';
-        }
-      } catch (e) {
-        console.error('[MerchantService] 解析用户信息失败:', e);
-      }
-      
-      const newMerchant = {
-        user_id: userId,
-        store_name: userName ? `${userName}的店铺` : '新店铺',
-        store_description: '',
-        contact_name: userName || '店主',
-        contact_phone: '',
-        contact_email: userEmail || '',
-        status: 'approved',
-        rating: 5.0,
-        total_sales: 0,
-        total_orders: 0,
-      };
-
-      const { data: createdMerchant, error: createError } = await supabase
-        .from('merchants')
-        .insert(newMerchant)
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('[MerchantService] 创建商家记录失败:', createError);
-        throw createError;
-      }
-
-      console.log('[MerchantService] 商家记录创建成功:', createdMerchant?.id);
-      return createdMerchant;
-    }
-
-    // 其他错误直接抛出
-    if (fetchError) throw fetchError;
+    // 没有找到商家记录，返回 null
+    console.log('[MerchantService] 未找到商家记录，用户未入驻');
     return null;
   }
 

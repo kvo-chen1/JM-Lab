@@ -2,8 +2,11 @@ import { useState, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { AuthContext } from '@/contexts/authContext';
-import { supabaseAdmin } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin as originalSupabaseAdmin } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
+
+// 浏览器环境中使用普通 supabase 客户端替代 supabaseAdmin
+const supabaseAdmin = typeof window !== 'undefined' ? supabase : originalSupabaseAdmin;
 import {
   BarChart,
   Bar,

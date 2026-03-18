@@ -6241,12 +6241,14 @@ export const eventDB = {
   },
 
   async getEvent(id) {
+    console.log('[DB] getEvent called with id:', id, 'type:', typeof id)
     const db = await getDB()
     const typeKey = (config.dbType === DB_TYPE.SUPABASE) ? DB_TYPE.POSTGRESQL : config.dbType
     
     switch (typeKey) {
       case DB_TYPE.POSTGRESQL:
         const { rows } = await db.query('SELECT * FROM events WHERE id = $1', [id])
+        console.log('[DB] getEvent query result:', { id, rowCount: rows.length })
         if (rows.length === 0) return null
         const pgRow = rows[0]
         return {

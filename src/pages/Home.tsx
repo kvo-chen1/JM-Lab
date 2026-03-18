@@ -16,7 +16,6 @@ import JinMaiTemplatesSection from '@/components/JinMaiTemplatesSection'
 import HotSearchSection from '@/components/HotSearchSection'
 import PartnerBrandsSection from '@/components/PartnerBrandsSection'
 import { usePlatformStats } from '@/hooks/usePlatformStats'
-import ForYouRecommendationModule from '@/components/ForYouRecommendationModule'
 import { recordUserAction } from '@/services/recommendationService'
 import pendingMessageService from '@/services/pendingMessageService'
 import {
@@ -865,33 +864,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </motion.div>
-        </div>
-
-        {/* 0. 为你推荐 - 个性化卡片推荐 */}
-        <div className="pt-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: getDuration(0.5) }}
-            className="max-w-7xl mx-auto px-4 md:px-6"
-          >
-            <div className="text-center mb-8">
-              <h2 className={`text-2xl md:text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                <span className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
-                  为你推荐
-                </span>
-              </h2>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                根据你的兴趣，发现更多精彩内容
-              </p>
-            </div>
-            <ForYouRecommendationModule
-              autoSlide={true}
-              slideInterval={6000}
-              showReasons={true}
-            />
           </motion.div>
         </div>
 

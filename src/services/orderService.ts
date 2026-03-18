@@ -2,7 +2,11 @@
 /**
  * 订单服务 - 管理文创商城订单
  */
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase, supabaseAdmin as originalSupabaseAdmin } from '@/lib/supabase';
+
+// 浏览器环境中使用普通 supabase 客户端替代 supabaseAdmin
+// Service Role Key 不能在浏览器中使用
+const supabaseAdmin = typeof window !== 'undefined' ? supabase : originalSupabaseAdmin;
 
 // 订单状态枚举
 export enum OrderStatus {

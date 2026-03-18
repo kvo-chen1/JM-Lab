@@ -199,9 +199,12 @@ const CartPage: React.FC = () => {
                 item={{
                   id: item.id,
                   product: {
+                    ...item.product,
                     id: item.product_id,
                     name: item.product?.name || '',
                     coverImage: item.product?.cover_image || '',
+                    cover_image: item.product?.cover_image,
+                    images: item.product?.images,
                     price: item.product?.price || 0,
                     originalPrice: item.product?.original_price || (item.product?.price || 0) * 1.2,
                     brand: item.product?.brand?.name || '',

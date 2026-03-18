@@ -853,12 +853,11 @@ export default function ContentAudit() {
       </motion.div>
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard icon={BarChart3} label="全部作品" value={stats.total} color="blue" trend="+12%" delay={0} />
-        <StatCard icon={Clock} label="待审核" value={stats.pending} color="amber" delay={0.1} />
-        <StatCard icon={CheckCircle} label="已通过" value={stats.approved} color="emerald" delay={0.2} />
-        <StatCard icon={XCircle} label="已拒绝" value={stats.rejected} color="rose" delay={0.3} />
-        <StatCard icon={Sparkles} label="今日新增" value={stats.today} color="violet" delay={0.4} />
+        <StatCard icon={CheckCircle} label="已通过" value={stats.approved} color="emerald" delay={0.1} />
+        <StatCard icon={XCircle} label="已拒绝" value={stats.rejected} color="rose" delay={0.2} />
+        <StatCard icon={Sparkles} label="今日新增" value={stats.today} color="violet" delay={0.3} />
       </div>
 
       {/* 主要内容区域 */}
@@ -899,7 +898,6 @@ export default function ContentAudit() {
                     }`}
                   >
                     <option value="all">全部状态</option>
-                    <option value="pending">待审核</option>
                     <option value="approved">已通过</option>
                     <option value="rejected">已拒绝</option>
                   </select>

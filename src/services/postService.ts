@@ -395,6 +395,7 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
         let worksQuery = supabase
           .from('works')
           .select('*')
+          .eq('source', '津脉广场') // 只查询津脉广场的作品
           .order('created_at', { ascending: false });
 
         if (category && category !== 'all') {

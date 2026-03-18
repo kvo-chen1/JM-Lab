@@ -532,15 +532,16 @@
 
 .marketplace-theme .mp-product-image-wrapper {
   position: relative;
-  aspect-ratio: 1;
+  aspect-ratio: 4/3;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-hover) 100%);
+  background: white;
 }
 
 .marketplace-theme .mp-product-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 12px;
   transition: transform var(--transition-slow);
 }
 
@@ -1227,4 +1228,936 @@
 .marketplace-theme.dark ::selection {
   background: var(--haihe-700);
   color: var(--haihe-100);
+}
+
+/* ========================================
+   21. 区块标题 V2 样式
+   ======================================== */
+
+.marketplace-theme .mp-section-header-v2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  border-radius: var(--radius-2xl);
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-primary);
+  position: relative;
+  overflow: hidden;
+}
+
+.marketplace-theme .mp-section-header-v2::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--haihe-500) 0%, var(--haihe-600) 100%);
+  border-radius: var(--radius-full);
+}
+
+.marketplace-theme .mp-section-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.marketplace-theme .mp-section-icon-wrapper {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.marketplace-theme .mp-section-icon {
+  font-size: 24px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marketplace-theme .mp-section-icon svg {
+  width: 24px;
+  height: 24px;
+  color: white;
+}
+
+.marketplace-theme .mp-section-icon-glow {
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  filter: blur(8px);
+  opacity: 0.6;
+  z-index: 0;
+}
+
+.marketplace-theme .mp-section-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.marketplace-theme .mp-section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.marketplace-theme .mp-section-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.marketplace-theme .mp-section-count-badge {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--haihe-50);
+  border: 1px solid var(--haihe-200);
+  border-radius: var(--radius-full);
+}
+
+.marketplace-theme .mp-section-count-number {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--haihe-600);
+}
+
+.marketplace-theme .mp-section-count-text {
+  font-size: 12px;
+  color: var(--haihe-600);
+}
+
+.marketplace-theme .mp-section-more-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.marketplace-theme .mp-section-more-btn:hover {
+  background: var(--haihe-500);
+  color: white;
+  border-color: var(--haihe-500);
+  transform: translateX(4px);
+}
+
+.marketplace-theme .mp-section-arrow-wrapper {
+  display: flex;
+  align-items: center;
+  transition: transform var(--transition-base);
+}
+
+.marketplace-theme .mp-section-arrow {
+  width: 18px;
+  height: 18px;
+}
+
+/* ========================================
+   22. 商品卡片 V4 样式
+   ======================================== */
+
+.marketplace-theme .mp-product-card-v4 {
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.marketplace-theme .mp-product-card-v4:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  border-color: var(--haihe-500);
+}
+
+.marketplace-theme .mp-product-image-wrapper {
+  position: relative;
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  background: white;
+}
+
+.marketplace-theme .mp-product-image-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.marketplace-theme .mp-product-image-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-hover) 50%, var(--bg-tertiary) 75%);
+  background-size: 200% 100%;
+  animation: mp-skeleton-loading 1.5s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marketplace-theme .mp-product-image-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+}
+
+.marketplace-theme .mp-product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 16px;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+}
+
+.marketplace-theme .mp-product-image.loaded {
+  opacity: 1;
+}
+
+.marketplace-theme .mp-product-card-v4:hover .mp-product-image {
+  transform: scale(1.08);
+}
+
+.marketplace-theme .mp-product-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease;
+}
+
+.marketplace-theme .mp-product-quick-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, var(--haihe-500) 0%, var(--haihe-600) 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.4);
+  transition: all 0.2s ease;
+}
+
+.marketplace-theme .mp-product-quick-add:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5);
+}
+
+.marketplace-theme .mp-product-tags {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 2;
+}
+
+.marketplace-theme .mp-product-tag {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.marketplace-theme .mp-product-tag.new {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+}
+
+.marketplace-theme .mp-product-tag.hot {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+.marketplace-theme .mp-product-tag.discount {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+}
+
+.marketplace-theme .mp-product-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 2;
+}
+
+.marketplace-theme .mp-action-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.marketplace-theme .mp-action-btn:hover {
+  background: white;
+  color: var(--haihe-500);
+  border-color: var(--haihe-500);
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md);
+}
+
+.marketplace-theme .mp-action-btn.active {
+  background: #fef2f2;
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.marketplace-theme .mp-action-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.marketplace-theme .mp-product-info {
+  padding: 16px;
+}
+
+.marketplace-theme .mp-product-brand {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.marketplace-theme .mp-product-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 10px;
+  min-height: 42px;
+}
+
+.marketplace-theme .mp-product-card-v4:hover .mp-product-name {
+  color: var(--haihe-600);
+}
+
+.marketplace-theme .mp-product-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.marketplace-theme .mp-stars {
+  display: flex;
+  gap: 2px;
+}
+
+.marketplace-theme .mp-product-rating-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.marketplace-theme .mp-product-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.marketplace-theme .mp-product-price {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.marketplace-theme .mp-product-original-price {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.marketplace-theme .mp-product-sold {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ========================================
+   23. 内容区块容器
+   ======================================== */
+
+.marketplace-theme .mp-content-section {
+  margin-bottom: 48px;
+}
+
+/* ========================================
+   24. 响应式适配
+   ======================================== */
+
+@media (max-width: 1279px) {
+  .marketplace-theme .mp-section-header-v2 {
+    padding: 16px 20px;
+  }
+
+  .marketplace-theme .mp-section-icon-wrapper {
+    width: 40px;
+    height: 40px;
+  }
+
+  .marketplace-theme .mp-section-icon {
+    font-size: 20px;
+  }
+
+  .marketplace-theme .mp-section-title {
+    font-size: 18px;
+  }
+
+  .marketplace-theme .mp-section-more-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 767px) {
+  .marketplace-theme .mp-section-header-v2 {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .marketplace-theme .mp-section-header-left {
+    width: 100%;
+  }
+
+  .marketplace-theme .mp-section-more-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .marketplace-theme .mp-section-count-badge {
+    display: none;
+  }
+
+  .marketplace-theme .mp-product-card-v4 {
+    border-radius: 12px;
+  }
+
+  .marketplace-theme .mp-product-info {
+    padding: 12px;
+  }
+
+  .marketplace-theme .mp-product-name {
+    font-size: 13px;
+    min-height: 39px;
+  }
+
+  .marketplace-theme .mp-product-price {
+    font-size: 18px;
+  }
+
+  .marketplace-theme .mp-product-actions {
+    top: 8px;
+    right: 8px;
+  }
+
+  .marketplace-theme .mp-action-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .marketplace-theme .mp-product-tags {
+    top: 8px;
+    left: 8px;
+  }
+
+  .marketplace-theme .mp-product-tag {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+}
+
+/* ========================================
+   18. 垂直 Tab 导航样式 - 新增
+   ======================================== */
+
+/* 侧边栏 V2 容器 */
+.marketplace-theme .mp-sidebar-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 垂直 Tab 容器 */
+.marketplace-theme .mp-vertical-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Tab 项 */
+.marketplace-theme .mp-tab-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  position: relative;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.marketplace-theme .mp-tab-item:hover {
+  background: var(--bg-hover);
+  transform: translateX(4px);
+  color: var(--text-primary);
+}
+
+.marketplace-theme .mp-tab-item.active {
+  background: linear-gradient(135deg, 
+    rgba(14, 165, 233, 0.1) 0%, 
+    rgba(14, 165, 233, 0.05) 100%
+  );
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.marketplace-theme .mp-tab-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 24px;
+  background: linear-gradient(180deg, 
+    var(--haihe-500) 0%, 
+    var(--haihe-600) 100%
+  );
+  border-radius: 0 4px 4px 0;
+}
+
+/* Tab 图标 */
+.marketplace-theme .mp-tab-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  transition: transform var(--transition-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marketplace-theme .mp-tab-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.marketplace-theme .mp-tab-item:hover .mp-tab-icon {
+  transform: scale(1.1);
+}
+
+.marketplace-theme .mp-tab-item.active .mp-tab-icon svg {
+  color: var(--color-primary);
+}
+
+/* Tab 标签 */
+.marketplace-theme .mp-tab-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+/* Tab Badge */
+.marketplace-theme .mp-tab-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.marketplace-theme .mp-tab-badge.default {
+  background: var(--haihe-100);
+  color: var(--haihe-700);
+}
+
+.marketplace-theme .mp-tab-badge.hot {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+}
+
+.marketplace-theme .mp-tab-badge.new {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+.marketplace-theme .mp-tab-badge.accent {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+
+/* 侧边栏内容区 */
+.marketplace-theme .mp-sidebar-content {
+  margin-top: var(--space-4);
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  max-height: calc(100vh - 400px);
+  overflow-y: auto;
+}
+
+/* ========================================
+   19. 侧边栏区块样式
+   ======================================== */
+
+.marketplace-theme .mp-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.marketplace-theme .mp-sidebar-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 分类筛选 */
+.marketplace-theme .mp-category-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.marketplace-theme .mp-category-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.marketplace-theme .mp-category-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.marketplace-theme .mp-category-item.active {
+  background: var(--haihe-50);
+  color: var(--haihe-600);
+  font-weight: 500;
+}
+
+.marketplace-theme .mp-category-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+/* 品牌筛选 */
+.marketplace-theme .mp-brand-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.marketplace-theme .mp-brand-item {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+}
+
+.marketplace-theme .mp-brand-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.marketplace-theme .mp-brand-item.active {
+  background: var(--haihe-50);
+  color: var(--haihe-600);
+  font-weight: 500;
+}
+
+/* 商品列表预览 */
+.marketplace-theme .mp-products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 商品预览卡片 */
+.marketplace-theme .mp-preview-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.marketplace-theme .mp-preview-card:hover {
+  background: var(--bg-hover);
+  transform: translateX(4px);
+  box-shadow: var(--shadow-sm);
+}
+
+.marketplace-theme .mp-preview-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.marketplace-theme .mp-preview-card:hover::after {
+  left: 100%;
+}
+
+.marketplace-theme .mp-preview-image {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+}
+
+.marketplace-theme .mp-preview-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-base);
+}
+
+.marketplace-theme .mp-preview-card:hover .mp-preview-image img {
+  transform: scale(1.1);
+}
+
+.marketplace-theme .mp-preview-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.marketplace-theme .mp-preview-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.marketplace-theme .mp-preview-price {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-top: 2px;
+}
+
+.marketplace-theme .mp-preview-sales {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* 品牌网格预览 */
+.marketplace-theme .mp-brands-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.marketplace-theme .mp-brand-preview-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.marketplace-theme .mp-brand-preview-item:hover {
+  background: var(--bg-hover);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.marketplace-theme .mp-brand-preview-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  font-size: 24px;
+  overflow: hidden;
+}
+
+.marketplace-theme .mp-brand-preview-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.marketplace-theme .mp-brand-preview-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.marketplace-theme .mp-brand-preview-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ========================================
+   20. 响应式适配优化
+   ======================================== */
+
+@media (max-width: 1023px) {
+  .marketplace-theme .mp-sidebar-v2 {
+    gap: var(--space-2);
+  }
+
+  .marketplace-theme .mp-vertical-tabs {
+    padding: 12px;
+  }
+
+  .marketplace-theme .mp-tab-item {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .marketplace-theme .mp-tab-label {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 767px) {
+  .marketplace-theme .mp-sidebar-content {
+    max-height: calc(100vh - 300px);
+  }
+
+  .marketplace-theme .mp-brands-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .marketplace-theme .mp-brand-preview-item {
+    padding: 8px;
+  }
+
+  .marketplace-theme .mp-brand-preview-logo {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .marketplace-theme .mp-brand-preview-name {
+    font-size: 12px;
+  }
+
+  .marketplace-theme .mp-brand-preview-count {
+    font-size: 10px;
+  }
 }

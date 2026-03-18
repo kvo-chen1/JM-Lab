@@ -78,6 +78,10 @@ function setCache(key, data) {
   cache.set(key, { data, timestamp: Date.now() })
 }
 
+function invalidateCache(key) {
+  cache.delete(key)
+}
+
 import pathModule from 'path'
 import { Readable } from 'stream'
 import http from 'http'
@@ -1567,7 +1571,7 @@ async function route(req, res, u, path) {
           const worksQuery = `
             SELECT w.*, u.username, u.avatar_url
             FROM works w
-            LEFT JOIN users u ON w.creator_id = u.id
+            LEFT JOIN users u ON w.creator_id = u.id::text
             WHERE w.status = 'published' AND w.visibility = 'public'${timeFilter}
             ORDER BY w.${sortBy} DESC NULLS LAST
             LIMIT $1
@@ -3405,10 +3409,12 @@ async function route(req, res, u, path) {
     }
 
     const eventId = path.match(/^\/api\/events\/([^/]+)$/)[1]
+    console.log('[API] Delete event request:', { path, eventId, userId: decoded.userId })
 
     try {
       // 先检查活动是否存在且属于当前用户
       const event = await eventDB.getEvent(eventId)
+      console.log('[API] Get event result:', { eventId, found: !!event, eventOrganizerId: event?.organizer_id })
       if (!event) {
         sendJson(res, 404, { code: 1, message: '活动不存在' })
         return
@@ -8085,6 +8091,7 @@ async function route(req, res, u, path) {
   }
 
   // 管理员获取待审核作品列表
+  // 注意：待审核功能已删除，直接返回空数组
   if (req.method === 'GET' && path === '/api/admin/pending-works') {
     const decoded = verifyRequestToken(req)
     if (!decoded) {
@@ -8100,31 +8107,14 @@ async function route(req, res, u, path) {
         return
       }
 
-      const { rows: works } = await db.query(`
-        SELECT w.id, w.title, w.thumbnail, w.creator_id, w.created_at, w.status,
-               u.username as creator_name
-        FROM works w
-        LEFT JOIN users u ON w.creator_id = u.id
-        WHERE w.status = 'pending'
-        ORDER BY w.created_at DESC
-        LIMIT 10
-      `)
-
+      // 待审核功能已删除，返回空数组
       sendJson(res, 200, {
         code: 0,
-        data: works.map(w => ({
-          id: w.id,
-          title: w.title,
-          creator: w.creator_name || '未知用户',
-          creatorId: w.creator_id,
-          thumbnail: w.thumbnail,
-          submitTime: w.created_at,
-          status: w.status
-        }))
+        data: []
       })
     } catch (error) {
       console.error('[API] 获取待审核作品失败:', error)
-      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取待审核作品失败' })
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取待审核作品失败: ' + error.message })
     }
     return
   }
@@ -8304,7 +8294,7 @@ async function route(req, res, u, path) {
         SELECT w.id, w.title, w.view_count, w.likes, w.creator_id,
                u.username as author_name
         FROM works w
-        LEFT JOIN users u ON w.creator_id = u.id
+        LEFT JOIN users u ON w.creator_id = u.id::text
         ORDER BY w.view_count DESC
         LIMIT $1
       `, [limit])
@@ -9658,7 +9648,7 @@ async function route(req, res, u, path) {
           w.created_at,
           u.username
         FROM works w
-        LEFT JOIN users u ON w.creator_id = u.id
+        LEFT JOIN users u ON w.creator_id = u.id::text
         WHERE w.creator_id = $1
         ORDER BY w.views DESC
         LIMIT $2

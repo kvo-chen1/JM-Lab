@@ -1,7 +1,7 @@
 /**
- * 三栏布局组件 V2
- * 中间内容区 + 右侧信息栏（左侧栏已移除）
- * 优化：更现代的布局、更好的响应式支持
+ * 三栏布局组件 V3
+ * 左侧栏 + 中间内容区 + 右侧信息栏
+ * 优化：支持左侧边栏、更现代的布局、更好的响应式支持
  */
 import React, { ReactNode } from 'react';
 import { motion } from 'framer-motion';
@@ -15,6 +15,7 @@ interface ThreeColumnLayoutProps {
 }
 
 const ThreeColumnLayout: React.FC<ThreeColumnLayoutProps> = ({
+  leftSidebar,
   rightSidebar,
   children,
   className = '',
@@ -29,7 +30,21 @@ const ThreeColumnLayout: React.FC<ThreeColumnLayoutProps> = ({
     <div className={`min-h-screen marketplace-theme ${themeClass} ${darkClass} ${className}`}>
       <div className="max-w-[1600px] mx-auto">
         <div className="flex gap-5 lg:gap-6 px-3 sm:px-4 lg:px-6 py-5 lg:py-6">
-          {/* 中间内容区 - 占满左侧空间 */}
+          {/* 左侧栏 - 在平板及以下隐藏 */}
+          {leftSidebar && (
+            <motion.aside
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+              className="hidden lg:block w-[280px] flex-shrink-0"
+            >
+              <div className="sticky top-5 lg:top-6">
+                {leftSidebar}
+              </div>
+            </motion.aside>
+          )}
+
+          {/* 中间内容区 */}
           <motion.main
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

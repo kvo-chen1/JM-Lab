@@ -4,13 +4,11 @@
  */
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart,
   ShoppingCart,
   Trash2,
   ArrowLeft,
-  Check,
   Loader2,
   AlertCircle
 } from 'lucide-react';
@@ -18,6 +16,7 @@ import { toast } from 'sonner';
 
 // 组件
 import { Button } from '@/components/ui/Button';
+import ProductCardV4 from '@/components/marketplace/ProductCardV4';
 
 // Hooks
 import { useUserFavorites, useAddToCart, useRemoveFromFavorites } from '@/hooks/useProducts';
@@ -199,7 +198,7 @@ const FavoritesPage: React.FC = () => {
   }), [favorites?.length, selectedItems.size]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 marketplace-theme">
       {/* 顶部导航栏 */}
       <div className="sticky top-0 z-30 bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -340,112 +339,18 @@ const FavoritesPage: React.FC = () => {
             )}
 
             {/* 商品网格 */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              <AnimatePresence mode="popLayout">
-                {favorites?.map((product: Product, index: number) => (
-                  <motion.div
-                    key={product.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ delay: index * 0.05 }}
-                    className={`bg-white rounded-xl overflow-hidden border transition-all ${
-                      selectedItems.has(product.id)
-                        ? 'border-sky-500 ring-2 ring-sky-500/20'
-                        : 'border-gray-200 hover:border-sky-300'
-                    }`}
-                  >
-                    {/* 商品图片 */}
-                    <div
-                      className="relative aspect-square cursor-pointer overflow-hidden bg-gray-100"
-                      onClick={() => {
-                        if (isBatchMode) {
-                          toggleSelection(product.id);
-                        } else {
-                          navigate(`/marketplace/product/${product.id}`);
-                        }
-                      }}
-                    >
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                      />
-                      
-                      {/* 选中标记 */}
-                      {isBatchMode && (
-                        <div className={`absolute top-2 left-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                          selectedItems.has(product.id)
-                            ? 'bg-sky-500 border-sky-500'
-                            : 'bg-white/90 border-gray-300'
-                        }`}>
-                          {selectedItems.has(product.id) && (
-                            <Check className="w-4 h-4 text-white" />
-                          )}
-                        </div>
-                      )}
-
-                      {/* 下架标记 */}
-                      {!product.isActive && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <span className="px-3 py-1 bg-gray-900 text-white text-xs rounded-full">
-                            已下架
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 商品信息 */}
-                    <div className="p-3">
-                      <h3
-                        className="font-medium text-gray-900 text-sm line-clamp-2 mb-2 cursor-pointer hover:text-sky-600 transition-colors"
-                        onClick={() => navigate(`/marketplace/product/${product.id}`)}
-                      >
-                        {product.name}
-                      </h3>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-xs text-gray-400">¥</span>
-                          <span className="text-lg font-bold text-sky-600">
-                            {product.price}
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-400">
-                          {product.salesCount || 0}人付款
-                        </span>
-                      </div>
-
-                      {/* 操作按钮 */}
-                      {!isBatchMode && (
-                        <div className="flex items-center gap-2 mt-3">
-                          <button
-                            onClick={() => handleAddToCart(product)}
-                            disabled={addingToCart.has(product.id) || !product.isActive}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-sky-500 text-white text-sm font-medium rounded-lg hover:bg-sky-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                            type="button"
-                          >
-                            {addingToCart.has(product.id) ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <ShoppingCart className="w-4 h-4" />
-                            )}
-                            加入购物车
-                          </button>
-                          <button
-                            onClick={() => handleRemoveFavorite(product.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            type="button"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+              {favorites?.map((product: Product, index: number) => (
+                <ProductCardV4
+                  key={product.id}
+                  product={product}
+                  index={index}
+                  onAddToCart={handleAddToCart}
+                  onToggleFavorite={handleRemoveFavorite}
+                  onView={(p) => navigate(`/marketplace/product/${p.id}`)}
+                  isFavorite={true}
+                />
+              ))}
             </div>
           </>
         )}

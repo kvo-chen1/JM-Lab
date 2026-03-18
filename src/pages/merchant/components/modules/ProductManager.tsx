@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { merchantService } from '@/services/merchantService';
+import { useMerchantStatus } from '@/hooks/useMerchant';
 import { toast } from 'sonner';
 import ProductPublishForm from '../ProductPublishForm';
 
@@ -45,6 +46,8 @@ const ProductManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [merchantId, setMerchantId] = useState<string>('');
   const [showPublishForm, setShowPublishForm] = useState(false);
+  
+  const { isMerchant, status: merchantStatus } = useMerchantStatus();
 
   // 获取商家信息和商品数据
   const fetchProducts = async () => {
@@ -120,7 +123,11 @@ const ProductManager: React.FC = () => {
   };
 
   const handlePublishProduct = () => {
-    console.log('点击发布商品按钮, merchantId:', merchantId);
+    if (!isMerchant || merchantStatus !== 'approved') {
+      toast.error('您需要先入驻商家并通过审核才能发布商品');
+      return;
+    }
+    console.log('点击发布商品按钮，merchantId:', merchantId);
     setShowPublishForm(true);
   };
 

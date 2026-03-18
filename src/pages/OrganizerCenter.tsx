@@ -1843,10 +1843,17 @@ export default function OrganizerCenter() {
                         <span className="font-medium">创建新活动</span>
                       </button>
                       <button
-                        onClick={() => navigate('/organizer/brand-showcase')}
+                        onClick={() => navigate('/organizer/brand-profile')}
                         className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors text-left"
                       >
                         <Building2 className="w-5 h-5" />
+                        <span>品牌信息编辑</span>
+                      </button>
+                      <button
+                        onClick={() => navigate('/organizer/brand-showcase')}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors text-left"
+                      >
+                        <ImageIcon className="w-5 h-5" />
                         <span>品牌展示管理</span>
                       </button>
                       <button

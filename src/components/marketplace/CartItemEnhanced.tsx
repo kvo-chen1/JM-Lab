@@ -6,11 +6,13 @@ import { Checkbox } from '@/components/ui/Checkbox';
 interface CartProduct {
   id: string;
   name: string;
-  coverImage: string;
+  coverImage?: string;
+  cover_image?: string;
   price: number;
   originalPrice?: number;
   brand?: string;
   spec?: string;
+  [key: string]: any;
 }
 
 interface CartItemEnhancedProps {
@@ -38,6 +40,17 @@ const CartItemEnhanced: React.FC<CartItemEnhancedProps> = ({
   onView
 }) => {
   const { product, quantity, selected, isValid = true, stockStatus = 'in_stock' } = item;
+  
+  // 调试输出
+  console.log('[CartItemEnhanced] product:', {
+    id: product?.id,
+    name: product?.name,
+    cover_image: product?.cover_image,
+    coverImage: product?.coverImage,
+    images: product?.images,
+    allKeys: product ? Object.keys(product) : []
+  });
+  
   const subtotal = product.price * quantity;
   const discount = product.originalPrice ? product.originalPrice - product.price : 0;
   const discountPercent = product.originalPrice
@@ -64,20 +77,28 @@ const CartItemEnhanced: React.FC<CartItemEnhancedProps> = ({
         <div className="flex-shrink-0">
           <motion.div
             whileHover={{ scale: 1.02 }}
-            className="w-28 h-28 rounded-xl overflow-hidden bg-gray-100 cursor-pointer"
+            className="w-28 h-28 rounded-xl overflow-hidden bg-white cursor-pointer flex items-center justify-center"
             onClick={onView}
           >
-            {product.coverImage ? (
-              <img
-                src={product.coverImage}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                <span className="text-xs text-gray-400">暂无图片</span>
-              </div>
-            )}
+            {(() => {
+              // 获取图片URL：优先使用 cover_image，否则使用 images 数组的第一张
+              const imageUrl = product.cover_image || product.coverImage || 
+                (product.images && Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : null);
+              
+              console.log('[CartItemEnhanced] 图片URL:', { name: product.name, imageUrl, cover_image: product.cover_image, images: product.images });
+              
+              return imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={product.name}
+                  className="w-full h-full object-contain p-2"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <span className="text-xs text-gray-400">暂无图片</span>
+                </div>
+              );
+            })()}
           </motion.div>
         </div>
 

@@ -110,17 +110,20 @@ const ProductComparison: React.FC<ProductComparisonProps> = ({
                     onClick={() => onProductClick?.(product)}
                   >
                     <div className="aspect-square rounded-lg overflow-hidden bg-white mb-3">
-                      {product.cover_image ? (
-                        <img
-                          src={product.cover_image}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                          <span className="text-xs text-gray-400">暂无图片</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const imageUrl = product.cover_image || (product.images?.[0]);
+                        return imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={product.name}
+                            className="w-full h-full object-contain p-4"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                            <span className="text-xs text-gray-400">暂无图片</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                     
                     <h3 className="font-medium text-gray-900 text-sm line-clamp-2 mb-2">

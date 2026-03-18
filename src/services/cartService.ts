@@ -136,13 +136,21 @@ class CartService {
       // 批量获取商品信息
       const productsMap = new Map();
       if (productIds.length > 0) {
-        const { data: products } = await supabase
+        const { data: products, error: productsError } = await supabase
           .from('products')
           .select('*')
           .in('id', productIds);
 
+        console.log('[CartService] 获取商品结果:', { products, productsError, productIds });
+
         if (products) {
           products.forEach(product => {
+            console.log('[CartService] 商品数据:', {
+              id: product.id,
+              name: product.name,
+              cover_image: product.cover_image,
+              images: product.images
+            });
             productsMap.set(product.id, product);
           });
         }

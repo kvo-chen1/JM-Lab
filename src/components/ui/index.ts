@@ -1,3 +1,6 @@
+export { Card } from './Card';
+export type { CardProps, CardVariant, CardSize, CardShadow } from './Card';
+
 export { StatusBadge } from './StatusBadge';
 export type { StatusBadgeProps, StatusVariant } from './StatusBadge';
 

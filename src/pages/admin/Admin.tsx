@@ -622,7 +622,7 @@ export default function Admin() {
       // 转化漏斗
       const totalUsers = users?.length || 0;
       const totalWorksCount = works?.length || 0;
-      const paidUsers = ordersByStatus?.filter(o => o.status === 'paid').length || 0;
+      const paidUsers = (ordersByStatus || []).filter(o => o.status === 'paid').length || 0;
       const uniqueAuthors = new Set(works?.map(w => w.user_id)).size;
 
       setConversionFunnel([
@@ -656,7 +656,7 @@ export default function Admin() {
       // 流量来源
       const directAccessUsers = userHistoryData?.length || 0;
       const searchEngineUsers = Math.floor(totalUsers * 0.3);
-      const socialUsers = userHistoryData?.filter(u => u.action_type === 'share_work').length || 0;
+      const socialUsers = (userHistoryData || []).filter(u => u.action_type === 'share_work').length || 0;
       const externalLinkUsers = Math.floor(totalUsers * 0.15);
       const emailUsers = Math.floor(totalUsers * 0.05);
       const totalTraffic = directAccessUsers + searchEngineUsers + socialUsers + externalLinkUsers + emailUsers || 1;
@@ -1113,7 +1113,7 @@ export default function Admin() {
           month3: data.users > 0 ? Math.round(data.revenue[1] / data.users) : 0,
           month6: data.users > 0 ? Math.round(data.revenue[2] / data.users) : 0,
           month12: data.users > 0 ? Math.round(data.revenue[3] / data.users) : null,
-          retention: data.users > 0 ? Math.round((data.revenue.filter(r => r > 0).length / 4) * 100) : 0,
+          retention: data.users > 0 && Array.isArray(data.revenue) ? Math.round((data.revenue.filter(r => r > 0).length / 4) * 100) : 0,
         }));
 
       setUserLTVData(ltvData.length > 0 ? ltvData : [
@@ -1136,7 +1136,7 @@ export default function Admin() {
       // 计算7日活跃用户
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const users7Day = userActivity?.filter(u => {
+      const users7Day = (userActivity || []).filter(u => {
         const activityDate = new Date(u.created_at || u.last_active || Date.now());
         return activityDate >= sevenDaysAgo;
       }).length || 0;

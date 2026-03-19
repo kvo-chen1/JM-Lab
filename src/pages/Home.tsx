@@ -908,7 +908,8 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               { title: '创作工具', desc: 'AI辅助文案与图像生成', icon: 'tools', path: '/create', img: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=80' },
-              { title: '共创向导', desc: '新手友好的全流程引导', icon: 'hat-wizard', path: '/wizard', img: 'https://images.unsplash.com/photo-1596496050827-8299e0220de1?w=800&q=80' }
+              { title: '共创向导', desc: '新手友好的全流程引导', icon: 'hat-wizard', path: '/wizard', img: 'https://images.unsplash.com/photo-1596496050827-8299e0220de1?w=800&q=80' },
+              { title: 'AI助手', desc: '津小脉智能创作助手', icon: 'robot', path: '/ai-assistant', img: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80' }
             ].map((item, idx) => (
               <motion.div 
                 key={idx}

@@ -1364,6 +1364,7 @@ async function handleGetWorks(req, res) {
   try {
     const pool = await getDbPool();
     if (!pool) {
+      console.log('[API] Get works: Database not available');
       return res.status(200).json({ code: 0, data: [], message: 'Database not available' });
     }
 
@@ -1389,6 +1390,8 @@ async function handleGetWorks(req, res) {
     const creatorId = url.searchParams.get('creator_id');
     const limit = parseInt(url.searchParams.get('limit') || '50');
 
+    console.log('[API] Get works - creatorId:', creatorId, 'limit:', limit);
+
     let query = 'SELECT * FROM works WHERE status = $1';
     let params = ['published'];
 
@@ -1401,7 +1404,11 @@ async function handleGetWorks(req, res) {
     query += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
     params.push(limit);
 
+    console.log('[API] Get works query:', query, 'params:', params);
+
     const result = await queryWithRetry(query, params);
+
+    console.log('[API] Get works result:', result.rows.length, 'items');
 
     const works = result.rows.map(work => ({
       id: work.id,
@@ -1506,6 +1513,7 @@ async function handleFollows(req, res, path) {
 
     // 获取关注列表
     if (path === '/follows/following') {
+      console.log('[API] Getting following list for user:', userId);
       const result = await queryWithRetry(`
         SELECT f.*, u.username, u.avatar_url
         FROM follows f
@@ -1514,13 +1522,14 @@ async function handleFollows(req, res, path) {
         ORDER BY f.created_at DESC
       `, [userId]);
 
+      console.log('[API] Following list result:', result.rows.length, 'items');
       return res.status(200).json({
         code: 0,
         data: result.rows.map(row => ({
-          id: row.id,
+          id: row.following_id,
           userId: row.following_id,
           username: row.username,
-          avatarUrl: row.avatar_url,
+          avatar_url: row.avatar_url,
           createdAt: row.created_at
         }))
       });
@@ -1528,6 +1537,7 @@ async function handleFollows(req, res, path) {
 
     // 获取粉丝列表
     if (path === '/follows/followers') {
+      console.log('[API] Getting followers list for user:', userId);
       const result = await queryWithRetry(`
         SELECT f.*, u.username, u.avatar_url
         FROM follows f
@@ -1536,13 +1546,14 @@ async function handleFollows(req, res, path) {
         ORDER BY f.created_at DESC
       `, [userId]);
 
+      console.log('[API] Followers list result:', result.rows.length, 'items');
       return res.status(200).json({
         code: 0,
         data: result.rows.map(row => ({
-          id: row.id,
+          id: row.follower_id,
           userId: row.follower_id,
           username: row.username,
-          avatarUrl: row.avatar_url,
+          avatar_url: row.avatar_url,
           createdAt: row.created_at
         }))
       });
@@ -1563,7 +1574,7 @@ async function handleFollows(req, res, path) {
     return res.status(200).json({ code: 0, data: [] });
   } catch (error) {
     console.error('[API] Follows error:', error);
-    return res.status(200).json({ code: 0, data: { isFollowing: false, followers: 0, following: 0 } });
+    return res.status(200).json({ code: 0, data: [] });
   }
 }
 

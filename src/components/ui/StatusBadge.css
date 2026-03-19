@@ -1,0 +1,207 @@
+/**
+ * StatusBadge 组件样式
+ */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+  border-radius: var(--radius-full);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+/* 尺寸变体 */
+.status-badge--sm {
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  height: 20px;
+}
+
+.status-badge--sm .status-badge__dot {
+  width: 5px;
+  height: 5px;
+}
+
+.status-badge--md {
+  padding: 4px 12px;
+  font-size: var(--text-sm);
+  height: 24px;
+}
+
+.status-badge--md .status-badge__dot {
+  width: 6px;
+  height: 6px;
+}
+
+.status-badge--lg {
+  padding: 6px 16px;
+  font-size: var(--text-base);
+  height: 32px;
+}
+
+.status-badge--lg .status-badge__dot {
+  width: 8px;
+  height: 8px;
+}
+
+/* 状态指示点 */
+.status-badge__dot {
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+/* 状态变体 - 审核中 */
+.status-badge--pending {
+  background-color: var(--color-warning-50);
+  color: var(--color-warning-700);
+}
+
+.status-badge--pending .status-badge__dot {
+  background-color: var(--color-warning-500);
+  animation: pulse 2s var(--ease-in-out) infinite;
+}
+
+/* 状态变体 - 已通过 */
+.status-badge--approved {
+  background-color: var(--color-success-50);
+  color: var(--color-success-700);
+}
+
+.status-badge--approved .status-badge__dot {
+  background-color: var(--color-success-500);
+}
+
+/* 状态变体 - 已驳回 */
+.status-badge--rejected {
+  background-color: var(--color-error-50);
+  color: var(--color-error-700);
+}
+
+.status-badge--rejected .status-badge__dot {
+  background-color: var(--color-error-500);
+}
+
+/* 状态变体 - 进行中 */
+.status-badge--active {
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+
+.status-badge--active .status-badge__dot {
+  background-color: var(--color-primary-500);
+  animation: pulse 2s var(--ease-in-out) infinite;
+}
+
+/* 状态变体 - 已结束 */
+.status-badge--closed {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.status-badge--closed .status-badge__dot {
+  background-color: var(--color-gray-400);
+}
+
+/* 状态变体 - 草稿 */
+.status-badge--draft {
+  background-color: var(--color-gray-50);
+  color: var(--color-gray-500);
+  border: 1px dashed var(--color-gray-300);
+}
+
+.status-badge--draft .status-badge__dot {
+  background-color: var(--color-gray-400);
+}
+
+/* 状态变体 - 已完成 */
+.status-badge--completed {
+  background-color: var(--color-success-50);
+  color: var(--color-success-700);
+}
+
+.status-badge--completed .status-badge__dot {
+  background-color: var(--color-success-500);
+}
+
+/* 悬停效果 */
+.status-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 文本 */
+.status-badge__text {
+  line-height: 1;
+}
+
+/* 脉冲动画 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+/* ========================================
+   暗色模式适配
+   ======================================== */
+
+[data-theme="dark"] .status-badge--pending {
+  background-color: rgba(245, 158, 11, 0.15);
+}
+
+[data-theme="dark"] .status-badge--approved {
+  background-color: rgba(34, 197, 94, 0.15);
+}
+
+[data-theme="dark"] .status-badge--rejected {
+  background-color: rgba(239, 68, 68, 0.15);
+}
+
+[data-theme="dark"] .status-badge--active {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+[data-theme="dark"] .status-badge--closed {
+  background-color: rgba(107, 114, 128, 0.15);
+}
+
+[data-theme="dark"] .status-badge--draft {
+  background-color: rgba(107, 114, 128, 0.1);
+  border-color: var(--color-gray-600);
+}
+
+[data-theme="dark"] .status-badge--completed {
+  background-color: rgba(34, 197, 94, 0.15);
+}
+
+/* ========================================
+   无障碍支持
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .status-badge__dot {
+    animation: none !important;
+  }
+  
+  .status-badge {
+    transition: none;
+  }
+}
+
+/* 高对比度模式 */
+@media (prefers-contrast: high) {
+  .status-badge {
+    border: 1px solid currentColor;
+  }
+  
+  .status-badge--draft {
+    border-style: solid;
+  }
+}

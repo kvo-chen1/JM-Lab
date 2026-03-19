@@ -11,9 +11,11 @@ import './tianjin.css';
 import './tianjin-enhanced.css';
 import './poizon.css';
 import './delta-force.css';
+import './cyber-brutalist.css';
+import './pink-brutalist.css';
 
 // 导出主题类型
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force' | 'cyber-brutalist' | 'pink-brutalist';
 
 // 导出主题配置接口
 export interface ThemeConfig {

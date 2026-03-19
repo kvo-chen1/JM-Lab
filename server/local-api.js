@@ -28,11 +28,10 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || process.env.VITE_DEEPSE
 const MODELS = {
   // 大语言模型（文本对话）
   text: {
-    'qwen3.5-flash': { name: '通义千问3.5-Flash', type: 'text', provider: 'qwen' },
-    'qwen3.5-plus': { name: '通义千问3.5-Plus', type: 'text', provider: 'qwen' },
-    'qwen3.5-flash-2026-02-23': { name: '通义千问3.5-Flash(2026-02-23)', type: 'text', provider: 'qwen' },
-    'qwen3.5-plus-2026-02-15': { name: '通义千问3.5-Plus(2026-02-15)', type: 'text', provider: 'qwen' },
-    'qwen-plus': { name: '通义千问-Plus', type: 'text', provider: 'qwen' },
+    'qwen3.5-flash': { name: '通义千问 3.5-Flash', type: 'text', provider: 'qwen' },
+    'qwen3.5-plus': { name: '通义千问 3.5-Plus', type: 'text', provider: 'qwen' },
+    'qwen3.5-flash-2026-02-23': { name: '通义千问 3.5-Flash(2026-02-23)', type: 'text', provider: 'qwen' },
+    'qwen3.5-plus-2026-02-15': { name: '通义千问 3.5-Plus(2026-02-15)', type: 'text', provider: 'qwen' },
     'moonshot-v1-8k': { name: 'Kimi-8K', type: 'text', provider: 'kimi' },
     'deepseek-chat': { name: 'DeepSeek-Chat', type: 'text', provider: 'deepseek' },
   },

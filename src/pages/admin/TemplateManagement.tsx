@@ -28,10 +28,8 @@ const USE_CASE_OPTIONS = [
 
 // 模型选项
 const MODEL_OPTIONS = [
-  { value: 'doubao-pro-32k', label: '豆包 Pro' },
+  { value: 'qwen', label: '通义千问' },
   { value: 'kimi', label: 'Kimi' },
-  { value: 'deepseek', label: 'DeepSeek' },
-  { value: 'gpt-4', label: 'GPT-4' },
 ];
 
 export default function TemplateManagement() {

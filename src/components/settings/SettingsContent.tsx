@@ -286,7 +286,7 @@ function renderCategoryContent(props: SettingsContentProps) {
             <SettingItem
               icon={Cpu}
               title="AI 模型配置"
-              description="配置 Kimi、DeepSeek 等AI服务的API密钥"
+              description="配置 Kimi、通义千问等AI服务的API密钥"
             >
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-600 dark:text-gray-400">

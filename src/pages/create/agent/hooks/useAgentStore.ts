@@ -174,6 +174,10 @@ interface AgentActions {
   resetRequirementCollection: () => void;
   incrementQuestionCount: () => void;
   setLastSummaryAt: (count: number) => void;
+
+  // 引用管理
+  setPendingMention: (mention: { type: 'work' | 'brand' | 'style'; name: string; id?: string } | null) => void;
+  clearPendingMention: () => void;
 }
 
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -212,7 +216,9 @@ const initialState: AgentState = {
     assignmentShown: false,
     questionCount: 0,
     lastSummaryAt: 0
-  }
+  },
+  // 待处理的引用
+  pendingMention: null
 };
 
 export const useAgentStore = create<AgentState & AgentActions>()(
@@ -602,7 +608,11 @@ export const useAgentStore = create<AgentState & AgentActions>()(
           ...state.requirementCollection,
           lastSummaryAt: count
         }
-      }))
+      })),
+
+      // 引用管理
+      setPendingMention: (mention) => set({ pendingMention: mention }),
+      clearPendingMention: () => set({ pendingMention: null })
     }},
     {
       name: 'agent-store',

@@ -1,0 +1,1020 @@
+/* ============================================
+   赛博粗犷主义像素风主题 - Cyber-Brutalist Pixel Art Theme
+   设计理念：经典像素艺术 + 现代赛博朋克美学
+   主色调：深靛蓝背景 + 霓虹强调色
+   核心特点：硬朗边框、厚重的纯黑偏移阴影、像素步进感
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+.cyber-brutalist {
+  /* ============================================
+     核心色彩系统 - Cyberpunk Palette
+     ============================================ */
+
+  /* 主色调 - 霓虹色系 */
+  --color-primary: #39ff14;
+  --color-primary-hover: #5fff3d;
+  --color-primary-light: #7fff6d;
+  --color-primary-dark: #2ecc0f;
+  --color-primary-rgb: 57, 255, 20;
+
+  /* 辅助色 - 电光蓝 */
+  --color-secondary: #0d7ff2;
+  --color-secondary-hover: #2494ff;
+  --color-secondary-light: #4aaff5;
+  --color-secondary-dark: #0a5fc4;
+  --color-secondary-rgb: 13, 127, 242;
+
+  /* 强调色 - 霓虹紫 */
+  --color-accent: #bc13fe;
+  --color-accent-hover: #cc4fff;
+  --color-accent-light: #d580ff;
+  --color-accent-dark: #960ece;
+  --color-accent-rgb: 188, 19, 254;
+
+  /* 功能色 */
+  --color-success: #39ff14;
+  --color-success-light: #7fff6d;
+  --color-success-dark: #2ecc0f;
+  --color-success-rgb: 57, 255, 20;
+
+  --color-warning: #ff6b35;
+  --color-warning-light: #ff9966;
+  --color-warning-dark: #cc5529;
+  --color-warning-rgb: 255, 107, 53;
+
+  --color-error: #ff0055;
+  --color-error-light: #ff6699;
+  --color-error-dark: #cc0044;
+  --color-error-rgb: 255, 0, 85;
+
+  --color-info: #0d7ff2;
+  --color-info-light: #4aaff5;
+  --color-info-dark: #0a5fc4;
+  --color-info-rgb: 13, 127, 242;
+
+  /* ============================================
+     背景层级系统 - Brutalist Backgrounds
+     ============================================ */
+
+  --bg-primary: #101922;
+  --bg-primary-rgb: 16, 25, 34;
+
+  --bg-secondary: #1a1d2e;
+  --bg-secondary-rgb: 26, 29, 46;
+
+  --bg-tertiary: #252a3d;
+  --bg-tertiary-rgb: 37, 42, 61;
+
+  --bg-active: #2f3547;
+  --bg-active-rgb: 47, 53, 71;
+
+  --bg-hover: #353b4f;
+  --bg-hover-rgb: 53, 59, 79;
+
+  --bg-overlay: rgba(16, 25, 34, 0.95);
+  --bg-overlay-light: rgba(16, 25, 34, 0.8);
+
+  --bg-highlight: rgba(57, 255, 20, 0.08);
+
+  /* ============================================
+     文本层级系统 - Text Hierarchy
+     ============================================ */
+
+  --text-primary: #ffffff;
+  --text-primary-rgb: 255, 255, 255;
+
+  --text-secondary: #c8c8d0;
+  --text-secondary-rgb: 200, 200, 208;
+
+  --text-tertiary: #8888a0;
+  --text-tertiary-rgb: 136, 136, 160;
+
+  --text-muted: #555570;
+  --text-muted-rgb: 85, 85, 112;
+
+  --text-disabled: #3a3a50;
+  --text-disabled-rgb: 58, 58, 80;
+
+  --text-inverse: #101922;
+  --text-inverse-rgb: 16, 25, 34;
+
+  --text-link: #39ff14;
+  --text-link-hover: #5fff3d;
+
+  /* ============================================
+     边框系统 - Brutalist Borders (2px/4px Solid Black)
+     ============================================ */
+
+  --border-primary: #000000;
+  --border-primary-rgb: 0, 0, 0;
+
+  --border-secondary: #1a1d2e;
+  --border-secondary-rgb: 26, 29, 46;
+
+  --border-tertiary: #2f3547;
+  --border-tertiary-rgb: 47, 53, 71;
+
+  --border-accent: #39ff14;
+  --border-accent-rgb: 57, 255, 20;
+
+  --border-focus: rgba(57, 255, 20, 0.6);
+
+  /* ============================================
+     阴影系统 - Pixel Offset Shadows (硬边不透明)
+     ============================================ */
+
+  --shadow-xs: 2px 2px 0px 0px #000000;
+  --shadow-sm: 2px 2px 0px 0px #000000;
+  --shadow-md: 4px 4px 0px 0px #000000;
+  --shadow-lg: 6px 6px 0px 0px #000000;
+  --shadow-xl: 8px 8px 0px 0px #000000;
+
+  --shadow-inner: inset 2px 2px 0px rgba(0, 0, 0, 0.5);
+
+  /* ============================================
+     发光效果 - Neon Glow Effects
+     ============================================ */
+
+  --glow-primary: 0 0 8px #39ff14, 0 0 16px rgba(57, 255, 20, 0.4);
+  --glow-primary-sm: 0 0 4px #39ff14, 0 0 8px rgba(57, 255, 20, 0.3);
+  --glow-primary-lg: 0 0 12px #39ff14, 0 0 24px rgba(57, 255, 20, 0.5);
+
+  --glow-secondary: 0 0 8px #0d7ff2, 0 0 16px rgba(13, 127, 242, 0.4);
+  --glow-accent: 0 0 8px #bc13fe, 0 0 16px rgba(188, 19, 254, 0.4);
+
+  --glow-success: 0 0 8px #39ff14, 0 0 16px rgba(57, 255, 20, 0.4);
+  --glow-warning: 0 0 8px #ff6b35, 0 0 16px rgba(255, 107, 53, 0.4);
+  --glow-error: 0 0 8px #ff0055, 0 0 16px rgba(255, 0, 85, 0.4);
+  --glow-info: 0 0 8px #0d7ff2, 0 0 16px rgba(13, 127, 242, 0.4);
+
+  --focus-ring: 0 0 0 3px rgba(57, 255, 20, 0.25);
+  --focus-ring-error: 0 0 0 3px rgba(255, 0, 85, 0.25);
+
+  /* ============================================
+     渐变效果 - Cyberpunk Gradients
+     ============================================ */
+
+  --gradient-primary: linear-gradient(135deg, #39ff14 0%, #0d7ff2 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #5fff3d 0%, #2494ff 100%);
+
+  --gradient-secondary: linear-gradient(135deg, #0d7ff2 0%, #bc13fe 100%);
+  --gradient-accent: linear-gradient(135deg, #bc13fe 0%, #ff0055 100%);
+
+  --gradient-bg-subtle: linear-gradient(180deg, #101922 0%, #1a1d2e 100%);
+  --gradient-bg-card: linear-gradient(145deg, #1a1d2e 0%, #252a3d 100%);
+  --gradient-bg-elevated: linear-gradient(145deg, #252a3d 0%, #2f3547 100%);
+
+  /* ============================================
+     圆角系统 - Pixel Perfect (强制方形)
+     ============================================ */
+
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-full: 0px;
+
+  /* ============================================
+     过渡动画 - Stepped Transitions
+     ============================================ */
+
+  --transition-fast: 100ms steps(2);
+  --transition-normal: 180ms steps(3);
+  --transition-slow: 280ms steps(4);
+
+  /* ============================================
+     字体系统 - Typography System
+     ============================================ */
+
+  --font-pixel: 'VT323', 'Courier New', monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ============================================
+     赛博粗犷主义特色变量
+     ============================================ */
+
+  --grid-size: 40px;
+  --grid-color: rgba(57, 255, 20, 0.03);
+  --scanline-height: 2px;
+  --scanline-opacity: 0.06;
+}
+
+/* ============================================
+   赛博粗犷主义特效 - Cyber-Brutalist Effects
+   ============================================ */
+
+/* 1. 扫描线效果 (CRT Scanlines) */
+.cyber-brutalist::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 50%,
+    rgba(0, 0, 0, 0.08) 50%
+  );
+  background-size: 100% var(--scanline-height);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: var(--scanline-opacity);
+}
+
+/* 2. 战术网格背景 (Tactical Grid) */
+.cyber-brutalist::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.8;
+}
+
+/* 3. 边框高光效果 (Pixel Border Highlight) */
+.cyber-brutalist .brutalist-border {
+  position: relative;
+  border: 2px solid var(--border-primary);
+}
+
+.cyber-brutalist .brutalist-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 1px 1px 0px rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+/* ============================================
+   全局样式覆盖 - Global Overrides
+   ============================================ */
+
+/* 强制所有元素方形圆角 */
+.cyber-brutalist * {
+  border-radius: 0 !important;
+  letter-spacing: 0.5px;
+}
+
+/* 强制像素字体 */
+.cyber-brutalist *:not(i):not([class*="fa-"]):not([class*="fas"]):not([class*="far"]):not([class*="fab"]):not(svg) {
+  font-family: var(--font-pixel), monospace !important;
+}
+
+/* 标题样式 - 粗重无衬线风格 */
+.cyber-brutalist h1,
+.cyber-brutalist h2,
+.cyber-brutalist h3,
+.cyber-brutalist h4 {
+  text-transform: uppercase;
+  font-style: italic;
+  letter-spacing: 2px;
+  text-shadow: 3px 3px 0px #000000;
+  color: #fff !important;
+}
+
+/* 文本选中效果 */
+.cyber-brutalist ::selection {
+  background: rgba(188, 19, 254, 0.4);
+  color: #fff;
+}
+
+/* 滚动条样式 - 方形风格 */
+.cyber-brutalist ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: var(--bg-primary);
+}
+
+.cyber-brutalist ::-webkit-scrollbar-track {
+  background: #050808;
+  border: 2px solid var(--border-primary);
+}
+
+.cyber-brutalist ::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border: 2px solid #000;
+}
+
+.cyber-brutalist ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-light);
+  box-shadow: var(--glow-primary-sm);
+}
+
+.cyber-brutalist ::-webkit-scrollbar-corner {
+  background: var(--bg-primary);
+}
+
+.cyber-brutalist * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-primary) var(--bg-primary);
+}
+
+/* ============================================
+   组件样式覆盖 - Component Overrides
+   ============================================ */
+
+/* 主按钮 - 厚黑边框 + 偏移阴影 */
+.cyber-brutalist button[class*="bg-primary"],
+.cyber-brutalist button.bg-primary {
+  background: var(--color-primary) !important;
+  color: #000 !important;
+  border: 3px solid #000 !important;
+  box-shadow: var(--shadow-md);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.cyber-brutalist button[class*="bg-primary"]:hover,
+.cyber-brutalist button.bg-primary:hover {
+  background: var(--color-primary-light) !important;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  animation: glitch-text 0.3s steps(2) infinite;
+}
+
+.cyber-brutalist button[class*="bg-primary"]:active,
+.cyber-brutalist button.bg-primary:active {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-xs);
+}
+
+@keyframes glitch-text {
+  0% { text-shadow: 2px 0 var(--color-secondary), -2px 0 var(--color-accent); }
+  50% { text-shadow: -2px 0 var(--color-secondary), 2px 0 var(--color-accent); }
+  100% { text-shadow: 2px 0 var(--color-secondary), -2px 0 var(--color-accent); }
+}
+
+/* 次要按钮 */
+.cyber-brutalist button[class*="bg-secondary"],
+.cyber-brutalist button.bg-secondary {
+  background: var(--color-secondary) !important;
+  color: #fff !important;
+  border: 2px solid #000 !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.cyber-brutalist button[class*="bg-secondary"]:hover,
+.cyber-brutalist button.bg-secondary:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* 危险按钮 */
+.cyber-brutalist button[class*="bg-red"],
+.cyber-brutalist button.bg-red-500,
+.cyber-brutalist button.bg-red-600 {
+  background: var(--color-error) !important;
+  color: #fff !important;
+  border: 2px solid #000 !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.cyber-brutalist button[class*="bg-red"]:hover,
+.cyber-brutalist button.bg-red-500:hover,
+.cyber-brutalist button.bg-red-600:hover {
+  background: var(--color-error-light) !important;
+  box-shadow: var(--shadow-md);
+}
+
+/* 轮廓按钮 */
+.cyber-brutalist button[class*="border"],
+.cyber-brutalist button.border-primary {
+  background: transparent !important;
+  color: var(--color-primary) !important;
+  border: 2px solid var(--color-primary) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.cyber-brutalist button[class*="border"]:hover,
+.cyber-brutalist button.border-primary:hover {
+  background: rgba(57, 255, 20, 0.1) !important;
+  box-shadow: var(--shadow-md), var(--glow-primary-sm);
+}
+
+/* 通用按钮悬停 */
+.cyber-brutalist button {
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.cyber-brutalist button:hover {
+  border-color: var(--color-primary) !important;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.cyber-brutalist button:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+/* 输入框 - 终端风格 */
+.cyber-brutalist input,
+.cyber-brutalist textarea,
+.cyber-brutalist select {
+  font-family: 'Courier New', monospace !important;
+  background-color: #050a10 !important;
+  border: 2px solid var(--border-primary) !important;
+  color: var(--color-primary) !important;
+  box-shadow: inset 2px 2px 0px rgba(0, 0, 0, 0.8) !important;
+}
+
+.cyber-brutalist input:focus,
+.cyber-brutalist textarea:focus,
+.cyber-brutalist select:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 8px var(--color-primary), inset 2px 2px 0px rgba(0, 0, 0, 0.8) !important;
+  outline: none;
+}
+
+.cyber-brutalist input::placeholder,
+.cyber-brutalist textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* 卡片 - 立体堆叠感 */
+.cyber-brutalist .card,
+.cyber-brutalist [class*="rounded-lg"][class*="bg-white"],
+.cyber-brutalist [class*="rounded-xl"][class*="bg-white"] {
+  background: var(--gradient-bg-card) !important;
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+}
+
+.cyber-brutalist .card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-shadow: inset 1px 1px 0px rgba(255, 255, 255, 0.05), inset -1px -1px 0px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.cyber-brutalist .card:hover,
+.cyber-brutalist [class*="rounded-lg"][class*="bg-white"]:hover {
+  box-shadow: var(--shadow-xl);
+  transform: translateY(-2px);
+}
+
+/* 侧边栏 */
+.cyber-brutalist aside,
+.cyber-brutalist [class*="sidebar"] {
+  background: var(--gradient-bg-subtle) !important;
+  border-right: 2px solid var(--border-primary) !important;
+  box-shadow: 4px 0 0 var(--border-primary) !important;
+}
+
+.cyber-brutalist aside [class*="active"],
+.cyber-brutalist [class*="sidebar"] [class*="active"] {
+  background: rgba(57, 255, 20, 0.15) !important;
+  color: var(--color-primary) !important;
+  border-left: 3px solid var(--color-primary) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.cyber-brutalist aside [class*="nav-item"]:hover,
+.cyber-brutalist [class*="sidebar"] [class*="nav-item"]:hover {
+  background: rgba(57, 255, 20, 0.08) !important;
+  color: var(--color-primary) !important;
+}
+
+/* 导航栏 */
+.cyber-brutalist nav,
+.cyber-brutalist header {
+  background: var(--gradient-bg-card) !important;
+  border-bottom: 2px solid var(--border-primary) !important;
+  box-shadow: 0 4px 0 var(--border-primary);
+}
+
+/* 下拉菜单 */
+.cyber-brutalist [role="menu"],
+.cyber-brutalist [role="listbox"],
+.cyber-brutalist .dropdown-menu {
+  background: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.cyber-brutalist [role="menuitem"],
+.cyber-brutalist [role="option"] {
+  border-bottom: 1px solid var(--border-primary);
+  transition: all var(--transition-fast);
+}
+
+.cyber-brutalist [role="menuitem"]:hover,
+.cyber-brutalist [role="option"]:hover {
+  background: rgba(57, 255, 20, 0.1) !important;
+  padding-left: 16px !important;
+}
+
+.cyber-brutalist [role="menuitem"][aria-selected="true"],
+.cyber-brutalist [role="option"][aria-selected="true"] {
+  background: rgba(57, 255, 20, 0.2) !important;
+  color: var(--color-primary-light) !important;
+}
+
+/* 模态框 */
+.cyber-brutalist [role="dialog"],
+.cyber-brutalist .modal,
+.cyber-brutalist [class*="modal"] {
+  background: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-xl) !important;
+}
+
+.cyber-brutalist [class*="modal-overlay"],
+.cyber-brutalist [class*="backdrop"] {
+  background-color: var(--bg-overlay) !important;
+}
+
+/* Switch 开关 - 强制方形 */
+.cyber-brutalist [role="switch"] {
+  border-radius: 0 !important;
+  background: #050a10 !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+.cyber-brutalist [role="switch"][aria-checked="true"] {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--glow-primary-sm);
+}
+
+.cyber-brutalist [role="switch"] span {
+  border-radius: 0 !important;
+  background: #fff !important;
+  border: 1px solid #000 !important;
+}
+
+/* 进度条 - 条纹风格 */
+.cyber-brutalist progress,
+.cyber-brutalist [class*="progress"] {
+  background: #050a10 !important;
+  border: 2px solid var(--border-primary);
+  border-radius: 0 !important;
+}
+
+.cyber-brutalist progress::-webkit-progress-bar {
+  background: #050a10 !important;
+}
+
+.cyber-brutalist progress::-webkit-progress-value {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-primary),
+    var(--color-primary) 8px,
+    var(--color-primary-dark) 8px,
+    var(--color-primary-dark) 10px
+  ) !important;
+  box-shadow: var(--glow-primary-sm);
+}
+
+/* Toast 通知 */
+.cyber-brutalist [data-sonner-toast] {
+  background: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-lg) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-pixel), monospace !important;
+}
+
+.cyber-brutalist [data-sonner-toast][data-type="success"] {
+  border-color: var(--color-success) !important;
+  box-shadow: var(--shadow-md), var(--glow-success) !important;
+}
+
+.cyber-brutalist [data-sonner-toast][data-type="error"] {
+  border-color: var(--color-error) !important;
+  box-shadow: var(--shadow-md), var(--glow-error) !important;
+}
+
+.cyber-brutalist [data-sonner-toast][data-type="warning"] {
+  border-color: var(--color-warning) !important;
+  box-shadow: var(--shadow-md), var(--glow-warning) !important;
+}
+
+.cyber-brutalist [data-sonner-toast][data-type="info"] {
+  border-color: var(--color-info) !important;
+  box-shadow: var(--shadow-md), var(--glow-info) !important;
+}
+
+/* 标签/徽章 */
+.cyber-brutalist [class*="badge"],
+.cyber-brutalist .tag {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-pixel), monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.cyber-brutalist [class*="badge-primary"],
+.cyber-brutalist .tag-primary {
+  background: rgba(57, 255, 20, 0.15) !important;
+  color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--shadow-xs);
+}
+
+/* 链接 */
+.cyber-brutalist a:not([class*="button"]):not([class*="nav"]):not(nav a) {
+  color: var(--color-secondary);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.cyber-brutalist a:not([class*="button"]):not([class*="nav"]):not(nav a):hover {
+  color: var(--color-primary);
+  border-bottom-style: solid;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 分割线 */
+.cyber-brutalist hr,
+.cyber-brutalist [class*="divider"] {
+  border-color: var(--border-primary) !important;
+  border-width: 2px !important;
+}
+
+/* 表格 */
+.cyber-brutalist table {
+  background: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary);
+}
+
+.cyber-brutalist th {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.cyber-brutalist td {
+  border: 2px solid var(--border-primary) !important;
+  color: var(--text-secondary) !important;
+}
+
+.cyber-brutalist tr:hover td {
+  background: var(--bg-hover) !important;
+}
+
+/* 代码块 */
+.cyber-brutalist pre,
+.cyber-brutalist code {
+  background: #050a10 !important;
+  color: var(--color-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+  font-family: 'Courier New', monospace !important;
+  border-radius: 0 !important;
+}
+
+.cyber-brutalist pre {
+  padding: 1rem;
+}
+
+.cyber-brutalist code {
+  padding: 0.125rem 0.375rem;
+}
+
+/* 引用块 */
+.cyber-brutalist blockquote {
+  border-left: 4px solid var(--color-primary) !important;
+  background: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  border-radius: 0 !important;
+  padding: 1rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 工具提示 */
+.cyber-brutalist [role="tooltip"],
+.cyber-brutalist .tooltip {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-md) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-pixel), monospace !important;
+}
+
+/* 滑块 */
+.cyber-brutalist input[type="range"] {
+  background: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+  border-radius: 0 !important;
+}
+
+.cyber-brutalist input[type="range"]::-webkit-slider-thumb {
+  background: var(--color-primary) !important;
+  border: 2px solid #000 !important;
+  box-shadow: var(--shadow-sm) !important;
+  border-radius: 0 !important;
+}
+
+.cyber-brutalist input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: var(--shadow-md), var(--glow-primary) !important;
+}
+
+/* ============================================
+   特定组件覆盖 - Specific Component Overrides
+   ============================================ */
+
+/* 修复白色背景元素 */
+.cyber-brutalist [class*="bg-white"] {
+  background-color: var(--bg-secondary) !important;
+}
+
+.cyber-brutalist [class*="bg-gray-50"],
+.cyber-brutalist [class*="bg-gray-100"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* 修复文本颜色 */
+.cyber-brutalist [class*="text-gray-900"],
+.cyber-brutalist [class*="text-gray-800"] {
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="text-gray-700"],
+.cyber-brutalist [class*="text-gray-600"] {
+  color: var(--text-secondary) !important;
+}
+
+.cyber-brutalist [class*="text-gray-500"],
+.cyber-brutalist [class*="text-gray-400"] {
+  color: var(--text-tertiary) !important;
+}
+
+/* 修复边框 */
+.cyber-brutalist [class*="border-gray-200"],
+.cyber-brutalist [class*="border-gray-300"] {
+  border-color: var(--border-primary) !important;
+}
+
+/* 修复阴影 */
+.cyber-brutalist [class*="shadow-sm"] {
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.cyber-brutalist [class*="shadow-md"] {
+  box-shadow: var(--shadow-md) !important;
+}
+
+.cyber-brutalist [class*="shadow-lg"] {
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.cyber-brutalist [class*="shadow-xl"] {
+  box-shadow: var(--shadow-xl) !important;
+}
+
+/* 焦点样式 */
+.cyber-brutalist :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* 头像 - 强制方形 */
+.cyber-brutalist .rounded-full {
+  border-radius: 0 !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+/* 弹窗/浮层 */
+.cyber-brutalist .rounded-xl,
+.cyber-brutalist .rounded-lg,
+.cyber-brutalist .rounded-md,
+.cyber-brutalist .rounded {
+  border-radius: 0 !important;
+}
+
+/* 渐变背景保留 */
+.cyber-brutalist [class*="from-\\[\\#C02C38\\]"],
+.cyber-brutalist [class*="to-\\[\\#E85D75\\]"],
+.cyber-brutalist [class*="bg-gradient"] {
+  /* 保留原有渐变效果 */
+}
+
+/* ============================================
+   特殊效果 - Special Effects
+   ============================================ */
+
+/* 霓虹边框 */
+.cyber-brutalist .neon-border {
+  position: relative;
+  border: 2px solid var(--color-primary) !important;
+}
+
+.cyber-brutalist .neon-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--color-primary);
+  box-shadow: var(--glow-primary);
+  pointer-events: none;
+  animation: neon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes neon-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* 渐变文本 */
+.cyber-brutalist .gradient-text {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 悬浮发光 */
+.cyber-brutalist .hover-glow {
+  transition: all var(--transition-normal);
+}
+
+.cyber-brutalist .hover-glow:hover {
+  box-shadow: var(--glow-primary);
+}
+
+/* 脉冲发光 */
+.cyber-brutalist .pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: var(--glow-primary-sm); }
+  50% { box-shadow: var(--glow-primary); }
+}
+
+/* ============================================
+   加载骨架屏 - Skeleton Loading
+   ============================================ */
+
+.cyber-brutalist [class*="skeleton"],
+.cyber-brutalist .skeleton {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--bg-tertiary) 0px,
+    var(--bg-active) 20px,
+    var(--bg-tertiary) 40px
+  ) !important;
+  background-size: 200% 100% !important;
+  animation: skeleton-scan 1.5s steps(4) infinite !important;
+  border: 1px solid var(--border-primary) !important;
+}
+
+@keyframes skeleton-scan {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+/* ============================================
+   Agent 页面覆盖 - Agent Page Overrides
+   ============================================ */
+
+.cyber-brutalist .agent-layout,
+.cyber-brutalist [class*="agent-layout"],
+.cyber-brutalist .agent-page,
+.cyber-brutalist [class*="agent-page"] {
+  background-color: var(--bg-primary) !important;
+}
+
+.cyber-brutalist .agent-header,
+.cyber-brutalist header[class*="agent"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+.cyber-brutalist [class*="chat-panel"],
+.cyber-brutalist [class*="canvas-panel"] {
+  background-color: var(--bg-secondary) !important;
+}
+
+.cyber-brutalist [class*="message-bubble"],
+.cyber-brutalist [class*="chat-message"] [class*="bg-"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+.cyber-brutalist [class*="input-area"],
+.cyber-brutalist [class*="input-box"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+.cyber-brutalist .conversation-sidebar,
+.cyber-brutalist [class*="sidebar"] {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+.cyber-brutalist .session-item,
+.cyber-brutalist [class*="session-item"] {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+/* ============================================
+   Marketplace 页面覆盖 - Marketplace Overrides
+   ============================================ */
+
+.cyber-brutalist .product-card,
+.cyber-brutalist [class*="product-card"],
+.cyber-brutalist [class*="bg-white"][class*="rounded"] {
+  background-color: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.cyber-brutalist .product-card:hover {
+  box-shadow: var(--shadow-lg) !important;
+  transform: translateY(-2px);
+}
+
+.cyber-brutalist .product-card h3,
+.cyber-brutalist [class*="product-card"] h3 {
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist .product-card [class*="price"],
+.cyber-brutalist [class*="product-card"] [class*="price"] {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+.cyber-brutalist [class*="discount"],
+.cyber-brutalist [class*="badge"] {
+  background-color: var(--color-error) !important;
+  color: #fff !important;
+  border: 2px solid #000 !important;
+  animation: badge-flash 1s steps(2) infinite;
+}
+
+@keyframes badge-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.cyber-brutalist input[type="search"],
+.cyber-brutalist input[type="text"][class*="search"] {
+  background-color: #050a10 !important;
+  border: 2px solid var(--border-primary) !important;
+  color: var(--color-primary) !important;
+}
+
+.cyber-brutalist input[type="search"]::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* 分页组件 */
+.cyber-brutalist [class*="pagination"] button {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+.cyber-brutalist [class*="pagination"] button:active,
+.cyber-brutalist [class*="pagination"] button.active {
+  background-color: var(--color-primary) !important;
+  color: #000 !important;
+  box-shadow: var(--shadow-sm);
+}

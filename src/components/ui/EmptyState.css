@@ -1,0 +1,204 @@
+/**
+ * EmptyState 组件样式
+ */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8);
+}
+
+/* 尺寸变体 */
+.empty-state--sm {
+  padding: var(--space-6);
+}
+
+.empty-state--sm .empty-state__icon-wrapper {
+  padding: var(--space-4);
+}
+
+.empty-state--md {
+  padding: var(--space-8);
+}
+
+.empty-state--md .empty-state__icon-wrapper {
+  padding: var(--space-6);
+}
+
+.empty-state--lg {
+  padding: var(--space-12);
+}
+
+.empty-state--lg .empty-state__icon-wrapper {
+  padding: var(--space-8);
+}
+
+/* 插图/图标 */
+.empty-state__illustration {
+  margin-bottom: var(--space-6);
+}
+
+.empty-state__icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-gray-100) 0%, var(--color-gray-50) 100%);
+  border-radius: var(--radius-2xl);
+  color: var(--color-gray-400);
+}
+
+.empty-state__icon {
+  color: var(--color-gray-400);
+}
+
+/* 标题 */
+.empty-state__title {
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2) 0;
+  line-height: var(--leading-tight);
+}
+
+/* 描述 */
+.empty-state__description {
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-6) 0;
+  max-width: 400px;
+  line-height: var(--leading-relaxed);
+}
+
+/* 操作按钮区域 */
+.empty-state__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+@media (min-width: 640px) {
+  .empty-state__actions {
+    flex-direction: row;
+    justify-content: center;
+  }
+}
+
+/* 主按钮 */
+.empty-state__btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 10px 24px;
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: white;
+  background: var(--gradient-primary);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  box-shadow: var(--shadow-primary);
+}
+
+.empty-state__btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.empty-state__btn-primary:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.empty-state__btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 
+    var(--shadow-primary),
+    0 0 0 2px var(--color-bg-primary),
+    0 0 0 4px var(--color-primary-500);
+}
+
+/* 次按钮 */
+.empty-state__btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 24px;
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.empty-state__btn-secondary:hover {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border-hover);
+  color: var(--color-text-primary);
+}
+
+.empty-state__btn-secondary:active {
+  transform: scale(0.98);
+}
+
+.empty-state__btn-secondary:focus-visible {
+  outline: none;
+  box-shadow: 
+    0 0 0 2px var(--color-bg-primary),
+    0 0 0 4px var(--color-primary-500);
+}
+
+/* ========================================
+   暗色模式适配
+   ======================================== */
+
+[data-theme="dark"] .empty-state__icon-wrapper {
+  background: linear-gradient(135deg, var(--color-gray-800) 0%, var(--color-gray-700) 100%);
+}
+
+[data-theme="dark"] .empty-state__icon {
+  color: var(--color-gray-500);
+}
+
+[data-theme="dark"] .empty-state__btn-secondary {
+  border-color: var(--color-gray-600);
+  color: var(--color-text-secondary);
+}
+
+[data-theme="dark"] .empty-state__btn-secondary:hover {
+  background: var(--color-gray-800);
+  border-color: var(--color-gray-500);
+}
+
+/* ========================================
+   无障碍支持
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state__btn-primary,
+  .empty-state__btn-secondary {
+    transition: none;
+  }
+  
+  .empty-state__btn-primary:hover,
+  .empty-state__btn-secondary:hover {
+    transform: none;
+  }
+}
+
+/* 高对比度模式 */
+@media (prefers-contrast: high) {
+  .empty-state__icon-wrapper {
+    border: 2px solid currentColor;
+  }
+  
+  .empty-state__btn-primary,
+  .empty-state__btn-secondary {
+    border: 2px solid currentColor;
+  }
+}

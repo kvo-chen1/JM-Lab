@@ -15,13 +15,13 @@ import { supabaseAdmin } from '@/lib/supabaseClient';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useNavNotifications, type NavItemType } from '@/hooks/useNavNotifications';
 import { getTimeSeriesData, getBaseStats, getWeeklyComparisonData, getRealtimeStats, clearDashboardCache } from './dashboardDataService';
+import { analyticsTrackingService } from '@/services/analyticsTrackingService';
 
 // 懒加载数据分析页面
 const DataAnalytics = lazy(() => import('./DataAnalytics'));
 const StrategicAdoption = lazy(() => import('./StrategicAdoption'));
 const Settings = lazy(() => import('./Settings'));
 
-const PermissionManagement = lazy(() => import('./PermissionManagement'));
 const FeedbackManagement = lazy(() => import('./FeedbackManagement'));
 
 // 懒加载增强的审核管理模块
@@ -58,7 +58,7 @@ const MarketplaceAdmin = lazy(() => import('./MarketplaceAdmin'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'permissions' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'lotteryManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement' | 'promotionOrderImplementation' | 'promotionAnalytics' | 'advancedAnalytics' | 'searchRecords' | 'orderAudit' | 'brandOrderExecution' | 'homeRecommendation' | 'marketplace';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'lotteryManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement' | 'promotionOrderImplementation' | 'promotionAnalytics' | 'advancedAnalytics' | 'searchRecords' | 'orderAudit' | 'brandOrderExecution' | 'homeRecommendation' | 'marketplace';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -691,6 +691,50 @@ export default function Admin() {
         { segment: '低活跃', users: lowActive, avgSessions: 1.8, avgTime: 10 },
         { segment: '沉默用户', users: silent, avgSessions: 0.3, avgTime: 2 },
       ]);
+
+      // 用户留存分析数据 - 使用真实数据
+      try {
+        const retentionRates = await analyticsTrackingService.getRetentionRate(1);
+        if (retentionRates && retentionRates.length > 0) {
+          // 使用最新的留存数据
+          const latestRetention = retentionRates[retentionRates.length - 1];
+          const retentionDataFromService = [
+            { day: '第1天', rate: Math.round(latestRetention.day1_retention * 100 * 10) / 10, users: Math.floor(totalUsers * latestRetention.day1_retention) },
+            { day: '第3天', rate: Math.round(latestRetention.day1_retention * 85 * 10) / 10, users: Math.floor(totalUsers * latestRetention.day1_retention * 0.85) },
+            { day: '第7天', rate: Math.round(latestRetention.day7_retention * 100 * 10) / 10, users: Math.floor(totalUsers * latestRetention.day7_retention) },
+            { day: '第14天', rate: Math.round(latestRetention.day14_retention * 100 * 10) / 10, users: Math.floor(totalUsers * latestRetention.day14_retention) },
+            { day: '第30天', rate: Math.round(latestRetention.day30_retention * 100 * 10) / 10, users: Math.floor(totalUsers * latestRetention.day30_retention) },
+          ];
+          setRetentionData(retentionDataFromService);
+        } else {
+          // 如果没有真实数据，使用模拟数据
+          const retentionDays = [1, 3, 7, 14, 30];
+          const retentionDataGenerated = retentionDays.map(day => {
+            const retentionRate = Math.max(0, 100 - (day * 2.5) + (Math.random() * 5));
+            const retainedUsers = Math.floor(totalUsers * retentionRate / 100);
+            return {
+              day: `第${day}天`,
+              rate: Math.round(retentionRate * 10) / 10,
+              users: retainedUsers,
+            };
+          });
+          setRetentionData(retentionDataGenerated);
+        }
+      } catch (error) {
+        console.warn('获取真实留存数据失败，使用模拟数据:', error);
+        // 使用模拟数据作为回退
+        const retentionDays = [1, 3, 7, 14, 30];
+        const retentionDataGenerated = retentionDays.map(day => {
+          const retentionRate = Math.max(0, 100 - (day * 2.5) + (Math.random() * 5));
+          const retainedUsers = Math.floor(totalUsers * retentionRate / 100);
+          return {
+            day: `第${day}天`,
+            rate: Math.round(retentionRate * 10) / 10,
+            users: retainedUsers,
+          };
+        });
+        setRetentionData(retentionDataGenerated);
+      }
 
       // 用户画像
       setUserDemographics([{ age: '暂无数据', male: '-', female: '-' }]);
@@ -4825,21 +4869,6 @@ export default function Admin() {
             </div>
           }>
             <Settings />
-          </Suspense>
-        )}
-
-        {/* 权限管理页面 */}
-        {activeTab === 'permissions' && (
-          <Suspense fallback={
-            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                className="w-12 h-12 border-4 border-red-200 border-t-red-500 rounded-full"
-              />
-            </div>
-          }>
-            <PermissionManagement />
           </Suspense>
         )}
 

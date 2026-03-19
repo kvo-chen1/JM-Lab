@@ -295,6 +295,18 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
 
   // 获取创建者信息
   useEffect(() => {
+    // 优先使用后端返回的 creator 对象
+    if (community.creator) {
+      console.log('[CommunityInfoSidebar] Using creator from community data:', community.creator);
+      setCreatorInfo({
+        id: community.creator.id,
+        username: community.creator.username,
+        avatar: community.creator.avatar || community.creator.avatar_url
+      });
+      return;
+    }
+
+    // 如果没有 creator 对象，从 API 获取
     const fetchCreatorInfo = async () => {
       const creatorId = community.creatorId || creator;
       if (creatorId) {
@@ -326,7 +338,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
     };
 
     fetchCreatorInfo();
-  }, [community.creatorId, creator]);
+  }, [community.creator, community.creatorId, creator]);
 
   // 获取社区统计数据（真实数据）
   const [onlineCountState, setOnlineCountState] = useState<number>(onlineCount || 0);

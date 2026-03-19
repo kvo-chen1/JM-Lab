@@ -284,7 +284,7 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
       const prompt = buildCharacterPrompt(style?.name || '');
       
       const result = await llmService.generateImage({
-        model: 'wanx-v1',
+        model: 'qwen-image-2.0-pro',
         prompt: prompt,
         size: '1024x1024',
         n: 1

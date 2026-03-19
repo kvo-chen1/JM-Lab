@@ -56,7 +56,6 @@ console.log('[Config] OAuth 配置:', {
 console.log('[Config] AI API 配置:', {
   qwen: process.env.VITE_QWEN_API_KEY ? `已配置 (${process.env.VITE_QWEN_API_KEY.substring(0, 8)}...)` : '未配置',
   kimi: process.env.VITE_KIMI_API_KEY ? `已配置 (${process.env.VITE_KIMI_API_KEY.substring(0, 8)}...)` : '未配置',
-  deepseek: process.env.VITE_DEEPSEEK_API_KEY ? `已配置 (${process.env.VITE_DEEPSEEK_API_KEY.substring(0, 8)}...)` : '未配置',
   dashscope: process.env.DASHSCOPE_API_KEY ? `已配置 (${process.env.DASHSCOPE_API_KEY.substring(0, 8)}...)` : '未配置'
 })
 
@@ -530,15 +529,11 @@ const MODEL_ID = process.env.DOUBAO_MODEL_ID || 'doubao-seedance-1-0-pro-250528'
 // DashScope (Aliyun Qwen) config
 const DASHSCOPE_BASE_URL = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1'
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || ''
-const DASHSCOPE_MODEL_ID = process.env.DASHSCOPE_MODEL_ID || 'qwen-plus'
+const DASHSCOPE_MODEL_ID = process.env.DASHSCOPE_MODEL_ID || 'qwen3.5-plus'
 
 // Kimi (Moonshot) config
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || 'https://api.moonshot.cn/v1'
 const KIMI_API_KEY = process.env.KIMI_API_KEY || ''
-
-// DeepSeek config
-const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1'
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || ''
 
 async function proxyFetch(path, method, body) {
   // 确保使用最新的环境变量值
@@ -630,29 +625,6 @@ async function kimiFetch(path, method, body, res) {
       data: { error: { code: 'REQUEST_ERROR', message: errorMessage } }
     }
   }
-}
-
-async function deepseekFetch(path, method, body, res) {
-  const base = process.env.DEEPSEEK_BASE_URL || DEEPSEEK_BASE_URL
-  const key = process.env.DEEPSEEK_API_KEY || process.env.VITE_DEEPSEEK_API_KEY || ''
-  const resp = await fetch(`${base}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${key}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const contentType = resp.headers.get('content-type') || ''
-  const isStream = contentType.includes('text/event-stream')
-
-  if (isStream && res) {
-    proxyStream(resp, res)
-    return { status: resp.status, ok: resp.ok, isStream: true }
-  }
-
-  const data = contentType.includes('application/json') ? await resp.json() : await resp.text()
-  return { status: resp.status, ok: resp.ok, data }
 }
 
 async function dashscopeFetch(path, method, body, authKey, res) {
@@ -963,59 +935,109 @@ async function dashscopeVideoGenerate(params) {
 
 async function dashscopeImageGenerate(params) {
   const { prompt, size, n, authKey, model, refImage, refStrength, refMode } = params
-  
-  // 使用 wanx-v1 模型（万相文生图）
-  // 注意：qwen-image-2.0 系列是视觉理解模型，不是文生图模型
-  const modelName = model || 'wanx-v1';
-  
-  // 文生图 API 端点
+
+  // 使用 qwen-image-2.0-pro 模型（千问文生图高级版）
+  // 支持的模型：qwen-image-2.0-pro, qwen-image-2.0, qwen-image-max 等
+  const modelName = model || 'qwen-image-2.0-pro';
+
+  // qwen-image 系列使用同步调用
+  const isSyncModel = true;
+
+  // API 端点
   const base = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1';
-  const endpoint = `${base}/services/aigc/text2image/image-synthesis`;
-    
+
+  // qwen-image 系列和 wan2.6-t2i 使用 multimodal-generation 端点（同步调用）
+  // 其他万相系列使用 image-generation 端点（异步调用）
+  const endpoint = isSyncModel
+    ? `${base}/services/aigc/multimodal-generation/generation`
+    : `${base}/services/aigc/image-generation/generation`;
+
   const normalizedSize = String(size || '1024x1024').replace('x', '*');
-  
+
   try {
     console.log(`[DashScope] Starting image generation with model: ${modelName}...`, refImage ? '(with ref image)' : '(text only)');
-    
-    // 构建请求体 - 参考阿里云官方文档
-    const requestBody = {
-      model: modelName,
-      input: { 
-        prompt
-      },
-      parameters: { 
-        size: normalizedSize, 
-        n: n || 1
-      }
-    };
-    
-    // 构建请求头 - 文生图需要使用异步模式
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${authKey}`,
-      'X-DashScope-Async': 'enable'  // 文生图必须使用异步模式
-    };
-    
-    // 如果有参考图片
+
+    let requestBody;
+    let headers;
+
+    if (isSyncModel) {
+      // qwen-image 系列和 wan2.6-t2i - 同步调用
+      requestBody = {
+        model: modelName,
+        input: {
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { text: prompt }
+              ]
+            }
+          ]
+        },
+        parameters: {
+          size: normalizedSize,
+          n: n || 1,
+          watermark: false,
+          prompt_extend: true
+        }
+      };
+
+      headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authKey}`
+        // 同步调用不需要 X-DashScope-Async 头
+      };
+    } else {
+      // 万相系列模型 - 异步调用
+      requestBody = {
+        model: modelName,
+        input: {
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { text: prompt }
+              ]
+            }
+          ]
+        },
+        parameters: {
+          size: normalizedSize,
+          n: n || 1,
+          watermark: false,
+          prompt_extend: true
+        }
+      };
+
+      headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authKey}`,
+        'X-DashScope-Async': 'enable'  // 万相系列需要异步模式
+      };
+    }
+
+    // 如果有参考图片（仅部分模型支持）
     if (refImage) {
       console.log('[DashScope] Using ref image:', refImage.substring(0, 80));
-      requestBody.input.ref_img = refImage;
-      requestBody.parameters.ref_strength = refStrength || 0.7;
-      requestBody.parameters.ref_mode = refMode || 'repaint';
+      // 注意：qwen-image 系列可能不支持 ref_img，这里仅作保留
+      if (!isQwenImageModel) {
+        requestBody.parameters.ref_strength = refStrength || 0.7;
+        requestBody.parameters.ref_mode = refMode || 'repaint';
+      }
     }
-    
+
     console.log('[DashScope] Request body:', JSON.stringify(requestBody, null, 2));
-    
+
     // 发送请求
     const createResp = await fetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody)
     })
-    
+
     const createData = await createResp.json()
     console.log('[DashScope] Response:', JSON.stringify(createData, null, 2));
-    
+
     if (!createResp.ok) {
       console.error('[DashScope] Image generation submission failed:', createData)
       return {
@@ -1025,41 +1047,58 @@ async function dashscopeImageGenerate(params) {
       }
     }
 
-    // 文生图是异步调用，需要轮询获取结果
-    const taskId = createData.output?.task_id;
-    if (!taskId) {
-        throw new Error('No task_id returned from async image submission');
-    }
-    
-    console.log(`[DashScope] Image task submitted: ${taskId}, polling for results...`);
-    
-    // 2. Poll for results
-    const result = await pollDashScopeTask(taskId, authKey);
-    
-    // 3. Extract results
-    console.log('[DashScope] Task result:', JSON.stringify(result, null, 2));
-    
     let images = [];
-    
-    if (result?.output?.results) {
-      const results = result.output.results
-      const list = Array.isArray(results) ? results : []
-      images = list.map((item) => {
-        if (typeof item === 'string') return { url: item, revised_prompt: prompt }
-        const url = item?.url || item?.image_url || item?.image || ''
-        return { url, revised_prompt: prompt }
-      }).filter((it) => !!it.url)
-    } else if (result?.output?.image) {
-      images = [{
-        url: result.output.image,
-        revised_prompt: prompt
-      }];
+
+    if (isSyncModel) {
+      // qwen-image 系列和 wan2.6-t2i - 同步调用，直接获取结果
+      // 响应格式：output.choices[0].message.content[0].image
+      const choices = createData.output?.choices;
+      if (choices && choices.length > 0) {
+        const content = choices[0].message?.content;
+        if (content && Array.isArray(content)) {
+          images = content
+            .filter(item => item.image)
+            .map(item => ({
+              url: item.image,
+              revised_prompt: prompt
+            }));
+        }
+      }
+    } else {
+      // 万相系列 - 异步调用，需要轮询获取结果
+      const taskId = createData.output?.task_id;
+      if (!taskId) {
+        throw new Error('No task_id returned from async image submission');
+      }
+
+      console.log(`[DashScope] Image task submitted: ${taskId}, polling for results...`);
+
+      // 轮询获取结果
+      const result = await pollDashScopeTask(taskId, authKey);
+
+      // 提取结果
+      console.log('[DashScope] Task result:', JSON.stringify(result, null, 2));
+
+      if (result?.output?.results) {
+        const results = result.output.results
+        const list = Array.isArray(results) ? results : []
+        images = list.map((item) => {
+          if (typeof item === 'string') return { url: item, revised_prompt: prompt }
+          const url = item?.url || item?.image_url || item?.image || ''
+          return { url, revised_prompt: prompt }
+        }).filter((it) => !!it.url)
+      } else if (result?.output?.image) {
+        images = [{
+          url: result.output.image,
+          revised_prompt: prompt
+        }];
+      }
     }
-    
+
     if (images.length === 0) {
       throw new Error('No image results found in completed task');
     }
-    
+
     console.log('[DashScope] Extracted images:', images);
     
     // 4. 下载图片到本地存储，避免跨域问题
@@ -5297,20 +5336,20 @@ async function route(req, res, u, path) {
   }
 
   // 处理所有模型的图片生成请求
-  if (req.method === 'POST' && path.match(/^\/api\/(doubao|qwen|deepseek|kimi)\/images\/generate$/)) {
-    const modelType = path.split('/')[2]; // 提取模型类型：doubao、qwen、deepseek或kimi
+  if (req.method === 'POST' && path.match(/^\/api\/(doubao|qwen|kimi)\/images\/generate$/)) {
+    const modelType = path.split('/')[2]; // 提取模型类型：doubao、qwen或kimi
     const b = await readBody(req)
-    
+
     let r;
     let apiEndpoint = '/images/generations';
-    
+
     // 根据模型类型选择不同的fetch函数和API端点
     switch (modelType) {
       case 'qwen':
         // 通义千问使用dashscopeFetch，图片生成API端点
         const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
         if (!authKey) { sendJson(res, 401, { error: 'API_KEY_MISSING' }); return }
-        
+
         // 确保prompt字段存在
         if (!b.prompt) { sendJson(res, 400, { error: 'PROMPT_REQUIRED', message: 'Prompt is required' }); return }
         r = await dashscopeImageGenerate({
@@ -5320,19 +5359,6 @@ async function route(req, res, u, path) {
           authKey,
           model: b.model
         })
-        break;
-      case 'deepseek':
-        // DeepSeek使用deepseekFetch
-        const deepseekPayload = {
-          model: b.model || 'deepseek-chat',
-          prompt: b.prompt,
-          size: b.size || '1024x1024',
-          n: b.n || 1,
-          seed: b.seed,
-          guidance_scale: b.guidance_scale,
-          response_format: b.response_format || 'url',
-        };
-        r = await deepseekFetch(apiEndpoint, 'POST', deepseekPayload);
         break;
       case 'kimi':
         // Kimi使用kimiFetch
@@ -5418,57 +5444,61 @@ async function route(req, res, u, path) {
 
   // 处理Kimi模型的聊天补全请求
   if (req.method === 'POST' && path === '/api/kimi/chat/completions') {
-    const keyPresent = (process.env.KIMI_API_KEY || KIMI_API_KEY)
-    if (!keyPresent) { sendJson(res, 500, { error: 'CONFIG_MISSING' }); return }
     const b = await readBody(req)
+    const model = b.model || 'moonshot-v1-32k'
     
-    const r = await kimiFetch('/chat/completions', 'POST', {
-      model: b.model || 'moonshot-v1-32k',
-      messages: Array.isArray(b.messages) ? b.messages : [],
-      temperature: b.temperature,
-      top_p: b.top_p,
-      max_tokens: b.max_tokens,
-      stream: b.stream || false
-    }, res)
+    // 判断是否使用 dashscope 端点（阿里云百炼的 Kimi 模型）
+    const isDashscopeModel = model.startsWith('kimi-')
     
-    if (r.isStream) {
+    let r;
+    if (isDashscopeModel) {
+      // 使用 dashscope 端点调用 Kimi2.5
+      const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
+      if (!authKey) { 
+        sendJson(res, 500, { error: 'CONFIG_MISSING', message: 'DASHSCOPE_API_KEY not configured' }); 
+        return 
+      }
+      
+      r = await dashscopeFetch('/services/aigc/multimodal-generation/generation', 'POST', {
+        model: model,
+        input: {
+          messages: Array.isArray(b.messages) ? b.messages.map(m => ({
+            role: m.role,
+            content: [{ type: 'text', text: m.content }]
+          })) : []
+        },
+        parameters: {
+          temperature: b.temperature,
+          top_p: b.top_p,
+          max_tokens: b.max_tokens,
+        }
+      }, authKey, res)
+    } else {
+      // 使用 moonshot 端点调用传统 Kimi 模型
+      const keyPresent = (process.env.KIMI_API_KEY || KIMI_API_KEY)
+      if (!keyPresent) { 
+        sendJson(res, 500, { error: 'CONFIG_MISSING', message: 'KIMI_API_KEY not configured' }); 
+        return 
+      }
+      
+      r = await kimiFetch('/chat/completions', 'POST', {
+        model: model,
+        messages: Array.isArray(b.messages) ? b.messages : [],
+        temperature: b.temperature,
+        top_p: b.top_p,
+        max_tokens: b.max_tokens,
+        stream: b.stream || false
+      }, res)
+    }
+    
+    if (r?.isStream) {
       console.log('[Kimi] Streaming response sent');
       return
     }
     
-    if (!r.ok) { 
-      console.error('[Kimi] Upstream API Error:', r.status, JSON.stringify(r.data));
-      sendJson(res, r.status, { error: (r.data?.code) || (r.data?.message) || 'SERVER_ERROR', data: r.data }); 
-      return 
-    }
-    
-    sendJson(res, 200, { ok: true, data: r.data })
-    return
-  }
-
-  // 处理DeepSeek模型的聊天补全请求
-  if (req.method === 'POST' && path === '/api/deepseek/chat/completions') {
-    const keyPresent = (process.env.DEEPSEEK_API_KEY || DEEPSEEK_API_KEY)
-    if (!keyPresent) { sendJson(res, 500, { error: 'CONFIG_MISSING' }); return }
-    const b = await readBody(req)
-    
-    const r = await deepseekFetch('/chat/completions', 'POST', {
-      model: b.model || 'deepseek-chat',
-      messages: Array.isArray(b.messages) ? b.messages : [],
-      temperature: b.temperature,
-      top_p: b.top_p,
-      max_tokens: b.max_tokens,
-      stream: b.stream || false
-    }, res)
-    
-    if (r.isStream) {
-      console.log('[DeepSeek] Streaming response sent');
-      return
-    }
-    
-    if (!r.ok) { 
-      console.error('[DeepSeek] Upstream API Error:', r.status, JSON.stringify(r.data));
-      sendJson(res, r.status, { error: (r.data?.code) || (r.data?.message) || 'SERVER_ERROR', data: r.data }); 
+    if (!r?.ok) { 
+      console.error('[Kimi] Upstream API Error:', r?.status, JSON.stringify(r?.data));
+      sendJson(res, r?.status || 500, { error: (r?.data?.code) || (r?.data?.message) || 'SERVER_ERROR', data: r?.data }); 
       return 
     }
     
@@ -5499,7 +5529,7 @@ async function route(req, res, u, path) {
         size: b.size || '1024x1024',
         n: b.n || 1,
         authKey,
-        model: b.model || 'wanx-v1'
+        model: b.model || 'qwen-image-2.0-pro'
       })
       
       if (!r.ok) {
@@ -5848,12 +5878,18 @@ async function route(req, res, u, path) {
       await communityDB.joinCommunity(decoded.userId, newCommunity.id, 'owner')
       console.log('[API] createCommunity: creator added as member successfully')
 
+      // 处理头像 URL - 如果是相对路径，添加基础 URL
+      let avatarUrl = newCommunity.avatar
+      if (avatarUrl && avatarUrl.startsWith('/uploads/')) {
+        avatarUrl = `http://localhost:3030${avatarUrl}`
+      }
+
       // 构建返回数据，使用前端期望的字段格式
       const responseData = {
         id: newCommunity.id,
         name: newCommunity.name,
         description: newCommunity.description,
-        avatar: newCommunity.avatar,
+        avatar: avatarUrl,
         member_count: 1,
         topic: newCommunity.topic,
         is_active: true,
@@ -8552,7 +8588,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx-v1'
+        model: 'qwen-image-2.0-pro'
       })
       
       if (!result.ok) {
@@ -8605,8 +8641,8 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx-v1',
-        refImage: b.imageUrl  // 传入原图URL进行图生图
+        model: 'qwen-image-2.0-pro',
+        refImage: b.imageUrl  // 传入原图 URL 进行图生图
       })
       
       if (!result.ok) {
@@ -8658,7 +8694,7 @@ async function route(req, res, u, path) {
         size: ratio > 1.5 ? '1440x1024' : '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx-v1'
+        model: 'qwen-image-2.0-pro'
       })
       
       if (!result.ok) {
@@ -8737,7 +8773,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx-v1',
+        model: 'qwen-image-2.0-pro',
         refImage: refImage,
         refStrength: intensity / 100,  // 将百分比转为 0-1
         refMode: refModeMap[style] || 'repaint'
@@ -8781,7 +8817,7 @@ async function route(req, res, u, path) {
         size: '1024x1024',
         n: 1,
         authKey,
-        model: 'wanx-v1'
+        model: 'qwen-image-2.0-pro'
       })
       
       if (!result.ok) {
@@ -8834,7 +8870,7 @@ async function route(req, res, u, path) {
 
       // 使用 dashscopeFetch 函数来调用 API
       const r = await dashscopeFetch('/chat/completions', 'POST', {
-        model: 'qwen-plus',
+        model: 'qwen3.5-plus',
         messages: [{ role: 'user', content: optimizationPrompt }],
         temperature: 0.7,
         max_tokens: 800
@@ -8914,7 +8950,7 @@ async function route(req, res, u, path) {
 
       // 使用 dashscopeFetch 函数来调用 API
       const r = await dashscopeFetch('/chat/completions', 'POST', {
-        model: 'qwen-plus',
+        model: 'qwen3.5-plus',
         messages: [{ role: 'user', content: analysisPrompt }],
         temperature: 0.5,
         max_tokens: 800

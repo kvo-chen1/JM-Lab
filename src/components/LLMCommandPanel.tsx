@@ -69,9 +69,6 @@ const LLMCommandPanel: React.FC<LLMCommandPanelProps> = ({ onCommandExecuted }) 
   // 模型列表
   const models = [
     { id: 'kimi', name: 'Kimi', icon: 'fa-robot' },
-    { id: 'deepseek', name: 'DeepSeek', icon: 'fa-brain' },
-    { id: 'doubao', name: '豆包', icon: 'fa-comment-dots' },
-    { id: 'wenxinyiyan', name: '文心一言', icon: 'fa-lightbulb' },
     { id: 'qwen', name: '通义千问', icon: 'fa-star' }
   ];
 

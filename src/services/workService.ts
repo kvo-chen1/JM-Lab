@@ -40,7 +40,7 @@ class WorkService {
 
       if (data && data.length > 0) {
         console.log('[WorkService] 获取到公开作品数量:', data.length);
-        return data.map(this.transformWorkData);
+        return data.map(item => this.transformWorkData(item));
       }
 
       // 如果没有公开作品，查询所有状态的作品（不限制 is_public）
@@ -57,7 +57,7 @@ class WorkService {
       }
 
       console.log('[WorkService] 获取到所有作品数量:', allData?.length || 0);
-      return (allData || []).map(this.transformWorkData);
+      return (allData || []).map(item => this.transformWorkData(item));
     } catch (error) {
       console.error('获取作品失败:', error);
       return this.getMockWorks();
@@ -95,7 +95,7 @@ class WorkService {
         return this.getMockWorks();
       }
 
-      return (data || []).map(this.transformWorkData);
+      return (data || []).map(item => this.transformWorkData(item));
     } catch (error) {
       console.error('获取用户作品失败:', error);
       return this.getMockWorks();

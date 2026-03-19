@@ -908,7 +908,7 @@ export class AgentOrchestrator {
     try {
       // 调用图像生成API
       const result = await llmService.generateImage({
-        model: 'wanx-v1',
+        model: 'qwen-image-2.0-pro',
         prompt: prompt,
         size: '1024x1024',
         n: 1

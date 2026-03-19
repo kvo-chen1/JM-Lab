@@ -2134,7 +2134,6 @@ export default function AIAssistantPanel() {
                             >
                               <option value="qwen">通义千问</option>
                               <option value="kimi">Kimi</option>
-                              <option value="deepseek">DeepSeek</option>
                             </select>
                             <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none" />
                           </div>

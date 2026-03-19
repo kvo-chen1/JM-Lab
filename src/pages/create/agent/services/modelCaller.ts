@@ -3,10 +3,10 @@
  * 根据当前选择的模型自动调用对应的API
  */
 
-import { callQwenChat, callKimiChat, callDeepseekChat } from '@/services/llm/chatProviders';
+import { callQwenChat, callKimiChat } from '@/services/llm/chatProviders';
 
 // 模型类型
-export type LLMModelType = 'qwen' | 'kimi' | 'deepseek';
+export type LLMModelType = 'qwen' | 'kimi';
 
 interface CallModelOptions {
   temperature?: number;
@@ -35,7 +35,7 @@ export function setCurrentModelInStorage(model: LLMModelType): void {
 export function getCurrentModelFromStorage(): LLMModelType {
   try {
     const model = localStorage.getItem(CURRENT_MODEL_KEY) as LLMModelType;
-    if (model && ['qwen', 'kimi', 'deepseek'].includes(model)) {
+    if (model && ['qwen', 'kimi'].includes(model)) {
       return model;
     }
   } catch (e) {
@@ -59,16 +59,9 @@ export async function callCurrentModel(
 
   switch (modelId) {
     case 'kimi':
+      // 使用阿里云 DashScope 的 Kimi 模型（kimi-k2.5），复用千问的 API Key
       return callKimiChat({
-        model: 'moonshot-v1-8k',
-        messages,
-        temperature: options?.temperature || 0.7,
-        max_tokens: options?.max_tokens || 1500,
-        onDelta: options?.onDelta
-      });
-    case 'deepseek':
-      return callDeepseekChat({
-        model: 'deepseek-chat',
+        model: 'kimi-k2.5',
         messages,
         temperature: options?.temperature || 0.7,
         max_tokens: options?.max_tokens || 1500,
@@ -77,7 +70,7 @@ export async function callCurrentModel(
     case 'qwen':
     default:
       return callQwenChat({
-        model: 'qwen-plus',
+        model: 'qwen3.5-plus',
         messages,
         temperature: options?.temperature || 0.7,
         max_tokens: options?.max_tokens || 1500,

@@ -372,7 +372,7 @@ export const CreateCommunityModal: React.FC<CreateCommunityModalProps> = ({
             <div className={`absolute lg:relative z-20 w-64 flex-shrink-0 border-r overflow-y-auto transition-transform duration-300 lg:translate-x-0 ${
               showMobileSidebar ? 'translate-x-0' : '-translate-x-full'
             } ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-gray-50'}`}>
-              <div className="p-4 space-y-6">
+              <div className="p-4 pb-24 space-y-6">
                 {/* 步骤导航 */}
                 <div>
                   <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${
@@ -479,7 +479,7 @@ export const CreateCommunityModal: React.FC<CreateCommunityModalProps> = ({
 
             {/* 中间栏 - 表单主体 */}
             <div className={`flex-1 overflow-y-auto ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-              <div className="max-w-2xl mx-auto p-6 space-y-8">
+              <div className="max-w-2xl mx-auto p-6 pb-32 space-y-8">
                 <AnimatePresence mode="wait">
                   {/* 基本信息 */}
                   {activeSection === 'basic' && (
@@ -1066,7 +1066,7 @@ export const CreateCommunityModal: React.FC<CreateCommunityModalProps> = ({
             <div className={`absolute lg:relative right-0 z-20 w-80 flex-shrink-0 border-l overflow-y-auto transition-transform duration-300 lg:translate-x-0 ${
               showMobilePreview ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
             } ${isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-gray-50'}`}>
-              <div className="p-4 space-y-6">
+              <div className="p-4 pb-24 space-y-6">
                 {/* 实时预览卡片 */}
                 <div>
                   <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${
@@ -1248,6 +1248,22 @@ export const CreateCommunityModal: React.FC<CreateCommunityModalProps> = ({
 
                 {/* 创建按钮 */}
                 <div className="pt-4 border-t border-dashed" style={{ borderColor: isDark ? '#374151' : '#E5E7EB' }}>
+                  {/* 未填写的必填项提示 */}
+                  {(!formData.name.trim() || !formData.description.trim() || !formData.category) && (
+                    <div className={`mb-3 p-3 rounded-xl text-sm ${isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600'}`}>
+                      <div className="flex items-start gap-2">
+                        <i className="fas fa-exclamation-triangle mt-0.5"></i>
+                        <div>
+                          <span className="font-medium">请完善以下信息：</span>
+                          <ul className="mt-1 space-y-0.5 text-xs opacity-90">
+                            {!formData.name.trim() && <li>• 社群名称</li>}
+                            {!formData.description.trim() && <li>• 社群简介</li>}
+                            {!formData.category && <li>• 选择分类（左侧列表）</li>}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={handleSubmit}
                     disabled={!formData.name.trim() || !formData.description.trim() || !formData.category}

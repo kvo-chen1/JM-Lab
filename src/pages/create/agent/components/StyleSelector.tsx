@@ -173,7 +173,7 @@ export default function StyleSelector() {
       // 调用真实图像生成API
       console.log('[StyleSelector] 调用 llmService.generateImage...');
       const result = await llmService.generateImage({
-        model: 'wanx-v1',
+        model: 'qwen-image-2.0-pro',
         prompt: prompt,
         size: '1024x1024',
         n: 1 // 只生成1张

@@ -164,7 +164,7 @@ class TemplateService {
         language: 'zh-CN',
         author: '官方模板',
         config: {
-          model: 'deepseek',
+          model: 'qwen',
           temperature: 0.8,
           top_p: 0.95,
           max_tokens: 2000,
@@ -212,7 +212,7 @@ class TemplateService {
         language: 'zh-CN',
         author: '官方模板',
         config: {
-          model: 'deepseek',
+          model: 'qwen',
           temperature: 0.8,
           top_p: 0.9,
           max_tokens: 2000,
@@ -285,7 +285,7 @@ class TemplateService {
         language: 'zh-CN',
         author: '官方模板',
         config: {
-          model: 'deepseek',
+          model: 'qwen',
           temperature: 0.7,
           top_p: 0.9,
           max_tokens: 2000,

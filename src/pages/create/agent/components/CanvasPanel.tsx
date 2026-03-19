@@ -24,6 +24,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// 扩展 GeneratedOutput 类型以支持引用
+type GeneratedOutputWithMention = GeneratedOutput & { isMentioned?: boolean };
+
 // 图片加载状态管理组件
 function ImageWithLoading({
   src,
@@ -108,17 +111,18 @@ interface CanvasPanelProps {
 
 export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
   const { isDark } = useTheme();
-  const { 
-    generatedOutputs, 
-    selectedOutput, 
-    selectOutput, 
+  const {
+    generatedOutputs,
+    selectedOutput,
+    selectOutput,
     deleteOutput,
     updateOutput,
     currentTask,
     showSatisfactionModal,
     setShowSatisfactionModal,
     addMessage,
-    setCurrentAgent
+    setCurrentAgent,
+    setPendingMention
   } = useAgentStore();
 
   const [viewMode, setViewMode] = useState<'gallery' | 'grid'>('gallery');
@@ -338,6 +342,20 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
       toast.success('图片已删除');
     }
   };
+
+  // 处理作品引用 - 将作品引用到对话输入框
+  const handleMentionWork = useCallback((output: GeneratedOutput) => {
+    const workTitle = output.title || '未命名作品';
+
+    // 设置待处理的引用，ChatPanel 会监听这个状态并添加到输入框
+    setPendingMention({
+      type: 'work',
+      name: workTitle,
+      id: output.id
+    });
+
+    toast.success(`已引用作品：${workTitle}，请在输入框中描述您的需求`);
+  }, [setPendingMention]);
 
   const handleSatisfactionResponse = (satisfied: boolean) => {
     setShowSatisfactionModal(false);
@@ -599,6 +617,10 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                             onDownload={(data) => {
                               handleDownload();
                             }}
+                            onMention={(data) => {
+                              handleMentionWork(output);
+                            }}
+                            showMentionButton={true}
                           />
                         </motion.div>
                       ))}
@@ -683,6 +705,10 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                             onDownload={(data) => {
                               handleDownload();
                             }}
+                            onMention={(data) => {
+                              handleMentionWork(output);
+                            }}
+                            showMentionButton={true}
                           />
                         </motion.div>
                       ))}

@@ -829,6 +829,20 @@ async function createPostgreSQLTables(pool) {
         await client.query('CREATE INDEX IF NOT EXISTS idx_events_brand_id ON events(brand_id);')
         console.log('[DB] events time fields ensured')
 
+        // 确保 communities 表列存在（当表已存在时）
+        console.log('[DB] Ensuring communities columns...')
+        try {
+          await client.query(`ALTER TABLE IF EXISTS communities RENAME COLUMN avatar_url TO avatar;`)
+          console.log('[DB] Renamed avatar_url to avatar')
+        } catch (e) {
+          // 如果 avatar_url 不存在或 avatar 已存在，则忽略错误
+        }
+        await ensureColumn('communities', 'avatar', 'TEXT')
+        await ensureColumn('communities', 'creator_id', 'TEXT')
+        await ensureColumn('communities', 'is_active', 'BOOLEAN DEFAULT TRUE')
+        await ensureColumn('communities', 'is_special', 'BOOLEAN DEFAULT FALSE')
+        console.log('[DB] communities columns ensured')
+
         console.log('[DB] Column type check completed')
         return
       }
@@ -946,7 +960,13 @@ async function createPostgreSQLTables(pool) {
         );
       `)
       
-      // 确保 avatar 字段存在
+      // 确保 avatar 字段存在（如果存在 avatar_url，则重命名）
+      try {
+        await client.query(`ALTER TABLE IF EXISTS communities RENAME COLUMN avatar_url TO avatar;`)
+        console.log('[DB] Renamed avatar_url to avatar')
+      } catch (e) {
+        // 如果 avatar_url 不存在或 avatar 已存在，则忽略错误
+      }
       await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS avatar TEXT;`)
       // 确保 creator_id 字段存在
       await client.query(`ALTER TABLE IF EXISTS communities ADD COLUMN IF NOT EXISTS creator_id TEXT;`)
@@ -5160,6 +5180,17 @@ export const communityDB = {
     }
     
     if (!community) return null
+
+    // 查询创建者信息
+    let creator = null
+    if (community.creator_id) {
+      try {
+        const creatorResult = await db.query('SELECT id, username, avatar_url FROM users WHERE id = $1', [community.creator_id])
+        creator = creatorResult.rows[0]
+      } catch (err) {
+        console.error('[getCommunityById] 查询创建者信息失败:', err)
+      }
+    }
     
     // 转换数据库字段为前端期望的格式
     return {
@@ -5173,6 +5204,13 @@ export const communityDB = {
       is_active: community.is_active,
       is_special: community.is_special,
       creator_id: community.creator_id,
+      creatorId: community.creator_id,
+      creator: creator ? {
+        id: creator.id,
+        username: creator.username,
+        avatar_url: creator.avatar_url,
+        avatar: creator.avatar_url
+      } : null,
       created_at: community.created_at,
       updated_at: community.updated_at,
       tags: community.tags,

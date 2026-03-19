@@ -141,7 +141,8 @@ export async function getBaseStats(forceRefresh = false) {
     { data: worksWithCategory },
     { data: userSessionsForHeatmap },
     { data: ordersByDate },
-    { data: usersWithOrders },
+    { data: usersForOrders },
+    { data: membershipOrdersData },
     { data: worksByHour },
     { data: userActivity },
     { data: commentsForSentiment },
@@ -192,8 +193,9 @@ export async function getBaseStats(forceRefresh = false) {
     // 订单日期数据
     supabaseAdmin.from('membership_orders').select('created_at, amount, status').eq('status', 'completed'),
 
-    // 用户订单数据
-    supabaseAdmin.from('users').select('id, created_at, membership_orders(amount, created_at)'),
+    // 用户订单数据 - 分开查询
+    supabaseAdmin.from('users').select('id, created_at'),
+    supabaseAdmin.from('membership_orders').select('user_id, amount, created_at'),
 
     // 作品时间数据
     supabaseAdmin.from('works').select('created_at'),
@@ -207,6 +209,20 @@ export async function getBaseStats(forceRefresh = false) {
     // 用户历史数据（用于流量来源）
     supabaseAdmin.from('user_history').select('*')
   ]);
+
+  // 合并用户和订单数据
+  const ordersByUser = new Map();
+  membershipOrdersData?.forEach((order: any) => {
+    if (!ordersByUser.has(order.user_id)) {
+      ordersByUser.set(order.user_id, []);
+    }
+    ordersByUser.get(order.user_id).push(order);
+  });
+
+  const usersWithOrders = usersForOrders?.map((user: any) => ({
+    ...user,
+    membership_orders: ordersByUser.get(user.id) || []
+  }));
 
   const result = {
     works,

@@ -47,6 +47,7 @@ import { TianjinThemeWrapper } from '@/components/TianjinThemeWrapper';
 import { ScrollRestoration } from '@/components/ScrollRestoration';
 import { HamsterWheelLoader } from '@/components/ui';
 import AIChatBot from '@/components/AIChatBot';
+import EntryAnimation from '@/components/EntryAnimation';
 
 // 核心页面 - 只保留最关键的页面进行同步加载，减少初始加载时间
 import Home from "@/pages/Home";
@@ -55,6 +56,12 @@ import ComponentShowcase from "@/pages/ComponentShowcase";
 import IPCharacterShowcase from "@/pages/IPCharacterShowcase";
 import ThemeTestPage from "@/pages/ThemeTestPage";
 import HamsterLoaderDemo from "@/pages/HamsterLoaderDemo";
+
+// ImagePasteInput 演示页面 - 懒加载
+const ImagePasteInputDemo = createLazyComponent(() => import(/* webpackChunkName: "pages-demo" */ "@/pages/ImagePasteInputDemo"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'image-paste-input-demo'
+});
 
 // 认证相关页面 - 懒加载减少初始包大小
 const Login = createLazyComponent(() => import(/* webpackChunkName: "pages-auth" */ "@/pages/Login"), {
@@ -359,10 +366,7 @@ const EventManagement = createLazyComponent(() => import(/* webpackChunkName: "p
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'event-management'
 });
-const PermissionManagement = createLazyComponent(() => import(/* webpackChunkName: "pages-admin-core" */ "@/pages/admin/PermissionManagement"), {
-  priority: ROUTE_PRIORITIES.MEDIUM,
-  name: 'permission-management'
-});
+
 
 // ============================================
 // P1 重要Admin功能页面 - 懒加载
@@ -1112,6 +1116,7 @@ export default function App() {
         <GuideProvider>
           <EventProvider>
             <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
+            <EntryAnimation />
             {Analytics && <Analytics />}
             {SpeedInsights && <SpeedInsights />}
             <Routes location={location} key={location.pathname}>
@@ -1253,6 +1258,7 @@ export default function App() {
           <Route path="/ip-character" element={<IPCharacterShowcase />} />
           <Route path="/hamster-loader-demo" element={<HamsterLoaderDemo />} />
           <Route path="/trending-card-demo" element={<LazyComponent><TrendingCardDemo /></LazyComponent>} />
+          <Route path="/image-paste-input-demo" element={<LazyComponent><ImagePasteInputDemo /></LazyComponent>} />
           <Route path="/knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/knowledge/:type/:id" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
           <Route path="/cultural-knowledge" element={<LazyComponent><CulturalKnowledge /></LazyComponent>} />
@@ -1382,7 +1388,7 @@ export default function App() {
         <Route path="/admin/content-audit" element={<LazyComponent><AdminRoute component={ContentAudit} /></LazyComponent>} />
         <Route path="/admin/reports" element={<LazyComponent><AdminRoute component={ReportManagement} /></LazyComponent>} />
         <Route path="/admin/events" element={<LazyComponent><AdminRoute component={EventManagement} /></LazyComponent>} />
-        <Route path="/admin/permissions" element={<LazyComponent><AdminRoute component={PermissionManagement} /></LazyComponent>} />
+
         
         {/* ============================================ */}
         {/* P1 重要Admin功能路由 */}

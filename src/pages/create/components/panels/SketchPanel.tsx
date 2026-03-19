@@ -411,15 +411,24 @@ export default function SketchPanel() {
     // 启动进度模拟（生成阶段）
     startImageProgressSimulation();
     
-    const r = await llmService.generateImage({ 
-      prompt: input, 
-      size: getSizeFromAspectRatio(imageAspectRatio), 
-      n: Math.min(Math.max(generateCount, 1), 6), 
-      response_format: 'url', 
+    const r = await llmService.generateImage({
+      prompt: input,
+      size: getSizeFromAspectRatio(imageAspectRatio),
+      n: Math.min(Math.max(generateCount, 1), 6),
+      response_format: 'url',
       watermark: true,
       negative_prompt: negativePrompt || undefined,
       seed: seed || undefined,
     });
+
+    // 检查生成是否成功
+    if (!r.ok) {
+      console.error('[TextToImage] Generation failed:', r.error);
+      stopImageProgressSimulation(false);
+      toast.error(r.error || '图片生成失败，请重试');
+      useFallbackData('image');
+      return;
+    }
 
     const dataArray = (r as any)?.data?.data || (r as any)?.data || [];
     const urls = dataArray.map((d: any) => d.url || (d.b64_json ? `data:image/png;base64,${d.b64_json}` : '')).filter(Boolean);

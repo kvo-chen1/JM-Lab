@@ -1436,7 +1436,7 @@ export default function Neo() {
     const prev = llmService.getCurrentModel().id
     const prevStream = llmService.getConfig().stream
     try {
-      const chosen = await (llmService as any).ensureAvailableModel(['deepseek', 'kimi', 'qwen', 'wenxinyiyan'])
+      const chosen = await (llmService as any).ensureAvailableModel(['kimi', 'qwen'])
       if (chosen !== prev) llmService.setCurrentModel(chosen)
       llmService.updateConfig({ stream: true })
       const context = `${base} ${tags.join(' ')} ${brand}`.trim()
@@ -1447,7 +1447,7 @@ export default function Neo() {
       setLastOptimizedPrompt(text)
       setOptStatus('done')
       if (final && !/未配置密钥|返回模拟响应/.test(final)) {
-        toast.success('已用DeepSeek优化提示词')
+        toast.success('已用AI优化提示词')
       } else {
         toast.info('已使用模拟响应优化提示词')
       }

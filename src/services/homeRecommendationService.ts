@@ -181,11 +181,18 @@ class HomeRecommendationService {
         throw new Error('该推荐项已存在');
       }
 
+      // 处理日期字段：将空字符串转换为 null
+      const processedItem = {
+        ...item,
+        start_date: item.start_date || null,
+        end_date: item.end_date || null,
+      };
+
       const { data, error } = await supabaseAdmin
         .from(this.tableName)
         .insert([
           {
-            ...item,
+            ...processedItem,
             created_by: userId,
           },
         ])
@@ -239,12 +246,17 @@ class HomeRecommendationService {
         throw new Error('推荐项不存在');
       }
 
+      // 处理日期字段：将空字符串转换为 null
+      const processedUpdates = {
+        ...updates,
+        start_date: updates.start_date || null,
+        end_date: updates.end_date || null,
+        updated_at: new Date().toISOString(),
+      };
+
       const { data, error } = await supabaseAdmin
         .from(this.tableName)
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
+        .update(processedUpdates)
         .eq('id', id)
         .select()
         .single();

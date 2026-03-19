@@ -974,7 +974,7 @@ ${outlineText}
           >
             <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
               <span className="text-white text-xs font-bold">
-                {selectedModel === 'Kimi' ? 'K' : selectedModel === 'DeepSeek' ? 'D' : '通'}
+                {selectedModel === 'Kimi' ? 'K' : '通'}
               </span>
             </div>
             <span>{selectedModel}</span>

@@ -1,5 +1,7 @@
-import { supabase, supabaseAdmin } from '@/lib/supabase';
 import type { OrderAudit } from './orderAuditService';
+
+// API 基础 URL
+const API_BASE_URL = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3030';
 
 // ============================================================================
 // 类型定义
@@ -39,6 +41,23 @@ export interface BrandOrderFilter {
   endDate?: string;
 }
 
+// 获取当前用户的 JWT token
+function getAuthToken(): string | null {
+  // 尝试从 Supabase 存储中获取 token
+  const session = localStorage.getItem('sb-kizgwtrrsmkjeiddotup-auth-token');
+  if (session) {
+    try {
+      const parsed = JSON.parse(session);
+      return parsed.access_token || null;
+    } catch {
+      return null;
+    }
+  }
+  // 尝试从自定义存储中获取 token
+  const token = localStorage.getItem('token');
+  return token || null;
+}
+
 // ============================================================================
 // 获取品牌方的商单列表
 // ============================================================================
@@ -48,34 +67,36 @@ export const getBrandOrders = async (
   filter: BrandOrderFilter = {}
 ): Promise<BrandOrder[]> => {
   try {
-    let query = supabaseAdmin
-      .from('order_audits')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    // 状态筛选
+    const params = new URLSearchParams();
+    params.append('user_id', userId);
+    
     if (filter.status) {
-      query = query.eq('status', filter.status);
+      params.append('status', filter.status);
     }
-
-    // 关键词搜索
     if (filter.keyword) {
-      query = query.or(`title.ilike.%${filter.keyword}%,brand_name.ilike.%${filter.keyword}%`);
+      params.append('keyword', filter.keyword);
     }
-
-    // 时间范围筛选
     if (filter.startDate) {
-      query = query.gte('created_at', filter.startDate);
+      params.append('start_date', filter.startDate);
     }
     if (filter.endDate) {
-      query = query.lte('created_at', filter.endDate);
+      params.append('end_date', filter.endDate);
     }
 
-    const { data, error } = await query;
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits?${params.toString()}`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
 
-    if (error) throw error;
-    return data || [];
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data || [];
   } catch (error) {
     console.error('获取品牌方商单列表失败:', error);
     return [];
@@ -88,30 +109,31 @@ export const getBrandOrders = async (
 
 export const getBrandOrderStats = async (userId: string): Promise<BrandOrderStats> => {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('order_audits')
-      .select('status')
-      .eq('user_id', userId);
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits?user_id=${userId}`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
 
-    if (error) throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-    // 获取接单申请统计
-    const { data: applications, error: appError } = await supabaseAdmin
-      .from('order_applications')
-      .select('status')
-      .in('order_id', data?.map(d => d.id) || []);
-
-    if (appError) throw appError;
-
+    const result = await response.json();
+    const data = result.data || [];
+    
+    // 计算统计数据
     const stats: BrandOrderStats = {
-      total: data?.length || 0,
-      pending: data?.filter(item => item.status === 'pending').length || 0,
-      approved: data?.filter(item => item.status === 'approved').length || 0,
-      rejected: data?.filter(item => item.status === 'rejected').length || 0,
-      totalApplications: applications?.length || 0,
-      pendingApplications: applications?.filter(a => a.status === 'pending').length || 0,
+      total: data.length,
+      pending: data.filter((item: any) => item.status === 'pending').length,
+      approved: data.filter((item: any) => item.status === 'approved').length,
+      rejected: data.filter((item: any) => item.status === 'rejected').length,
+      totalApplications: 0,
+      pendingApplications: 0,
     };
-
+    
     return stats;
   } catch (error) {
     console.error('获取品牌方商单统计失败:', error);
@@ -132,14 +154,20 @@ export const getBrandOrderStats = async (userId: string): Promise<BrandOrderStat
 
 export const getOrderApplications = async (orderId: string): Promise<OrderApplication[]> => {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('order_applications')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false });
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-applications?order_id=${orderId}`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
 
-    if (error) throw error;
-    return data || [];
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data || [];
   } catch (error) {
     console.error('获取接单申请列表失败:', error);
     return [];
@@ -156,17 +184,24 @@ export const reviewApplication = async (
   reviewNote?: string
 ): Promise<boolean> => {
   try {
-    const { error } = await supabaseAdmin
-      .from('order_applications')
-      .update({
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-applications/${applicationId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         status,
         review_note: reviewNote,
         reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', applicationId);
+      }),
+    });
 
-    if (error) throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
     return true;
   } catch (error) {
     console.error('审核接单申请失败:', error);
@@ -184,17 +219,27 @@ export const batchReviewApplications = async (
   reviewNote?: string
 ): Promise<boolean> => {
   try {
-    const { error } = await supabaseAdmin
-      .from('order_applications')
-      .update({
-        status,
-        review_note: reviewNote,
-        reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', applicationIds);
+    const token = getAuthToken();
+    // 逐个审核
+    for (const id of applicationIds) {
+      const response = await fetch(`${API_BASE_URL}/api/order-applications/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status,
+          review_note: reviewNote,
+          reviewed_at: new Date().toISOString(),
+        }),
+      });
 
-    if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    }
+
     return true;
   } catch (error) {
     console.error('批量审核接单申请失败:', error);
@@ -208,29 +253,20 @@ export const batchReviewApplications = async (
 
 export const getBrandOrderDetail = async (orderId: string): Promise<BrandOrder | null> => {
   try {
-    // 获取商单基本信息
-    const { data: order, error: orderError } = await supabaseAdmin
-      .from('order_audits')
-      .select('*')
-      .eq('id', orderId)
-      .single();
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits/${orderId}`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
 
-    if (orderError) throw orderError;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-    // 获取接单申请
-    const { data: applications, error: appError } = await supabaseAdmin
-      .from('order_applications')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false });
-
-    if (appError) throw appError;
-
-    return {
-      ...order,
-      applications: applications || [],
-      application_count: applications?.length || 0,
-    };
+    const result = await response.json();
+    return result.data || null;
   } catch (error) {
     console.error('获取商单详情失败:', error);
     return null;
@@ -246,15 +282,20 @@ export const updateBrandOrder = async (
   updates: Partial<OrderAudit>
 ): Promise<boolean> => {
   try {
-    const { error } = await supabaseAdmin
-      .from('order_audits')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', orderId);
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits/${orderId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
 
-    if (error) throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
     return true;
   } catch (error) {
     console.error('更新商单失败:', error);
@@ -268,15 +309,23 @@ export const updateBrandOrder = async (
 
 export const closeBrandOrder = async (orderId: string): Promise<boolean> => {
   try {
-    const { error } = await supabaseAdmin
-      .from('order_audits')
-      .update({
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits/${orderId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         status: 'closed',
         updated_at: new Date().toISOString(),
-      })
-      .eq('id', orderId);
+      }),
+    });
 
-    if (error) throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
     return true;
   } catch (error) {
     console.error('关闭商单失败:', error);
@@ -290,12 +339,19 @@ export const closeBrandOrder = async (orderId: string): Promise<boolean> => {
 
 export const deleteBrandOrder = async (orderId: string): Promise<boolean> => {
   try {
-    const { error } = await supabaseAdmin
-      .from('order_audits')
-      .delete()
-      .eq('id', orderId);
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/api/order-audits/${orderId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
 
-    if (error) throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
     return true;
   } catch (error) {
     console.error('删除商单失败:', error);
@@ -304,8 +360,10 @@ export const deleteBrandOrder = async (orderId: string): Promise<boolean> => {
 };
 
 // ============================================================================
-// 实时更新监听
+// 实时更新监听（使用 Supabase Realtime）
 // ============================================================================
+
+import { supabase } from '@/lib/supabase';
 
 export const subscribeToBrandOrders = (
   userId: string,

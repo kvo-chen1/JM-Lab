@@ -346,7 +346,7 @@ Agent回复："${agentResponse}"
 }`;
 
       const response = await callQwenChat({
-        model: 'qwen-plus',
+        model: 'qwen3.5-plus',
         messages: [
           { role: 'system', content: '你是一个反馈分析专家。' },
           { role: 'user', content: prompt }

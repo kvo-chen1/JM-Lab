@@ -251,11 +251,11 @@ export class EmbeddingService {
 注意：请确保返回的是有效的JSON数组格式。`;
 
       const response = await callQwenChat({
-        model: 'qwen-plus',
+        model: 'qwen3.5-plus',
         messages: [
           { 
             role: 'system', 
-            content: '你是一个专业的文本Embedding生成器。将文本转换为数值向量表示。' 
+            content: '你是一个专业的文本 Embedding 生成器。将文本转换为数值向量表示。' 
           },
           { role: 'user', content: prompt }
         ],

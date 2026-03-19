@@ -1,7 +1,7 @@
 // Agent类型定义
 
 // LLM 模型类型
-export type LLMModelType = 'qwen' | 'kimi' | 'deepseek';
+export type LLMModelType = 'qwen' | 'kimi';
 
 export interface LLMModelConfig {
   id: LLMModelType;
@@ -41,6 +41,8 @@ export interface AgentMessage {
   metadata?: {
     images?: string[];
     styles?: StyleOption[];
+    brands?: string[];  // 引用的品牌名列表
+    works?: string[];   // 引用的作品ID列表
     thinking?: string;
     toolCalls?: ToolCall[];
     derivativeOptions?: DerivativeOption[];
@@ -244,6 +246,9 @@ export interface AgentState {
 
   // 需求收集状态
   requirementCollection: RequirementCollection;
+
+  // 待处理的引用（从作品库或生成作品引用到输入框）
+  pendingMention: { type: 'work' | 'brand' | 'style'; name: string; id?: string } | null;
 }
 
 // Agent 配置项
@@ -431,13 +436,6 @@ export const LLM_MODELS: LLMModelConfig[] = [
     icon: 'K',
     description: 'Moonshot AI，长文本处理能力强',
     color: 'from-blue-500 to-cyan-600'
-  },
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    icon: 'D',
-    description: '深度求索，代码与推理能力优秀',
-    color: 'from-purple-500 to-indigo-600'
   }
 ];
 

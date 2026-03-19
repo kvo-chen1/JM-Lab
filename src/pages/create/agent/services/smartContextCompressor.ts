@@ -362,7 +362,7 @@ ${dialogueText}
 摘要：`;
 
       const summary = await callQwenChat({
-        model: 'qwen-plus',
+        model: 'qwen3.5-plus',
         messages: [
           { role: 'system', content: '你是一个专业的对话摘要助手。' },
           { role: 'user', content: prompt }

@@ -565,9 +565,9 @@ class AnalyticsTrackingService {
       // 2. 获取有作品的用户数（创作用户）
       const { data: creators } = await supabaseAdmin
         .from('works')
-        .select('creator_id')
-        .group('creator_id');
-      const creatorCount = creators?.length || 0;
+        .select('creator_id');
+      const uniqueCreators = new Set(creators?.map(w => w.creator_id));
+      const creatorCount = uniqueCreators.size;
 
       // 3. 获取发布过作品的用户数
       const { data: publishedWorks } = await supabaseAdmin

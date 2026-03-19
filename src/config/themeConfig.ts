@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force' | 'cyber-brutalist' | 'pink-brutalist';
 
 // 自定义主题接口
 export interface CustomTheme {
@@ -58,7 +58,9 @@ export const themeConfig: ThemeConfig[] = [
   { value: 'goubuli', label: '狗不理棕', icon: 'fas fa-bread-slice', description: '传统美食主题，温暖棕色调，用于暖色调装饰' },
   { value: 'tianjin-enhanced', label: '津门雅韵·深', icon: 'fas fa-city', description: '天津文化主题深化版，融合海河波纹、传统纹样、老字号元素，展现津门文化魅力', isSystem: true },
   { value: 'poizon', label: '得物潮流', icon: 'fas fa-bolt', description: '得物App风格主题，极光蓝(#00C6FF)品牌色+黑白极简基底，高对比干净高级，潮流轻奢感' },
-  { value: 'delta-force', label: '三角洲行动', icon: 'fas fa-crosshairs', description: '三角洲行动战术风格主题,军事硬核体验,霓虹科技色调' }
+  { value: 'delta-force', label: '三角洲行动', icon: 'fas fa-crosshairs', description: '三角洲行动战术风格主题,军事硬核体验,霓虹科技色调' },
+  { value: 'cyber-brutalist', label: '赛博粗犷', icon: 'fas fa-cubes', description: '赛博粗犷主义像素风，硬朗边框与霓虹强调色的未来感融合，致敬8-bit时代的同时保持现代布局逻辑' },
+  { value: 'pink-brutalist', label: '粉色赛博', icon: 'fas fa-heart', description: '粉色赛博粗犷主义像素风，硬朗边框与霓虹粉色调的甜美融合，赛博甜心风格' }
 ];
 
 
@@ -79,7 +81,9 @@ export const themeEnhancements = {
     goubuli: 1.15,
     'tianjin-enhanced': 1.2,
     'poizon': 1.25,
-    'delta-force': 1.25
+    'delta-force': 1.25,
+    'cyber-brutalist': 1.35,
+    'pink-brutalist': 1.32
   },
   // 色彩饱和度优化
   saturation: {
@@ -96,7 +100,9 @@ export const themeEnhancements = {
     goubuli: 1.08,
     'tianjin-enhanced': 1.1,
     'poizon': 1.15,
-    'delta-force': 1.2
+    'delta-force': 1.2,
+    'cyber-brutalist': 1.25,
+    'pink-brutalist': 1.22
   },
   // 亮度调整
   brightness: {
@@ -113,7 +119,9 @@ export const themeEnhancements = {
     goubuli: 0.98,
     'tianjin-enhanced': 1.02,
     'poizon': 1.05,
-    'delta-force': 0.95
+    'delta-force': 0.95,
+    'cyber-brutalist': 0.88,
+    'pink-brutalist': 0.9
   },
   // 主题过渡动画
   transition: {
@@ -200,6 +208,26 @@ export const themeEnhancements = {
       hudStyle: true,
       scanlines: true,
       tacticalGrid: true
+    },
+    'cyber-brutalist': {
+      glow: true,
+      intensity: 'high',
+      color: '#39ff14',
+      pixelStyle: true,
+      scanlines: true,
+      tacticalGrid: true,
+      brutalistBorders: true,
+      offsetShadows: true
+    },
+    'pink-brutalist': {
+      glow: true,
+      intensity: 'high',
+      color: '#ff1493',
+      pixelStyle: true,
+      scanlines: true,
+      tacticalGrid: true,
+      brutalistBorders: true,
+      offsetShadows: true
     }
   }
 };
@@ -228,7 +256,7 @@ export const autoThemeConfig = {
 // 主题预设配置
 export const themePresets = {
   // 推荐主题组合
-  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force'] as Theme[],
+  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist'] as Theme[],
   // 季节适配
   seasonal: {
     spring: 'green',
@@ -253,10 +281,10 @@ export const themePresets = {
 export const defaultTheme: Theme = 'pixel';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist'];
 
 // 有效的主题列表（用于验证）
-export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force'];
+export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {
@@ -303,6 +331,8 @@ export const getAppliedTheme = (theme: Theme): Theme => {
     case 'tianjin-enhanced':
     case 'poizon':
     case 'delta-force':
+    case 'cyber-brutalist':
+    case 'pink-brutalist':
       return theme;
     default:
       return defaultTheme;

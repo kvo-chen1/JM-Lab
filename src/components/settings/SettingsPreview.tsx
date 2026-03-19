@@ -46,7 +46,7 @@ const helpContent: Record<SettingCategory, { title: string; tips: string[]; link
     title: 'API 配置帮助',
     tips: [
       'API密钥仅保存在本地浏览器中',
-      '支持 Kimi、DeepSeek 等多种AI服务',
+      '支持 Kimi、通义千问等多种AI服务',
       '可以在不同模型间自由切换',
     ],
     links: [
@@ -131,8 +131,7 @@ const helpContent: Record<SettingCategory, { title: string; tips: string[]; link
 // 模拟模型状态数据
 const mockModelStatus = [
   { name: 'Kimi AI', status: 'connected' as const, latency: 245 },
-  { name: 'DeepSeek', status: 'disconnected' as const },
-  { name: 'OpenAI', status: 'disconnected' as const },
+  { name: '通义千问', status: 'connected' as const, latency: 180 },
 ];
 
 export function SettingsPreview({ activeCategory, theme, onThemeChange, onOpenModelSelector }: SettingsPreviewProps) {

@@ -9,7 +9,7 @@ import { usePrediction } from '../hooks/usePrediction';
 import { useABTesting } from '../hooks/useABTesting';
 import { useDynamicWorkflow } from '../hooks/useDynamicWorkflow';
 import { useJinbi } from '@/hooks/useJinbi';
-import { Send, Image as ImageIcon, Sparkles, Trash2, Wand2, Layers, Store, Coins, AlertCircle } from 'lucide-react';
+import { Send, Image as ImageIcon, Sparkles, Trash2, Wand2, Layers, Store, Library, Coins, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import ChatMessage from './ChatMessage';
 import AgentAvatar from './AgentAvatar';
@@ -25,9 +25,11 @@ import DataMigrationDialog from './DataMigrationDialog';
 import VoiceInputButton from './VoiceInputButton';
 import StyleLibrary from './StyleLibrary';
 import BrandLibrary from './BrandLibrary';
+import WorkLibrary from './WorkLibrary';
 import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 import type { InspirationHint, StyleOption } from '../types/agent';
 import type { Brand } from '@/lib/brands';
+import type { Work } from '@/services/workService';
 import {
   processWithOrchestrator,
   ConversationContext
@@ -120,20 +122,22 @@ function detectStyleFromMessage(message: string): string | null {
   return null;
 }
 
-// 解析输入中的@提及（支持品牌和风格）
+// 解析输入中的@提及（支持品牌、风格和作品）
 function parseMentions(input: string): {
   cleanInput: string;
   brands: string[];
   styles: string[];
+  works: string[];
 } {
   const brandMentions: string[] = [];
   const styleMentions: string[] = [];
+  const workMentions: string[] = [];
   const mentionRegex = /@([^\s,，.。!！?？]+)/g;
   let match;
-  
+
   while ((match = mentionRegex.exec(input)) !== null) {
     const mention = match[1];
-    // 简单判断：如果提及匹配风格名，则认为是风格，否则认为是品牌
+    // 简单判断：如果提及匹配风格名，则认为是风格
     const styleNames = PRESET_STYLES.map(s => s.name);
     const extendedStyleNames = [
       '国潮风尚', '水墨意境', '青花瓷韵', '敦煌飞天', '剪纸艺术', '书法韵味',
@@ -141,17 +145,20 @@ function parseMentions(input: string): {
       '卡通动漫', '日式萌系', '童话梦幻'
     ];
     const allStyleNames = [...styleNames, ...extendedStyleNames];
-    
+
     if (allStyleNames.includes(mention)) {
       styleMentions.push(mention);
     } else {
+      // 非风格提及，可能是品牌或作品
+      // 这里简单处理：先作为品牌，也可以同时作为作品引用
       brandMentions.push(mention);
+      workMentions.push(mention);
     }
   }
-  
+
   const cleanInput = input.replace(mentionRegex, '').trim();
-  
-  return { cleanInput, brands: brandMentions, styles: styleMentions };
+
+  return { cleanInput, brands: brandMentions, styles: styleMentions, works: workMentions };
 }
 
 export default function ChatPanel() {
@@ -166,6 +173,7 @@ export default function ChatPanel() {
     selectedStyle,
     requirementCollection,
     currentModel,
+    pendingMention,
     addMessage,
     addOutput,
     setIsTyping,
@@ -181,7 +189,8 @@ export default function ChatPanel() {
     processNextInQueue,
     setCollaborating,
     selectStyle,
-    setCurrentModel
+    setCurrentModel,
+    clearPendingMention
   } = useAgentStore();
 
   const [inputValue, setInputValue] = useState('');
@@ -192,6 +201,9 @@ export default function ChatPanel() {
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [analyzingImage, setAnalyzingImage] = useState<string | null>(null);
   const [showStyleLibrary, setShowStyleLibrary] = useState(false);
+  // 粘贴图片相关状态
+  const [pastedImages, setPastedImages] = useState<Array<{ id: string; file: File; preview: string }>>([]);
+  const [isProcessingPaste, setIsProcessingPaste] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -351,6 +363,21 @@ export default function ChatPanel() {
     }
   }, [inputValue]);
 
+  // 监听 pendingMention，将引用添加到输入框
+  useEffect(() => {
+    if (pendingMention) {
+      const mention = `@${pendingMention.name} `;
+      setInputValue(prev => {
+        // 如果输入框已有内容，在末尾添加引用
+        return prev ? `${prev} ${mention}` : mention;
+      });
+      // 清除 pendingMention
+      clearPendingMention();
+      // 聚焦输入框
+      inputRef.current?.focus();
+    }
+  }, [pendingMention, clearPendingMention]);
+
   // 处理 Agent 切换动画
   const handleAgentSwitch = useCallback((fromAgent: AgentType | undefined, toAgent: AgentType) => {
     setSwitcherFromAgent(fromAgent);
@@ -381,7 +408,7 @@ export default function ChatPanel() {
 
       // 调用图像生成API
       const result = await llmService.generateImage({
-        model: 'wanx-v1',
+        model: 'qwen-image-2.0-pro',
         prompt: prompt,
         size: '1024x1024',
         n: 1
@@ -712,11 +739,11 @@ export default function ChatPanel() {
     if (!inputValue.trim() || isTyping) return;
 
     // 解析@提及
-    const { cleanInput, brands, styles } = parseMentions(inputValue);
-    
+    const { cleanInput, brands, styles, works } = parseMentions(inputValue);
+
     // 如果没有实际内容（只有@提及），不发送
-    if (!cleanInput && (brands.length > 0 || styles.length > 0)) {
-      toast.warning('请选择品牌/风格后输入您的需求');
+    if (!cleanInput && (brands.length > 0 || styles.length > 0 || works.length > 0)) {
+      toast.warning('请选择品牌/风格/作品后输入您的需求');
       return;
     }
 
@@ -742,7 +769,8 @@ export default function ChatPanel() {
       type: 'text',
       metadata: {
         brands, // 附加品牌信息
-        styles  // 附加风格信息
+        styles, // 附加风格信息
+        works   // 附加作品信息
       }
     };
     addMessage({
@@ -940,6 +968,53 @@ export default function ChatPanel() {
     }
   };
 
+  // 处理粘贴事件
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    if (isTyping || isProcessingPaste) return;
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageItems = Array.from(items).filter(item =>
+      item.type.startsWith('image/')
+    );
+
+    if (imageItems.length === 0) return;
+
+    e.preventDefault();
+    setIsProcessingPaste(true);
+
+    const newImages: Array<{ id: string; file: File; preview: string }> = [];
+
+    for (const item of imageItems.slice(0, 3 - pastedImages.length)) {
+      const file = item.getAsFile();
+      if (file) {
+        const reader = new FileReader();
+        const preview = await new Promise<string>((resolve) => {
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+        newImages.push({
+          id: Math.random().toString(36).substring(2, 9),
+          file,
+          preview
+        });
+      }
+    }
+
+    if (newImages.length > 0) {
+      setPastedImages(prev => [...prev, ...newImages]);
+      toast.success(`成功粘贴 ${newImages.length} 张图片`);
+    }
+
+    setIsProcessingPaste(false);
+  }, [isTyping, isProcessingPaste, pastedImages.length]);
+
+  // 删除粘贴的图片
+  const handleRemovePastedImage = (id: string) => {
+    setPastedImages(prev => prev.filter(img => img.id !== id));
+  };
+
   // 清空对话
   const handleClear = () => {
     if (confirm('确定要清空对话吗？')) {
@@ -953,6 +1028,8 @@ export default function ChatPanel() {
   const [showInspirationPanel, setShowInspirationPanel] = useState(false);
   const [showBrandLibrary, setShowBrandLibrary] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
+  const [showWorkLibrary, setShowWorkLibrary] = useState(false);
+  const [selectedWork, setSelectedWork] = useState<Work | null>(null);
 
   const toggleInspirationPanel = () => setShowInspirationPanel(!showInspirationPanel);
 
@@ -1025,6 +1102,20 @@ export default function ChatPanel() {
     inputRef.current?.focus();
   };
 
+  // 处理作品选择
+  const handleWorkSelect = (work: Work) => {
+    setSelectedWork(work);
+    // 在输入框中显示 @作品名，并保留用户已输入的内容
+    setInputValue(prev => {
+      const mention = `@${work.title} `;
+      return prev ? `${prev} ${mention}` : mention;
+    });
+    toast.success(`已选择作品：${work.title}，请在输入框中描述您的需求`);
+    setShowWorkLibrary(false);
+    // 聚焦到输入框
+    inputRef.current?.focus();
+  };
+
   // 快速操作
   const quickActions = [
     { icon: Trash2, label: '清空对话', onClick: handleClear },
@@ -1032,7 +1123,8 @@ export default function ChatPanel() {
     { icon: Sparkles, label: '灵感提示', onClick: toggleInspirationPanel },
     { icon: Wand2, label: 'AI优化', onClick: handleOptimizePrompt, loading: isOptimizingPrompt },
     { icon: Layers, label: '风格库', onClick: () => setShowStyleLibrary(true) },
-    { icon: Store, label: '品牌库', onClick: () => setShowBrandLibrary(true) }
+    { icon: Store, label: '品牌库', onClick: () => setShowBrandLibrary(true) },
+    { icon: Library, label: '作品库', onClick: () => setShowWorkLibrary(true) }
   ];
 
   // 获取当前 Agent 的颜色
@@ -1185,6 +1277,26 @@ export default function ChatPanel() {
               onBrandSelect={handleBrandSelect}
               onClose={() => setShowBrandLibrary(false)}
               selectedBrand={selectedBrand?.id}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 作品库面板 */}
+      <AnimatePresence>
+        {showWorkLibrary && (
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`fixed right-0 top-0 h-full w-[720px] shadow-2xl z-40 ${
+              isDark ? 'bg-gray-900' : 'bg-white'
+            }`}
+          >
+            <WorkLibrary
+              onClose={() => setShowWorkLibrary(false)}
+              selectedWork={selectedWork?.id}
             />
           </motion.div>
         )}
@@ -1395,8 +1507,57 @@ export default function ChatPanel() {
           </div>
         </div>
 
+        {/* 粘贴的图片预览 */}
+        {pastedImages.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className={`flex flex-wrap gap-2 mt-4 p-3 rounded-xl border ${
+              isDark
+                ? 'bg-[#14141F] border-[#2A2A3E]'
+                : 'bg-gray-50 border-gray-200'
+            }`}
+          >
+            {pastedImages.map((img, index) => (
+              <motion.div
+                key={img.id}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: index * 0.05 }}
+                className={`relative w-16 h-16 rounded-lg overflow-hidden border group ${
+                  isDark
+                    ? 'border-[#2A2A3E]'
+                    : 'border-gray-200'
+                }`}
+              >
+                <img
+                  src={img.preview}
+                  alt="粘贴的图片"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all" />
+                <button
+                  onClick={() => handleRemovePastedImage(img.id)}
+                  className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-lg"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </motion.div>
+            ))}
+            {pastedImages.length < 3 && (
+              <div className={`w-16 h-16 rounded-lg border-2 border-dashed flex items-center justify-center ${
+                isDark
+                  ? 'border-[#2A2A3E] text-[#4A4A5E]'
+                  : 'border-gray-300 text-gray-400'
+              }`}>
+                <ImageIcon className="w-5 h-5" />
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Input Box - 优化深色主题样式 */}
-        <div className={`flex items-end gap-2 p-3 mt-6 rounded-xl border ${
+        <div className={`flex flex-col gap-2 p-3 mt-4 rounded-xl border ${
           isDark
             ? 'bg-[#14141F] border-[#2A2A3E] focus-within:border-[#8B5CF6]/50 focus-within:shadow-[0_0_0_3px_rgba(139,92,246,0.1)]'
             : 'bg-white border-gray-200 focus-within:border-gray-300'
@@ -1406,7 +1567,8 @@ export default function ChatPanel() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入你的设计需求..."
+            onPaste={handlePaste}
+            placeholder={pastedImages.length > 0 ? "输入设计需求，或继续粘贴图片..." : "输入你的设计需求，支持 Ctrl+V 粘贴图片..."}
             disabled={isTyping}
             className={`flex-1 bg-transparent border-none outline-none resize-none max-h-[120px] min-h-[44px] py-2.5 px-2 text-sm leading-relaxed ${
               isDark ? 'text-gray-100 placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'

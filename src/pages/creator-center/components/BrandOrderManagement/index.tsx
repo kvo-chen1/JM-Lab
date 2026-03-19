@@ -5,6 +5,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import * as brandOrderService from '@/services/brandOrderService';
 import type { BrandOrder, BrandOrderStats, OrderApplication } from '@/services/brandOrderService';
+import { StatsCard } from '@/components/stats';
+import { StatusBadge as NewStatusBadge, EmptyState } from '@/components/ui';
+import '@/styles/design-tokens.css';
 import {
   Package,
   Users,
@@ -29,6 +32,8 @@ import {
   CheckSquare,
   AlertCircle,
   Archive,
+  Flag,
+  Plus,
 } from 'lucide-react';
 
 // ============================================================================
@@ -1265,44 +1270,90 @@ const BrandOrderManagement: React.FC = () => {
       icon: Package, 
       label: '全部商单', 
       value: stats.total,
-      color: 'bg-blue-500',
+      variant: 'primary' as const,
+      trend: 12,
     },
     { 
       key: 'pending', 
       icon: Clock, 
       label: '审核中', 
       value: stats.pending,
-      color: 'bg-amber-500',
+      variant: 'warning' as const,
+      trend: 3,
     },
     { 
       key: 'approved', 
       icon: CheckCircle, 
       label: '已通过', 
       value: stats.approved,
-      color: 'bg-emerald-500',
+      variant: 'success' as const,
+      trend: 8,
     },
     { 
       key: 'rejected', 
       icon: XCircle, 
       label: '已驳回', 
       value: stats.rejected,
-      color: 'bg-rose-500',
+      variant: 'error' as const,
+      trend: -2,
+    },
+    { 
+      key: 'closed', 
+      icon: Flag, 
+      label: '已结束', 
+      value: stats.closed || 0,
+      variant: 'neutral' as const,
+      trend: 0,
     },
   ];
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-[var(--color-bg-secondary)]">
+      {/* 页面标题区域 */}
+      <div className="px-6 py-5 bg-[var(--color-bg-primary)] border-b border-[var(--color-border-default)]">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">品牌方商单管理</h1>
+            <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+              管理您的品牌合作商单，跟踪进度和效果
+            </p>
+          </div>
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2"
+            style={{ 
+              background: 'var(--gradient-primary)',
+              boxShadow: 'var(--shadow-primary)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-primary)';
+            }}
+          >
+            <Plus size={18} />
+            发布商单
+          </button>
+        </div>
+      </div>
+
       {/* 统计卡片区域 */}
-      <div className="p-5 pb-3">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="px-6 py-5">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {statCards.map((card) => (
-            <StatCard
+            <StatsCard
               key={card.key}
-              icon={card.icon}
-              label={card.label}
+              title={card.label}
               value={card.value}
-              color={card.color}
-              isActive={filter.status === card.key}
+              icon={card.icon}
+              variant={card.variant}
+              trend={card.trend}
+              trendLabel="较上月"
+              isSelected={filter.status === card.key}
+              isLoading={loading}
               onClick={() => setFilter({ ...filter, status: card.key as OrderStatus })}
             />
           ))}
@@ -1324,50 +1375,47 @@ const BrandOrderManagement: React.FC = () => {
             : 'w-full lg:flex-1'
         }`}>
           {/* 筛选栏 */}
-          <div className={`p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-            {/* 搜索框 */}
-            <div className="relative mb-3">
-              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${
-                isDark ? 'text-gray-500' : 'text-gray-400'
-              }`} />
-              <input
-                type="text"
-                placeholder="搜索商单标题或品牌..."
-                value={filter.keyword}
-                onChange={(e) => setFilter({ ...filter, keyword: e.target.value })}
-                className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-sm border transition-colors ${
-                  isDark
-                    ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-500 focus:border-blue-500'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500'
-                } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-              />
-            </div>
-            
-            {/* 排序选择 */}
-            <div className="flex items-center gap-2">
-              <Filter className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
-              <select
-                value={`${filter.sort.field}-${filter.sort.order}`}
-                onChange={(e) => {
-                  const [field, order] = e.target.value.split('-');
-                  setFilter({ 
-                    ...filter, 
-                    sort: { field: field as SortField, order: order as SortOrder }
-                  });
-                }}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm border transition-colors ${
-                  isDark
-                    ? 'bg-gray-800 border-gray-600 text-white'
-                    : 'bg-white border-gray-300 text-gray-900'
-                } focus:outline-none focus:border-blue-500`}
-              >
-                <option value="created_at-desc">最新发布</option>
-                <option value="created_at-asc">最早发布</option>
-                <option value="budget_max-desc">预算从高到低</option>
-                <option value="budget_max-asc">预算从低到高</option>
-                <option value="deadline-asc">截止日期最近</option>
-                <option value="application_count-desc">申请数最多</option>
-              </select>
+          <div className="px-6 py-4 bg-[var(--color-bg-primary)] border-b border-[var(--color-border-default)]">
+            <div className="flex items-center gap-3">
+              {/* 搜索框 */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
+                <input
+                  type="text"
+                  placeholder="搜索商单标题或品牌..."
+                  value={filter.keyword}
+                  onChange={(e) => setFilter({ ...filter, keyword: e.target.value })}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] transition-all duration-200 focus:outline-none focus:border-[var(--color-primary-500)] focus:ring-2 focus:ring-[var(--color-primary-500)]/10"
+                />
+              </div>
+              
+              {/* 排序选择 */}
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
+                <select
+                  value={`${filter.sort.field}-${filter.sort.order}`}
+                  onChange={(e) => {
+                    const [field, order] = e.target.value.split('-');
+                    setFilter({ 
+                      ...filter, 
+                      sort: { field: field as SortField, order: order as SortOrder }
+                    });
+                  }}
+                  className="pl-10 pr-8 py-2.5 rounded-lg text-sm border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] transition-all duration-200 focus:outline-none focus:border-[var(--color-primary-500)] focus:ring-2 focus:ring-[var(--color-primary-500)]/10 cursor-pointer appearance-none"
+                >
+                  <option value="created_at-desc">最新发布</option>
+                  <option value="created_at-asc">最早发布</option>
+                  <option value="budget_max-desc">预算从高到低</option>
+                  <option value="budget_max-asc">预算从低到高</option>
+                  <option value="deadline-asc">截止日期最近</option>
+                  <option value="application_count-desc">申请数最多</option>
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4 text-[var(--color-text-tertiary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -1375,13 +1423,19 @@ const BrandOrderManagement: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+                <div className="skeleton" style={{ width: '100%', height: '200px', borderRadius: '12px' }} />
               </div>
             ) : orders.length === 0 ? (
-              <div className={`text-center py-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">暂无商单</p>
-              </div>
+              <EmptyState
+                title="暂无商单"
+                description="您还没有发布任何商单，点击下方按钮开始创建"
+                primaryAction={{
+                  label: '发布第一个商单',
+                  onClick: () => setShowCreateModal(true),
+                  icon: Plus,
+                }}
+                size="lg"
+              />
             ) : (
               <AnimatePresence mode="popLayout">
                 {orders.map((order) => (

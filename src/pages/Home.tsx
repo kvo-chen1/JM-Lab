@@ -607,8 +607,8 @@ export default function Home() {
           className="absolute inset-0 z-0"
         >
           <video
-            src="https://videos.pexels.com/video-files/3129671/3129671-uhd_2560_1440_30fps.mp4"
-            poster="https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&q=80"
+            src="https://videos.pexels.com/video-files/16458946/16458946-uhd_2560_1440_30fps.mp4"
+            poster="https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=1600&q=80"
             className="w-full h-full object-cover"
             onLoadedData={(e) => {
               console.log('✅ Video loaded successfully!');
@@ -634,7 +634,7 @@ export default function Home() {
         {/* Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900/50 via-indigo-900/30 to-purple-900/50 z-[1]"></div>
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-transparent z-[2]"></div>
-        <div className={`absolute inset-0 bg-gradient-to-t ${isDark ? 'from-gray-950' : 'from-white'} to-transparent z-[2] h-32 bottom-0`}></div>
+        <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t ${isDark ? 'from-gray-950' : 'from-white'} to-transparent z-[2] h-32`}></div>
 
         {/* Hero Content */}
         <div className="relative z-20 max-w-5xl w-full px-4 sm:px-6 text-center overflow-hidden">

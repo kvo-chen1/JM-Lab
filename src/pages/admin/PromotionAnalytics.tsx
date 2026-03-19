@@ -1100,7 +1100,7 @@ export default function PromotionAnalytics() {
               />
               <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 4, 4]}>
                 {funnelData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell key={`funnel-cell-${entry.stage}-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Bar>
             </BarChart>

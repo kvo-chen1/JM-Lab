@@ -57,7 +57,6 @@ const navItems: AdminNavItem[] = [
   { id: 'paymentAudit', name: '会员支付审核', icon: 'credit-card', showNotification: true },
   { id: 'feedback', name: '反馈管理', icon: 'comments', showNotification: true },
   { id: 'reportManagement', name: '举报管理', icon: 'flag', showNotification: true },
-  { id: 'permissions', name: '权限管理', icon: 'user-lock' },
   { id: 'auditLog', name: '审计日志', icon: 'history' },
   { id: 'notificationManagement', name: '消息通知', icon: 'bell' },
   { id: 'systemMonitor', name: '系统监控', icon: 'server' },

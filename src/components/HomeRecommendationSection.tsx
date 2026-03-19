@@ -8,6 +8,10 @@ import recommendationService, {
   RecommendedItem,
   RecommendationFeedbackType
 } from '@/services/recommendationService';
+import homeRecommendationService, {
+  HomeRecommendationItem
+} from '@/services/homeRecommendationService';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 // import PostDetailModal from '@/components/PostDetailModal';
@@ -77,22 +81,57 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
     return deviceId;
   }, [user]);
 
+  // 转换后台推荐项为前端推荐格式
+  const transformHomeRecommendation = (item: HomeRecommendationItem): RecommendedItem => {
+    return {
+      id: item.item_id,
+      type: item.item_type === 'work' ? 'post' : 
+            item.item_type === 'event' ? 'challenge' : 
+            item.item_type === 'template' ? 'template' : 'challenge',
+      title: item.title,
+      description: item.description || '',
+      thumbnail: item.thumbnail || '',
+      metadata: {
+        thumbnail: item.thumbnail,
+        category: item.metadata?.category,
+        order_index: item.order_index,
+      },
+      score: 100 - (item.order_index || 0), // 根据排序索引计算分数，越靠前分数越高
+      reason: '运营推荐',
+      trend: item.order_index < 3 ? 'up' : item.order_index < 6 ? 'stable' : 'new',
+    };
+  };
+
   // 加载推荐内容
   const loadRecommendations = useCallback(async () => {
     setIsLoading(true);
     try {
       const userId = getUserId();
       
-      // 尝试从服务器获取最新作品数据
+      // 1. 首先获取后台配置的固定推荐位
+      let fixedRecommendations: RecommendedItem[] = [];
+      try {
+        console.log('🔄 从后台获取固定推荐位...');
+        const homeRecommendations = await homeRecommendationService.getActiveRecommendations();
+        console.log('✅ 获取到固定推荐位:', homeRecommendations.length, '个');
+        
+        if (homeRecommendations.length > 0) {
+          fixedRecommendations = homeRecommendations
+            .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+            .map(transformHomeRecommendation);
+        }
+      } catch (apiError) {
+        console.warn('⚠️ 从后台获取固定推荐位失败:', apiError);
+      }
+
+      // 2. 获取算法推荐数据（用于补充固定推荐位不足的情况）
       try {
         console.log('🔄 从服务器获取最新作品数据...');
         const freshWorks = await workService.getWorks({ limit: 50 });
         console.log('✅ 获取到最新作品:', freshWorks.length, '个');
 
         if (Array.isArray(freshWorks) && freshWorks.length > 0) {
-          // 更新 localStorage 中的作品数据
           localStorage.setItem('works', JSON.stringify(freshWorks));
-          // 同时更新 jmzf_works
           localStorage.setItem('jmzf_works', JSON.stringify(freshWorks));
         }
       } catch (apiError) {
@@ -107,12 +146,11 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
         console.log('✅ 获取到最新活动:', freshEvents.length, '个');
 
         if (Array.isArray(freshEvents) && freshEvents.length > 0) {
-          // 将 Event 数据转换为 Challenge 格式存储
           const challengesData = freshEvents.map(event => ({
             id: event.id,
             title: event.title,
             featuredImage: event.imageUrl,
-            participants: 0, // 可以从 event 的其他字段获取
+            participants: 0,
             submissionCount: 0,
             views: 0,
             startDate: event.startTime,
@@ -123,7 +161,6 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
             status: event.status,
             location: event.location
           }));
-          // 更新 localStorage 中的活动数据
           localStorage.setItem('challenges', JSON.stringify(challengesData));
           localStorage.setItem('jmzf_challenges', JSON.stringify(challengesData));
           hasNewData = true;
@@ -132,51 +169,54 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
         console.warn('⚠️ 从服务器获取活动失败，使用缓存数据:', apiError);
       }
 
-      // 如果有新数据，清除推荐缓存以强制重新生成
+      // 如果有新数据，清除推荐缓存
       if (hasNewData) {
         const cacheKey = `jmzf_recommendations_${userId}_hybrid_12_diverse`;
         localStorage.removeItem(cacheKey);
         console.log('🗑️ 已清除推荐缓存，将重新生成推荐');
       }
 
-      // 调试：检查数据源
-      const homePageData = localStorage.getItem('homePageData');
-      const works = localStorage.getItem('works');
-      const challenges = localStorage.getItem('challenges');
-      console.log('推荐系统调试:', {
-        userId,
-        hasHomePageData: !!homePageData,
-        hasWorks: !!works,
-        worksLength: works ? JSON.parse(works).length : 0,
-        hasChallenges: !!challenges,
-        challengesLength: challenges ? JSON.parse(challenges).length : 0
+      // 3. 计算需要补充的算法推荐数量
+      const targetCount = 12;
+      const fixedCount = fixedRecommendations.length;
+      const remainingCount = Math.max(0, targetCount - fixedCount);
+      
+      console.log('推荐位统计:', { fixedCount, remainingCount, targetCount });
+
+      // 4. 获取算法推荐（排除已在固定推荐位中的项目）
+      let algorithmicRecommendations: RecommendedItem[] = [];
+      if (remainingCount > 0) {
+        const fixedIds = new Set(fixedRecommendations.map(item => item.id));
+        
+        const algorithmicItems = recommendationService.getRecommendations(userId, {
+          strategy: 'hybrid',
+          limit: targetCount,
+          includeDiverse: true,
+          recentDays: 30
+        });
+        
+        // 过滤掉已在固定推荐位中的项目，以及没有有效缩略图的项目
+        algorithmicRecommendations = algorithmicItems
+          .filter(item => !fixedIds.has(item.id))
+          .filter(item => {
+            if (item.type !== 'post') return true;
+            const thumbnail = item.thumbnail || item.metadata?.thumbnail || '';
+            return thumbnail && typeof thumbnail === 'string' && thumbnail.trim() !== '';
+          })
+          .slice(0, remainingCount);
+        
+        console.log('算法推荐补充:', algorithmicRecommendations.length, '项');
+      }
+
+      // 5. 合并固定推荐位和算法推荐（固定推荐位优先）
+      const mergedRecommendations = [...fixedRecommendations, ...algorithmicRecommendations];
+      
+      console.log('最终推荐结果:', mergedRecommendations.length, '项', {
+        fixed: fixedCount,
+        algorithmic: algorithmicRecommendations.length
       });
       
-      const items = recommendationService.getRecommendations(userId, {
-        strategy: 'hybrid',
-        limit: 12,
-        includeDiverse: true,
-        recentDays: 30
-      });
-      
-      console.log('推荐结果:', items.length, '项');
-      
-      // 过滤掉无效的作品（没有有效缩略图的）
-      const validItems = items.filter(item => {
-        if (item.type !== 'post') return true; // 非作品类型不过滤
-        
-        const thumbnail = item.thumbnail || item.metadata?.thumbnail || '';
-        const hasValidThumbnail = thumbnail && typeof thumbnail === 'string' && thumbnail.trim() !== '';
-        
-        if (!hasValidThumbnail) {
-          console.warn('⚠️ 过滤掉没有缩略图的作品:', { id: item.id, title: item.title });
-        }
-        
-        return hasValidThumbnail;
-      });
-      
-      console.log('有效推荐结果:', validItems.length, '项');
-      setRecommendations(validItems);
+      setRecommendations(mergedRecommendations);
     } catch (error) {
       console.error('加载推荐失败:', error);
     } finally {
@@ -200,6 +240,36 @@ const HomeRecommendationSection: React.FC<HomeRecommendationSectionProps> = ({ c
   // 初始加载
   useEffect(() => {
     loadRecommendations();
+  }, [loadRecommendations]);
+
+  // 订阅后台推荐位变化（实时同步）
+  useEffect(() => {
+    console.log('🔔 订阅后台推荐位变化...');
+    
+    const subscription = supabase
+      .channel('home_recommendations_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'home_recommendations'
+        },
+        (payload) => {
+          console.log('📡 收到推荐位变更通知:', payload.eventType, payload);
+          // 延迟刷新，避免频繁更新
+          setTimeout(() => {
+            loadRecommendations();
+            toast.info('推荐位已更新');
+          }, 500);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔕 取消订阅后台推荐位变化');
+      subscription.unsubscribe();
+    };
   }, [loadRecommendations]);
 
   // 筛选推荐内容

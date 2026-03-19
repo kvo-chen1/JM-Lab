@@ -8,7 +8,8 @@ import {
   Trash2, 
   Check,
   X,
-  Loader2
+  Loader2,
+  AtSign
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,6 +31,8 @@ interface WorkCardProps {
   onDelete?: (id: string) => void;
   onRefresh?: (id: string) => void;
   onDownload?: (data: WorkCardData) => void;
+  onMention?: (data: WorkCardData) => void;  // 新增：引用回调
+  showMentionButton?: boolean;  // 新增：是否显示引用按钮
   className?: string;
 }
 
@@ -254,20 +257,24 @@ function ImageWithLoading({
 }
 
 // 悬浮操作按钮组件
-function HoverActions({ 
-  onEdit, 
-  onRefresh, 
-  onDownload, 
+function HoverActions({
+  onEdit,
+  onRefresh,
+  onDownload,
   onDelete,
+  onMention,
   isVisible,
-  isDark 
-}: { 
+  isDark,
+  showMentionButton
+}: {
   onEdit: () => void;
   onRefresh: () => void;
   onDownload: () => void;
   onDelete: () => void;
+  onMention?: () => void;
   isVisible: boolean;
   isDark: boolean;
+  showMentionButton?: boolean;
 }) {
   return (
     <AnimatePresence>
@@ -281,11 +288,26 @@ function HoverActions({
             isDark ? 'bg-black/60' : 'bg-white/80'
           }`}
         >
+          {/* 引用按钮 */}
+          {showMentionButton && onMention && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onMention(); }}
+              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all ${
+                isDark
+                  ? 'bg-[#C02C38] text-white hover:bg-[#a82530]'
+                  : 'bg-[#C02C38] text-white hover:bg-[#a82530]'
+              }`}
+              title="引用到输入框"
+            >
+              <AtSign className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium">引用</span>
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
             className={`p-2 rounded-lg transition-all ${
-              isDark 
-                ? 'text-gray-300 hover:text-white hover:bg-white/10' 
+              isDark
+                ? 'text-gray-300 hover:text-white hover:bg-white/10'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-black/10'
             }`}
             title="编辑"
@@ -295,8 +317,8 @@ function HoverActions({
           <button
             onClick={(e) => { e.stopPropagation(); onRefresh(); }}
             className={`p-2 rounded-lg transition-all ${
-              isDark 
-                ? 'text-gray-300 hover:text-white hover:bg-white/10' 
+              isDark
+                ? 'text-gray-300 hover:text-white hover:bg-white/10'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-black/10'
             }`}
             title="重新生成"
@@ -306,8 +328,8 @@ function HoverActions({
           <button
             onClick={(e) => { e.stopPropagation(); onDownload(); }}
             className={`p-2 rounded-lg transition-all ${
-              isDark 
-                ? 'text-gray-300 hover:text-white hover:bg-white/10' 
+              isDark
+                ? 'text-gray-300 hover:text-white hover:bg-white/10'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-black/10'
             }`}
             title="下载"
@@ -317,8 +339,8 @@ function HoverActions({
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className={`p-2 rounded-lg transition-all hover:text-red-500 ${
-              isDark 
-                ? 'text-gray-300 hover:bg-white/10' 
+              isDark
+                ? 'text-gray-300 hover:bg-white/10'
                 : 'text-gray-600 hover:bg-black/10'
             }`}
             title="删除"
@@ -340,6 +362,8 @@ export default function WorkCard({
   onDelete,
   onRefresh,
   onDownload,
+  onMention,
+  showMentionButton = false,
   className = ''
 }: WorkCardProps) {
   const { isDark } = useTheme();
@@ -377,6 +401,11 @@ export default function WorkCard({
     toast.success('开始下载');
   }, [data, onDownload]);
 
+  const handleMention = useCallback(() => {
+    onMention?.(data);
+    toast.success(`已引用作品：${data.title}`);
+  }, [data, onMention]);
+
   return (
     <motion.div
       ref={cardRef}
@@ -387,13 +416,13 @@ export default function WorkCard({
       className={`
         relative rounded-2xl overflow-hidden cursor-pointer
         transition-all duration-300 max-w-md
-        ${isDark 
-          ? 'bg-[#14141F] border border-[#2A2A3E] shadow-xl shadow-black/30' 
+        ${isDark
+          ? 'bg-[#14141F] border border-[#2A2A3E] shadow-xl shadow-black/30'
           : 'bg-white shadow-xl shadow-gray-200/50'
         }
-        ${isSelected 
-          ? isDark 
-            ? 'ring-2 ring-[#8B5CF6] ring-offset-2 ring-offset-[#0A0A0F]' 
+        ${isSelected
+          ? isDark
+            ? 'ring-2 ring-[#8B5CF6] ring-offset-2 ring-offset-[#0A0A0F]'
             : 'ring-2 ring-[#C02C38] ring-offset-2 ring-offset-gray-100'
           : 'hover:shadow-2xl'
         }
@@ -425,15 +454,17 @@ export default function WorkCard({
           title={data.title}
           description={data.description}
         />
-        
+
         {/* 悬浮操作按钮 */}
         <HoverActions
           onEdit={handleEditStart}
           onRefresh={handleRefresh}
           onDownload={handleDownload}
           onDelete={handleDelete}
+          onMention={handleMention}
           isVisible={isHovered && !isEditing}
           isDark={isDark}
+          showMentionButton={showMentionButton}
         />
 
         {/* 选中状态指示器 */}

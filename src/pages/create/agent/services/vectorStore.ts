@@ -92,14 +92,14 @@ export class VectorStore {
    */
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      // 尝试使用API生成embedding
-      // 注意：这里使用千问API的模拟方式，实际项目中可以使用真实的embedding API
+      // 尝试使用 API 生成 embedding
+      // 注意：这里使用千问 API 的模拟方式，实际项目中可以使用真实的 embedding API
       const response = await callQwenChat({
-        model: 'qwen-plus',
+        model: 'qwen3.5-plus',
         messages: [
           {
             role: 'system',
-            content: `请将以下文本转换为${VECTOR_DIMENSION}维的语义向量表示。返回格式：JSON数组，包含${VECTOR_DIMENSION}个浮点数，范围[-1, 1]。只返回JSON数组，不要有其他内容。`
+            content: `请将以下文本转换为${VECTOR_DIMENSION}维的语义向量表示。返回格式：JSON 数组，包含${VECTOR_DIMENSION}个浮点数，范围[-1, 1]。只返回 JSON 数组，不要有其他内容。`
           },
           {
             role: 'user',

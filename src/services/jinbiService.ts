@@ -202,20 +202,6 @@ class JinbiService {
     this.saveCacheToStorage();
   }
 
-  public clearCache() {
-    this.cache = {
-      balance: null,
-      packages: null,
-      pricing: null,
-      lastUpdated: {
-        balance: 0,
-        packages: 0,
-        pricing: 0,
-      },
-    };
-    localStorage.removeItem(this.CACHE_KEY);
-  }
-
   // ==================== 余额管理 ====================
 
   /**

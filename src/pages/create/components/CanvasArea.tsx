@@ -12,6 +12,7 @@ import { SmartLayoutCanvas } from './SmartLayoutCanvas';
 import { SmartLayoutPreview } from './SmartLayoutPreview';
 import { LayoutGrid, GalleryHorizontal } from 'lucide-react';
 import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
+import { IPMascotVideoLoader } from '@/components/ip-mascot';
 
 interface CanvasAreaProps {
   isSidebarCollapsed: boolean;
@@ -364,11 +365,43 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
           <button onClick={handleFullscreenToggle} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-200 text-gray-500'}`} title={isFullscreen ? "退出全屏" : "全屏"}>
             <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'} text-xs`}></i>
           </button>
+          
+          {/* 测试按钮 - 手动触发IP形象动画 */}
+          <button 
+            onClick={() => {
+              const store = useCreateStore.getState();
+              store.setIsGenerating(!store.isGenerating);
+            }}
+            className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-800 text-pink-400' : 'hover:bg-gray-200 text-pink-500'}`}
+            title="测试IP形象动画"
+          >
+            <i className="fas fa-palette text-xs"></i>
+          </button>
         </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 relative overflow-hidden">
+        {/* IP形象视频加载动画 - 生成时显示在右侧画布区域 */}
+        <AnimatePresence>
+          {isGenerating && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-[100] flex items-center justify-center"
+              style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.9)' }}
+            >
+              <IPMascotVideoLoader
+                isVisible={true}
+                message="AI正在创作中..."
+                progress={0}
+                showProgress={false}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence mode="wait">
           {isEmpty ? (
             <motion.div

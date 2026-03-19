@@ -86,11 +86,36 @@ export async function callKimiChat(params: ChatCallParams): Promise<string> {
 
   try {
     console.log('[KimiChat] Calling API with model:', params.model);
+    
+    // 如果是流式请求，直接使用 fetch 而不是 fetchWithRetry，避免重试导致的延迟
+    if (params.onDelta) {
+      const controller = new AbortController();
+      if (params.signal) {
+        params.signal.addEventListener('abort', () => controller.abort());
+      }
+      
+      const response = await fetch('/api/kimi/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ }));
+        throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
+      }
+      
+      // 处理流式响应
+      return handleSseStreamingResponse(response, params.onDelta);
+    }
+    
     const response = await fetchWithRetry('/api/kimi/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: params.signal,
+      timeout: 120000,
     });
 
     console.log('[KimiChat] Response status:', response.status);
@@ -117,10 +142,6 @@ export async function callKimiChat(params: ChatCallParams): Promise<string> {
       throw new Error(`Kimi API 请求失败：${response.status} - ${errorMessage}`);
     }
 
-    if (params.onDelta) {
-      return handleSseStreamingResponse(response, params.onDelta);
-    }
-
     const data = await response.json();
     const responseData = data.ok ? data.data : data;
     return responseData?.choices?.[0]?.message?.content || '未获取到响应';
@@ -143,12 +164,35 @@ export async function callQwenChat(params: ChatCallParams): Promise<string> {
   try {
     console.log('[QwenChat] Calling API with model:', params.model);
     
+    // 如果是流式请求，直接使用 fetch 而不是 fetchWithRetry，避免重试导致的延迟
+    if (params.onDelta) {
+      const controller = new AbortController();
+      if (params.signal) {
+        params.signal.addEventListener('abort', () => controller.abort());
+      }
+      
+      const response = await fetch('/api/qwen/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ }));
+        throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
+      }
+      
+      // 处理流式响应
+      return handleSseStreamingResponse(response, params.onDelta);
+    }
+    
     const response = await fetchWithRetry('/api/qwen/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: params.signal,
-      timeout: 120000, // 增加超时时间到 120 秒
+      timeout: 120000,
     });
 
     console.log('[QwenChat] Response status:', response.status);
@@ -173,10 +217,6 @@ export async function callQwenChat(params: ChatCallParams): Promise<string> {
       }
       
       throw new Error(`通义千问 API 请求失败：${response.status} - ${errorMessage}`);
-    }
-
-    if (params.onDelta) {
-      return handleSseStreamingResponse(response, params.onDelta);
     }
 
     const data = await response.json();

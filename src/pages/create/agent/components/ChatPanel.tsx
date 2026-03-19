@@ -27,6 +27,7 @@ import StyleLibrary from './StyleLibrary';
 import BrandLibrary from './BrandLibrary';
 import WorkLibrary from './WorkLibrary';
 import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
+import { IPMascotVideoLoader } from '@/components/ip-mascot';
 import type { InspirationHint, StyleOption } from '../types/agent';
 import type { Brand } from '@/lib/brands';
 import type { Work } from '@/services/workService';
@@ -201,6 +202,10 @@ export default function ChatPanel() {
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [analyzingImage, setAnalyzingImage] = useState<string | null>(null);
   const [showStyleLibrary, setShowStyleLibrary] = useState(false);
+  // AI生成状态
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationMessage, setGenerationMessage] = useState('AI正在创作中...');
   // 粘贴图片相关状态
   const [pastedImages, setPastedImages] = useState<Array<{ id: string; file: File; preview: string }>>([]);
   const [isProcessingPaste, setIsProcessingPaste] = useState(false);
@@ -399,6 +404,19 @@ export default function ChatPanel() {
       type: 'text'
     });
 
+    // 开始生成，显示IP形象加载动画
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    setGenerationMessage(`正在创作「${style.name}」风格作品...`);
+
+    // 模拟进度增长
+    const progressInterval = setInterval(() => {
+      setGenerationProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 15 + 5;
+      });
+    }, 1000);
+
     try {
       // 构建生成提示词
       const taskDescription = currentTask.requirements?.description || 'IP形象设计';
@@ -413,6 +431,10 @@ export default function ChatPanel() {
         size: '1024x1024',
         n: 1
       });
+
+      // 停止进度模拟
+      clearInterval(progressInterval);
+      setGenerationProgress(100);
 
       if (!result.ok) {
         throw new Error(result.error || '图像生成失败');
@@ -437,6 +459,9 @@ export default function ChatPanel() {
       );
 
       console.log('[ChatPanel] AI生成的标题和描述:', { title, description });
+
+      // 隐藏加载动画
+      setIsGenerating(false);
 
       // 添加生成的图像消息
       addMessage({
@@ -463,6 +488,10 @@ export default function ChatPanel() {
 
       toast.success('图像生成成功！');
     } catch (error: any) {
+      // 停止进度模拟
+      clearInterval(progressInterval);
+      setIsGenerating(false);
+      
       console.error('[ChatPanel] 自动图像生成失败:', error);
       toast.error('图像生成失败: ' + error.message);
 
@@ -670,10 +699,18 @@ export default function ChatPanel() {
     // 智能检测：如果Agent询问设计类型，显示设计类型选项按钮
     const designTypeKeywords = [
       '设计什么类型', '想设计什么', '设计类型', '项目类型',
-      'IP形象', '品牌设计', '包装设计', '海报设计', '动画视频',
       '选一个最想开始', '选择类型', '设计方向'
     ];
-    const shouldShowDesignTypeOptions = (response.agent === 'designer' || response.agent === 'director') &&
+
+    // 检查是否已经在当前会话中选择了设计类型或用户已指定设计类型
+    const hasSelectedDesignType = messages.some(m =>
+      m.metadata?.designTypeSelected ||
+      (m.type === 'design-type-options' && m.metadata?.selectedDesignType) ||
+      requirementCollection?.collectedInfo?.projectType
+    );
+
+    const shouldShowDesignTypeOptions = !hasSelectedDesignType &&
+      (response.agent === 'designer' || response.agent === 'director') &&
       designTypeKeywords.some(keyword => response.content.includes(keyword));
 
     if (shouldShowDesignTypeOptions) {
@@ -1365,8 +1402,27 @@ export default function ChatPanel() {
           ))}
         </AnimatePresence>
 
-        {/* Typing Indicator */}
-        {isTyping && (
+        {/* IP形象视频加载动画 - 只要加载就显示 */}
+        <AnimatePresence>
+          {(isGenerating || isTyping) && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex justify-center my-4"
+            >
+              <IPMascotVideoLoader
+                isVisible={true}
+                message={isGenerating ? generationMessage : 'AI正在思考中...'}
+                progress={isGenerating ? generationProgress : 0}
+                showProgress={isGenerating}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Typing Indicator - 当不显示IP动画时显示 */}
+        {false && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

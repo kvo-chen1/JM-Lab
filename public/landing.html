@@ -2993,6 +2993,10 @@
         // --- 1. Three.js Background Animation (The "Nebula Flow") ---
         const initThreeJS = () => {
             const container = document.getElementById('canvas-container');
+            if (!container) {
+                console.warn('canvas-container element not found, skipping Three.js animation');
+                return;
+            }
             const scene = new THREE.Scene();
             scene.fog = new THREE.FogExp2(0x030308, 0.002);
 
@@ -3115,16 +3119,22 @@
             // Remove Loader
             setTimeout(() => {
                 const loader = document.getElementById('loader');
-                loader.style.opacity = '0';
-                setTimeout(() => {
-                    loader.style.display = 'none';
-                    // 检查 Three.js 是否加载成功
-                    if (typeof THREE !== 'undefined') {
+                if (loader) {
+                    loader.style.opacity = '0';
+                    setTimeout(() => {
+                        loader.style.display = 'none';
+                    }, 500);
+                }
+                // 检查 Three.js 是否加载成功
+                if (typeof THREE !== 'undefined') {
+                    try {
                         initThreeJS(); // Start visuals after load
-                    } else {
-                        console.warn('Three.js CDN 加载失败，跳过 3D 动画');
+                    } catch (error) {
+                        console.warn('Three.js 初始化失败:', error);
                     }
-                }, 500);
+                } else {
+                    console.warn('Three.js CDN 加载失败，跳过 3D 动画');
+                }
             }, 1000);
 
             // 导航栏滚动样式效果 - 增强版本（使用节流优化）

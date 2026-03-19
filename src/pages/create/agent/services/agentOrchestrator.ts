@@ -7,7 +7,8 @@ import {
   DelegationTask,
   getAgentConfig,
   AGENT_CONFIG,
-  RequirementCollection
+  RequirementCollection,
+  PRESET_STYLES
 } from '../types/agent';
 import {
   ORCHESTRATOR_DECISION_PROMPT,
@@ -225,7 +226,24 @@ export class AgentOrchestrator {
     // 根据需求收集阶段处理
     switch (reqCollection.stage) {
       case 'initial':
-        // 初始阶段：欢迎用户并询问基本信息
+        // 初始阶段：检测用户输入是否已经包含设计类型
+        const designTypeInfo = this.extractDesignTypeFromInput(userMessage);
+
+        if (designTypeInfo.detected) {
+          // 用户已指定设计类型，直接记录并进入收集阶段
+          console.log('[Orchestrator] 用户已指定设计类型:', designTypeInfo.type);
+          reqCollection.stage = 'collecting';
+          reqCollection.collectedInfo.projectType = designTypeInfo.type;
+
+          // 直接响应，确认理解，不询问设计类型
+          return {
+            type: 'response',
+            agent: 'director',
+            content: `收到！你想做${designTypeInfo.type}。为了给你最好的设计方案，能否告诉我更多细节？比如目标受众是谁？`
+          };
+        }
+
+        // 未检测到设计类型，正常进入初始询问
         return this.executeRequirementInitial(userMessage, context);
 
       case 'collecting':
@@ -604,6 +622,31 @@ export class AgentOrchestrator {
   }
 
   /**
+   * 从用户输入中识别设计类型
+   */
+  private extractDesignTypeFromInput(message: string): { type: string; detected: boolean } {
+    const lowerMsg = message.toLowerCase();
+
+    // 设计类型关键词映射
+    const designTypeMap = [
+      { keywords: ['海报', 'poster', '宣传'], type: '海报设计' },
+      { keywords: ['ip', '形象', '角色', 'character', 'mascot'], type: 'IP形象' },
+      { keywords: ['品牌', 'brand', 'logo', 'vi'], type: '品牌设计' },
+      { keywords: ['包装', 'package', '礼盒'], type: '包装设计' },
+      { keywords: ['动画', '视频', 'video', 'animation'], type: '动画视频' },
+      { keywords: ['插画', 'illustration', '手绘'], type: '插画设计' }
+    ];
+
+    for (const item of designTypeMap) {
+      if (item.keywords.some(kw => lowerMsg.includes(kw))) {
+        return { type: item.type, detected: true };
+      }
+    }
+
+    return { type: '', detected: false };
+  }
+
+  /**
    * 执行决策
    */
   private async executeDecision(
@@ -856,7 +899,7 @@ export class AgentOrchestrator {
 
     // 构建图像生成提示词
     // 优先使用用户选择的风格，其次是任务需求中的风格，最后是默认风格
-    const selectedStyle = context.selectedStyle ||
+    let selectedStyle = context.selectedStyle ||
                          context.currentTask?.requirements?.style ||
                          this.getStylePrompt(context.currentAgent);
 
@@ -865,11 +908,43 @@ export class AgentOrchestrator {
     const generationKeywords = ['直接生成', '开始生成', '生成吧', '开始吧', '直接做', '就这样', '可以生成了', '可以开始了', '开始制作', '不用调整', '不用修改', '直接出图', '出图吧'];
     let extractedUserNeed = userMessage;
 
+    // 处理 @风格名 引用格式
+    // 匹配 @风格名 或 @风格ID 格式（支持中文风格名和英文风格ID）
+    const styleMentionRegex = /@([\u4e00-\u9fa5]+|[a-zA-Z0-9_-]+)/g;
+    const styleMentions = extractedUserNeed.match(styleMentionRegex);
+    
+    if (styleMentions && styleMentions.length > 0) {
+      console.log('[Orchestrator] 检测到风格引用:', styleMentions);
+      
+      for (const mention of styleMentions) {
+        const styleNameOrId = mention.substring(1); // 移除 @ 符号
+        
+        // 在预设风格中查找匹配的风格
+        const matchedStyle = PRESET_STYLES.find(s => 
+          s.name === styleNameOrId || // 匹配风格名称（如"诡萌幻想绘本"）
+          s.id === styleNameOrId      // 匹配风格ID（如"fantasy-picture-book"）
+        );
+        
+        if (matchedStyle) {
+          console.log('[Orchestrator] 匹配到风格:', matchedStyle.name, 'ID:', matchedStyle.id);
+          selectedStyle = matchedStyle.prompt; // 使用风格的prompt作为生成提示词
+          // 从用户输入中移除风格引用，保留其他内容
+          extractedUserNeed = extractedUserNeed.replace(mention, '').trim();
+        } else {
+          console.warn('[Orchestrator] 未找到匹配的风格:', styleNameOrId);
+        }
+      }
+      
+      // 清理多余的空格和标点
+      extractedUserNeed = extractedUserNeed.replace(/\s+/g, ' ').trim();
+      extractedUserNeed = extractedUserNeed.replace(/^[，,、]+|[，,、]+$/g, '').trim();
+    }
+
     // 如果用户消息包含生成指令，尝试提取实际内容
     for (const keyword of generationKeywords) {
-      if (userMessage.includes(keyword)) {
+      if (extractedUserNeed.includes(keyword)) {
         // 移除指令词，保留前面的实际内容
-        const parts = userMessage.split(keyword);
+        const parts = extractedUserNeed.split(keyword);
         if (parts[0] && parts[0].trim().length > 0) {
           extractedUserNeed = parts[0].trim();
           // 移除常见的连接词

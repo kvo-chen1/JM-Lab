@@ -519,7 +519,21 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         });
         return set({
           ...initialState,
-          messages: [welcomeMessage]
+          messages: [welcomeMessage],
+          selectedStyle: null,
+          selectedOutput: null,
+          generatedOutputs: [],
+          currentTask: null,
+          requirementCollection: {
+            stage: 'initial',
+            collectedInfo: {},
+            pendingQuestions: [],
+            confirmed: false,
+            summaryShown: false,
+            assignmentShown: false,
+            questionCount: 0,
+            lastSummaryAt: 0
+          }
         });
       },
 

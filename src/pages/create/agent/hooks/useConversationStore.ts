@@ -73,6 +73,17 @@ export const useConversationStore = create<ConversationStoreState & Conversation
       // 创建新会话
       createSession: (title?: string, description?: string) => {
         const sessionId = generateId();
+
+        // 先重置 Agent Store 到初始状态，确保清除所有状态包括 selectedStyle
+        useAgentStore.getState().resetState();
+
+        // 额外确保 selectedStyle 和相关状态被清除
+        useAgentStore.setState({
+          selectedStyle: null,
+          selectedOutput: null,
+          generatedOutputs: []
+        });
+
         const newSession: ConversationSession = {
           id: sessionId,
           title: title || generateSessionTitle(),
@@ -87,9 +98,6 @@ export const useConversationStore = create<ConversationStoreState & Conversation
           sessions: [newSession, ...state.sessions],
           currentSessionId: sessionId
         }));
-
-        // 重置 Agent Store 到初始状态
-        useAgentStore.getState().resetState();
 
         return sessionId;
       },

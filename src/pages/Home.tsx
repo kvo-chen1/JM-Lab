@@ -1095,8 +1095,56 @@ export default function Home() {
                    <i className="fas fa-map-marked-alt text-9xl text-blue-600"></i>
                 </motion.div>
               </motion.div>
-              
 
+              {/* Heritage Gallery Card - 非遗图鉴 */}
+              <motion.div 
+                initial={{ opacity: 0, x: 100, scale: 0.9 }}
+                whileInView={{ opacity: 1, x: 0, scale: 1 }}
+                viewport={{ once: true, margin: '-100px' }}
+                transition={{ duration: getDuration(0.49), delay: 0.1, type: 'spring', stiffness: 140 }}
+                whileHover={{ y: -5, scale: 1.02, transition: { duration: 0.15 } }}
+                className={`flex-1 rounded-3xl p-8 relative overflow-hidden cursor-pointer group transition-all duration-200 ${isDark ? 'bg-gray-900' : 'bg-white border border-gray-100'} shadow-xl hover:shadow-2xl`} 
+                onClick={() => navigate('/cultural-knowledge')}
+              >
+                {/* Background Image Overlay */}
+                <div className="absolute inset-0 opacity-[0.2] group-hover:opacity-[0.3] transition-opacity duration-500 bg-[url('https://images.unsplash.com/photo-1544531585-9847b68c8c86?w=800&q=80')] bg-cover bg-center"></div>
+                
+                <div className="relative z-10 h-full flex flex-col justify-center">
+                   <motion.div 
+                     initial={{ opacity: 0, scale: 0 }}
+                     whileInView={{ opacity: 1, scale: 1 }}
+                     transition={{ duration: 0.5, delay: 0.55, type: 'spring' }}
+                     whileHover={{ scale: 1.1 }}
+                     className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 text-amber-600 flex items-center justify-center mb-4 shadow-sm"
+                   >
+                     <i className="fas fa-scroll text-xl"></i>
+                   </motion.div>
+                   <motion.h4 
+                     initial={{ opacity: 0, y: 20 }}
+                     whileInView={{ opacity: 1, y: 0 }}
+                     transition={{ duration: 0.5, delay: 0.65 }}
+                     className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'} group-hover:text-amber-600 transition-colors`}
+                   >
+                     非遗图鉴
+                   </motion.h4>
+                   <motion.p 
+                     initial={{ opacity: 0, y: 20 }}
+                     whileInView={{ opacity: 1, y: 0 }}
+                     transition={{ duration: 0.5, delay: 0.75 }}
+                     className={`text-base ${isDark ? 'text-gray-400' : 'text-gray-600'} group-hover:text-gray-900 dark:group-hover:text-gray-300 transition-colors`}
+                   >
+                     探索天津非物质文化遗产，传承匠心技艺。
+                   </motion.p>
+                </div>
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0, rotate: 45 }}
+                  whileInView={{ opacity: 0.05, scale: 1, rotate: 12 }}
+                  transition={{ duration: 0.8, delay: 0.85 }}
+                  className="absolute -right-4 -bottom-4 transform group-hover:scale-110 group-hover:rotate-0 transition-all duration-700"
+                >
+                   <i className="fas fa-scroll text-9xl text-amber-600"></i>
+                </motion.div>
+              </motion.div>
             </div>
           </div>
         </Section>
@@ -1134,6 +1182,16 @@ export default function Home() {
                   link: '/events',
                   icon: 'vr-cardboard',
                   date: '即将开始'
+                },
+                { 
+                  title: '校园文创大赛', 
+                  sub: '青年创意展示', 
+                  img: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&q=80', 
+                  tag: '校园', 
+                  tagColor: 'purple',
+                  link: '/tianjin',
+                  icon: 'graduation-cap',
+                  date: '报名中'
                 }
               ].map((item, idx) => (
                 <motion.div 
@@ -1764,6 +1822,15 @@ export default function Home() {
                     link: '/leaderboard',
                     img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80',
                     gradient: 'from-blue-500/20 to-teal-500/20'
+                  },
+                  { 
+                    title: '文创商城', 
+                    icon: 'store', 
+                    color: 'text-emerald-500', 
+                    bg: 'bg-emerald-100 dark:bg-emerald-900/40', 
+                    link: '/points-mall',
+                    img: 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=800&q=80',
+                    gradient: 'from-emerald-500/20 to-green-500/20'
                   }
                 ].map((item, idx) => (
                   <motion.div 

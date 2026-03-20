@@ -471,14 +471,6 @@ const getContentImageUrl = (content: string, width: number, height: number, isPe
   return `https://picsum.photos/seed/${contentId}/${width}/${height}`;
 }
 
-// 备用图片URL，当图片加载失败时使用
-const fallbackImageUrl = (width: number, height: number, isPerson: boolean = false) => {
-  if (isPerson) {
-    return `https://picsum.photos/seed/person-fallback/${width}/${height}`;
-  }
-  return `https://picsum.photos/seed/fallback/${width}/${height}`;
-}
-
 // 文化知识数据类型
 interface CulturalKnowledgeItem {
   id: string | number;
@@ -580,106 +572,28 @@ export default function CulturalKnowledge() {
     }
   };
   
-  // 获取图片URL - 使用AI生成图片与后台保持一致
+  // 获取图片URL - 优先使用story中定义的图片，否则使用本地占位图
   const getStoryImageUrl = (story: CulturalKnowledgeItem): string => {
-    // 优先使用story中定义的AI生成图片（支持image和image_url字段）
-    if (story.image) {
-      return story.image;
-    }
-    if (story.image_url) {
-      return story.image_url;
-    }
-    
-    // 使用与后台KnowledgeBaseManagement.tsx相同的AI生成图片映射
-    const aiGeneratedImages: Record<string, string> = {
-      // 天津文化
-      '泥人张彩塑': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20clay%20sculpture%20workshop%20Tianjin',
-      '杨柳青年画': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Yangliuqing%20New%20Year%20paintings%20traditional%20workshop',
-      '天津风筝魏': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Traditional%20Chinese%20kite%20making%20workshop',
-      '天津方言': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Tianjin%20dialect%20culture%20traditional%20street%20scene',
-      '天津之眼': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Tianjin%20Eye%20Ferris%20wheel%20night%20view',
-      '狗不理包子': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Goubuli%20steamed%20buns%20traditional%20shop',
-      '五大道建筑群': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Tianjin%20Five%20Avenues%20historic%20buildings',
-      '天津时调': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Tianjin%20traditional%20folk%20music%20performance',
-      '天后宫': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Tianjin%20Tianhou%20Palace%20temple%20architecture',
-      // 其他文化条目
-      '北京同仁堂': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Beijing%20Tongrentang%20traditional%20Chinese%20medicine%20store%20historical%20photo',
-      '景德镇瓷器': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Jingdezhen%20porcelain%20traditional%20workshop%20and%20artworks',
-      '茅台酒': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Moutai%20liquor%20traditional%20brewing%20process',
-      '相声': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Tianjin%20crosstalk%20performance%20historic%20photo',
-      '桂发祥十八街麻花': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Guifaxiang%20mahua%20traditional%20workshop%20photo',
-      '耳朵眼炸糕': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Erduoyan%20fried%20cake%20street%20scene',
-      '茶汤李': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chatangli%20sweet%20soup%20stall',
-      '老美华': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Laomeihua%20traditional%20shoe%20store',
-      '利顺德饭店': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Lishunde%20Hotel%20historic%20building%20photo',
-      '海河': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Haihe%20river%20historical%20photo%20bridge%20view',
-      '荣宝斋木版水印': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Rongbaozhai%20woodblock%20printing%20workshop%20historic%20photo',
-      '全聚德烤鸭': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Quanjude%20Peking%20duck%20roasting%20historic%20restaurant%20photo',
-      '剪纸': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20paper%20cutting%20folk%20art%20red%20patterns',
-      '扬州漆器': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Yangzhou%20lacquerware%20traditional%20craft%20studio',
-      '周村烧饼': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Zhoucun%20sesame%20biscuit%20traditional%20bakery%20photo',
-      '景泰蓝': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Cloisonne%20enamel%20Beijing%20workshop%20historic%20photo',
-      '旗袍': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Qipao%20cheongsam%20Shanghai%20fashion%20historic%20photo',
-      '徽墨': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Hui%20inkstick%20carving%20workshop%20tools%20and%20patterns',
-      '蜀锦': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Shu%20brocade%20loom%20weaving%20workshop%20colorful%20patterns',
-      '潍坊风筝': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Weifang%20kite%20making%20bamboo%20frame%20and%20painting',
-      '宣纸': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Xuan%20paper%20making%20workshop%20fiber%20pulp%20drying%20racks',
-      '京味小吃': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Beijing%20street%20snacks%20assortment%20historic%20stall%20photo',
-      '景德镇青花': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Jingdezhen%20blue%20and%20white%20porcelain%20museum%20display',
-      '皮影戏': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20shadow%20puppet%20stage%20performance%20lamp%20and%20screen',
-      '苏帮菜': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Suzhou%20cuisine%20kitchen%20knife%20skills%20and%20plating',
-      '德化白瓷': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Dehua%20blanc%20de%20chine%20porcelain%20museum%20display',
-      '张小泉': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20forging%20knife%20workshop%20Hangzhou',
-      '潮绣': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chaozhou%20embroidery%20gold%20thread%20three-dimensional%20work',
-      '宜兴紫砂': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Yixing%20zisha%20teapot%20making%20workshop',
-      '雕版印刷': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20woodblock%20printing%20workshop%20historic%20photo',
-      '苗族银饰': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Miao%20silver%20jewelry%20craft%20workshop',
-      '汴绣': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Kaifeng%20embroidery%20studio%20delicate%20stitches',
-      '绍兴黄酒': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Shaoxing%20yellow%20wine%20traditional%20brewery%20jars',
-      '黎族织锦': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Li%20ethnic%20brocade%20loom%20patterns%20Hainan',
-      '匠作窗棂': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20wooden%20lattice%20window%20craft%20workshop',
-      '传统建筑元素': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20traditional%20architecture%20elements%20dougong%20brackets',
-      '传统节日习俗': '/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=Chinese%20traditional%20festival%20celebrations%20lanterns%20red',
-    };
-    
-    // 查找匹配的AI生成图片
-    for (const [key, value] of Object.entries(aiGeneratedImages)) {
-      if (story.title?.includes(key)) {
-        return value;
+    // 检查图片URL是否是有效的本地图片（不是AI生成API路径）
+    const isValidImage = (url: string | undefined): boolean => {
+      if (!url) return false;
+      // 排除AI生成API路径
+      if (url.includes('/api/proxy/trae-api') || url.includes('/api/ide/v1/text_to_image')) {
+        return false;
       }
+      return true;
+    };
+
+    // 优先使用story中定义的图片（支持image和image_url字段）
+    if (isValidImage(story.image)) {
+      return story.image!;
+    }
+    if (isValidImage(story.image_url)) {
+      return story.image_url!;
     }
     
-    // 根据分类生成默认AI图片
-    const categoryPrompts: Record<string, string> = {
-      'platform': 'Creative%20design%20workspace%20digital%20art%20tools',
-      'culture': 'Chinese%20traditional%20culture%20heritage%20art',
-      '非遗传承': 'Chinese%20intangible%20cultural%20heritage%20craftsmanship',
-      '民间艺术': 'Chinese%20folk%20art%20traditional%20patterns',
-      '传统工艺': 'Chinese%20traditional%20craft%20workshop',
-      '传统美食': 'Chinese%20traditional%20food%20cuisine%20delicious',
-      '中药文化': 'Chinese%20traditional%20medicine%20herbs%20culture',
-      '陶瓷文化': 'Chinese%20ceramics%20porcelain%20art%20culture',
-      '酒文化': 'Chinese%20wine%20culture%20traditional%20brewing',
-      '曲艺文化': 'Chinese%20folk%20performing%20arts%20stage',
-      '历史建筑': 'Chinese%20historic%20architecture%20ancient%20buildings',
-      '城市文化': 'Chinese%20city%20culture%20urban%20heritage',
-      '服饰文化': 'Chinese%20traditional%20clothing%20costume%20culture',
-      '文房四宝': 'Chinese%20scholar%20objects%20ink%20paper%20brush',
-      '民族文化': 'Chinese%20ethnic%20minority%20culture%20traditions',
-      '历史人物': 'Chinese%20historical%20figures%20portrait%20traditional',
-      '历史事件': 'Chinese%20historical%20events%20scene%20traditional',
-      '文化遗产': 'Chinese%20cultural%20heritage%20artifacts%20treasures',
-      '传统技艺': 'Chinese%20traditional%20skills%20craftsmanship',
-      '民俗文化': 'Chinese%20folk%20customs%20traditions%20culture',
-      '建筑风格': 'Chinese%20architectural%20style%20traditional%20design',
-      '地方小吃': 'Chinese%20local%20snacks%20street%20food%20delicious',
-      '方言文化': 'Chinese%20dialect%20culture%20linguistic%20heritage',
-      '文学艺术': 'Chinese%20literature%20art%20calligraphy%20painting',
-      '宗教信仰': 'Chinese%20religious%20culture%20temple%20spirituality',
-    };
-    
-    const prompt = categoryPrompts[story.category] || 'Chinese%20traditional%20culture%20heritage';
-    return `/api/proxy/trae-api/api/ide/v1/text_to_image?image_size=1024x1024&prompt=${prompt}`;
+    // 使用本地占位图，避免调用可能不存在的AI生成API
+    return '/images/placeholder-image.jpg';
   };
   
   // 过滤后的列表

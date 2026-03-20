@@ -489,6 +489,43 @@
   transform: translateY(-2px);
 }
 
+/* 卡片内所有文字强制高对比度 */
+.pink-brutalist .card *,
+.pink-brutalist [class*="card"] * {
+  color: var(--text-primary) !important;
+}
+
+.pink-brutalist .card h1,
+.pink-brutalist .card h2,
+.pink-brutalist .card h3,
+.pink-brutalist .card h4,
+.pink-brutalist [class*="card"] h1,
+.pink-brutalist [class*="card"] h2,
+.pink-brutalist [class*="card"] h3,
+.pink-brutalist [class*="card"] h4,
+.pink-brutalist .card [class*="title"],
+.pink-brutalist [class*="card"] [class*="title"] {
+  color: #fff !important;
+  text-shadow: 0 0 10px rgba(255, 20, 147, 0.5);
+  font-weight: 600;
+}
+
+.pink-brutalist .card p,
+.pink-brutalist .card span,
+.pink-brutalist [class*="card"] p,
+.pink-brutalist [class*="card"] span {
+  color: var(--text-secondary) !important;
+}
+
+.pink-brutalist .card [class*="label"],
+.pink-brutalist .card [class*="tag"],
+.pink-brutalist [class*="card"] [class*="label"],
+.pink-brutalist [class*="card"] [class*="tag"] {
+  color: #fff !important;
+  font-weight: 600;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+}
+
 /* 侧边栏 */
 .pink-brutalist aside,
 .pink-brutalist [class*="sidebar"] {
@@ -636,20 +673,23 @@
 .pink-brutalist [class*="badge"],
 .pink-brutalist .tag {
   background: var(--bg-tertiary) !important;
-  color: var(--text-secondary) !important;
+  color: #fff !important;
   border: 2px solid var(--border-primary) !important;
   border-radius: 0 !important;
   font-family: var(--font-pixel), monospace !important;
   text-transform: uppercase;
   letter-spacing: 1px;
+  font-weight: 600;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
 }
 
 .pink-brutalist [class*="badge-primary"],
 .pink-brutalist .tag-primary {
   background: rgba(255, 20, 147, 0.15) !important;
-  color: var(--color-primary) !important;
+  color: #fff !important;
   border-color: var(--color-primary) !important;
   box-shadow: var(--shadow-xs);
+  text-shadow: 0 0 5px rgba(255, 20, 147, 0.5);
 }
 
 /* 链接 */
@@ -969,14 +1009,55 @@
   transform: translateY(-2px);
 }
 
-.pink-brutalist .product-card h3,
-.pink-brutalist [class*="product-card"] h3 {
+/* 卡片内所有文字强制高对比度 */
+.pink-brutalist .product-card *,
+.pink-brutalist [class*="product-card"] * {
   color: var(--text-primary) !important;
+}
+
+.pink-brutalist .product-card h3,
+.pink-brutalist [class*="product-card"] h3,
+.pink-brutalist .product-card h4,
+.pink-brutalist [class*="product-card"] h4,
+.pink-brutalist .product-card [class*="title"],
+.pink-brutalist [class*="product-card"] [class*="title"] {
+  color: #fff !important;
+  text-shadow: 0 0 10px rgba(255, 20, 147, 0.5);
+  font-weight: 600;
 }
 
 .pink-brutalist .product-card [class*="price"],
 .pink-brutalist [class*="product-card"] [class*="price"] {
   color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 卡片内标签和徽章 */
+.pink-brutalist .product-card [class*="tag"],
+.pink-brutalist [class*="product-card"] [class*="tag"],
+.pink-brutalist .product-card [class*="badge"],
+.pink-brutalist [class*="product-card"] [class*="badge"],
+.pink-brutalist .product-card [class*="label"],
+.pink-brutalist [class*="product-card"] [class*="label"] {
+  color: #fff !important;
+  font-weight: 600;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+}
+
+/* 筛选/标签按钮 */
+.pink-brutalist button[class*="filter"],
+.pink-brutalist [class*="filter"] button,
+.pink-brutalist [class*="tab"],
+.pink-brutalist [class*="category"] button {
+  color: var(--text-primary) !important;
+  font-weight: 500;
+}
+
+.pink-brutalist button[class*="filter"]:hover,
+.pink-brutalist [class*="filter"] button:hover,
+.pink-brutalist [class*="tab"]:hover,
+.pink-brutalist [class*="category"] button:hover {
+  color: #fff !important;
   text-shadow: var(--glow-primary-sm);
 }
 

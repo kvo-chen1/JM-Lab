@@ -1426,13 +1426,14 @@ export async function getPlatformStats(): Promise<PlatformStats> {
       console.error('获取创作者数量失败:', creatorsError);
     }
 
-    // 获取今日活跃用户数（从 user_activities 表，今日有活动的）
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // 获取最近7天活跃用户数（从 user_activities 表，7天内有活动的）
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
     const { count: activeCount, error: activeError } = await supabase
       .from('user_activities')
       .select('*', { count: 'exact', head: true })
-      .gte('created_at', today.toISOString());
+      .gte('created_at', sevenDaysAgo.toISOString());
 
     if (activeError) {
       console.error('获取活跃用户数量失败:', activeError);

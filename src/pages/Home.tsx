@@ -15,7 +15,6 @@ import HomeRecommendationSection from '@/components/HomeRecommendationSection'
 import JinMaiTemplatesSection from '@/components/JinMaiTemplatesSection'
 import HotSearchSection from '@/components/HotSearchSection'
 import PartnerBrandsSection from '@/components/PartnerBrandsSection'
-import { usePlatformStats } from '@/hooks/usePlatformStats'
 import { recordUserAction } from '@/services/recommendationService'
 import pendingMessageService from '@/services/pendingMessageService'
 import {
@@ -64,9 +63,6 @@ export default function Home() {
   const { scrollY } = useScroll();
   const { getDuration, getDelay } = useResponsiveAnimation();
 
-  // 平台统计数据
-  const { stats, loading: statsLoading } = usePlatformStats();
-  
   // 获取用户ID（用于行为追踪）
   const getUserId = useCallback(() => {
     if (user?.id) return user.id;
@@ -802,71 +798,6 @@ export default function Home() {
       {/* Main Content Area - Overlapping the Hero */}
       <div className="relative z-30 -mt-20 pb-20">
         
-        {/* 平台数据统计展示 */}
-        <div className="pt-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: getDuration(0.5) }}
-            className="max-w-7xl mx-auto px-4 md:px-6"
-          >
-            <div className={`rounded-3xl p-8 md:p-12 ${isDark ? 'bg-gradient-to-br from-indigo-900/30 via-purple-900/20 to-pink-900/30 border border-indigo-500/20' : 'bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border border-indigo-100'}`}>
-              <div className="text-center mb-8">
-                <h2 className={`text-2xl md:text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  平台数据
-                </h2>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  实时统计平台运行情况
-                </p>
-              </div>
-
-              {statsLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className={`w-8 h-8 border-2 border-t-transparent rounded-full animate-spin ${isDark ? 'border-indigo-400' : 'border-indigo-600'}`} />
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                  {[
-                    { label: '总作品数', value: stats?.totalWorks || 0, icon: '🎨' },
-                    { label: '创作者', value: stats?.totalCreators || 0, icon: '👥' },
-                    { label: '今日活跃', value: stats?.activeUsers || 0, icon: '🔥' },
-                    { label: '总浏览量', value: stats?.totalViews || 0, icon: '👁️' }
-                  ].map((stat, idx) => (
-                    <motion.div
-                      key={idx}
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.3, delay: idx * 0.1 }}
-                      className={`text-center p-4 rounded-2xl ${isDark ? 'bg-slate-800/50' : 'bg-white/70'} backdrop-blur-sm`}
-                    >
-                      <div className="text-3xl mb-2">{stat.icon}</div>
-                      <div className={`text-2xl md:text-3xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {stat.value.toLocaleString()}
-                      </div>
-                      <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {stat.label}
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-
-              {/* 系统状态指示器 */}
-              <div className="mt-8 flex justify-center">
-                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'}`}>
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  所有系统正常运行
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
         {/* 1. 智能推荐区域 - 基于用户行为的个性化推荐 */}
         <div className="pt-24">
           <HomeRecommendationSection />

@@ -489,6 +489,43 @@
   transform: translateY(-2px);
 }
 
+/* 卡片内所有文字强制高对比度 */
+.cyber-brutalist .card *,
+.cyber-brutalist [class*="card"] * {
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist .card h1,
+.cyber-brutalist .card h2,
+.cyber-brutalist .card h3,
+.cyber-brutalist .card h4,
+.cyber-brutalist [class*="card"] h1,
+.cyber-brutalist [class*="card"] h2,
+.cyber-brutalist [class*="card"] h3,
+.cyber-brutalist [class*="card"] h4,
+.cyber-brutalist .card [class*="title"],
+.cyber-brutalist [class*="card"] [class*="title"] {
+  color: #fff !important;
+  text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+  font-weight: 600;
+}
+
+.cyber-brutalist .card p,
+.cyber-brutalist .card span,
+.cyber-brutalist [class*="card"] p,
+.cyber-brutalist [class*="card"] span {
+  color: var(--text-secondary) !important;
+}
+
+.cyber-brutalist .card [class*="label"],
+.cyber-brutalist .card [class*="tag"],
+.cyber-brutalist [class*="card"] [class*="label"],
+.cyber-brutalist [class*="card"] [class*="tag"] {
+  color: #fff !important;
+  font-weight: 600;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+}
+
 /* 侧边栏 */
 .cyber-brutalist aside,
 .cyber-brutalist [class*="sidebar"] {
@@ -636,20 +673,23 @@
 .cyber-brutalist [class*="badge"],
 .cyber-brutalist .tag {
   background: var(--bg-tertiary) !important;
-  color: var(--text-secondary) !important;
+  color: #fff !important;
   border: 2px solid var(--border-primary) !important;
   border-radius: 0 !important;
   font-family: var(--font-pixel), monospace !important;
   text-transform: uppercase;
   letter-spacing: 1px;
+  font-weight: 600;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
 }
 
 .cyber-brutalist [class*="badge-primary"],
 .cyber-brutalist .tag-primary {
   background: rgba(57, 255, 20, 0.15) !important;
-  color: var(--color-primary) !important;
+  color: #fff !important;
   border-color: var(--color-primary) !important;
   box-shadow: var(--shadow-xs);
+  text-shadow: 0 0 5px rgba(57, 255, 20, 0.5);
 }
 
 /* 链接 */
@@ -976,14 +1016,55 @@
   transform: translateY(-2px);
 }
 
-.cyber-brutalist .product-card h3,
-.cyber-brutalist [class*="product-card"] h3 {
+/* 卡片内所有文字强制高对比度 */
+.cyber-brutalist .product-card *,
+.cyber-brutalist [class*="product-card"] * {
   color: var(--text-primary) !important;
+}
+
+.cyber-brutalist .product-card h3,
+.cyber-brutalist [class*="product-card"] h3,
+.cyber-brutalist .product-card h4,
+.cyber-brutalist [class*="product-card"] h4,
+.cyber-brutalist .product-card [class*="title"],
+.cyber-brutalist [class*="product-card"] [class*="title"] {
+  color: #fff !important;
+  text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+  font-weight: 600;
 }
 
 .cyber-brutalist .product-card [class*="price"],
 .cyber-brutalist [class*="product-card"] [class*="price"] {
   color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 卡片内标签和徽章 */
+.cyber-brutalist .product-card [class*="tag"],
+.cyber-brutalist [class*="product-card"] [class*="tag"],
+.cyber-brutalist .product-card [class*="badge"],
+.cyber-brutalist [class*="product-card"] [class*="badge"],
+.cyber-brutalist .product-card [class*="label"],
+.cyber-brutalist [class*="product-card"] [class*="label"] {
+  color: #fff !important;
+  font-weight: 600;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+}
+
+/* 筛选/标签按钮 */
+.cyber-brutalist button[class*="filter"],
+.cyber-brutalist [class*="filter"] button,
+.cyber-brutalist [class*="tab"],
+.cyber-brutalist [class*="category"] button {
+  color: var(--text-primary) !important;
+  font-weight: 500;
+}
+
+.cyber-brutalist button[class*="filter"]:hover,
+.cyber-brutalist [class*="filter"] button:hover,
+.cyber-brutalist [class*="tab"]:hover,
+.cyber-brutalist [class*="category"] button:hover {
+  color: #fff !important;
   text-shadow: var(--glow-primary-sm);
 }
 

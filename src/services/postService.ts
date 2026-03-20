@@ -675,7 +675,45 @@ export async function getPosts(category?: string, currentUserId?: string, useSup
   }
 }
 
+export async function incrementPostViews(id: string): Promise<void> {
+  try {
+    // 尝试更新 posts 表的 views 字段
+    const { data: postData } = await supabase
+      .from('posts')
+      .select('views')
+      .eq('id', id)
+      .single();
+    
+    if (postData) {
+      await supabase
+        .from('posts')
+        .update({ views: (postData.views || 0) + 1 })
+        .eq('id', id);
+      return;
+    }
+    
+    // 如果 posts 表没有，尝试更新 works 表的 view_count 字段
+    const { data: workData } = await supabase
+      .from('works')
+      .select('view_count')
+      .eq('id', id)
+      .single();
+    
+    if (workData) {
+      await supabase
+        .from('works')
+        .update({ view_count: (workData.view_count || 0) + 1 })
+        .eq('id', id);
+    }
+  } catch (error) {
+    console.error('增加浏览量失败:', error);
+  }
+}
+
 export async function getPostById(id: string, currentUserId?: string): Promise<Post | null> {
+  // 增加浏览量（异步执行，不阻塞主流程）
+  incrementPostViews(id).catch(console.error);
+  
   // 首先尝试从后端 API 获取（因为视频作品存储在 works 表中）
   try {
     const response = await fetch(`/api/works/${id}`);

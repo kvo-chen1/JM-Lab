@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom'
 import AICollaborationPanel from './AICollaborationPanel'
 import ErrorBoundary from './ErrorBoundary'
 import { useTranslation } from 'react-i18next'
+import { IPMascotChatTrigger } from '@/components/ip-mascot'
 
 interface FloatingAIAssistantV2Props {
   defaultOpen?: boolean
@@ -58,8 +59,8 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
       
       // 确保按钮不会超出屏幕边界
       setPositionStyle(prev => {
-        const buttonWidth = 64
-        const buttonHeight = 64
+        const buttonWidth = 80
+        const buttonHeight = 80
         // 确保位置在屏幕范围内
         const newX = Math.max(0, Math.min(prev.x, newWidth - buttonWidth))
         const newY = Math.max(0, Math.min(prev.y, newHeight - buttonHeight))
@@ -97,8 +98,8 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
       const { x, y } = JSON.parse(savedPosition)
       if (typeof x === 'number' && typeof y === 'number') {
         // 确保加载的位置在屏幕范围内
-        const buttonWidth = 64
-        const buttonHeight = 64
+        const buttonWidth = 80
+        const buttonHeight = 80
         const safeX = Math.max(0, Math.min(x, window.innerWidth - buttonWidth))
         const safeY = Math.max(0, Math.min(y, window.innerHeight - buttonHeight))
         setPositionStyle({ x: safeX, y: safeY })
@@ -121,8 +122,8 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
       const point = 'touches' in e ? e.touches[0] : e
       if (!point) return
 
-      const buttonWidth = 64
-      const buttonHeight = 64
+      const buttonWidth = 80
+      const buttonHeight = 80
       let newX = point.clientX - dragOffset.x
       let newY = point.clientY - dragOffset.y
       newX = Math.max(0, Math.min(newX, windowWidth - buttonWidth))
@@ -180,24 +181,21 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
           zIndex: 99999
         }}
       >
-        <motion.button
+        {/* IP形象动画按钮 */}
+        <motion.div
           ref={buttonRef}
-          animate={{ y: [0, -8, 0, -5, 0], rotate: [0, 1, 0, -1, 0] }}
+          animate={{ y: [0, -8, 0, -5, 0] }}
           transition={{ y: { duration: 2.5, repeat: Infinity, ease: 'easeInOut' } }}
           onClick={openPanel}
           onMouseDown={handleDragStart}
           onTouchStart={handleDragStart}
-          className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl z-[100] transition-all duration-300 transform hover:scale-125 ${
-            isDark
-              ? 'bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
-              : 'bg-gradient-to-br from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600'
-          } text-white cursor-${isDragging ? 'grabbing' : 'grab'}`}
+          className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl z-[100] transition-all duration-300 transform hover:scale-125 cursor-${isDragging ? 'grabbing' : 'grab'} overflow-hidden`}
           aria-label={t('aiAssistant.aria.floatingButton')}
           whileHover={{
             scale: 1.25,
             boxShadow: isDark
-              ? '0 12px 28px rgba(99, 102, 241, 0.5), 0 4px 12px rgba(99, 102, 241, 0.3)'
-              : '0 12px 28px rgba(59, 130, 246, 0.5), 0 4px 12px rgba(59, 130, 246, 0.3)',
+              ? '0 12px 28px rgba(192, 44, 56, 0.5), 0 4px 12px rgba(192, 44, 56, 0.3)'
+              : '0 12px 28px rgba(192, 44, 56, 0.5), 0 4px 12px rgba(192, 44, 56, 0.3)',
             y: -5
           }}
           whileTap={{ scale: 1.1, y: 0 }}
@@ -211,8 +209,33 @@ export default function FloatingAIAssistantV2({ defaultOpen = false }: FloatingA
             backfaceVisibility: 'hidden'
           }}
         >
-          <motion.i className="fas fa-robot text-xl" animate={isOpen ? { rotate: 90 } : { rotate: 0 }} transition={{ duration: 0.3 }} />
-        </motion.button>
+          {/* IP动画视频 */}
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+            style={{ borderRadius: '50%' }}
+          >
+            <source src="/AI IP.mp4" type="video/mp4" />
+          </video>
+          
+          {/* 悬停时的光晕效果 */}
+          <motion.div
+            className="absolute inset-0 rounded-full pointer-events-none"
+            style={{
+              background: isDark 
+                ? 'radial-gradient(circle, rgba(192,44,56,0.3) 0%, transparent 70%)' 
+                : 'radial-gradient(circle, rgba(192,44,56,0.2) 0%, transparent 70%)'
+            }}
+            animate={{ 
+              scale: [1, 1.2, 1],
+              opacity: [0.6, 0.8, 0.6]
+            }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        </motion.div>
       </div>
 
       <ErrorBoundary fallback={

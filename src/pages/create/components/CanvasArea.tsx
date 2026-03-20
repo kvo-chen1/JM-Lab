@@ -449,6 +449,16 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
                   // 双击打开详情或预览
                   console.log('Double clicked work:', work);
                 }}
+                onMentionWork={(work) => {
+                  // 引用作品到输入框
+                  const store = useCreateStore.getState();
+                  store.setPendingMention({
+                    type: 'work',
+                    name: work.title || `作品${work.id}`,
+                    id: String(work.id)
+                  });
+                  toast.success(`已引用作品：${work.title || `作品${work.id}`}`);
+                }}
               />
             </motion.div>
           ) : (

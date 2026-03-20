@@ -529,7 +529,7 @@ const MODEL_ID = process.env.DOUBAO_MODEL_ID || 'doubao-seedance-1-0-pro-250528'
 // DashScope (Aliyun Qwen) config
 const DASHSCOPE_BASE_URL = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1'
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || ''
-const DASHSCOPE_MODEL_ID = process.env.DASHSCOPE_MODEL_ID || 'qwen3.5-35b-a3b'
+const DASHSCOPE_MODEL_ID = process.env.DASHSCOPE_MODEL_ID || 'qwen3.5-plus-2026-02-15'
 
 // Kimi (Moonshot) config
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || 'https://api.moonshot.cn/v1'
@@ -8867,7 +8867,7 @@ async function route(req, res, u, path) {
 
       // 使用 dashscopeFetch 函数来调用 API
       const r = await dashscopeFetch('/chat/completions', 'POST', {
-        model: 'qwen3.5-35b-a3b',
+        model: 'qwen3.5-plus-2026-02-15',
         messages: [{ role: 'user', content: optimizationPrompt }],
         temperature: 0.7,
         max_tokens: 800
@@ -8947,7 +8947,7 @@ async function route(req, res, u, path) {
 
       // 使用 dashscopeFetch 函数来调用 API
       const r = await dashscopeFetch('/chat/completions', 'POST', {
-        model: 'qwen3.5-35b-a3b',
+        model: 'qwen3.5-plus-2026-02-15',
         messages: [{ role: 'user', content: analysisPrompt }],
         temperature: 0.5,
         max_tokens: 800

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore } from './hooks/useAgentStore';
-import { useConversationStore } from './hooks/useConversationStore';
+import { useConversationStore, initializeSession } from './hooks/useConversationStore';
 import { PanelLeft, Sparkles, History } from 'lucide-react';
 import ConversationSidebar from './components/ConversationSidebar';
 import FeedbackModal from '@/components/Feedback/FeedbackModal';
@@ -28,13 +28,22 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
     }
   }, [isFeedbackOpen]);
 
-  // 初始化时如果没有会话，自动创建一个
+  // 初始化时恢复会话
   useEffect(() => {
-    if (!currentSessionId) {
+    console.log('[AgentLayout] 初始化会话，currentSessionId:', currentSessionId);
+
+    // 优先使用 initializeSession 恢复会话
+    const restoredSessionId = initializeSession();
+    console.log('[AgentLayout] 会话恢复结果:', restoredSessionId);
+
+    // 如果没有恢复成功且没有当前会话，检查是否需要创建新会话
+    if (!restoredSessionId && !currentSessionId) {
       const agentStore = useAgentStore.getState();
-      // 如果有现有对话内容，保存为会话
+      // 如果有现有对话内容（多条消息或已有任务），保存为会话
       if (agentStore.messages.length > 1 || agentStore.currentTask) {
-        createSession(agentStore.currentTask?.title || '未命名会话');
+        const title = agentStore.currentTask?.title || '未命名会话';
+        console.log('[AgentLayout] 创建新会话:', title);
+        createSession(title);
       }
     }
   }, []);

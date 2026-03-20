@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Play, X, Star, Loader2 } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { motion, useDragControls } from 'framer-motion';
+import { Play, X, Star, Loader2, AtSign } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import type { GeneratedResult } from '../../types';
 import type { WorkPosition } from './hooks';
@@ -15,37 +15,71 @@ interface WorkCardItemProps {
   onDoubleClick: () => void;
   onDragStart: (e: React.MouseEvent) => void;
   onDelete: () => void;
+  onPositionChange?: (position: WorkPosition) => void;
+  onMention?: (work: GeneratedResult) => void;
 }
 
 export default function WorkCardItem({
   work,
   position,
   isSelected,
-  isDragging,
+  isDragging: externalIsDragging,
   scale,
   onSelect,
   onDoubleClick,
   onDragStart,
   onDelete,
+  onPositionChange,
+  onMention,
 }: WorkCardItemProps) {
   const { isDark } = useTheme();
   const isVideo = work.type === 'video' || work.video;
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragControls = useDragControls();
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    dragControls.start(e);
+    setIsDragging(true);
+    onDragStart?.(e);
+  }, [dragControls, onDragStart]);
+
+  const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number; y: number } }) => {
+    setIsDragging(false);
+
+    // 计算最终位置（考虑画布缩放）
+    const newPosition: WorkPosition = {
+      x: position.x + info.offset.x / scale,
+      y: position.y + info.offset.y / scale,
+      rotation: position.rotation,
+      scale: position.scale,
+    };
+
+    onPositionChange?.(newPosition);
+  }, [position, scale, onPositionChange]);
+
+  const isCurrentlyDragging = isDragging || externalIsDragging;
 
   return (
     <motion.div
+      drag
+      dragControls={dragControls}
+      dragMomentum={false}
+      dragElastic={0}
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={handleDragEnd}
       initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ 
-        opacity: 1, 
-        scale: isDragging ? 1.05 : 1,
+      animate={{
+        opacity: 1,
         x: position.x,
         y: position.y,
         rotate: position.rotation || 0,
+        scale: isCurrentlyDragging ? 1.05 : 1,
       }}
-      transition={{ 
-        type: 'spring', 
-        stiffness: 300, 
+      transition={isCurrentlyDragging ? { duration: 0 } : {
+        type: 'spring',
+        stiffness: 300,
         damping: 30,
         opacity: { duration: 0.2 },
       }}
@@ -53,10 +87,10 @@ export default function WorkCardItem({
       style={{
         width: 280,
         height: 200,
-        zIndex: isDragging ? 100 : isSelected ? 50 : 1,
-        cursor: isDragging ? 'grabbing' : 'grab',
+        zIndex: isCurrentlyDragging ? 100 : isSelected ? 50 : 1,
+        cursor: isCurrentlyDragging ? 'grabbing' : 'grab',
       }}
-      onMouseDown={onDragStart}
+      onMouseDown={handleDragStart}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -136,6 +170,18 @@ export default function WorkCardItem({
             background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.6) 100%)',
           }}
         >
+          {/* 引用按钮 */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMention?.(work);
+            }}
+            className="absolute top-2 right-11 w-7 h-7 rounded-full bg-[#8B5CF6] text-white flex items-center justify-center shadow-lg hover:bg-[#7C3AED] transition-colors"
+            title="引用此作品"
+          >
+            <AtSign className="w-4 h-4" />
+          </button>
+
           {/* 删除按钮 */}
           <button
             onClick={(e) => {
@@ -143,6 +189,7 @@ export default function WorkCardItem({
               onDelete();
             }}
             className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
+            title="删除此作品"
           >
             <X className="w-4 h-4" />
           </button>

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import CanvasBackground from './CanvasBackground';
 import CanvasControls, { type ToolMode } from './CanvasControls';
 import WorkCardItem from './WorkCardItem';
-import { useCanvasZoom, useCanvasPan, useWorkDrag, useCanvasKeyboard } from './hooks';
+import { useCanvasZoom, useCanvasPan, useCanvasKeyboard } from './hooks';
 import type { GeneratedResult } from '../../types';
 import type { WorkPosition } from './hooks';
 
@@ -13,6 +13,7 @@ interface DraggableCanvasProps {
   onSelectWork: (id: number | null) => void;
   onDeleteWork: (id: number) => void;
   onDoubleClickWork?: (work: GeneratedResult) => void;
+  onMentionWork?: (work: GeneratedResult) => void;
   className?: string;
 }
 
@@ -22,6 +23,7 @@ export default function DraggableCanvas({
   onSelectWork,
   onDeleteWork,
   onDoubleClickWork,
+  onMentionWork,
   className = '',
 }: DraggableCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -133,9 +135,6 @@ export default function DraggableCanvas({
   // 画布平移 - 初始位置居中
   const { position, isPanning, startPan, updatePan, endPan, resetPosition, setPosition, isSpacePressed } = useCanvasPan(0, 0);
 
-  // 作品拖拽
-  const { dragState, startDrag, updateDrag, endDrag } = useWorkDrag(scale);
-
   // 处理位置更新
   const handlePositionChange = useCallback((workId: number, newPosition: WorkPosition) => {
     setWorkPositions(prev => {
@@ -163,18 +162,15 @@ export default function DraggableCanvas({
 
   // 鼠标移动处理
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (dragState.isDragging) {
-      updateDrag(e, handlePositionChange);
-    } else if (isPanning) {
+    if (isPanning) {
       updatePan(e);
     }
-  }, [dragState.isDragging, isPanning, updateDrag, updatePan, handlePositionChange]);
+  }, [isPanning, updatePan]);
 
   // 鼠标抬起处理
   const handleMouseUp = useCallback(() => {
-    endDrag();
     endPan();
-  }, [endDrag, endPan]);
+  }, [endPan]);
 
   // 鼠标按下处理
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -245,16 +241,11 @@ export default function DraggableCanvas({
     onPositionChange: handlePositionChange,
   });
 
-  // 处理作品拖拽开始
+  // 处理作品拖拽开始 - 现在由 WorkCardItem 自己处理拖拽
   const handleWorkDragStart = useCallback((e: React.MouseEvent, workId: number) => {
     if (toolMode !== 'select') return;
-
-    const currentPos = workPositions.get(workId);
-    if (currentPos) {
-      onSelectWork(workId);
-      startDrag(e, workId, currentPos);
-    }
-  }, [toolMode, workPositions, onSelectWork, startDrag]);
+    onSelectWork(workId);
+  }, [toolMode, onSelectWork]);
 
   // 处理双击
   const handleDoubleClick = useCallback((work: GeneratedResult) => {
@@ -312,12 +303,14 @@ export default function DraggableCanvas({
               work={work}
               position={position}
               isSelected={selectedWorkId === work.id}
-              isDragging={dragState.draggedWorkId === work.id}
+              isDragging={false}
               scale={scale}
               onSelect={() => onSelectWork(work.id)}
               onDoubleClick={() => handleDoubleClick(work)}
               onDragStart={(e) => handleWorkDragStart(e, work.id)}
               onDelete={() => onDeleteWork(work.id)}
+              onPositionChange={(newPos) => handlePositionChange(work.id, newPos)}
+              onMention={onMentionWork}
             />
           );
         })}

@@ -70,7 +70,7 @@ export async function callCurrentModel(
     case 'qwen':
     default:
       return callQwenChat({
-        model: 'qwen3.5-35b-a3b',
+        model: 'qwen3.5-plus-2026-02-15',
         messages,
         temperature: options?.temperature || 0.7,
         max_tokens: options?.max_tokens || 1500,

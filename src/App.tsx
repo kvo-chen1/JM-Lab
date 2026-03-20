@@ -54,6 +54,8 @@ import Home from "@/pages/Home";
 import MobileHome from "@/pages/MobileHome";
 import ComponentShowcase from "@/pages/ComponentShowcase";
 import IPCharacterShowcase from "@/pages/IPCharacterShowcase";
+import IPDesignShowcase from "@/pages/IPDesignShowcase";
+import IPPosterGenerator from "@/pages/IPPosterGenerator";
 import ThemeTestPage from "@/pages/ThemeTestPage";
 import HamsterLoaderDemo from "@/pages/HamsterLoaderDemo";
 
@@ -1116,7 +1118,22 @@ export default function App() {
         <GuideProvider>
           <EventProvider>
             <div className={rootClass} style={{ backgroundColor: 'var(--bg-primary, #ffffff)' }}>
-            <EntryAnimation />
+            <EntryAnimation onComplete={(choice) => {
+              if (choice === 'guide' && user?.id) {
+                // 清除新手引导完成标记，触发引导
+                localStorage.removeItem(`guide_completed_${user.id}`);
+                // 延迟一点确保组件已挂载
+                setTimeout(() => {
+                  import('@/lib/eventBus').then(({ default: eventBus }) => {
+                    eventBus.emit('auth:login', { 
+                      userId: user.id, 
+                      user: { ...user, isNewUser: true },
+                      isProfileComplete: true 
+                    });
+                  });
+                }, 500);
+              }
+            }} />
             {Analytics && <Analytics />}
             {SpeedInsights && <SpeedInsights />}
             <Routes location={location} key={location.pathname}>
@@ -1256,6 +1273,9 @@ export default function App() {
           <Route path="/messages" element={<LazyComponent><PrivateRoute><MessageCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/component-showcase" element={<ComponentShowcase />} />
           <Route path="/ip-character" element={<IPCharacterShowcase />} />
+          <Route path="/ip-design" element={<IPDesignShowcase />} />
+          <Route path="/ip-design/:id" element={<IPDesignShowcase />} />
+          <Route path="/ip-poster-generator" element={<IPPosterGenerator />} />
           <Route path="/hamster-loader-demo" element={<HamsterLoaderDemo />} />
           <Route path="/trending-card-demo" element={<LazyComponent><TrendingCardDemo /></LazyComponent>} />
           <Route path="/image-paste-input-demo" element={<LazyComponent><ImagePasteInputDemo /></LazyComponent>} />

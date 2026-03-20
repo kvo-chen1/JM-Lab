@@ -121,6 +121,26 @@ export default function HamsterLoaderDemo() {
           </div>
         </motion.section>
 
+        {/* 视频动画测试 */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 mb-8"
+        >
+          <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-6">
+            🎬 视频动画测试
+          </h2>
+          <div className="flex flex-col items-center gap-4">
+            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+              <HamsterWheelLoader size="xlarge" />
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              当前显示的是新的视频动画（hamster-loader.mp4）
+            </p>
+          </div>
+        </motion.section>
+
         {/* 使用场景示例 */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}

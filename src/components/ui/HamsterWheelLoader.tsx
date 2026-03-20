@@ -1,4 +1,5 @@
 import { clsx } from 'clsx';
+import { useState, useRef, useEffect } from 'react';
 
 // 加载器大小类型
 export type HamsterSize = 'small' | 'medium' | 'large' | 'xlarge';
@@ -12,29 +13,19 @@ interface HamsterWheelLoaderProps {
   className?: string;
 }
 
-// 大小样式映射
+// 大小样式映射 - 容器固定尺寸，视频自适应填满容器
 const sizeClasses = {
-  small: {
-    container: 'w-16 h-16',
-    scale: 'scale-[0.4]'
-  },
-  medium: {
-    container: 'w-24 h-24',
-    scale: 'scale-[0.6]'
-  },
-  large: {
-    container: 'w-32 h-32',
-    scale: 'scale-[0.8]'
-  },
-  xlarge: {
-    container: 'w-40 h-40',
-    scale: 'scale-100'
-  }
+  small: 'w-16 h-16',
+  medium: 'w-24 h-24',
+  large: 'w-32 h-32',
+  xlarge: 'w-48 h-48'
 };
+
+const VIDEO_SRC = '/hamster-loader.mp4';
 
 /**
  * 仓鼠跑轮加载动画组件
- * 一个可爱的仓鼠在轮子里奔跑的 CSS 动画
+ * 使用视频播放的仓鼠跑轮动画，视频自适应填满容器
  */
 export function HamsterWheelLoader({
   size = 'medium',
@@ -43,40 +34,43 @@ export function HamsterWheelLoader({
   overlay = false,
   className
 }: HamsterWheelLoaderProps) {
-  const currentSize = sizeClasses[size];
+  const [videoError, setVideoError] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const HamsterAnimation = (
-    <div 
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.play().catch(() => {
+        setVideoError(true);
+      });
+    }
+  }, []);
+
+  const VideoLoader = (
+    <div
       className={clsx(
-        'relative flex items-center justify-center',
-        currentSize.container,
+        'relative flex items-center justify-center overflow-hidden',
+        // 设置与视频背景一致的米白色背景，让白边隐形
+        'bg-[#FFF8F0]',
+        sizeClasses[size],
         className
       )}
     >
-      <div className={clsx('origin-center', currentSize.scale)}>
-        <div 
-          aria-label="Orange and tan hamster running in a metal wheel"
-          role="img"
-          className="wheel-and-hamster"
-        >
-          <div className="wheel"></div>
-          <div className="hamster">
-            <div className="hamster__body">
-              <div className="hamster__head">
-                <div className="hamster__ear"></div>
-                <div className="hamster__eye"></div>
-                <div className="hamster__nose"></div>
-              </div>
-              <div className="hamster__limb hamster__limb--fr"></div>
-              <div className="hamster__limb hamster__limb--fl"></div>
-              <div className="hamster__limb hamster__limb--br"></div>
-              <div className="hamster__limb hamster__limb--bl"></div>
-              <div className="hamster__tail"></div>
-            </div>
-          </div>
-          <div className="spoke"></div>
+      {!videoError ? (
+        <video
+          ref={videoRef}
+          src={VIDEO_SRC}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-full object-cover"
+          onError={() => setVideoError(true)}
+        />
+      ) : (
+        <div className="flex items-center justify-center w-full h-full">
+          <div className="w-8 h-8 border-2 border-[#C02C38] border-t-transparent rounded-full animate-spin" />
         </div>
-      </div>
+      )}
     </div>
   );
 
@@ -87,15 +81,17 @@ export function HamsterWheelLoader({
         'fixed inset-0 flex flex-col items-center justify-center z-[70]',
         overlay ? 'bg-black/50 backdrop-blur-sm' : 'bg-transparent'
       )}>
-        {HamsterAnimation}
-        {text && (
-          <p className={clsx(
-            'mt-4 font-medium animate-pulse',
-            overlay ? 'text-white' : 'text-gray-600 dark:text-gray-400'
-          )}>
-            {text}
-          </p>
-        )}
+        <div className="flex flex-col items-center gap-4">
+          {VideoLoader}
+          {text && (
+            <p className={clsx(
+              'font-medium animate-pulse',
+              overlay ? 'text-white' : 'text-gray-600 dark:text-gray-400'
+            )}>
+              {text}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -103,7 +99,7 @@ export function HamsterWheelLoader({
   // 内联加载器
   return (
     <div className="flex flex-col items-center gap-3">
-      {HamsterAnimation}
+      {VideoLoader}
       {text && (
         <span className="text-sm text-gray-600 dark:text-gray-400">{text}</span>
       )}

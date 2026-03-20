@@ -12,7 +12,8 @@ import {
   AgentType,
   DelegationTask,
   AGENT_CONFIG,
-  LLMModelType
+  LLMModelType,
+  CardPosition
 } from '../types/agent';
 import { setCurrentModelInStorage } from '../services/modelCaller';
 // import { getMemoryService } from '../services/memoryService';
@@ -178,6 +179,10 @@ interface AgentActions {
   // 引用管理
   setPendingMention: (mention: { type: 'work' | 'brand' | 'style'; name: string; id?: string } | null) => void;
   clearPendingMention: () => void;
+
+  // 卡片位置管理
+  updateCardPosition: (id: string, position: CardPosition) => void;
+  resetCardPositions: () => void;
 }
 
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -226,21 +231,18 @@ export const useAgentStore = create<AgentState & AgentActions>()(
     (set, get) => {
       // 获取用户信息并生成个性化欢迎消息
       const userInfo = getUserInfoFromStorage();
+
+      // 注意：在 persist 的初始化函数中，get() 返回的是初始状态
+      // 实际持久化的值会在后续合并
       const welcomeMessage = getWelcomeMessage({
         ...userInfo,
         previousTaskType: undefined
       });
 
-      // 从持久化状态恢复时，同步模型到 storage
-      const state = get();
-      if (state?.currentModel) {
-        setCurrentModelInStorage(state.currentModel);
-      }
-
       return {
         ...initialState,
 
-        // 初始化欢迎消息
+        // 初始化欢迎消息（如果持久化状态中没有消息）
         messages: [welcomeMessage],
 
       // 消息操作
@@ -626,7 +628,21 @@ export const useAgentStore = create<AgentState & AgentActions>()(
 
       // 引用管理
       setPendingMention: (mention) => set({ pendingMention: mention }),
-      clearPendingMention: () => set({ pendingMention: null })
+      clearPendingMention: () => set({ pendingMention: null }),
+
+      // 卡片位置管理
+      updateCardPosition: (id, position) => set((state) => ({
+        generatedOutputs: state.generatedOutputs.map(out =>
+          out.id === id ? { ...out, position } : out
+        )
+      })),
+
+      resetCardPositions: () => set((state) => ({
+        generatedOutputs: state.generatedOutputs.map(out => ({
+          ...out,
+          position: undefined
+        }))
+      }))
     }},
     {
       name: 'agent-store',
@@ -635,8 +651,25 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         currentTask: state.currentTask,
         generatedOutputs: state.generatedOutputs,
         selectedStyle: state.selectedStyle,
-        delegationHistory: state.delegationHistory
-      })
+        delegationHistory: state.delegationHistory,
+        currentAgent: state.currentAgent,
+        currentModel: state.currentModel
+      }),
+      // 状态恢复后的回调
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          console.log('[AgentStore] 状态已恢复，消息数:', state.messages?.length || 0);
+          // 同步模型到 storage
+          if (state.currentModel) {
+            setCurrentModelInStorage(state.currentModel);
+          }
+          // 确保消息是数组
+          if (!Array.isArray(state.messages)) {
+            console.warn('[AgentStore] 恢复的消息不是数组，重置为空');
+            state.messages = [];
+          }
+        }
+      }
     }
   )
 );

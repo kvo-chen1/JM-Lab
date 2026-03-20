@@ -189,6 +189,12 @@ export interface DesignTask {
   updatedAt: number;
 }
 
+// 卡片位置类型
+export interface CardPosition {
+  x: number;
+  y: number;
+}
+
 export interface GeneratedOutput {
   id: string;
   type: 'image' | 'video' | 'text';
@@ -204,6 +210,7 @@ export interface GeneratedOutput {
   description?: string;   // 作品描述（AI生成，可编辑）
   isFavorite?: boolean;   // 是否收藏
   status?: 'generating' | 'completed' | 'error';  // 生成状态
+  position?: CardPosition; // 卡片位置（用于自由拖拽布局）
 }
 
 // 引用的作品信息（用于@作品引用功能）
@@ -498,4 +505,17 @@ export interface AgentStateSnapshot {
 export interface ConversationState {
   sessions: ConversationSession[];
   currentSessionId: string | null;
+}
+
+// 灵感提示类型
+export interface InspirationHint {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  examplePrompt: string;
+  tags: string[];
+  // 可选字段，用于"为你推荐"的作品
+  workId?: string;
+  isRecommended?: boolean;
 }

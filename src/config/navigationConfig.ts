@@ -37,7 +37,8 @@ export const homeNavItems: NavItem[] = [
 export const creationNavItems: NavItem[] = [
   { id: 'create', path: '/create', label: '创作中心', icon: 'fas fa-tools', priority: 'high' },
   { id: 'ai-writer', path: '/ai-writer', label: 'AI智作文案', icon: 'fas fa-pen-nib', priority: 'high' },
-  { id: 'wizard', path: '/wizard', label: '品牌向导', icon: 'fas fa-hat-wizard', priority: 'high' }
+  { id: 'wizard', path: '/wizard', label: '品牌向导', icon: 'fas fa-hat-wizard', priority: 'high' },
+  { id: 'ip-poster-generator', path: '/ip-poster-generator', label: 'IP海报生成器', icon: 'fas fa-image', priority: 'high', badge: 'NEW', description: 'AI一键生成专业IP形象展示海报' }
 ];
 
 // 3. 🎨 发现与探索 (Discover)

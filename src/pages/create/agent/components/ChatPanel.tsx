@@ -1359,10 +1359,23 @@ export default function ChatPanel() {
             }`}
           >
             <InspirationHints
-              onHintSelect={(hint: InspirationHint) => {
-                setInputValue(hint.examplePrompt);
-                toggleInspirationPanel();
-                toast.success(`已应用灵感提示：${hint.title}`);
+              onHintSelect={(hint: InspirationHint, autoSend?: boolean) => {
+                if (autoSend) {
+                  // "为你推荐"的提示：构建询问消息并自动发送
+                  const inquiryMessage = `请介绍一下「${hint.title}」相关内容，并给我适合的创作灵感。`;
+                  setInputValue(inquiryMessage);
+                  toggleInspirationPanel();
+                  toast.success(`正在询问：${hint.title}`);
+                  // 延迟一点再发送，确保UI更新
+                  setTimeout(() => {
+                    handleSend();
+                  }, 100);
+                } else {
+                  // 普通灵感提示：只设置到输入框
+                  setInputValue(hint.examplePrompt);
+                  toggleInspirationPanel();
+                  toast.success(`已应用灵感提示：${hint.title}`);
+                }
               }}
               onClose={toggleInspirationPanel}
             />

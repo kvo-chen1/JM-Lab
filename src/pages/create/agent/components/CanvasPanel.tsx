@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, DERIVATIVE_OPTIONS } from '../hooks/useAgentStore';
@@ -23,6 +23,8 @@ import {
   Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { assignDefaultPositions } from '../utils/cardLayout';
+import { CardPosition } from '../types/agent';
 
 // 扩展 GeneratedOutput 类型以支持引用
 type GeneratedOutputWithMention = GeneratedOutput & { isMentioned?: boolean };
@@ -122,7 +124,9 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
     setShowSatisfactionModal,
     addMessage,
     setCurrentAgent,
-    setPendingMention
+    setPendingMention,
+    updateCardPosition,
+    resetCardPositions
   } = useAgentStore();
 
   const [viewMode, setViewMode] = useState<'gallery' | 'grid'>('gallery');
@@ -140,8 +144,18 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
   // 空格键状态和拖拽状态
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isCardDragging, setIsCardDragging] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+  const containerWidthRef = useRef(1200);
+
+  // 确保所有卡片都有位置
+  const outputsWithPositions = useMemo(() => {
+    if (canvasRef.current) {
+      containerWidthRef.current = canvasRef.current.clientWidth;
+    }
+    return assignDefaultPositions(generatedOutputs, containerWidthRef.current);
+  }, [generatedOutputs]);
 
   // 重置画布
   const handleResetCanvas = () => {
@@ -190,8 +204,24 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
     toast.success('已聚焦到选中作品');
   };
 
+  // 处理卡片位置更新
+  const handleCardPositionChange = useCallback((id: string, position: CardPosition) => {
+    updateCardPosition(id, position);
+  }, [updateCardPosition]);
+
   // 拖拽处理
   const handleMouseDown = (e: React.MouseEvent) => {
+    // 如果正在拖拽卡片，不处理画布拖拽
+    if (isCardDragging) {
+      return;
+    }
+
+    // 检查是否点击在卡片上
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-work-card]')) {
+      return;
+    }
+
     // 只有在抓手工具、按住空格键、按住中键或Shift键时才允许拖拽
     if (selectedTool === 'hand' || isSpacePressed || e.button === 1 || (e.button === 0 && e.shiftKey)) {
       e.preventDefault();
@@ -573,149 +603,88 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
               transition: isDragging ? 'none' : 'transform 0.1s ease-out'
             }}
           >
-            <div className="p-20 min-w-max">
-              <AnimatePresence mode="wait">
-                {viewMode === 'gallery' ? (
-                  <motion.div
-                    key="gallery"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="inline-block"
-                  >
-                    {/* Work Cards - 自由排列 - 优化间距 */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl">
-                      {generatedOutputs.map((output, index) => (
-                        <motion.div
-                          key={output.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          data-output-id={output.id}
-                        >
-                          <WorkCard
-                            data={{
-                              id: output.id,
-                              title: output.title || '未命名作品',
-                              description: output.description || '暂无描述',
-                              imageUrl: output.url,
-                              thumbnailUrl: output.thumbnail || output.url,
-                              createdAt: output.createdAt,
-                              isFavorite: output.isFavorite
-                            }}
-                            isSelected={selectedOutput === output.id}
-                            onSelect={(e) => handleSelectOutput(output.id, e, index, viewMode)}
-                            onUpdate={(id, updates) => {
-                              updateOutput(id, updates);
-                            }}
-                            onDelete={(id) => {
-                              deleteOutput(id);
-                            }}
-                            onRefresh={(id) => {
-                              toast.info('重新生成功能开发中...');
-                            }}
-                            onDownload={(data) => {
-                              handleDownload();
-                            }}
-                            onMention={(data) => {
-                              handleMentionWork(output);
-                            }}
-                            showMentionButton={true}
-                          />
-                        </motion.div>
-                      ))}
-                    </div>
-
-                    {/* Satisfaction Check Modal */}
-                    {showSatisfactionModal && selectedImage && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`fixed bottom-8 left-1/2 -translate-x-1/2 p-4 rounded-xl backdrop-blur-md z-50 ${
-                          isDark
-                            ? 'bg-gray-900/90 border border-gray-700'
-                            : 'bg-white/90 border border-gray-200'
-                        }`}
-                      >
-                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                          请问你对当前设计满意吗？
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleSatisfactionResponse(true)}
-                            className="flex-1 py-2 px-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium flex items-center justify-center gap-2"
-                          >
-                            <Check className="w-4 h-4" />
-                            满意
-                          </button>
-                          <button
-                            onClick={() => handleSatisfactionResponse(false)}
-                            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${
-                              isDark
-                                ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            <X className="w-4 h-4" />
-                            修改
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </motion.div>
-                ) : (
-                  // Grid View - 使用WorkCard的紧凑模式 - 优化间距
-                  <motion.div
-                    key="grid"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="inline-block"
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-6xl p-8">
-                      {generatedOutputs.map((output, index) => (
-                        <motion.div
-                          key={output.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="max-w-sm"
-                        >
-                          <WorkCard
-                            data={{
-                              id: output.id,
-                              title: output.title || '未命名作品',
-                              description: output.description || '暂无描述',
-                              imageUrl: output.url,
-                              thumbnailUrl: output.thumbnail || output.url,
-                              createdAt: output.createdAt,
-                              isFavorite: output.isFavorite
-                            }}
-                            isSelected={selectedOutput === output.id}
-                            onSelect={(e) => handleSelectOutput(output.id, e, index, 'grid')}
-                            onUpdate={(id, updates) => {
-                              updateOutput(id, updates);
-                            }}
-                            onDelete={(id) => {
-                              deleteOutput(id);
-                            }}
-                            onRefresh={(id) => {
-                              toast.info('重新生成功能开发中...');
-                            }}
-                            onDownload={(data) => {
-                              handleDownload();
-                            }}
-                            onMention={(data) => {
-                              handleMentionWork(output);
-                            }}
-                            showMentionButton={true}
-                          />
-                        </motion.div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
+            <div className="p-20 min-w-max relative" style={{ minWidth: '100%', minHeight: '100%' }}>
+              {/* Work Cards - 自由定位布局 */}
+              <AnimatePresence>
+                {outputsWithPositions.map((output, index) => (
+                  <WorkCard
+                    key={output.id}
+                    data={{
+                      id: output.id,
+                      title: output.title || '未命名作品',
+                      description: output.description || '暂无描述',
+                      imageUrl: output.url,
+                      thumbnailUrl: output.thumbnail || output.url,
+                      createdAt: output.createdAt,
+                      isFavorite: output.isFavorite
+                    }}
+                    position={output.position}
+                    isSelected={selectedOutput === output.id}
+                    onSelect={(e) => {
+                      if (!isCardDragging) {
+                        handleSelectOutput(output.id, e, index, viewMode);
+                      }
+                    }}
+                    onUpdate={(id, updates) => {
+                      updateOutput(id, updates);
+                    }}
+                    onDelete={(id) => {
+                      deleteOutput(id);
+                    }}
+                    onRefresh={(id) => {
+                      toast.info('重新生成功能开发中...');
+                    }}
+                    onDownload={(data) => {
+                      handleDownload();
+                    }}
+                    onMention={(data) => {
+                      handleMentionWork(output);
+                    }}
+                    onPositionChange={(pos) => handleCardPositionChange(output.id, pos)}
+                    onDragStart={() => setIsCardDragging(true)}
+                    onDragEnd={() => setIsCardDragging(false)}
+                    canvasZoom={canvasZoom}
+                    showMentionButton={true}
+                  />
+                ))}
               </AnimatePresence>
+
+              {/* Satisfaction Check Modal */}
+              {showSatisfactionModal && selectedImage && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`fixed bottom-8 left-1/2 -translate-x-1/2 p-4 rounded-xl backdrop-blur-md z-50 ${
+                    isDark
+                      ? 'bg-gray-900/90 border border-gray-700'
+                      : 'bg-white/90 border border-gray-200'
+                  }`}
+                >
+                  <p className={`text-sm mb-3 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                    请问你对当前设计满意吗？
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSatisfactionResponse(true)}
+                      className="flex-1 py-2 px-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Check className="w-4 h-4" />
+                      满意
+                    </button>
+                    <button
+                      onClick={() => handleSatisfactionResponse(false)}
+                      className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${
+                        isDark
+                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <X className="w-4 h-4" />
+                      修改
+                    </button>
+                  </div>
+                </motion.div>
+              )}
             </div>
           </div>
         )}

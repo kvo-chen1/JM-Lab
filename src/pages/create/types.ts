@@ -8,6 +8,14 @@ export interface GeneratedResult {
   type?: 'image' | 'video';
   prompt?: string; // 作品的创意描述/提示词
   _tempFile?: File; // 本地临时文件，发布时上传
+  title?: string; // 作品标题，用于引用
+}
+
+// 引用状态
+export interface PendingMention {
+  type: 'work' | 'brand' | 'style';
+  name: string;
+  id?: string;
 }
 
 export interface TraditionalPattern {
@@ -174,6 +182,9 @@ export interface CreateState {
   smartLayoutConfig: SmartLayoutConfig;
   isAnalyzingLayout: boolean;
   layoutRecommendation: LayoutRecommendation | null;
+  
+  // 引用状态
+  pendingMention: PendingMention | null;
 }
 
 // 智能排版配置

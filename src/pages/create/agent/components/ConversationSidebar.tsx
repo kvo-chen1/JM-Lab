@@ -41,6 +41,12 @@ export default function ConversationSidebar({ isOpen, onToggle }: ConversationSi
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [showConfirmDelete, setShowConfirmDelete] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // 调试日志
+  useEffect(() => {
+    console.log('[ConversationSidebar] 会话列表:', sessions.length, '当前会话:', currentSessionId);
+  }, [sessions, currentSessionId]);
 
   // 自动保存当前会话
   useEffect(() => {
@@ -58,7 +64,9 @@ export default function ConversationSidebar({ isOpen, onToggle }: ConversationSi
 
   // 处理创建新会话
   const handleCreateSession = () => {
+    console.log('[ConversationSidebar] 创建新会话');
     const newId = createSession();
+    console.log('[ConversationSidebar] 新会话ID:', newId);
     toast.success('新会话已创建', {
       icon: <Sparkles className="w-4 h-4 text-[#C02C38]" />
     });
@@ -66,7 +74,11 @@ export default function ConversationSidebar({ isOpen, onToggle }: ConversationSi
 
   // 处理切换会话
   const handleSwitchSession = (sessionId: string) => {
-    if (sessionId === currentSessionId) return;
+    if (sessionId === currentSessionId) {
+      console.log('[ConversationSidebar] 已是当前会话，无需切换');
+      return;
+    }
+    console.log('[ConversationSidebar] 切换会话:', sessionId);
     switchSession(sessionId);
     toast.success('已切换会话');
   };

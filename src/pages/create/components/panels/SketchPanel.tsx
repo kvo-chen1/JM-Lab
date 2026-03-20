@@ -127,7 +127,9 @@ export default function SketchPanel() {
     setCurrentStep,
     streamStatus,
     autoGenerate,
-    setAutoGenerate
+    setAutoGenerate,
+    pendingMention,
+    clearPendingMention
   } = useCreateStore();
 
   // 津币相关状态
@@ -228,6 +230,15 @@ export default function SketchPanel() {
       handleGenerate();
     }
   }, [autoGenerate, prompt, isGenerating]);
+
+  // 监听 pendingMention，将引用添加到输入框
+  useEffect(() => {
+    if (pendingMention) {
+      const mention = `@${pendingMention.name} `;
+      setPrompt(prev => prev ? `${prev} ${mention}` : mention);
+      clearPendingMention();
+    }
+  }, [pendingMention, clearPendingMention]);
 
   // 取消生成
   const handleCancelGenerate = () => {

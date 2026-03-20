@@ -51,7 +51,7 @@ export default async function handler(req, res) {
         'X-DashScope-Async': 'enable'
       },
       body: JSON.stringify({
-        model: model || 'wanx2.1-t2i-turbo',
+        model: model || 'qwen-image-2.0-pro',
         input: {
           prompt: prompt
         },
@@ -63,14 +63,43 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorText = await response.text();
+      let errorData = {};
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { raw: errorText };
+      }
+      
       console.error('[Qwen Image API] DashScope API error:', {
         status: response.status,
-        error: errorData
+        statusText: response.statusText,
+        error: errorData,
+        apiKeyPrefix: apiKey?.substring(0, 10) + '...'
       });
+      
+      // 403 错误通常是 API Key 问题
+      if (response.status === 403) {
+        return res.status(403).json({
+          error: 'API Key invalid or expired',
+          message: 'API Key 无效或已过期，请检查 DASHSCOPE_API_KEY 配置',
+          details: errorData
+        });
+      }
+      
+      // 429 错误是请求太频繁
+      if (response.status === 429) {
+        return res.status(429).json({
+          error: 'Rate limited',
+          message: '请求太频繁，请稍后再试',
+          details: errorData
+        });
+      }
+      
       return res.status(response.status).json({
         error: 'DashScope API error',
-        message: errorData.message || `API请求失败: ${response.status}`
+        message: errorData.message || errorData.code || `API请求失败: ${response.status}`,
+        details: errorData
       });
     }
 

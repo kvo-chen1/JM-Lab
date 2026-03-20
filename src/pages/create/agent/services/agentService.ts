@@ -55,7 +55,7 @@ export async function* streamQwenResponse(
   try {
     // 使用 callQwenChat 调用千问 API
     const response = await callQwenChat({
-      model: options?.model || 'qwen3.5-35b-a3b',
+      model: options?.model || 'qwen3.5-plus-2026-02-15',
       messages: formattedMessages,
       temperature: options?.temperature || 0.7,
       max_tokens: options?.maxTokens || 1500,

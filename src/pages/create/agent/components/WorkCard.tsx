@@ -1,19 +1,21 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { 
-  Pencil, 
-  RefreshCw, 
-  Download, 
-  Trash2, 
+import {
+  Pencil,
+  RefreshCw,
+  Download,
+  Trash2,
   Check,
   X,
   Loader2,
   AtSign,
-  ZoomIn
+  ZoomIn,
+  GripVertical
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ImageLightbox from './ImageLightbox';
+import { CardPosition } from '../types/agent';
 
 export interface WorkCardData {
   id: string;
@@ -36,6 +38,13 @@ interface WorkCardProps {
   onMention?: (data: WorkCardData) => void;  // 新增：引用回调
   showMentionButton?: boolean;  // 新增：是否显示引用按钮
   className?: string;
+  // 拖拽相关属性
+  position?: CardPosition;
+  onPositionChange?: (position: CardPosition) => void;
+  canvasZoom?: number;
+  isDragging?: boolean;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }
 
 // 可编辑描述组件
@@ -386,13 +395,21 @@ export default function WorkCard({
   onDownload,
   onMention,
   showMentionButton = false,
-  className = ''
+  className = '',
+  position,
+  onPositionChange,
+  canvasZoom = 100,
+  isDragging: externalIsDragging,
+  onDragStart,
+  onDragEnd
 }: WorkCardProps) {
   const { isDark } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const dragStartPosRef = useRef({ x: 0, y: 0 });
 
   const handleEditStart = useCallback(() => {
     setIsEditing(true);
@@ -437,17 +454,67 @@ export default function WorkCard({
     setIsLightboxOpen(false);
   }, []);
 
+  // 使用 Framer Motion 的 dragControls 控制拖拽
+  const dragControls = useDragControls();
+
+  // 开始拖拽的条件判断 - 只有点击手柄时才启用拖拽
+  const startDrag = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-drag-handle]')) {
+      dragControls.start(e);
+      setIsDragging(true);
+      onDragStart?.();
+    }
+  }, [dragControls, onDragStart]);
+
+  // 拖拽结束处理
+  const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number; y: number } }) => {
+    setIsDragging(false);
+    onDragEnd?.();
+
+    // 计算最终位置（考虑画布缩放）
+    const scale = (canvasZoom || 100) / 100;
+    const newPosition: CardPosition = {
+      x: (position?.x || 0) + info.offset.x / scale,
+      y: (position?.y || 0) + info.offset.y / scale
+    };
+
+    onPositionChange?.(newPosition);
+  }, [canvasZoom, position, onPositionChange, onDragEnd]);
+
+  const isCurrentlyDragging = isDragging || externalIsDragging;
+
   return (
     <>
       <motion.div
         ref={cardRef}
         layoutId={data.id}
-        onClick={(e) => onSelect?.(e)}
+        drag
+        dragControls={dragControls}
+        dragMomentum={false}
+        dragElastic={0}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={handleDragEnd}
+        onClick={(e) => {
+          if (!isCurrentlyDragging) {
+            onSelect?.(e);
+          }
+        }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onMouseDown={startDrag}
+        data-work-card="true"
+        data-dragging={isCurrentlyDragging}
+        style={{
+          position: 'absolute',
+          left: position?.x || 0,
+          top: position?.y || 0,
+          cursor: isCurrentlyDragging ? 'grabbing' : 'default',
+          zIndex: isCurrentlyDragging ? 100 : (isHovered ? 10 : 1)
+        }}
         className={`
-          relative rounded-2xl overflow-hidden cursor-pointer
-          transition-all duration-300 max-w-md
+          relative rounded-2xl overflow-hidden
+          transition-shadow duration-300 max-w-md
           ${isDark
             ? 'bg-[#14141F] border border-[#2A2A3E] shadow-xl shadow-black/30'
             : 'bg-white shadow-xl shadow-gray-200/50'
@@ -458,9 +525,23 @@ export default function WorkCard({
               : 'ring-2 ring-[#C02C38] ring-offset-2 ring-offset-gray-100'
             : 'hover:shadow-2xl'
           }
+          ${isCurrentlyDragging ? 'shadow-2xl scale-[1.02]' : ''}
           ${className}
         `}
       >
+        {/* 拖拽手柄 */}
+        <div
+          data-drag-handle="true"
+          className={`
+            absolute top-0 left-0 right-0 h-8 z-20 flex items-center justify-center
+            cursor-grab active:cursor-grabbing
+            ${isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'}
+            transition-colors duration-200
+          `}
+          title="拖动以移动卡片"
+        >
+          <GripVertical className={`w-4 h-4 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+        </div>
         {/* 文字描述区域（在上） */}
         <EditableDescription
           title={data.title}

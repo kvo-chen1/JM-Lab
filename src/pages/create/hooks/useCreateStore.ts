@@ -107,6 +107,9 @@ interface CreateActions {
   setCurrentImage: (image: string | null) => void;
   // 提示词优化相关
   setOptimizedPrompt: (prompt: string) => void;
+  // 引用相关
+  setPendingMention: (mention: { type: 'work' | 'brand' | 'style'; name: string; id?: string } | null) => void;
+  clearPendingMention: () => void;
   addPromptHistory: (prompt: string) => void;
   removePromptFromHistory: (prompt: string) => void;
   
@@ -217,6 +220,7 @@ const getInitialState = (): CreateState => {
     },
     isAnalyzingLayout: false,
     layoutRecommendation: null,
+    pendingMention: null,
   };
 };
 
@@ -1382,6 +1386,10 @@ export const useCreateStore = create<CreateState & CreateActions>()(
       canvasSize: { width: 1242, height: 1660 }
     }
   }),
+  
+  // 引用相关方法
+  setPendingMention: (mention) => set({ pendingMention: mention }),
+  clearPendingMention: () => set({ pendingMention: null }),
 }),
     {
       name: 'create-store',

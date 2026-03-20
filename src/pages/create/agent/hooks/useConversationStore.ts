@@ -26,6 +26,12 @@ interface ConversationActions {
 
   // 清空所有会话
   clearAllSessions: () => void;
+
+  // 恢复会话状态到 Agent Store
+  restoreSessionToAgent: (sessionId: string) => boolean;
+
+  // 验证会话状态完整性
+  validateSessionState: (snapshot: AgentStateSnapshot) => boolean;
 }
 
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -114,10 +120,80 @@ export const useConversationStore = create<ConversationStoreState & Conversation
         return sessionId;
       },
 
+      // 验证会话状态完整性
+      validateSessionState: (snapshot: AgentStateSnapshot): boolean => {
+        if (!snapshot) {
+          console.warn('[ConversationStore] 会话状态快照为空');
+          return false;
+        }
+        // 验证必要字段
+        if (!Array.isArray(snapshot.messages)) {
+          console.warn('[ConversationStore] 会话消息不是数组');
+          return false;
+        }
+        if (!snapshot.currentAgent) {
+          console.warn('[ConversationStore] 当前 Agent 未设置');
+          return false;
+        }
+        return true;
+      },
+
+      // 恢复会话状态到 Agent Store
+      restoreSessionToAgent: (sessionId: string): boolean => {
+        const session = get().sessions.find(s => s.id === sessionId);
+        if (!session) {
+          console.warn('[ConversationStore] 未找到会话:', sessionId);
+          return false;
+        }
+
+        const snapshot = session.stateSnapshot;
+
+        // 验证状态完整性
+        if (!get().validateSessionState(snapshot)) {
+          console.warn('[ConversationStore] 会话状态验证失败，使用默认状态');
+          // 使用默认状态恢复
+          useAgentStore.setState({
+            messages: snapshot.messages?.length > 0 ? snapshot.messages : [getWelcomeMessage()],
+            currentAgent: snapshot.currentAgent || 'director',
+            currentTask: snapshot.currentTask || null,
+            taskStage: snapshot.taskStage || 'requirement',
+            generatedOutputs: snapshot.generatedOutputs || [],
+            selectedOutput: snapshot.selectedOutput || null,
+            selectedStyle: snapshot.selectedStyle || null,
+            delegationHistory: snapshot.delegationHistory || []
+          });
+          return true;
+        }
+
+        // 完整恢复状态
+        console.log('[ConversationStore] 恢复会话状态:', sessionId, '消息数:', snapshot.messages.length);
+        useAgentStore.setState({
+          messages: snapshot.messages,
+          currentAgent: snapshot.currentAgent,
+          currentTask: snapshot.currentTask,
+          taskStage: snapshot.taskStage,
+          generatedOutputs: snapshot.generatedOutputs || [],
+          selectedOutput: snapshot.selectedOutput || null,
+          selectedStyle: snapshot.selectedStyle || null,
+          delegationHistory: snapshot.delegationHistory || []
+        });
+        return true;
+      },
+
       // 切换会话
       switchSession: (sessionId: string) => {
         const session = get().sessions.find(s => s.id === sessionId);
-        if (!session) return;
+        if (!session) {
+          console.warn('[ConversationStore] 切换会话失败，未找到会话:', sessionId);
+          return;
+        }
+
+        if (sessionId === get().currentSessionId) {
+          console.log('[ConversationStore] 已是当前会话，无需切换');
+          return;
+        }
+
+        console.log('[ConversationStore] 切换会话:', sessionId, '->', session.title);
 
         // 先保存当前会话
         get().saveCurrentSession();
@@ -125,18 +201,11 @@ export const useConversationStore = create<ConversationStoreState & Conversation
         // 切换到新会话
         set({ currentSessionId: sessionId });
 
-        // 恢复会话状态到 Agent Store
-        const snapshot = session.stateSnapshot;
-        useAgentStore.setState({
-          messages: snapshot.messages,
-          currentAgent: snapshot.currentAgent,
-          currentTask: snapshot.currentTask,
-          taskStage: snapshot.taskStage,
-          generatedOutputs: snapshot.generatedOutputs,
-          selectedOutput: snapshot.selectedOutput,
-          selectedStyle: snapshot.selectedStyle,
-          delegationHistory: snapshot.delegationHistory
-        });
+        // 恢复会话状态
+        const restored = get().restoreSessionToAgent(sessionId);
+        if (!restored) {
+          console.error('[ConversationStore] 会话状态恢复失败');
+        }
       },
 
       // 删除会话
@@ -148,24 +217,18 @@ export const useConversationStore = create<ConversationStoreState & Conversation
           if (state.currentSessionId === sessionId) {
             if (newSessions.length > 0) {
               const nextSession = newSessions[0];
-              // 恢复第一个会话的状态
-              const snapshot = nextSession.stateSnapshot;
-              useAgentStore.setState({
-                messages: snapshot.messages,
-                currentAgent: snapshot.currentAgent,
-                currentTask: snapshot.currentTask,
-                taskStage: snapshot.taskStage,
-                generatedOutputs: snapshot.generatedOutputs,
-                selectedOutput: snapshot.selectedOutput,
-                selectedStyle: snapshot.selectedStyle,
-                delegationHistory: snapshot.delegationHistory
-              });
+              console.log('[ConversationStore] 删除当前会话，切换到:', nextSession.id);
+              // 使用 restoreSessionToAgent 恢复会话状态
+              setTimeout(() => {
+                get().restoreSessionToAgent(nextSession.id);
+              }, 0);
               return {
                 sessions: newSessions,
                 currentSessionId: nextSession.id
               };
             } else {
-              // 没有会话了，创建一个新会话
+              // 没有会话了，重置状态
+              console.log('[ConversationStore] 删除最后一个会话，重置状态');
               useAgentStore.getState().resetState();
               return {
                 sessions: [],
@@ -254,15 +317,59 @@ export const useConversationStore = create<ConversationStoreState & Conversation
 
 // 自动保存当前会话的钩子
 export const autoSaveSession = () => {
-  const conversationStore = useConversationStore.getState();
-  const agentStore = useAgentStore.getState();
+  try {
+    const conversationStore = useConversationStore.getState();
+    const agentStore = useAgentStore.getState();
 
-  // 如果没有当前会话，自动创建一个
-  if (!conversationStore.currentSessionId && agentStore.messages.length > 1) {
-    const title = agentStore.currentTask?.title || generateSessionTitle();
-    conversationStore.createSession(title);
-  } else if (conversationStore.currentSessionId) {
-    // 保存当前会话
-    conversationStore.saveCurrentSession();
+    // 如果没有当前会话，但有多条消息，自动创建一个
+    if (!conversationStore.currentSessionId && agentStore.messages.length > 1) {
+      const title = agentStore.currentTask?.title || generateSessionTitle();
+      console.log('[autoSaveSession] 自动创建新会话:', title);
+      conversationStore.createSession(title);
+    } else if (conversationStore.currentSessionId) {
+      // 保存当前会话
+      conversationStore.saveCurrentSession();
+    }
+  } catch (error) {
+    console.error('[autoSaveSession] 自动保存失败:', error);
+  }
+};
+
+// 初始化时恢复会话的辅助函数
+export const initializeSession = (): string | null => {
+  try {
+    const conversationStore = useConversationStore.getState();
+    const agentStore = useAgentStore.getState();
+
+    // 如果已经有当前会话，恢复它
+    if (conversationStore.currentSessionId) {
+      console.log('[initializeSession] 恢复当前会话:', conversationStore.currentSessionId);
+      const restored = conversationStore.restoreSessionToAgent(conversationStore.currentSessionId);
+      if (restored) {
+        return conversationStore.currentSessionId;
+      }
+    }
+
+    // 如果有本地存储的会话，恢复最新的一个
+    const sessions = conversationStore.getSessions();
+    if (sessions.length > 0) {
+      const latestSession = sessions[0];
+      console.log('[initializeSession] 恢复最新会话:', latestSession.id, latestSession.title);
+      conversationStore.switchSession(latestSession.id);
+      return latestSession.id;
+    }
+
+    // 如果 Agent Store 中有消息但没有会话，创建一个新会话
+    if (agentStore.messages.length > 1) {
+      const title = agentStore.currentTask?.title || generateSessionTitle();
+      console.log('[initializeSession] 根据现有消息创建会话:', title);
+      return conversationStore.createSession(title);
+    }
+
+    console.log('[initializeSession] 没有可恢复的会话');
+    return null;
+  } catch (error) {
+    console.error('[initializeSession] 初始化会话失败:', error);
+    return null;
   }
 };

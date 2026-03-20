@@ -6,7 +6,7 @@ import { inspirationData, getAllCategories, categoryNames, getRandomHints } from
 import type { InspirationHint } from '../types/agent';
 
 interface InspirationHintsProps {
-  onHintSelect: (hint: InspirationHint) => void;
+  onHintSelect: (hint: InspirationHint, autoSend?: boolean) => void;
   onClose: () => void;
 }
 
@@ -65,9 +65,15 @@ export default function InspirationHints({ onHintSelect, onClose }: InspirationH
     setRandomHints(getRandomHints(5));
   };
 
-  // 处理提示选择
+  // 处理提示选择（普通灵感提示）
   const handleHintClick = (hint: InspirationHint) => {
-    onHintSelect(hint);
+    onHintSelect(hint, false); // 普通提示不自动发送
+    toggleFavorite(hint.id);
+  };
+
+  // 处理"为你推荐"点击（自动发送）
+  const handleRecommendedHintClick = (hint: InspirationHint) => {
+    onHintSelect(hint, true); // 推荐项自动发送
     toggleFavorite(hint.id);
   };
 
@@ -175,7 +181,7 @@ export default function InspirationHints({ onHintSelect, onClose }: InspirationH
           {randomHints.map(hint => (
             <button
               key={hint.id}
-              onClick={() => handleHintClick(hint)}
+              onClick={() => handleRecommendedHintClick(hint)}
               className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs ${
                 isDark
                   ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'

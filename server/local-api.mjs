@@ -529,7 +529,7 @@ const MODEL_ID = process.env.DOUBAO_MODEL_ID || 'doubao-seedance-1-0-pro-250528'
 // DashScope (Aliyun Qwen) config
 const DASHSCOPE_BASE_URL = process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1'
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY || ''
-const DASHSCOPE_MODEL_ID = process.env.DASHSCOPE_MODEL_ID || 'qwen3.5-plus'
+const DASHSCOPE_MODEL_ID = process.env.DASHSCOPE_MODEL_ID || 'qwen3.5-35b-a3b'
 
 // Kimi (Moonshot) config
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || 'https://api.moonshot.cn/v1'
@@ -5399,11 +5399,14 @@ async function route(req, res, u, path) {
 
   // 处理通义千问模型的聊天补全请求
   if (req.method === 'POST' && (path === '/api/dashscope/chat/completions' || path === '/api/qwen/chat/completions')) {
-    // 从环境变量获取API密钥，不需要用户输入
+    // 从环境变量获取 API 密钥，不需要用户输入
     let authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
     authKey = authKey.trim();
     
-    console.log(`[Qwen] Request received. Key configured: ${!!authKey}, Key length: ${authKey.length}`);
+    console.log(`[Qwen] Request received.`);
+    console.log(`[Qwen] API Key configured: ${!!authKey}`);
+    console.log(`[Qwen] API Key length: ${authKey.length}`);
+    console.log(`[Qwen] API Key prefix: ${authKey.substring(0, 10)}...`);
 
     if (!authKey) { 
       console.error('[Qwen] API Key missing. Checked DASHSCOPE_API_KEY and VITE_QWEN_API_KEY.');
@@ -5452,26 +5455,20 @@ async function route(req, res, u, path) {
     
     let r;
     if (isDashscopeModel) {
-      // 使用 dashscope 端点调用 Kimi2.5
+      // 使用 dashscope 端点调用 Kimi 模型（使用兼容模式）
       const authKey = process.env.DASHSCOPE_API_KEY || process.env.VITE_QWEN_API_KEY || ''
       if (!authKey) { 
         sendJson(res, 500, { error: 'CONFIG_MISSING', message: 'DASHSCOPE_API_KEY not configured' }); 
         return 
       }
       
-      r = await dashscopeFetch('/services/aigc/multimodal-generation/generation', 'POST', {
+      r = await dashscopeFetch('/chat/completions', 'POST', {
         model: model,
-        input: {
-          messages: Array.isArray(b.messages) ? b.messages.map(m => ({
-            role: m.role,
-            content: [{ type: 'text', text: m.content }]
-          })) : []
-        },
-        parameters: {
-          temperature: b.temperature,
-          top_p: b.top_p,
-          max_tokens: b.max_tokens,
-        }
+        messages: Array.isArray(b.messages) ? b.messages : [],
+        temperature: b.temperature,
+        top_p: b.top_p,
+        max_tokens: b.max_tokens,
+        stream: b.stream || false
       }, authKey, res)
     } else {
       // 使用 moonshot 端点调用传统 Kimi 模型
@@ -8870,7 +8867,7 @@ async function route(req, res, u, path) {
 
       // 使用 dashscopeFetch 函数来调用 API
       const r = await dashscopeFetch('/chat/completions', 'POST', {
-        model: 'qwen3.5-plus',
+        model: 'qwen3.5-35b-a3b',
         messages: [{ role: 'user', content: optimizationPrompt }],
         temperature: 0.7,
         max_tokens: 800
@@ -8950,7 +8947,7 @@ async function route(req, res, u, path) {
 
       // 使用 dashscopeFetch 函数来调用 API
       const r = await dashscopeFetch('/chat/completions', 'POST', {
-        model: 'qwen3.5-plus',
+        model: 'qwen3.5-35b-a3b',
         messages: [{ role: 'user', content: analysisPrompt }],
         temperature: 0.5,
         max_tokens: 800

@@ -1785,13 +1785,66 @@ export const communityService = {
         setTimeout(poll, 5000);
       }
     };
-    
+
     poll();
-    
+
     return {
       unsubscribe: () => {
         isActive = false;
       }
     };
+  },
+
+  // 获取所有社群的帖子（用于发现模式的话题筛选）
+  async getAllThreads(limit: number = 100): Promise<Thread[]> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      return [];
+    }
+
+    try {
+      const response = await fetch(`/api/posts?limit=${limit}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.code === 0 && Array.isArray(result.data)) {
+          return result.data.map((post: any) => ({
+            id: post.id,
+            title: post.title,
+            content: post.content,
+            createdAt: post.created_at ? new Date(post.created_at * 1000).getTime() : Date.now(),
+            replies: [],
+            topic: post.topic,
+            upvotes: post.likes || 0,
+            images: post.images || [],
+            videos: post.videos || [],
+            communityId: post.community_id,
+            author: post.author_name || '未知用户',
+            authorAvatar: post.author_avatar || '',
+            authorId: post.author_id,
+            comments: (post.comments || []).map((c: any) => ({
+              id: c.id,
+              content: c.content,
+              user: c.user || c.author || '用户',
+              author: c.author || c.user || '用户',
+              authorAvatar: c.authorAvatar || c.userAvatar || '',
+              userAvatar: c.userAvatar || c.authorAvatar || '',
+              userId: c.userId,
+              date: c.date,
+              likes: c.likes || 0
+            })),
+            commentCount: post.comments_count || 0
+          }));
+        }
+      }
+      throw new Error('Failed to fetch all threads from API');
+    } catch (error) {
+      console.error('[getAllThreads] Error:', error);
+      return [];
+    }
   }
 };

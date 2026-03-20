@@ -79,23 +79,23 @@
   --bg-highlight: rgba(255, 20, 147, 0.08);
 
   /* ============================================
-     文本层级系统 - Text Hierarchy
+     文本层级系统 - Text Hierarchy (增强对比度)
      ============================================ */
 
   --text-primary: #fff0f5;
   --text-primary-rgb: 255, 240, 245;
 
-  --text-secondary: #e8d0e0;
-  --text-secondary-rgb: 232, 208, 224;
+  --text-secondary: #f0e0e8;
+  --text-secondary-rgb: 240, 224, 232;
 
-  --text-tertiary: #b090a8;
-  --text-tertiary-rgb: 176, 144, 168;
+  --text-tertiary: #d8c0d0;
+  --text-tertiary-rgb: 216, 192, 208;
 
-  --text-muted: #806070;
-  --text-muted-rgb: 128, 96, 112;
+  --text-muted: #a890a0;
+  --text-muted-rgb: 168, 144, 160;
 
-  --text-disabled: #503840;
-  --text-disabled-rgb: 80, 56, 64;
+  --text-disabled: #705868;
+  --text-disabled-rgb: 112, 88, 104;
 
   --text-inverse: #1a0f1a;
   --text-inverse-rgb: 26, 15, 26;
@@ -780,8 +780,14 @@
 }
 
 .pink-brutalist [class*="text-gray-500"],
-.pink-brutalist [class*="text-gray-400"] {
+.pink-brutalist [class*="text-gray-400"],
+.pink-brutalist [class*="text-gray-300"] {
   color: var(--text-tertiary) !important;
+}
+
+.pink-brutalist [class*="text-gray-200"],
+.pink-brutalist [class*="text-gray-100"] {
+  color: var(--text-muted) !important;
 }
 
 /* 修复边框 */

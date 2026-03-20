@@ -804,7 +804,7 @@ export default function CulturalKnowledge() {
                         className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = fallbackImageUrl(1200, 800);
+                          target.src = '/images/placeholder-image.jpg';
                           target.alt = `${selectedStory.title} - 图片加载失败`;
                         }}
                       />
@@ -865,7 +865,7 @@ export default function CulturalKnowledge() {
                               className="w-32 h-24 object-cover rounded-lg"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
-                                target.src = fallbackImageUrl(400, 300);
+                                target.src = '/images/placeholder-image.jpg';
                                 target.alt = `${story.title} - 图片加载失败`;
                               }}
                             />
@@ -896,7 +896,7 @@ export default function CulturalKnowledge() {
                           className="w-full h-full object-cover transition-transform duration-700 hover:scale-110"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            target.src = fallbackImageUrl(600, 400);
+                            target.src = '/images/placeholder-image.jpg';
                             target.alt = `${story.title} - 图片加载失败`;
                           }}
                         />

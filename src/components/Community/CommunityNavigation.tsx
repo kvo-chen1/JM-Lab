@@ -15,9 +15,6 @@ interface CommunityNavigationProps {
   search?: string;
   setSearch?: (value: string) => void;
   onSearchSubmit?: (query: string) => void;
-  // Management props
-  onOpenManagement?: () => void;
-  hasManagementPermission?: boolean;
 }
 
 export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
@@ -31,9 +28,7 @@ export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
   tags = [],
   search = '',
   setSearch,
-  onSearchSubmit,
-  onOpenManagement,
-  hasManagementPermission = false
+  onSearchSubmit
 }) => {
   const discoveryChannels = [
     { id: 'communities', icon: 'fas fa-th-large', label: '社群广场' },
@@ -264,13 +259,13 @@ export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
         {tags.length > 0 && (
           <div className={`rounded-xl ${isDark ? 'bg-gray-900/60' : 'bg-gray-50'} p-3.5 transition-all duration-300 shadow-sm`}>
             <div className={`px-2 py-1.5 text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              {mode === 'discovery' ? '热门分类' : '热门话题'}
+              {mode === 'discovery' ? '热门话题' : '热门话题'}
             </div>
             <div className="space-y-2">
               {tags.slice(0, 5).map((tag) => (
                 <motion.button
                   key={tag}
-                  onClick={() => onSelectTag?.(tag)}
+                  onClick={() => onSelectTag?.(selectedTag === tag ? '' : tag)}
                   className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-250 ease-in-out group ${selectedTag === tag ? (
                     isDark ? 'bg-primary-500/25 text-primary-300 shadow-lg' : 'bg-primary-100 text-primary-700 shadow-md'
                   ) : (
@@ -292,23 +287,7 @@ export const CommunityNavigation: React.FC<CommunityNavigationProps> = ({
           </div>
         )}
 
-        {/* Management Section */}
-        {hasManagementPermission && mode === 'community' && (
-          <div className={`rounded-xl ${isDark ? 'bg-gray-900/60' : 'bg-gray-50'} p-3.5 transition-all duration-300 shadow-sm`}>
-            <div className={`px-2 py-1.5 text-xs font-semibold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              管理
-            </div>
-            <div className="space-y-2">
-              <motion.button
-                onClick={() => onOpenManagement?.()}
-                className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-250 ease-in-out group ${isDark ? 'hover:bg-gray-750 text-gray-200' : 'hover:bg-gray-100 text-gray-900 shadow-sm'}`}
-              >
-                <i className="fas fa-cog w-5 text-center mr-2 opacity-100 transition-all duration-250"></i>
-                <span className="font-medium text-sm flex-1 truncate">社区管理</span>
-              </motion.button>
-            </div>
-          </div>
-        )}
+
       </div>
     </div>
   );

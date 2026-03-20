@@ -79,6 +79,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
         {navItems.map((item, index) => {
           const isActive = activeTab === item.id;
           const Icon = item.icon;
+          // 安全处理：如果 Icon 未定义，使用空组件
+          const SafeIcon = Icon || (() => null);
           
           return (
             <motion.button
@@ -115,7 +117,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 />
               )}
               
-              <Icon size={20} className={isActive ? (isDark ? 'text-indigo-400' : 'text-indigo-600') : ''} />
+              <SafeIcon size={20} className={isActive ? (isDark ? 'text-indigo-400' : 'text-indigo-600') : ''} />
               
               <span className="flex-1 text-left">{item.label}</span>
               

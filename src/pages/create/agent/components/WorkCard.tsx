@@ -9,9 +9,11 @@ import {
   Check,
   X,
   Loader2,
-  AtSign
+  AtSign,
+  ZoomIn
 } from 'lucide-react';
 import { toast } from 'sonner';
+import ImageLightbox from './ImageLightbox';
 
 export interface WorkCardData {
   id: string;
@@ -174,7 +176,8 @@ function ImageWithLoading({
   className,
   isGenerating = false,
   title,
-  description
+  description,
+  onImageClick
 }: {
   src: string;
   alt: string;
@@ -182,6 +185,7 @@ function ImageWithLoading({
   isGenerating?: boolean;
   title?: string;
   description?: string;
+  onImageClick?: () => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -247,10 +251,11 @@ function ImageWithLoading({
       <img
         src={src}
         alt={alt}
-        className={className}
+        className={`${className} ${onImageClick ? 'cursor-zoom-in' : ''}`}
         onLoad={handleLoad}
         onError={handleError}
         crossOrigin="anonymous"
+        onClick={onImageClick}
       />
     </div>
   );
@@ -263,6 +268,7 @@ function HoverActions({
   onDownload,
   onDelete,
   onMention,
+  onZoom,
   isVisible,
   isDark,
   showMentionButton
@@ -272,6 +278,7 @@ function HoverActions({
   onDownload: () => void;
   onDelete: () => void;
   onMention?: () => void;
+  onZoom?: () => void;
   isVisible: boolean;
   isDark: boolean;
   showMentionButton?: boolean;
@@ -288,6 +295,21 @@ function HoverActions({
             isDark ? 'bg-black/60' : 'bg-white/80'
           }`}
         >
+          {/* 放大按钮 */}
+          {onZoom && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onZoom(); }}
+              className={`p-2 rounded-lg transition-all ${
+                isDark
+                  ? 'text-gray-300 hover:text-white hover:bg-white/10'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-black/10'
+              }`}
+              title="放大查看"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          )}
+
           {/* 引用按钮 */}
           {showMentionButton && onMention && (
             <button
@@ -369,6 +391,7 @@ export default function WorkCard({
   const { isDark } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleEditStart = useCallback(() => {
@@ -406,84 +429,105 @@ export default function WorkCard({
     toast.success(`已引用作品：${data.title}`);
   }, [data, onMention]);
 
-  return (
-    <motion.div
-      ref={cardRef}
-      layoutId={data.id}
-      onClick={(e) => onSelect?.(e)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`
-        relative rounded-2xl overflow-hidden cursor-pointer
-        transition-all duration-300 max-w-md
-        ${isDark
-          ? 'bg-[#14141F] border border-[#2A2A3E] shadow-xl shadow-black/30'
-          : 'bg-white shadow-xl shadow-gray-200/50'
-        }
-        ${isSelected
-          ? isDark
-            ? 'ring-2 ring-[#8B5CF6] ring-offset-2 ring-offset-[#0A0A0F]'
-            : 'ring-2 ring-[#C02C38] ring-offset-2 ring-offset-gray-100'
-          : 'hover:shadow-2xl'
-        }
-        ${className}
-      `}
-    >
-      {/* 文字描述区域（在上） */}
-      <EditableDescription
-        title={data.title}
-        description={data.description}
-        isEditing={isEditing}
-        onEditStart={handleEditStart}
-        onEditEnd={handleEditEnd}
-        onSave={handleSave}
-        isDark={isDark}
-      />
+  const handleZoom = useCallback(() => {
+    setIsLightboxOpen(true);
+  }, []);
 
-      {/* 图片区域（在下） */}
-      <div
-        className="relative overflow-hidden min-h-[200px]"
+  const handleCloseLightbox = useCallback(() => {
+    setIsLightboxOpen(false);
+  }, []);
+
+  return (
+    <>
+      <motion.div
+        ref={cardRef}
+        layoutId={data.id}
+        onClick={(e) => onSelect?.(e)}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        className={`
+          relative rounded-2xl overflow-hidden cursor-pointer
+          transition-all duration-300 max-w-md
+          ${isDark
+            ? 'bg-[#14141F] border border-[#2A2A3E] shadow-xl shadow-black/30'
+            : 'bg-white shadow-xl shadow-gray-200/50'
+          }
+          ${isSelected
+            ? isDark
+              ? 'ring-2 ring-[#8B5CF6] ring-offset-2 ring-offset-[#0A0A0F]'
+              : 'ring-2 ring-[#C02C38] ring-offset-2 ring-offset-gray-100'
+            : 'hover:shadow-2xl'
+          }
+          ${className}
+        `}
       >
-        <ImageWithLoading
-          src={data.imageUrl}
-          alt={data.title}
-          className="w-full h-auto object-contain transition-transform duration-500 hover:scale-105"
-          isGenerating={!data.imageUrl}
+        {/* 文字描述区域（在上） */}
+        <EditableDescription
           title={data.title}
           description={data.description}
-        />
-
-        {/* 悬浮操作按钮 */}
-        <HoverActions
-          onEdit={handleEditStart}
-          onRefresh={handleRefresh}
-          onDownload={handleDownload}
-          onDelete={handleDelete}
-          onMention={handleMention}
-          isVisible={isHovered && !isEditing}
+          isEditing={isEditing}
+          onEditStart={handleEditStart}
+          onEditEnd={handleEditEnd}
+          onSave={handleSave}
           isDark={isDark}
-          showMentionButton={showMentionButton}
         />
 
-        {/* 选中状态指示器 */}
-        {isSelected && (
-          <div className={`absolute inset-0 ring-2 ring-inset pointer-events-none ${
-            isDark ? 'ring-[#8B5CF6]' : 'ring-[#C02C38]'
-          }`} />
-        )}
-      </div>
+        {/* 图片区域（在下） */}
+        <div
+          className="relative overflow-hidden min-h-[200px]"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          <ImageWithLoading
+            src={data.imageUrl}
+            alt={data.title}
+            className="w-full h-auto object-contain transition-transform duration-500 hover:scale-105"
+            isGenerating={!data.imageUrl}
+            title={data.title}
+            description={data.description}
+            onImageClick={handleZoom}
+          />
 
-      {/* 底部信息栏 */}
-      <div className={`px-4 py-2 flex items-center justify-between text-xs ${
-        isDark ? 'bg-[#0A0A0F]/50 text-gray-500 border-t border-[#2A2A3E]' : 'bg-gray-50 text-gray-400'
-      }`}>
-        <span>{new Date(data.createdAt).toLocaleDateString('zh-CN')}</span>
-        {data.isFavorite && (
-          <span className={isDark ? 'text-[#8B5CF6]' : 'text-[#C02C38]'}>已收藏</span>
-        )}
-      </div>
-    </motion.div>
+          {/* 悬浮操作按钮 */}
+          <HoverActions
+            onEdit={handleEditStart}
+            onRefresh={handleRefresh}
+            onDownload={handleDownload}
+            onDelete={handleDelete}
+            onMention={handleMention}
+            onZoom={handleZoom}
+            isVisible={isHovered && !isEditing}
+            isDark={isDark}
+            showMentionButton={showMentionButton}
+          />
+
+          {/* 选中状态指示器 */}
+          {isSelected && (
+            <div className={`absolute inset-0 ring-2 ring-inset pointer-events-none ${
+              isDark ? 'ring-[#8B5CF6]' : 'ring-[#C02C38]'
+            }`} />
+          )}
+        </div>
+
+        {/* 底部信息栏 */}
+        <div className={`px-4 py-2 flex items-center justify-between text-xs ${
+          isDark ? 'bg-[#0A0A0F]/50 text-gray-500 border-t border-[#2A2A3E]' : 'bg-gray-50 text-gray-400'
+        }`}>
+          <span>{new Date(data.createdAt).toLocaleDateString('zh-CN')}</span>
+          {data.isFavorite && (
+            <span className={isDark ? 'text-[#8B5CF6]' : 'text-[#C02C38]'}>已收藏</span>
+          )}
+        </div>
+      </motion.div>
+
+      {/* 图片放大查看器 */}
+      <ImageLightbox
+        isOpen={isLightboxOpen}
+        onClose={handleCloseLightbox}
+        imageUrl={data.imageUrl}
+        title={data.title}
+        description={data.description}
+      />
+    </>
   );
 }

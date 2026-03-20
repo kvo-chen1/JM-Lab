@@ -422,40 +422,44 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ isDark, communityId }) =>
     change: number; 
     icon: any; 
     color: string;
-  }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`
-        p-6 rounded-2xl border transition-all duration-300
-        ${isDark 
-          ? 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70' 
-          : 'bg-white border-gray-200 hover:shadow-lg'
-        }
-      `}
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className={`text-sm mb-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-            {title}
-          </p>
-          <h3 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            {value.toLocaleString()}
-          </h3>
-          <div className={`flex items-center gap-1 mt-2 text-sm ${
-            change >= 0 ? 'text-emerald-500' : 'text-rose-500'
-          }`}>
-            {change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-            <span>{Math.abs(change).toFixed(1)}%</span>
-            <span className={isDark ? 'text-slate-500' : 'text-gray-400'}>较上期</span>
+  }) => {
+    // 安全处理：如果 Icon 未定义，使用空组件
+    const SafeIcon = Icon || (() => null);
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`
+          p-6 rounded-2xl border transition-all duration-300
+          ${isDark 
+            ? 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70' 
+            : 'bg-white border-gray-200 hover:shadow-lg'
+          }
+        `}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <p className={`text-sm mb-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+              {title}
+            </p>
+            <h3 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {value.toLocaleString()}
+            </h3>
+            <div className={`flex items-center gap-1 mt-2 text-sm ${
+              change >= 0 ? 'text-emerald-500' : 'text-rose-500'
+            }`}>
+              {change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+              <span>{Math.abs(change).toFixed(1)}%</span>
+              <span className={isDark ? 'text-slate-500' : 'text-gray-400'}>较上期</span>
+            </div>
+          </div>
+          <div className={`p-3 rounded-xl ${color}`}>
+            <SafeIcon size={24} className="text-white" />
           </div>
         </div>
-        <div className={`p-3 rounded-xl ${color}`}>
-          <Icon size={24} className="text-white" />
-        </div>
-      </div>
-    </motion.div>
-  );
+      </motion.div>
+    );
+  };
 
   if (isLoading) {
     return (

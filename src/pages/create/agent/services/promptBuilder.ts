@@ -3,7 +3,7 @@
 import { getRAGService } from './ragService';
 import { getMemoryService } from './memoryService';
 import { getIntentRecognitionService, IntentType } from './intentRecognition';
-import { AgentType, AGENT_CONFIG } from '../types/agent';
+import { AgentType, AGENT_CONFIG, MentionedWork } from '../types/agent';
 
 // Token估算配置
 const TOKEN_CONFIG = {
@@ -26,6 +26,7 @@ export interface PromptBuildOptions {
     requirements?: Record<string, any>;
     stage?: string;
   };
+  mentionedWorks?: MentionedWork[]; // 引用的作品信息
 }
 
 // 构建结果
@@ -193,10 +194,46 @@ export class PromptBuilder {
       prompt += this.buildTaskContextSection(options.taskContext);
     }
 
+    // 添加引用的作品信息
+    if (options.mentionedWorks && options.mentionedWorks.length > 0) {
+      prompt += this.buildMentionedWorksSection(options.mentionedWorks);
+    }
+
     // 添加当前Agent角色说明
     prompt += `\n\n## 当前角色\n你是${config.name}，${config.description}。你的回复应该体现你的专业特点。`;
 
     return prompt;
+  }
+
+  /**
+   * 构建引用的作品信息部分
+   */
+  private buildMentionedWorksSection(works: MentionedWork[]): string {
+    let section = '\n\n## 用户引用的作品\n';
+    section += '用户通过 @作品名 引用了以下作品，请参考这些作品信息来理解用户的需求：\n\n';
+
+    works.forEach((work, index) => {
+      section += `【作品${index + 1}】${work.name}\n`;
+      if (work.title && work.title !== work.name) {
+        section += `- 标题：${work.title}\n`;
+      }
+      if (work.description) {
+        section += `- 描述：${work.description}\n`;
+      }
+      if (work.prompt) {
+        section += `- 生成提示词：${work.prompt}\n`;
+      }
+      if (work.style) {
+        section += `- 风格：${work.style}\n`;
+      }
+      if (work.imageUrl) {
+        section += `- 图片地址：${work.imageUrl}\n`;
+      }
+      section += '\n';
+    });
+
+    section += '请基于以上作品信息，理解用户对作品的修改或参考需求。';
+    return section;
   }
 
   /**

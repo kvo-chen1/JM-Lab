@@ -55,7 +55,7 @@ export async function* streamQwenResponse(
   try {
     // 使用 callQwenChat 调用千问 API
     const response = await callQwenChat({
-      model: options?.model || 'qwen3.5-plus',
+      model: options?.model || 'qwen3.5-35b-a3b',
       messages: formattedMessages,
       temperature: options?.temperature || 0.7,
       max_tokens: options?.maxTokens || 1500,
@@ -665,6 +665,7 @@ export async function callAgentIntelligent(
     enableRAG?: boolean;
     enableMemory?: boolean;
     enableIntent?: boolean;
+    mentionedWorks?: { id: string; name: string; title?: string; imageUrl?: string; description?: string; prompt?: string; style?: string; type?: 'image' | 'video' | 'text' }[];
   }
 ): Promise<AIResponse & { metadata: { ragUsed: boolean; intentRecognized: string | null } }> {
   const promptBuilder = getPromptBuilder();
@@ -685,7 +686,8 @@ export async function callAgentIntelligent(
       taskContext: options?.taskContext,
       enableRAG: options?.enableRAG,
       enableMemory: options?.enableMemory,
-      enableIntent: options?.enableIntent
+      enableIntent: options?.enableIntent,
+      mentionedWorks: options?.mentionedWorks
     });
 
   console.log('[Agent] Intelligent prompt built:', {

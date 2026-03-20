@@ -242,7 +242,8 @@ export const useCommunityLogic = () => {
   // --- State: Data ---
   const [joinedCommunities, setJoinedCommunities] = useState<Community[]>([]);
   const [threads, setThreads] = useState<(Thread & { comments?: Comment[] })[]>([]);
-  const [selectedTag, setSelectedTag] = useState<string>('国潮');
+  const [allThreads, setAllThreads] = useState<(Thread & { comments?: Comment[] })[]>([]); // 用于发现模式的帖子数据
+  const [selectedTag, setSelectedTag] = useState<string>('');
   const [favoritedThreads, setFavoritedThreads] = useState<string[]>([]); // 收藏的帖子ID列表
   const [likedThreads, setLikedThreads] = useState<string[]>([]); // 点赞的帖子ID列表
   const [search, setSearch] = useState(''); // 搜索关键词
@@ -404,6 +405,30 @@ export const useCommunityLogic = () => {
 
     loadThreads();
   }, [activeCommunityId]);
+
+  // 在发现模式下加载所有帖子（用于话题筛选）
+  useEffect(() => {
+    const loadAllThreads = async () => {
+      if (mode === 'discovery') {
+        setLoading(prev => ({ ...prev, threads: true }));
+        setErrors(prev => ({ ...prev, threads: null }));
+
+        try {
+          const allThreadsData = await communityService.getAllThreads(100);
+          if (allThreadsData) {
+            setAllThreads(allThreadsData);
+          }
+        } catch (err) {
+          console.error('Failed to fetch all threads:', err);
+          setErrors(prev => ({ ...prev, threads: '加载帖子数据失败' }));
+        } finally {
+          setLoading(prev => ({ ...prev, threads: false }));
+        }
+      }
+    };
+
+    loadAllThreads();
+  }, [mode]);
 
   // Handle URL parameter for community ID
   useEffect(() => {
@@ -1575,44 +1600,47 @@ export const useCommunityLogic = () => {
   }, [user, joinedCommunities, activeCommunityId]);
 
   // --- Selectors ---
-  
+
   // Filter threads based on active context
   const activeThreads = useMemo(() => {
       if (mode === 'discovery') {
-          let filtered = threads;
-          
+          // 在发现模式下，使用 allThreads 而不是 threads
+          let filtered = allThreads;
+
           // 先应用频道筛选
           if (activeChannel === 'feed') {
               // 综合动态 - 返回所有帖子
-              filtered = threads;
+              filtered = allThreads;
           } else if (activeChannel === 'hot') {
               // 热门话题 - 按点赞数排序
-              filtered = [...threads].sort((a,b) => (b.upvotes || 0) - (a.upvotes || 0));
+              filtered = [...allThreads].sort((a,b) => (b.upvotes || 0) - (a.upvotes || 0));
           } else if (activeChannel === 'fresh') {
               // 最新发布 - 按创建时间排序
-              filtered = [...threads].sort((a,b) => b.createdAt - a.createdAt);
+              filtered = [...allThreads].sort((a,b) => b.createdAt - a.createdAt);
           }
-          
+
           // 然后应用标签筛选
           if (selectedTag) {
             filtered = filtered.filter(thread => thread.topic === selectedTag);
           }
-          
+
           return filtered;
       } else {
           // 在社群模式下，只显示当前社群的帖子
           return threads.filter(thread => thread.communityId === activeCommunityId);
       }
-  }, [threads, mode, activeChannel, activeCommunityId, selectedTag]);
+  }, [threads, allThreads, mode, activeChannel, activeCommunityId, selectedTag]);
 
   // 从所有帖子中动态提取唯一的话题
   const allTags = useMemo(() => {
+    // 在发现模式下从 allThreads 提取话题，社群模式下从 threads 提取
+    const sourceThreads = mode === 'discovery' ? allThreads : threads;
     // 从帖子中提取所有话题
-    const threadTopics = threads.map(thread => thread.topic || '').filter(Boolean);
+    const threadTopics = sourceThreads.map(thread => thread.topic || '').filter(Boolean);
     // 合并推荐标签和帖子话题，去重并保持推荐标签在前
     const uniqueTags = [...new Set([...RECOMMENDED_TAGS, ...threadTopics])];
     return uniqueTags;
-  }, [threads]); // 注意：threads是activeThreads，已经是useMemo缓存的结果
+  }, [threads, allThreads, mode]);
 
   const activeCommunity = useMemo(() => {
       return joinedCommunities.find(c => c.id === activeCommunityId) || allCommunities.find(c => c.id === activeCommunityId);

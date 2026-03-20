@@ -162,34 +162,8 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
   // 社区管理面板状态
   const [isManagementPanelOpen, setIsManagementPanelOpen] = useState(false);
 
-  // 使用useMemo优化性能，减少不必要的计算
-  const filteredThreads = useMemo(() => {
-    // 根据当前模式和频道筛选帖子
-    if (mode === 'discovery') {
-      if (selectedTag) {
-        if (selectedTag.startsWith('category:')) {
-          // 处理分类筛选
-          const category = selectedTag.replace('category:', '');
-          // 根据分类名称匹配对应的话题
-          const categoryToTopicsMap: Record<string, string[]> = {
-            '设计相关': ['设计', 'UI', 'UX', '插画', '3D', '赛博朋克', '极简', '国潮', '非遗'],
-            '艺术文化': ['艺术', '文化', '音乐', '摄影', '写作'],
-            '科技数码': ['科技', '数码', 'AI', '编程', '互联网'],
-            '生活方式': ['生活', '美食', '旅行', '时尚', '健康'],
-            '其他': []
-          };
-          
-          const topicsInCategory = categoryToTopicsMap[category] || [];
-          return threads.filter(thread => topicsInCategory.includes(thread.topic || ''));
-        } else {
-          // 单个话题筛选
-          return threads.filter(thread => thread.topic === selectedTag);
-        }
-      }
-    }
-    // 在社群模式下，threads已经通过useCommunityLogic中的activeThreads筛选过了
-    return threads;
-  }, [threads, mode, selectedTag]);
+  // 筛选逻辑已在 useCommunityLogic 中完成，threads 已经是筛选后的结果
+  // 这里不需要额外的筛选，直接使用 threads
   
   // 使用useCallback缓存事件处理函数，减少不必要的重新渲染
   const handleSearchSubmit = useCallback((query: string) => {
@@ -228,8 +202,6 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
           search={search}
           setSearch={setSearch}
           onSearchSubmit={handleSearchSubmit}
-          onOpenManagement={handleOpenManagement}
-          hasManagementPermission={activeCommunity?.creatorId === user?.id || user?.role === 'admin'}
         />
       }
       infoSidebar={
@@ -272,7 +244,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
             ) : (
             <FeedSection
               isDark={isDark}
-              threads={filteredThreads}
+              threads={threads}
               onUpvote={onUpvote}
               onToggleFavorite={onToggleFavorite}
               onToggleLike={onToggleLike}
@@ -316,7 +288,7 @@ const CommunityPageWithNotifications = React.memo(function CommunityPageWithNoti
             /* Default to Feed for other channels */
             <FeedSection
                 isDark={isDark}
-                threads={filteredThreads}
+                threads={threads}
                 onUpvote={onUpvote}
                 onToggleFavorite={onToggleFavorite}
                 onToggleLike={onToggleLike}

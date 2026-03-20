@@ -419,6 +419,52 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
     generateDerivativeContent(option);
   };
 
+  // 处理快速操作按钮
+  const handleQuickAction = (action: any) => {
+    // 添加用户选择消息
+    addMessage({
+      role: 'user',
+      content: action.label,
+      type: 'text'
+    });
+
+    // 根据操作类型执行不同逻辑
+    switch (action.action) {
+      case 'generate_variations':
+        addMessage({
+          role: 'designer',
+          content: '好的！我来为你生成几个不同姿态和表情的变体，请稍候...',
+          type: 'text'
+        });
+        // TODO: 触发变体生成
+        break;
+      case 'refine':
+        addMessage({
+          role: 'designer',
+          content: '没问题！请告诉我具体想调整哪里？比如颜色、服饰、表情等',
+          type: 'text'
+        });
+        break;
+      case 'change_style':
+        addMessage({
+          role: 'designer',
+          content: '好的！我们换个风格试试。你想尝试什么风格？',
+          type: 'text'
+        });
+        break;
+      case 'finalize':
+        addMessage({
+          role: 'designer',
+          content: '完美！作品已保存到你的作品库。你可以随时查看、下载或分享！',
+          type: 'text'
+        });
+        toast.success('作品已保存！');
+        break;
+      default:
+        break;
+    }
+  };
+
   // 生成衍生内容
   const generateDerivativeContent = async (option: any) => {
     // 添加生成中消息
@@ -913,6 +959,57 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
           <div className="space-y-3">
             {renderDelegationIndicator()}
             <CharacterDesignWorkflow />
+          </div>
+        );
+
+      case 'quick-actions':
+        return (
+          <div className="space-y-4">
+            {renderDelegationIndicator()}
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
+            {Array.isArray(message.metadata?.quickActions) && (
+              <div className="grid grid-cols-2 gap-3">
+                {message.metadata.quickActions.map((action: any, index: number) => (
+                  <motion.button
+                    key={action.action}
+                    onClick={() => handleQuickAction(action)}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: 1.03, y: -2 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`group relative p-4 rounded-2xl text-left overflow-hidden transition-all duration-300 ${
+                      isDark
+                        ? 'bg-gradient-to-br from-gray-800/90 to-gray-900/90 border border-gray-700/50 hover:border-[#C02C38]/50 hover:shadow-lg hover:shadow-[#C02C38]/10'
+                        : 'bg-gradient-to-br from-white to-gray-50/80 border border-gray-200/80 hover:border-[#C02C38]/40 hover:shadow-xl hover:shadow-[#C02C38]/10'
+                    }`}
+                  >
+                    {/* 背景装饰 */}
+                    <div className={`absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 ${
+                      isDark ? 'bg-[#C02C38]' : 'bg-[#C02C38]'
+                    }`} />
+
+                    <div className="relative">
+                      {/* 标题 */}
+                      <p className={`font-semibold text-sm mb-1 transition-colors group-hover:text-[#C02C38] ${
+                        isDark ? 'text-gray-100' : 'text-gray-900'
+                      }`}>
+                        {action.label}
+                      </p>
+                      {/* 描述 */}
+                      <p className={`text-xs leading-relaxed ${
+                        isDark ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        {action.description}
+                      </p>
+                    </div>
+
+                    {/* 底部指示条 */}
+                    <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C02C38] to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
+                  </motion.button>
+                ))}
+              </div>
+            )}
           </div>
         );
 

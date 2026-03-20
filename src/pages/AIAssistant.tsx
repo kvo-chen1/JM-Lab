@@ -162,18 +162,32 @@ export default function AIAssistant() {
       if (session && session.messages.length > 0) {
         console.log('[AIAssistant Desktop] 消息数量:', session.messages.length)
         
-        // 检查并修复旧的欢迎消息格式
+        // 检查并修复旧的欢迎消息格式，同时确保 generationTask 被正确保留
         const updatedMessages = session.messages.map(msg => {
-          if (msg.id === 'welcome' && msg.content.includes('🎨 **创意生成**') && !msg.content.includes('- 🎨')) {
-            return {
-              ...msg,
-              content: msg.content.replace(
-                /🎨 \*\*创意生成\*\* — 文案、设计灵感、视觉方案\n🏛️ \*\*文化智库\*\* — 天津非遗、老字号、传统元素\n💡 \*\*创作优化\*\* — 作品点评、改进建议、趋势分析\n📝 \*\*品牌策划\*\* — 故事撰写、营销策略、IP孵化/,
-                `- 🎨 **创意生成** — 文案、设计灵感、视觉方案\n- 🏛️ **文化智库** — 天津非遗、老字号、传统元素\n- 💡 **创作优化** — 作品点评、改进建议、趋势分析\n- 📝 **品牌策划** — 故事撰写、营销策略、IP孵化`
-              )
+          // 深拷贝消息对象，确保 generationTask 被保留
+          const updatedMsg = { ...msg }
+          
+          if (msg.generationTask) {
+            updatedMsg.generationTask = { ...msg.generationTask }
+            // 确保 result 被正确解析
+            if (msg.generationTask.result && typeof msg.generationTask.result === 'string') {
+              try {
+                updatedMsg.generationTask.result = JSON.parse(msg.generationTask.result)
+              } catch (e) {
+                console.error('[AIAssistant Desktop] 解析消息中的 result 失败:', e)
+              }
             }
           }
-          return msg
+          
+          // 修复旧的欢迎消息格式
+          if (msg.id === 'welcome' && msg.content.includes('🎨 **创意生成**') && !msg.content.includes('- 🎨')) {
+            updatedMsg.content = msg.content.replace(
+              /🎨 \*\*创意生成\*\* — 文案、设计灵感、视觉方案\n🏛️ \*\*文化智库\*\* — 天津非遗、老字号、传统元素\n💡 \*\*创作优化\*\* — 作品点评、改进建议、趋势分析\n📝 \*\*品牌策划\*\* — 故事撰写、营销策略、IP孵化/,
+              `- 🎨 **创意生成** — 文案、设计灵感、视觉方案\n- 🏛️ **文化智库** — 天津非遗、老字号、传统元素\n- 💡 **创作优化** — 作品点评、改进建议、趋势分析\n- 📝 **品牌策划** — 故事撰写、营销策略、IP孵化`
+            )
+          }
+          
+          return updatedMsg
         })
         
         if (JSON.stringify(updatedMessages) !== JSON.stringify(session.messages)) {
@@ -187,11 +201,20 @@ export default function AIAssistant() {
         setSessionTitle(session.title)
         setShowPresetQuestions(false)
 
-        // 从消息中恢复生成任务状态
+        // 从消息中恢复生成任务状态（使用 updatedMessages 确保 generationTask 被正确解析）
         const tasksFromMessages: Record<string, GenerationTaskInfo> = {}
-        session.messages.forEach(msg => {
+        updatedMessages.forEach(msg => {
           if (msg.generationTask) {
-            tasksFromMessages[msg.generationTask.id] = msg.generationTask
+            // 深拷贝生成任务，确保 result 被正确解析
+            const task = { ...msg.generationTask }
+            if (task.result && typeof task.result === 'string') {
+              try {
+                task.result = JSON.parse(task.result)
+              } catch (e) {
+                console.error('[AIAssistant Desktop] 解析 task.result 失败:', e)
+              }
+            }
+            tasksFromMessages[task.id] = task
           }
         })
         if (Object.keys(tasksFromMessages).length > 0) {
@@ -314,6 +337,9 @@ export default function AIAssistant() {
     if (savedTasks) {
       try {
         const parsed = JSON.parse(savedTasks)
+        const now = Date.now()
+        const validTasks: Record<string, GenerationTaskInfo> = {}
+        
         Object.keys(parsed).forEach(key => {
           const task = parsed[key]
           if (task.result && typeof task.result === 'string') {
@@ -323,8 +349,22 @@ export default function AIAssistant() {
               console.error('[AIAssistant Desktop] 解析 result 字符串失败:', e)
             }
           }
+          
+          // 只恢复真正正在进行的任务（5分钟内且状态为processing）
+          const taskAge = now - (task.updatedAt || task.createdAt)
+          const isRecent = taskAge < 5 * 60 * 1000 // 5分钟内
+          const isProcessing = task.status === 'processing'
+          
+          if (isProcessing && isRecent) {
+            validTasks[key] = task
+          } else if (task.status === 'completed' || task.status === 'failed') {
+            // 已完成的任务也保留，但不显示动画
+            validTasks[key] = task
+          }
+          // 其他情况（超时或已取消）不恢复
         })
-        setActiveGenerationTasks(parsed)
+        
+        setActiveGenerationTasks(validTasks)
       } catch (e) {
         console.error('恢复生成任务失败:', e)
       }
@@ -916,11 +956,19 @@ export default function AIAssistant() {
       '做一张', '做张', '做幅',
       '创作一张', '创作张', '创作幅',
       '设计一张', '设计张', '设计幅',
+      '开始生成', '开始创作', '开始画',  // 添加这些关键词
     ]
 
     const hasExplicitImageRequest = explicitImageKeywords.some(k => content.includes(k))
     const hasExplicitVideoRequest = explicitVideoKeywords.some(k => content.includes(k))
     const hasVagueCreationRequest = vagueCreationKeywords.some(k => content.includes(k))
+    
+    console.log('[AIAssistant Desktop] 消息分析:', { 
+      content, 
+      hasExplicitImageRequest, 
+      hasExplicitVideoRequest, 
+      hasVagueCreationRequest 
+    })
 
     // 如果是模糊的生成请求，先引导用户
     if (hasVagueCreationRequest && !hasExplicitImageRequest && !hasExplicitVideoRequest) {
@@ -1171,6 +1219,100 @@ export default function AIAssistant() {
           saveMessagesToSession(updatedMessages)
           return updatedMessages
         })
+        
+        // 检查AI回复是否包含生成意图，自动开始生成
+        const generationKeywords = [
+          '让我来为你生成',
+          '正在为你生成',
+          '开始生成',
+          '马上为你生成',
+          '这就为你生成',
+          '为你生成这张'
+        ]
+        
+        const hasGenerationIntent = generationKeywords.some(keyword => 
+          response.content.includes(keyword)
+        )
+        
+        // 检查是否已经在生成中（避免重复触发）
+        const isCurrentlyGenerating = Object.values(activeGenerationTasks).some(
+          task => task.status === 'processing'
+        )
+        
+        if (hasGenerationIntent && !isCurrentlyGenerating) {
+          console.log('[AIAssistant] 检测到AI生成意图，准备开始生成')
+          console.log('[AIAssistant] 当前消息内容:', content)
+          
+          // 提取生成参数
+          const prompt = content
+            .replace(/帮我生成|生成一张|画一张|创作一个|开始生成|开始创作|开始画/g, '')
+            .replace(/@[^\s]+/g, '')
+            .trim() || '创意作品'
+          
+          console.log('[AIAssistant] 提取的prompt:', prompt)
+          console.log('[AIAssistant] startImageGeneration 函数是否存在:', typeof startImageGeneration)
+          
+          // 延迟2秒，让用户看到AI的回复，然后开始生成
+          setTimeout(() => {
+            try {
+              console.log('[AIAssistant] setTimeout 执行，开始创建生成任务')
+              
+              // 创建生成任务
+              const taskId = `gen-${Date.now()}`
+              const newTask: GenerationTaskInfo = {
+                id: taskId,
+                type: 'image',
+                status: 'processing',
+                progress: 0,
+                params: {
+                  prompt: prompt,
+                  model: 'wanx2.1-t2i-turbo',
+                  size: '1024x1024'
+                }
+              }
+              
+              console.log('[AIAssistant] 创建生成任务:', newTask)
+              
+              // 添加到活动任务
+              setActiveGenerationTasks(prev => ({
+                ...prev,
+                [taskId]: newTask
+              }))
+              
+              // 添加生成中消息
+              const generationMessage: Message = {
+                id: (Date.now() + 2).toString(),
+                role: 'assistant',
+                content: '图片生成中...',
+                timestamp: Date.now(),
+                generationTask: newTask
+              }
+              
+              setMessages(prev => {
+                const newMessages = [...prev, generationMessage]
+                saveMessagesToSession(newMessages)
+                return newMessages
+              })
+              
+              // 开始实际的生成流程
+              console.log('[AIAssistant] 调用 startImageGeneration')
+              if (typeof startImageGeneration === 'function') {
+                startImageGeneration(taskId, prompt)
+                  .then(() => console.log('[AIAssistant] 生成流程启动成功'))
+                  .catch(err => {
+                    console.error('[AIAssistant] 生成流程错误:', err)
+                    toast.error('生成失败: ' + err.message)
+                  })
+              } else {
+                console.error('[AIAssistant] startImageGeneration 不是函数')
+                toast.error('生成功能暂时不可用')
+              }
+            } catch (innerError) {
+              console.error('[AIAssistant] setTimeout 内错误:', innerError)
+              toast.error('生成启动失败，请重试')
+            }
+          }, 2000)
+        }
       } else {
         throw new Error('获取回复失败')
       }
@@ -1410,6 +1552,36 @@ export default function AIAssistant() {
         ref={mainRef}
         className={`flex-1 overflow-y-auto px-4 pt-20 pb-40 ${colors.bg.primary} relative`}
       >
+        {/* IP形象视频加载动画 - 只显示真正正在进行的任务 */}
+        <AnimatePresence>
+          {(() => {
+            const now = Date.now()
+            const hasActiveTask = Object.values(activeGenerationTasks).some(task => {
+              const taskAge = now - (task.updatedAt || task.createdAt)
+              const isRecent = taskAge < 5 * 60 * 1000 // 5分钟内
+              return task.status === 'processing' && isRecent
+            })
+            return hasActiveTask
+          })() && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+              style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}
+            >
+              <div className="pointer-events-auto">
+                <IPMascotVideoLoader
+                  isVisible={true}
+                  message="AI正在创作中..."
+                  progress={0}
+                  showProgress={false}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="max-w-4xl mx-auto space-y-4">
           <AnimatePresence mode="popLayout">
             {messages.map((message, index) => (
@@ -1477,14 +1649,16 @@ export default function AIAssistant() {
 
                   const activeTask = activeGenerationTasks[messageTask.id]
                   
+                  // 优先使用 activeGenerationTasks 中的状态（如果有）
+                  // 否则使用消息中的状态
                   const task = {
                     id: messageTask.id,
                     type: messageTask.type,
-                    status: activeTask?.status || messageTask.status,
-                    progress: activeTask?.progress || messageTask.progress,
+                    status: activeTask?.status ?? messageTask.status,
+                    progress: activeTask?.progress ?? messageTask.progress,
                     params: messageTask.params,
-                    error: activeTask?.error || messageTask.error,
-                    result: activeTask?.result || messageTask.result,
+                    error: activeTask?.error ?? messageTask.error,
+                    result: activeTask?.result ?? messageTask.result,
                   }
                   
                   const isUserMessage = message.role === 'user'

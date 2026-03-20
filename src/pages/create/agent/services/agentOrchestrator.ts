@@ -52,6 +52,7 @@ export interface ConversationContext {
   selectedBrand?: string; // 用户选择的品牌
   sessionId?: string; // 会话 ID（用于增强功能）
   userId?: string; // 用户 ID（用于增强功能）
+  mentionedWorks?: { id: string; name: string; title?: string; imageUrl?: string; description?: string; prompt?: string; style?: string; type?: 'image' | 'video' | 'text' }[]; // 引用的作品信息
   currentTask?: {
     type: string;
     requirements: {
@@ -113,6 +114,9 @@ export class AgentOrchestrator {
     userMessage: string,
     agent: AgentType
   ): Promise<AIResponse> {
+    // 获取引用的作品信息
+    const mentionedWorks = this.currentContext?.mentionedWorks;
+
     // 如果启用了增强功能且有用户ID和会话ID，使用增强版
     if (this.enableEnhancedFeatures && 
         this.currentContext?.userId && 
@@ -130,7 +134,8 @@ export class AgentOrchestrator {
             enableEntityExtraction: true,
             enableContextTracking: true,
             enablePersonalization: true,
-            enableMemory: true
+            enableMemory: true,
+            mentionedWorks
           }
         );
         
@@ -144,12 +149,25 @@ export class AgentOrchestrator {
       } catch (error) {
         console.warn('[Orchestrator] EnhancedAgent failed, falling back to basic:', error);
         // 降级到基础版本
-        return callAgent(systemPrompt, messages, userMessage, agent);
       }
     }
     
-    // 使用基础版本
-    return callAgent(systemPrompt, messages, userMessage, agent);
+    // 使用智能版本（支持作品引用）
+    try {
+      const { callAgentIntelligent } = await import('./agentService');
+      const intelligentResponse = await callAgentIntelligent(userMessage, agent, {
+        history: messages,
+        mentionedWorks,
+        enableRAG: true,
+        enableMemory: true,
+        enableIntent: true
+      });
+      return intelligentResponse;
+    } catch (error) {
+      console.warn('[Orchestrator] Intelligent agent failed, falling back to basic:', error);
+      // 降级到基础版本
+      return callAgent(systemPrompt, messages, userMessage, agent);
+    }
   }
 
   /**
@@ -228,6 +246,19 @@ export class AgentOrchestrator {
       case 'initial':
         // 初始阶段：检测用户输入是否已经包含设计类型
         const designTypeInfo = this.extractDesignTypeFromInput(userMessage);
+
+        // 检测用户是否有明确的生成意图
+        if (designTypeInfo.detected && this.hasGenerationIntent(userMessage)) {
+          console.log('[Orchestrator] Director检测到生成意图，跳过需求收集直接生成:', designTypeInfo.type);
+          // 设置基本任务信息
+          reqCollection.stage = 'completed';
+          reqCollection.collectedInfo.projectType = designTypeInfo.type;
+          reqCollection.collectedInfo.skipDetails = true;
+          reqCollection.collectedInfo.note = '用户明确请求生成，跳过详细需求收集';
+
+          // 直接委派给设计师并执行生成
+          return this.executeDirectGeneration(userMessage, context);
+        }
 
         if (designTypeInfo.detected) {
           // 用户已指定设计类型，直接记录并进入收集阶段
@@ -607,6 +638,43 @@ export class AgentOrchestrator {
   }
 
   /**
+   * 检测用户是否有明确的生成意图
+   */
+  private hasGenerationIntent(userMessage: string): boolean {
+    const generationKeywords = [
+      '生成', '画', '绘制', '创作', '设计一个', '设计个',
+      '生成ip', '生成形象', '画一个', '画一下',
+      '帮我生成', '帮我画', '直接生成', '直接画',
+      '给我画', '给我生成', '做一个', '做个'
+    ];
+    const lowerMsg = userMessage.toLowerCase();
+    return generationKeywords.some(keyword => lowerMsg.includes(keyword));
+  }
+
+  /**
+   * 执行直接生成（跳过需求收集）
+   */
+  private async executeDirectGeneration(
+    userMessage: string,
+    context: ConversationContext
+  ): Promise<OrchestratorResponse> {
+    console.log('[Orchestrator] 执行直接生成流程');
+
+    // 先委派给设计师
+    const delegationResult = await this.executeDelegate({
+      action: 'delegate',
+      targetAgent: 'designer',
+      reasoning: '用户明确请求生成，跳过需求收集直接执行'
+    }, userMessage, context);
+
+    // 然后执行图像生成
+    return this.executeImageGeneration(userMessage, {
+      ...context,
+      currentAgent: 'designer'
+    });
+  }
+
+  /**
    * 检测用户是否想要跳过需求收集直接生成
    */
   private isSkipToGeneration(message: string): boolean {
@@ -841,6 +909,19 @@ export class AgentOrchestrator {
   }
 
   /**
+   * 从用户消息中提取品牌名（@品牌名）
+   */
+  private extractBrandFromMessage(message: string): string | undefined {
+    const brandRegex = /@([^\s,，.。!！?？]+)/g;
+    const matches = message.match(brandRegex);
+    if (matches && matches.length > 0) {
+      // 返回第一个匹配的品牌名（去掉@符号）
+      return matches[0].substring(1);
+    }
+    return undefined;
+  }
+
+  /**
    * 检测用户是否想要生成图像
    */
   private shouldGenerateImage(userMessage: string, context: ConversationContext): boolean {
@@ -871,7 +952,21 @@ export class AgentOrchestrator {
 
     // 如果有任务描述且用户确认，也触发生成
     const hasTaskDescription = !!context.currentTask?.requirements?.description;
-    const shouldGenerate = hasGenerationIntent || (hasConfirmation && hasTaskDescription);
+
+    // 检测修改/优化类关键词（当用户引用了作品时）
+    const modificationKeywords = [
+      '修改', '调整', '优化', '润色', '改一下', '调一下',
+      '提升', '增强', '改变', '变换', '换个', '改成',
+      '颜色', '色彩', '色调', '亮度', '对比度', '饱和度',
+      '风格', '样式', '效果', '暖色', '冷色', '鲜艳', '柔和'
+    ];
+    const hasMentionedWorks = context.mentionedWorks && context.mentionedWorks.length > 0;
+    const hasModificationIntent = modificationKeywords.some(keyword => 
+      lowerMsg.includes(keyword)
+    );
+    const isModificationRequest = hasMentionedWorks && hasModificationIntent;
+
+    const shouldGenerate = hasGenerationIntent || (hasConfirmation && hasTaskDescription) || isModificationRequest;
 
     console.log('[Orchestrator] 检测图像生成意图:', {
       userMessage,
@@ -879,6 +974,9 @@ export class AgentOrchestrator {
       hasGenerationIntent,
       hasConfirmation,
       hasTaskDescription,
+      hasMentionedWorks,
+      hasModificationIntent,
+      isModificationRequest,
       shouldGenerate
     });
 
@@ -962,23 +1060,62 @@ export class AgentOrchestrator {
     const targetAudience = context.currentTask?.requirements?.targetAudience;
     const usageScenario = context.currentTask?.requirements?.usageScenario;
 
+    // 获取品牌信息
+    const brandName = context.selectedBrand || 
+                      context.currentTask?.requirements?.brand ||
+                      this.extractBrandFromMessage(userMessage);
+
     // 构建详细的提示词
     let prompt = `${taskDescription}`;
 
+    // 如果指定了品牌，在提示词开头添加品牌信息
+    if (brandName) {
+      prompt = `为品牌"${brandName}"设计IP形象。${prompt}`;
+      console.log('[Orchestrator] 添加品牌信息到提示词:', brandName);
+    }
+
+    // 如果用户引用了作品，添加参考作品信息（用于修改/优化）
+    if (context.mentionedWorks && context.mentionedWorks.length > 0) {
+      const mentionedWork = context.mentionedWorks[0];
+      const originalPrompt = mentionedWork.prompt || '';
+      const originalStyle = mentionedWork.style || '';
+      
+      // 构建基于参考作品的提示词
+      prompt = `基于以下参考作品进行修改优化：
+参考作品名称：${mentionedWork.title || mentionedWork.name}
+参考作品原描述：${mentionedWork.description || '无'}
+参考作品原风格：${originalStyle || '无'}
+
+修改需求：${taskDescription}
+
+要求：请保持参考作品的整体构图、主题和核心元素，根据修改需求进行调整优化。保留原作的优点，针对修改需求进行精准调整。`;
+      
+      // 如果有原作品的生成提示词，也一并参考
+      if (originalPrompt) {
+        prompt += `\n参考作品原提示词：${originalPrompt}`;
+      }
+      
+      console.log('[Orchestrator] 基于引用作品构建提示词:', {
+        mentionedWork: mentionedWork.name,
+        originalPrompt: originalPrompt.substring(0, 100) + '...',
+        modificationRequest: taskDescription
+      });
+    }
+
     // 添加目标受众信息
     if (targetAudience) {
-      prompt += `，目标受众是${targetAudience}`;
+      prompt += `\n目标受众：${targetAudience}`;
     }
 
     // 添加使用场景信息
     if (usageScenario) {
-      prompt += `，使用场景为${usageScenario}`;
+      prompt += `\n使用场景：${usageScenario}`;
     }
 
     // 添加风格要求
-    prompt += `，${selectedStyle}风格，高质量，精美细节，专业设计作品`;
+    prompt += `\n风格要求：${selectedStyle}，高质量，精美细节，专业设计作品`;
 
-    console.log('[Orchestrator] 生成的提示词:', prompt);
+    console.log('[Orchestrator] 最终生成的提示词:', prompt.substring(0, 200) + '...');
 
     try {
       // 调用图像生成API

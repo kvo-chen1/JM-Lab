@@ -95,7 +95,7 @@ export class VectorStore {
       // 尝试使用 API 生成 embedding
       // 注意：这里使用千问 API 的模拟方式，实际项目中可以使用真实的 embedding API
       const response = await callQwenChat({
-        model: 'qwen3.5-plus',
+        model: 'qwen3.5-35b-a3b',
         messages: [
           {
             role: 'system',

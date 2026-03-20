@@ -31,6 +31,7 @@ import { IPMascotVideoLoader } from '@/components/ip-mascot';
 import type { InspirationHint, StyleOption } from '../types/agent';
 import type { Brand } from '@/lib/brands';
 import type { Work } from '@/services/workService';
+import { createDraftService, CreateDraft } from '@/services/createDraftService';
 import {
   processWithOrchestrator,
   ConversationContext
@@ -41,7 +42,7 @@ import {
 import { getResourceManager } from '../services/resourceManager';
 import { errorHandler } from '../services/errorHandler';
 import { llmService } from '@/services/llmService';
-import type { AgentMessage, AgentType, OrchestratorResponse } from '../types/agent';
+import type { AgentMessage, AgentType, OrchestratorResponse, MentionedWork } from '../types/agent';
 import { AGENT_CONFIG, PRESET_STYLES, LLM_MODELS, getLLMModelConfig } from '../types/agent';
 import { Suggestion } from '../services/suggestionEngine';
 
@@ -175,6 +176,7 @@ export default function ChatPanel() {
     requirementCollection,
     currentModel,
     pendingMention,
+    generatedOutputs,
     addMessage,
     addOutput,
     setIsTyping,
@@ -385,10 +387,13 @@ export default function ChatPanel() {
 
   // 处理 Agent 切换动画
   const handleAgentSwitch = useCallback((fromAgent: AgentType | undefined, toAgent: AgentType) => {
+    // 先切换当前Agent，确保后续消息使用正确的Agent
+    setCurrentAgent(toAgent);
+
     setSwitcherFromAgent(fromAgent);
     setSwitcherToAgent(toAgent);
     setShowAgentSwitcher(true);
-  }, []);
+  }, [setCurrentAgent]);
 
   // Agent切换后自动触发图像生成
   const handleAutoImageGeneration = useCallback(async () => {
@@ -547,11 +552,14 @@ export default function ChatPanel() {
 
           // Agent切换后，自动触发图像生成
           setTimeout(() => {
+            console.log('[ChatPanel] Agent切换后检查 - selectedStyle:', selectedStyle);
             if (selectedStyle) {
               // 如果已选择风格，直接触发图像生成
+              console.log('[ChatPanel] 已选择风格，自动触发生成');
               handleAutoImageGeneration();
             } else {
               // 如果没有选择风格，显示风格选择器
+              console.log('[ChatPanel] 未选择风格，显示风格选择器');
               setShowStyleSelector(true);
             }
           }, 1500); // 等待切换动画完成
@@ -628,6 +636,23 @@ export default function ChatPanel() {
 
           console.log('[ChatPanel] 图像已生成并添加到画布:', outputId);
           toast.success('图像生成成功！');
+
+          // 添加快速操作按钮，引导用户下一步
+          setTimeout(() => {
+            addMessage({
+              role: 'system',
+              type: 'quick-actions',
+              content: '对这个设计满意吗？接下来你可以：',
+              metadata: {
+                quickActions: [
+                  { label: '🎨 生成变体', action: 'generate_variations', description: '生成不同姿态或表情的变体' },
+                  { label: '✏️ 调整细节', action: 'refine', description: '调整颜色、服饰、表情等细节' },
+                  { label: '🔄 换风格', action: 'change_style', description: '尝试其他风格效果' },
+                  { label: '✅ 定稿导出', action: 'finalize', description: '确认并导出最终作品' }
+                ]
+              }
+            });
+          }, 1000);
         }
         break;
 
@@ -795,6 +820,63 @@ export default function ChatPanel() {
       }
     }
 
+    // 查询引用的作品详细信息
+    const mentionedWorks: MentionedWork[] = [];
+    if (works.length > 0) {
+      // 先获取用户的历史草稿
+      const userDrafts = await createDraftService.getUserDrafts(50);
+
+      for (const workName of works) {
+        // 1. 先从当前生成的作品中查找
+        const matchedOutput = generatedOutputs.find(
+          output => output.title === workName || output.id === workName
+        );
+        if (matchedOutput) {
+          mentionedWorks.push({
+            id: matchedOutput.id,
+            name: workName,
+            title: matchedOutput.title,
+            imageUrl: matchedOutput.url,
+            thumbnail: matchedOutput.thumbnail,
+            description: matchedOutput.description,
+            prompt: matchedOutput.prompt,
+            style: matchedOutput.style,
+            type: matchedOutput.type
+          });
+          continue;
+        }
+
+        // 2. 从历史草稿中查找
+        const matchedDraft = userDrafts.find(
+          draft => draft.name === workName || draft.id === workName
+        );
+        if (matchedDraft) {
+          const selectedResult = matchedDraft.generatedResults?.find(
+            (r: any) => r.id === matchedDraft.selectedResult
+          );
+          const targetResult = selectedResult || matchedDraft.generatedResults?.[0];
+          mentionedWorks.push({
+            id: matchedDraft.id,
+            name: workName,
+            title: matchedDraft.name,
+            imageUrl: targetResult?.url,
+            thumbnail: targetResult?.thumbnail,
+            description: matchedDraft.description,
+            prompt: matchedDraft.prompt,
+            style: matchedDraft.stylePreset,
+            type: targetResult?.type === 'video' ? 'video' : 'image'
+          });
+          continue;
+        }
+
+        // 3. 如果没有找到完整信息，至少保留名称
+        mentionedWorks.push({
+          id: workName,
+          name: workName
+        });
+      }
+    }
+
     setInputValue('');
 
     // 添加用户消息到 store - 使用原始输入值（包含@提及）
@@ -807,17 +889,26 @@ export default function ChatPanel() {
       metadata: {
         brands, // 附加品牌信息
         styles, // 附加风格信息
-        works   // 附加作品信息
+        works,  // 附加作品名称列表（向后兼容）
+        mentionedWorks // 附加作品详细信息
       }
     };
     addMessage({
       role: 'user',
       content: inputValue.trim(), // 显示原始输入，包含@提及
-      type: 'text'
+      type: 'text',
+      metadata: {
+        brands,
+        styles,
+        works,
+        mentionedWorks
+      }
     });
 
     // 检测用户消息中是否包含风格关键词，自动设置风格（使用清理后的内容）
+    console.log('[ChatPanel] 检测风格 - cleanInput:', cleanInput, '当前 selectedStyle:', selectedStyle);
     const detectedStyle = detectStyleFromMessage(cleanInput);
+    console.log('[ChatPanel] 检测风格结果:', detectedStyle);
     if (detectedStyle && !selectedStyle) {
       console.log('[ChatPanel] 从用户消息中检测到风格:', detectedStyle);
       selectStyle(detectedStyle);
@@ -851,9 +942,10 @@ export default function ChatPanel() {
         const analysis = await analyzeDesignRequirements(cleanInput);
         createTask(analysis.type, getTaskTitle(analysis.type), cleanInput);
 
-        // 更新任务需求
+        // 更新任务需求，包含品牌信息
         updateTaskRequirements({
-          description: cleanInput
+          description: cleanInput,
+          brand: brands.length > 0 ? brands[0] : undefined
         });
       } else {
         // 已有任务，累积更新需求描述
@@ -895,6 +987,7 @@ export default function ChatPanel() {
         requirementCollection,
         selectedStyle: styles.length > 0 ? styles[0] : selectedStyle, // 使用@提及的风格优先
         selectedBrand: brands.length > 0 ? brands[0] : undefined, // 传递第一个提到的品牌
+        mentionedWorks: mentionedWorks.length > 0 ? mentionedWorks : undefined, // 传递引用的作品信息
         currentTask: currentTask ? {
           type: currentTask.type,
           requirements: currentTask.requirements
@@ -1403,6 +1496,10 @@ export default function ChatPanel() {
         </AnimatePresence>
 
         {/* IP形象视频加载动画 - 只要加载就显示 */}
+        {(() => {
+          console.log('[ChatPanel] IP动画渲染检查:', { isGenerating, isTyping, shouldShow: isGenerating || isTyping });
+          return null;
+        })()}
         <AnimatePresence>
           {(isGenerating || isTyping) && (
             <motion.div

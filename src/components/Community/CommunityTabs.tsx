@@ -33,6 +33,8 @@ const CommunityTabs: React.FC<CommunityTabsProps> = ({
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         const Icon = tab.icon;
+        // 安全处理：如果 Icon 未定义，使用空组件
+        const SafeIcon = Icon || (() => null);
         
         return (
           <button
@@ -57,7 +59,7 @@ const CommunityTabs: React.FC<CommunityTabsProps> = ({
               animate={{ scale: isActive ? 1.1 : 1 }}
               transition={{ duration: 0.2 }}
             >
-              <Icon size={18} />
+              <SafeIcon size={18} />
             </motion.div>
             
             <span>{tab.label}</span>

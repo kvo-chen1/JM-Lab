@@ -24,6 +24,9 @@ const StatCard: React.FC<StatCardProps> = ({
   trend,
   delay = 0
 }) => {
+  // 安全处理：如果 Icon 未定义，使用空组件
+  const SafeIcon = Icon || (() => null);
+
   const colorConfig = {
     primary: {
       bg: isDark 
@@ -141,7 +144,7 @@ const StatCard: React.FC<StatCardProps> = ({
             group-hover:scale-110
           `}
         >
-          <Icon size={22} className={theme.iconColor} />
+          <SafeIcon size={22} className={theme.iconColor} />
         </div>
 
         {/* 数值和标签 */}

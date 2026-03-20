@@ -1456,41 +1456,45 @@ const CommunityManagement: React.FC<CommunityManagementProps> = ({
                       { key: 'allowPosts', label: '帖子功能', icon: FileText },
                       { key: 'allowChat', label: '聊天功能', icon: MessageSquare },
                       { key: 'allowComments', label: '评论功能', icon: MessageSquare },
-                    ].map(({ key, label, icon: Icon }) => (
-                      <div 
-                        key={key} 
-                        className={`
-                          flex items-center justify-between p-4 rounded-xl transition-all duration-200
-                          ${isDark ? 'hover:bg-slate-900/30' : 'hover:bg-slate-50'}
-                        `}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
-                            <Icon size={18} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
-                          </div>
-                          <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{label}</span>
-                        </div>
-                        <button
-                          onClick={() => setCommunitySettings(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
+                    ].map(({ key, label, icon: Icon }) => {
+                      // 安全处理：如果 Icon 未定义，使用空组件
+                      const SafeIcon = Icon || (() => null);
+                      return (
+                        <div 
+                          key={key} 
                           className={`
-                            w-14 h-7 rounded-full transition-all duration-300 relative
-                            ${communitySettings[key as keyof typeof communitySettings]
-                              ? (isDark 
-                                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500' 
-                                  : 'bg-gradient-to-r from-indigo-500 to-indigo-600')
-                              : (isDark ? 'bg-slate-700' : 'bg-slate-300')
-                            }
+                            flex items-center justify-between p-4 rounded-xl transition-all duration-200
+                            ${isDark ? 'hover:bg-slate-900/30' : 'hover:bg-slate-50'}
                           `}
                         >
-                          <div
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
+                              <SafeIcon size={18} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
+                            </div>
+                            <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{label}</span>
+                          </div>
+                          <button
+                            onClick={() => setCommunitySettings(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))}
                             className={`
-                              absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300
-                              ${communitySettings[key as keyof typeof communitySettings] ? 'translate-x-8' : 'translate-x-1'}
+                              w-14 h-7 rounded-full transition-all duration-300 relative
+                              ${communitySettings[key as keyof typeof communitySettings]
+                                ? (isDark 
+                                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500' 
+                                    : 'bg-gradient-to-r from-indigo-500 to-indigo-600')
+                                : (isDark ? 'bg-slate-700' : 'bg-slate-300')
+                              }
                             `}
-                          />
-                        </button>
-                      </div>
-                    ))}
+                          >
+                            <div
+                              className={`
+                                absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300
+                                ${communitySettings[key as keyof typeof communitySettings] ? 'translate-x-8' : 'translate-x-1'}
+                              `}
+                            />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

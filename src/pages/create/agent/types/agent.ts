@@ -42,7 +42,8 @@ export interface AgentMessage {
     images?: string[];
     styles?: StyleOption[];
     brands?: string[];  // 引用的品牌名列表
-    works?: string[];   // 引用的作品ID列表
+    works?: string[];   // 引用的作品ID列表（向后兼容）
+    mentionedWorks?: MentionedWork[]; // 引用的作品详细信息
     thinking?: string;
     toolCalls?: ToolCall[];
     derivativeOptions?: DerivativeOption[];
@@ -203,6 +204,19 @@ export interface GeneratedOutput {
   description?: string;   // 作品描述（AI生成，可编辑）
   isFavorite?: boolean;   // 是否收藏
   status?: 'generating' | 'completed' | 'error';  // 生成状态
+}
+
+// 引用的作品信息（用于@作品引用功能）
+export interface MentionedWork {
+  id: string;
+  name: string;
+  title?: string;
+  imageUrl?: string;
+  thumbnail?: string;
+  description?: string;
+  prompt?: string;
+  style?: string;
+  type?: 'image' | 'video' | 'text';
 }
 
 export interface AgentState {

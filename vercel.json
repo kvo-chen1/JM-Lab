@@ -63,6 +63,26 @@
       "destination": "https://images.unsplash.com/:path*"
     },
     {
+      "source": "/api/kimi/chat/completions",
+      "destination": "/api/kimi/chat/completions.js"
+    },
+    {
+      "source": "/api/qwen/chat/completions",
+      "destination": "/api/qwen/chat/completions.js"
+    },
+    {
+      "source": "/api/qwen/images/generate",
+      "destination": "/api/qwen/images/generate.js"
+    },
+    {
+      "source": "/api/qwen/videos/generate",
+      "destination": "/api/qwen/videos/generate.js"
+    },
+    {
+      "source": "/api/qwen/tasks/:id",
+      "destination": "/api/qwen/tasks/[id].js"
+    },
+    {
       "source": "/api/health/ping",
       "destination": "/api/health/ping.js"
     },
@@ -150,6 +170,26 @@
       "memory": 2048
     },
     "api/health/ping.js": {
+      "maxDuration": 10,
+      "memory": 512
+    },
+    "api/kimi/chat/completions.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/qwen/chat/completions.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/qwen/images/generate.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/qwen/videos/generate.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/qwen/tasks/[id].js": {
       "maxDuration": 10,
       "memory": 512
     }

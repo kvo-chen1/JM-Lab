@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
+import { JinXiaoMai } from '@/components/jinmai';
 
 interface IPMascotVideoLoaderProps {
   /** 是否显示 */
@@ -24,6 +25,8 @@ export const IPMascotVideoLoader: React.FC<IPMascotVideoLoaderProps> = ({
 }) => {
   const { isDark } = useTheme();
   const [videoError, setVideoError] = useState(false);
+
+  console.log('[IPMascotVideoLoader] 组件渲染:', { isVisible, message, videoSrc, videoError });
 
   if (!isVisible) return null;
 
@@ -71,25 +74,25 @@ export const IPMascotVideoLoader: React.FC<IPMascotVideoLoaderProps> = ({
               <source src="/IP动画.mp4" type="video/mp4" />
             </video>
           ) : (
-            // 视频加载失败时显示IP形象静态图 + 动画效果
-            <div className="w-full h-full flex items-center justify-center relative">
+            // 视频加载失败时显示津小脉SVG动画
+            <div className="w-full h-full flex items-center justify-center relative bg-gradient-to-br from-[#C02C38] via-[#E85D75] to-[#FFB6C1]">
               <motion.div
-                className="absolute inset-0 rounded-full"
-                style={{
-                  background: 'linear-gradient(135deg, #C02C38 0%, #E85D75 50%, #FFB6C1 100%)'
-                }}
                 animate={{ 
-                  rotate: [0, 360]
+                  scale: [1, 1.05, 1],
                 }}
                 transition={{ 
-                  duration: 8, 
+                  duration: 2, 
                   repeat: Infinity, 
-                  ease: "linear" 
+                  ease: "easeInOut" 
                 }}
-              />
-              <div className="absolute inset-2 rounded-full bg-gray-800 flex items-center justify-center">
-                <span className="text-4xl">🎨</span>
-              </div>
+                className="w-48 h-48"
+              >
+                <JinXiaoMai 
+                  mode="creation" 
+                  expression="thinking" 
+                  size="lg"
+                />
+              </motion.div>
             </div>
           )}
         </div>

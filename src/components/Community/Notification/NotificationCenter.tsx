@@ -185,11 +185,11 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   {/* Icon */}
                   <div 
                     className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: `${notification.color}20` }}
+                    style={{ backgroundColor: notification.color ? `${notification.color}20` : '#3B82F620' }}
                   >
                     <i 
-                      className={notification.icon} 
-                      style={{ color: notification.color }}
+                      className={notification.icon || 'fas fa-bell'} 
+                      style={{ color: notification.color || '#3B82F6' }}
                     ></i>
                   </div>
 

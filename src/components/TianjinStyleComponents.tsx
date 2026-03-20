@@ -55,9 +55,20 @@ export const TianjinImage: React.FC<TianjinImageProps> = ({
     setError(true);
   };
 
+  // 如果图片加载失败，使用可靠的占位图服务
+  const getDisplaySrc = () => {
+    if (!error) return src;
+    // 如果fallbackSrc是默认路径，使用在线占位图服务
+    if (fallbackSrc === '/images/placeholder-image.jpg') {
+      const encodedAlt = encodeURIComponent(alt || 'Image');
+      return `https://via.placeholder.com/400x300?text=${encodedAlt}`;
+    }
+    return fallbackSrc;
+  };
+
   return (
     <img
-      src={error ? fallbackSrc : src}
+      src={getDisplaySrc()}
       alt={alt}
       className={`${ratioClasses[ratio]} ${roundedClasses[rounded]} ${className}`}
       loading={priority ? 'eager' : loading}
@@ -104,7 +115,25 @@ export const TianjinAvatar: React.FC<TianjinAvatarProps> = ({
     setError(true);
   };
 
-  const displaySrc = error || !src ? fallbackSrc : src;
+  // 生成基于用户名的头像URL（使用ui-avatars.com作为可靠备选）
+  const generateInitialsAvatar = (name: string) => {
+    const encodedName = encodeURIComponent(name || '用户');
+    return `https://ui-avatars.com/api/?name=${encodedName}&background=random&color=fff&size=128`;
+  };
+
+  // 确定最终显示的图片源
+  let displaySrc: string;
+  if (error || !src) {
+    // 如果设置了fallbackSrc且不是默认的，先尝试使用
+    if (fallbackSrc && fallbackSrc !== '/images/default-avatar.png') {
+      displaySrc = fallbackSrc;
+    } else {
+      // 使用基于用户名的生成头像作为最终备选
+      displaySrc = generateInitialsAvatar(alt);
+    }
+  } else {
+    displaySrc = src;
+  }
 
   return (
     <img

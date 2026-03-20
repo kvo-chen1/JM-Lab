@@ -149,6 +149,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {quickActions.map((action, index) => {
             const Icon = action.icon;
+            // 安全处理：如果 Icon 未定义，使用空组件
+            const SafeIcon = Icon || (() => null);
             return (
               <motion.button
                 key={action.id}
@@ -173,7 +175,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                     ${action.color === 'warning' ? (isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-50 text-amber-600') : ''}
                     ${action.color === 'purple' ? (isDark ? 'bg-violet-500/20 text-violet-400' : 'bg-violet-50 text-violet-600') : ''}
                   `}>
-                    <Icon size={24} />
+                    <SafeIcon size={24} />
                   </div>
                   {action.highlight && (
                     <span className={`

@@ -73,9 +73,17 @@ export const useConversationStore = create<ConversationStoreState & Conversation
       // 创建新会话
       createSession: (title?: string, description?: string) => {
         const sessionId = generateId();
+        
+        // 调试：记录创建会话前的状态
+        const beforeState = useAgentStore.getState();
+        console.log('[ConversationStore] 创建会话前 selectedStyle:', beforeState.selectedStyle);
 
         // 先重置 Agent Store 到初始状态，确保清除所有状态包括 selectedStyle
         useAgentStore.getState().resetState();
+        
+        // 调试：记录 resetState 后的状态
+        const afterResetState = useAgentStore.getState();
+        console.log('[ConversationStore] resetState 后 selectedStyle:', afterResetState.selectedStyle);
 
         // 额外确保 selectedStyle 和相关状态被清除
         useAgentStore.setState({
@@ -83,6 +91,10 @@ export const useConversationStore = create<ConversationStoreState & Conversation
           selectedOutput: null,
           generatedOutputs: []
         });
+        
+        // 调试：记录最终状态
+        const finalState = useAgentStore.getState();
+        console.log('[ConversationStore] 创建会话后 selectedStyle:', finalState.selectedStyle);
 
         const newSession: ConversationSession = {
           id: sessionId,

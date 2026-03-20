@@ -138,11 +138,14 @@ const StatCard = ({
     orange: isDark ? 'bg-orange-500/10 text-orange-400' : 'bg-orange-50 text-orange-600',
   };
 
+  // 安全处理：如果 Icon 未定义，使用默认图标
+  const SafeIcon = Icon || (() => null);
+
   return (
     <div className={`p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-white'} border ${isDark ? 'border-gray-700/50' : 'border-gray-100'} hover:shadow-md transition-all duration-300 group`}>
       <div className="flex items-start justify-between">
         <div className={`p-2 rounded-lg ${colorClasses[color]} transition-transform group-hover:scale-110`}>
-          <Icon size={16} />
+          <SafeIcon size={16} />
         </div>
         {trend && (
           <span className={`text-xs font-medium ${trend.isPositive ? 'text-green-500' : 'text-red-500'}`}>
@@ -178,6 +181,9 @@ const CollapsibleSection = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
+  // 安全处理：如果 Icon 未定义，使用默认图标
+  const SafeIcon = Icon || (() => null);
+
   return (
     <div className={`rounded-xl overflow-hidden ${isDark ? 'bg-gray-800/30' : 'bg-gray-50/50'} border ${isDark ? 'border-gray-700/30' : 'border-gray-200/50'}`}>
       <button
@@ -185,7 +191,7 @@ const CollapsibleSection = ({
         className={`w-full flex items-center justify-between p-3 transition-colors ${isDark ? 'hover:bg-gray-700/30' : 'hover:bg-gray-100/50'}`}
       >
         <div className="flex items-center gap-2">
-          <Icon size={16} className={isDark ? 'text-gray-400' : 'text-gray-500'} />
+          <SafeIcon size={16} className={isDark ? 'text-gray-400' : 'text-gray-500'} />
           <span className={`font-medium text-sm ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>{title}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -242,24 +248,31 @@ const AdminActionButton = ({
     purple: isDark ? 'hover:bg-purple-500/10 hover:text-purple-400' : 'hover:bg-purple-50 hover:text-purple-600',
   };
 
+  // 安全处理：如果 Icon 未定义，使用默认图标
+  const SafeIcon = Icon || (() => null);
+
   return (
     <button
       onClick={onClick}
       className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isDark ? 'text-gray-300 bg-gray-800/50' : 'text-gray-700 bg-gray-50'} ${colorClasses[color]} border ${isDark ? 'border-gray-700/50' : 'border-gray-200'} hover:shadow-md`}
     >
-      <Icon size={14} />
+      <SafeIcon size={14} />
       <span>{label}</span>
     </button>
   );
 };
 
 // 空状态组件
-const EmptyState = ({ message, icon: Icon, isDark }: { message: string; icon: React.ElementType; isDark: boolean }) => (
-  <div className={`flex flex-col items-center justify-center py-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-    <Icon size={32} className="mb-2 opacity-50" />
-    <span className="text-xs">{message}</span>
-  </div>
-);
+const EmptyState = ({ message, icon: Icon, isDark }: { message: string; icon: React.ElementType; isDark: boolean }) => {
+  // 安全处理：如果 Icon 未定义，使用默认图标
+  const SafeIcon = Icon || (() => null);
+  return (
+    <div className={`flex flex-col items-center justify-center py-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+      <SafeIcon size={32} className="mb-2 opacity-50" />
+      <span className="text-xs">{message}</span>
+    </div>
+  );
+};
 
 export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
   isDark,
@@ -735,6 +748,12 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
     }
   };
 
+  // 安全获取事件图标
+  const getSafeEventIcon = (type: RecentEvent['type']) => {
+    const Icon = getEventIcon(type);
+    return Icon || (() => null);
+  };
+
   // 获取事件颜色
   const getEventColor = (type: RecentEvent['type']) => {
     switch (type) {
@@ -837,7 +856,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
             <TianjinAvatar 
               size="sm" 
               src={creatorInfo?.avatar || ''} 
-              alt="创建者" 
+              alt={creatorInfo?.username || '创建者'} 
               className="w-10 h-10"
             />
             <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 ${isDark ? 'border-gray-800 bg-green-500' : 'border-white bg-green-500'}`} />
@@ -1107,7 +1126,7 @@ export const CommunityInfoSidebar: React.FC<CommunityInfoSidebarProps> = ({
           ) : (
             <div className="space-y-2">
               {recentEvents.map((event) => {
-                const EventIcon = getEventIcon(event.type);
+                const EventIcon = getSafeEventIcon(event.type);
                 return (
                   <div
                     key={event.id}

@@ -3,8 +3,11 @@
  * 管理用户的对话历史、长记忆和用户画像
  */
 
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
+
+// API 基础 URL
+const API_BASE_URL = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3030';
 
 // 记忆类型
 export type MemoryType = 'preference' | 'fact' | 'habit' | 'goal' | 'context';
@@ -114,26 +117,38 @@ class AIMemoryService {
   }
 
   /**
-   * 获取 Supabase 客户端
-   * 如果有用户但没有 Supabase session，使用 supabaseAdmin 绕过 RLS
+   * 获取认证令牌
    */
-  private async getClient() {
-    // 检查是否有 Supabase session
+  private getAuthToken(): string | null {
+    // 从 localStorage 获取自定义 token
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('jm_token') || localStorage.getItem('token') || null;
+    }
+    return null;
+  }
+
+  /**
+   * 获取请求头
+   */
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    
+    const token = this.getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
+  }
+
+  /**
+   * 检查是否有有效的 Supabase session
+   */
+  private async hasValidSession(): Promise<boolean> {
     const { data: { session } } = await supabase.auth.getSession();
-    
-    // 如果有 session，使用普通客户端
-    if (session) {
-      return supabase;
-    }
-    
-    // 如果有用户但没有 session（自定义认证），使用 admin 客户端
-    if (this.currentUser?.id && supabaseAdmin) {
-      console.log('[aiMemoryService.getClient] 使用 supabaseAdmin 绕过 RLS');
-      return supabaseAdmin;
-    }
-    
-    // 默认返回普通客户端
-    return supabase;
+    return !!session;
   }
 
   /**
@@ -147,12 +162,16 @@ class AIMemoryService {
       return null;
     }
 
-    try {
-      // 获取正确的客户端
-      const client = await this.getClient();
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.createConversation] 没有有效的 Supabase session，跳过创建对话');
+      return null;
+    }
 
+    try {
       // 先将其他对话设为非活跃
-      const { error: updateError } = await client
+      const { error: updateError } = await supabase
         .from('ai_conversations')
         .update({ is_active: false })
         .eq('user_id', userId);
@@ -163,7 +182,7 @@ class AIMemoryService {
 
       // 创建新对话
       console.log('[aiMemoryService.createConversation] 尝试插入数据:', { user_id: userId, title, model_id: modelId });
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from('ai_conversations')
         .insert({
           user_id: userId,
@@ -200,13 +219,16 @@ class AIMemoryService {
       return [];
     }
 
-    try {
-      // 获取正确的客户端
-      const client = await this.getClient();
-      console.log('[aiMemoryService.getConversations] 使用客户端:', client === supabase ? 'supabase' : 'supabaseAdmin');
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.getConversations] 没有有效的 Supabase session，返回空数组');
+      return [];
+    }
 
-      // 直接查询表，而不是使用 RPC 函数
-      const { data, error } = await client
+    try {
+      // 直接查询表
+      const { data, error } = await supabase
         .from('ai_conversations')
         .select('*')
         .eq('user_id', userId)
@@ -246,14 +268,17 @@ class AIMemoryService {
       return null;
     }
 
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.switchConversation] 没有有效的 Supabase session');
+      return null;
+    }
+
     try {
-      // 获取正确的客户端
-      const client = await this.getClient();
-      console.log('[aiMemoryService.switchConversation] 获取到客户端');
-      
       // 使用 RPC 函数来切换对话，避免直接更新 updated_at
       console.log('[aiMemoryService.switchConversation] 调用 RPC 函数切换对话:', conversationId);
-      const { data, error } = await client
+      const { data, error } = await supabase
         .rpc('switch_user_conversation', {
           p_user_id: userId,
           p_conversation_id: conversationId
@@ -300,9 +325,15 @@ class AIMemoryService {
       return this.currentConversation;
     }
 
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.getActiveConversation] 没有有效的 Supabase session');
+      return null;
+    }
+
     try {
-      const client = await this.getClient();
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from('ai_conversations')
         .select('*')
         .eq('user_id', userId)
@@ -344,9 +375,15 @@ class AIMemoryService {
       return [];
     }
 
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.getConversationMessages] 没有有效的 Supabase session，返回空数组');
+      return [];
+    }
+
     try {
-      const client = await this.getClient();
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from('ai_messages')
         .select('*')
         .eq('conversation_id', conversationId)
@@ -389,11 +426,14 @@ class AIMemoryService {
         console.error('[aiMemoryService.saveMessage] conversationId 无效:', conversationId);
         return null;
       }
-      
-      // 获取正确的客户端（使用 admin 客户端绕过 RLS）
-      const client = await this.getClient();
-      console.log('[aiMemoryService.saveMessage] 使用客户端:', client === supabase ? 'supabase' : 'supabaseAdmin');
-      
+
+      // 检查是否有有效的 Supabase session
+      const hasSession = await this.hasValidSession();
+      if (!hasSession) {
+        console.warn('[aiMemoryService.saveMessage] 没有有效的 Supabase session，跳过保存消息');
+        return null;
+      }
+
       const insertData: any = {
         conversation_id: conversationId,
         role,
@@ -401,13 +441,13 @@ class AIMemoryService {
         is_error: isError,
         timestamp: new Date().toISOString()
       };
-      
+
       // 如果有元数据（如生成任务），保存到 metadata 字段
       if (metadata) {
         insertData.metadata = metadata;
       }
-      
-      const { data, error } = await client
+
+      const { data, error } = await supabase
         .from('ai_messages')
         .insert(insertData)
         .select()
@@ -466,9 +506,15 @@ class AIMemoryService {
     messageId: string,
     metadata: Record<string, any>
   ): Promise<boolean> {
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.updateMessageMetadata] 没有有效的 Supabase session');
+      return false;
+    }
+
     try {
-      const client = await this.getClient();
-      const { error } = await client
+      const { error } = await supabase
         .from('ai_messages')
         .update({
           metadata: metadata,
@@ -500,11 +546,16 @@ class AIMemoryService {
       return false;
     }
 
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.deleteMessage] 没有有效的 Supabase session');
+      return false;
+    }
+
     try {
-      const client = await this.getClient();
-      
       // 先检查消息是否属于当前用户
-      const { data: message, error: fetchError } = await client
+      const { data: message, error: fetchError } = await supabase
         .from('ai_messages')
         .select('id, conversation_id')
         .eq('id', messageId)
@@ -516,7 +567,7 @@ class AIMemoryService {
       }
 
       // 检查对话是否属于当前用户
-      const { data: conversation, error: convError } = await client
+      const { data: conversation, error: convError } = await supabase
         .from('ai_conversations')
         .select('user_id')
         .eq('id', message.conversation_id)
@@ -533,7 +584,7 @@ class AIMemoryService {
       }
 
       // 删除消息
-      const { error: deleteError } = await client
+      const { error: deleteError } = await supabase
         .from('ai_messages')
         .delete()
         .eq('id', messageId);
@@ -563,13 +614,16 @@ class AIMemoryService {
       return false;
     }
 
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.deleteConversation] 没有有效的 Supabase session');
+      return false;
+    }
+
     try {
-      // 获取正确的客户端
-      const client = await this.getClient();
-      console.log('[aiMemoryService.deleteConversation] 获取到客户端');
-      
       console.log('[aiMemoryService.deleteConversation] 执行删除:', { conversationId, userId });
-      const { data, error } = await client
+      const { data, error } = await supabase
         .from('ai_conversations')
         .delete()
         .eq('id', conversationId)
@@ -602,11 +656,15 @@ class AIMemoryService {
     const userId = this.getUserId();
     if (!userId) return false;
 
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.renameConversation] 没有有效的 Supabase session');
+      return false;
+    }
+
     try {
-      // 获取正确的客户端
-      const client = await this.getClient();
-      
-      const { error } = await client
+      const { error } = await supabase
         .from('ai_conversations')
         .update({ title: newTitle })
         .eq('id', conversationId)
@@ -631,11 +689,15 @@ class AIMemoryService {
     const userId = this.getUserId();
     if (!userId) return false;
 
+    // 检查是否有有效的 Supabase session
+    const hasSession = await this.hasValidSession();
+    if (!hasSession) {
+      console.warn('[aiMemoryService.deleteAllConversations] 没有有效的 Supabase session');
+      return false;
+    }
+
     try {
-      // 获取正确的客户端
-      const client = await this.getClient();
-      
-      const { error } = await client
+      const { error } = await supabase
         .from('ai_conversations')
         .delete()
         .eq('user_id', userId);

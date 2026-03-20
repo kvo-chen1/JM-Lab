@@ -4069,7 +4069,7 @@ export const workDB = {
             COALESCE((SELECT COUNT(*)::INTEGER FROM works_likes wl WHERE wl.work_id = w.id::text), 0) as likes
           FROM works w
           LEFT JOIN users u ON w.creator_id = u.id::text
-          WHERE w.creator_id = $1 AND (w.source = '津脉广场' OR w.source IS NULL)
+          WHERE w.creator_id = $1
           ORDER BY w.created_at DESC
           LIMIT $2 OFFSET $3
         `, [userId, limit, offset])).rows

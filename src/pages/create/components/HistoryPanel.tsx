@@ -7,14 +7,17 @@ import { aiReviewService } from '@/services/aiReviewService';
 import { aiGenerationSaveService } from '@/services/aiGenerationSaveService';
 import { AuthContext } from '@/contexts/authContext';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export default function HistoryPanel({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
   const { isDark } = useTheme();
   const { user } = useContext(AuthContext);
   const generatedResults = useCreateStore((state) => state.generatedResults);
   const setGeneratedResults = useCreateStore((state) => state.setGeneratedResults);
   const setSelectedResult = useCreateStore((state) => state.setSelectedResult);
   const setPrompt = useCreateStore((state) => state.setPrompt);
+  const loadDraft = useCreateStore((state) => state.loadDraft);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -185,6 +188,31 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
     if (confirm('确定要清空所有历史记录吗？此操作不可恢复。')) {
       localStorage.removeItem('CREATE_HISTORY');
       setHistory([]);
+    }
+  };
+
+  // 处理草稿点击 - 加载草稿并跳转到创作页面
+  const handleDraftClick = (draft: any) => {
+    try {
+      // 加载草稿到 store
+      loadDraft(draft);
+      
+      // 关闭面板
+      onClose();
+      
+      // 根据草稿类型决定跳转路径
+      if (draft.content) {
+        // AI Writer 草稿
+        navigate(`/create/ai-writer?draft=${draft.id}`);
+      } else {
+        // 普通创作草稿
+        navigate('/create');
+      }
+      
+      toast.success('已加载草稿');
+    } catch (error) {
+      console.error('[HistoryPanel] Failed to load draft:', error);
+      toast.error('加载草稿失败');
     }
   };
 
@@ -447,7 +475,8 @@ export default function HistoryPanel({ onClose }: { onClose: () => void }) {
                   return (
                     <button
                       key={draft.id}
-                      className="relative aspect-square rounded-xl overflow-hidden group border border-transparent hover:border-blue-500 transition-all bg-gray-100 dark:bg-gray-800"
+                      onClick={() => handleDraftClick(draft)}
+                      className="relative aspect-square rounded-xl overflow-hidden group border border-transparent hover:border-blue-500 transition-all bg-gray-100 dark:bg-gray-800 cursor-pointer"
                     >
                       {firstResult ? (
                         isVideo ? (

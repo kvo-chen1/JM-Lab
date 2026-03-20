@@ -2887,13 +2887,28 @@ export interface WorkReviewResult {
    * @returns 生成的标题和标签
    */
   async generateTitleAndTags(description: string, contentType: 'image' | 'video' = 'image'): Promise<{ title: string; tags: string[] }> {
-    const prompt = `根据描述生成标题和标签。描述：${description}
+    const prompt = `根据以下作品描述，生成一个吸引人的标题和合适的标签。
+
+作品描述：
+${description}
 
 要求：
-1. 标题≤20字，自然生动，不用【】前缀
-2. 标签5个，从以下选：国潮、青花瓷、山水画、历史建筑、AI创作、数字艺术、插画、海报、暖色调、复古、风景、花卉、民俗、传统文化
+1. 标题要求：
+   - 不超过20个字
+   - 简洁有力，突出作品核心主题
+   - 不要包含【】等符号
+   - 不要直接复制描述的开头
+   - 示例："津门老字号视觉焕新"、"传统与现代的碰撞"
 
-返回JSON：{"title":"标题","tags":["标签1","标签2","标签3","标签4","标签5"]}`;
+2. 标签要求：
+   - 从以下类别中选择最相关的5个标签
+   - 文化类：国潮、传统文化、民俗、历史建筑、天津
+   - 风格类：复古、暖色调、青花瓷、山水画
+   - 技术类：AI创作、数字艺术、插画、海报
+   - 主题类：风景、花卉、城市风光
+
+请直接返回JSON格式，不要包含其他内容：
+{"title":"生成的标题","tags":["标签1","标签2","标签3","标签4","标签5"]}`;
 
     try {
       console.log('[LLM] Generating title and tags for:', description.substring(0, 50));

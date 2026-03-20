@@ -264,11 +264,43 @@ export default function PublishToSquareModal({ isOpen, onClose }: PublishToSquar
   const generateMetadataLocally = () => {
     const desc = description.trim();
 
-    // 生成标题：提取前20个字，如果没有则使用默认标题
-    let generatedTitle = desc.slice(0, 20);
+    // 生成标题：智能提取核心主题
+    let generatedTitle = '';
+    
+    // 尝试提取引号或书名号中的内容
+    const quoteMatch = desc.match(/[""']([^""']+)[""']/) || desc.match(/《([^》]+)》/);
+    if (quoteMatch) {
+      generatedTitle = quoteMatch[1].slice(0, 20);
+    }
+    
+    // 如果没有引号内容，尝试提取冒号或破折号后的内容
+    if (!generatedTitle) {
+      const colonMatch = desc.match(/[:：]([^。，！？\n]+)/);
+      if (colonMatch) {
+        generatedTitle = colonMatch[1].trim().slice(0, 20);
+      }
+    }
+    
+    // 如果还没有，尝试去除常见前缀后提取
+    if (!generatedTitle) {
+      // 去除常见前缀如【设计主题】、【项目名称】等
+      const cleanDesc = desc.replace(/^【[^】]+】\s*/, '').replace(/^\[[^\]]+\]\s*/, '');
+      // 提取第一句话的核心内容（通常是主题）
+      const firstSentence = cleanDesc.split(/[。，！？\n]/)[0];
+      // 提取关键词组合
+      const keywords = firstSentence.match(/[^\s]{2,8}(?:品牌|设计|项目|作品|形象|视觉|文化|传统|现代|创新|融合)/g);
+      if (keywords && keywords.length > 0) {
+        generatedTitle = keywords.slice(0, 3).join('·').slice(0, 20);
+      } else {
+        generatedTitle = firstSentence.slice(0, 20);
+      }
+    }
+    
+    // 如果生成的标题太短，使用默认标题
     if (generatedTitle.length < 5) {
       generatedTitle = contentType === 'video' ? '创意视频作品' : '创意设计作品';
     }
+    
     setTitle(generatedTitle);
 
     // 生成标签：使用关键词映射匹配

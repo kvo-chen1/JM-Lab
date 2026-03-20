@@ -16,6 +16,7 @@ import { InlineGenerationCard } from '@/components/InlineGenerationCard'
 import AIMessageActions from '@/components/AIMessageActions'
 import { downloadAndUploadImage } from '@/services/imageService'
 import { createWorkWithUrl } from '@/services/postService'
+import { IPMascotVideoLoader } from '@/components/ip-mascot'
 
 // 扩展 Message 类型，支持生成任务
 interface GenerationTaskInfo {

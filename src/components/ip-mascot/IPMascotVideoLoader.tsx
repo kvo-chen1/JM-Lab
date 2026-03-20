@@ -40,7 +40,7 @@ export const IPMascotVideoLoader: React.FC<IPMascotVideoLoaderProps> = ({
       }`}
     >
       {/* 视频容器 */}
-      <div className="relative w-64 h-64 mb-4 flex items-center justify-center">
+      <div className="relative w-80 h-80 mb-4 flex items-center justify-center">
         <motion.div
           className="absolute inset-0 rounded-full"
           style={{
@@ -53,7 +53,7 @@ export const IPMascotVideoLoader: React.FC<IPMascotVideoLoaderProps> = ({
         />
         
         {/* 视频或备用动画 */}
-        <div className="relative w-56 h-56 rounded-full overflow-hidden bg-gray-800">
+        <div className="relative w-72 h-72 rounded-full overflow-hidden bg-gray-800">
           {!videoError ? (
             <video
               autoPlay

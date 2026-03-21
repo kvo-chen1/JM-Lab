@@ -570,6 +570,84 @@ async function createPostgreSQLTables(pool) {
       `)
       console.log('[DB] ai_shares table ensured')
 
+      // 创建AI对话表
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ai_conversations (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          title TEXT DEFAULT '新对话',
+          model_id TEXT DEFAULT 'qwen',
+          is_active BOOLEAN DEFAULT true,
+          context_summary TEXT,
+          message_count INTEGER DEFAULT 0,
+          metadata JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `)
+      await client.query('CREATE INDEX IF NOT EXISTS idx_ai_conversations_user_id ON ai_conversations(user_id);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_ai_conversations_user_active ON ai_conversations(user_id, is_active);')
+      console.log('[DB] ai_conversations table ensured')
+
+      // 创建AI消息表
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ai_messages (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          conversation_id UUID NOT NULL,
+          role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+          content TEXT NOT NULL,
+          timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          is_error BOOLEAN DEFAULT false,
+          feedback_rating INTEGER,
+          feedback_comment TEXT,
+          metadata JSONB
+        );
+      `)
+      await client.query('CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation_id ON ai_messages(conversation_id);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_ai_messages_timestamp ON ai_messages(timestamp);')
+      console.log('[DB] ai_messages table ensured')
+
+      // 创建AI用户记忆表
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ai_user_memories (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          memory_type TEXT NOT NULL CHECK (memory_type IN ('preference', 'fact', 'habit', 'goal', 'context')),
+          content TEXT NOT NULL,
+          importance INTEGER DEFAULT 5,
+          source_conversation_id UUID,
+          is_active BOOLEAN DEFAULT true,
+          expires_at TIMESTAMP WITH TIME ZONE,
+          metadata JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `)
+      await client.query('CREATE INDEX IF NOT EXISTS idx_ai_user_memories_user_id ON ai_user_memories(user_id);')
+      await client.query('CREATE INDEX IF NOT EXISTS idx_ai_user_memories_user_type ON ai_user_memories(user_id, memory_type);')
+      console.log('[DB] ai_user_memories table ensured')
+
+      // 创建AI用户设置表
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS ai_user_settings (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          user_id TEXT NOT NULL UNIQUE,
+          personality TEXT DEFAULT 'friendly',
+          theme TEXT DEFAULT 'auto',
+          enable_memory BOOLEAN DEFAULT true,
+          enable_typing_effect BOOLEAN DEFAULT true,
+          auto_scroll BOOLEAN DEFAULT true,
+          show_preset_questions BOOLEAN DEFAULT true,
+          shortcut_key TEXT DEFAULT 'ctrl+k',
+          preferred_model TEXT DEFAULT 'qwen',
+          custom_settings JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `)
+      await client.query('CREATE INDEX IF NOT EXISTS idx_ai_user_settings_user_id ON ai_user_settings(user_id);')
+      console.log('[DB] ai_user_settings table ensured')
+
       // 创建社区帖子表（确保表存在，无论 users 表是否存在）
       await client.query(`
         CREATE TABLE IF NOT EXISTS community_posts (
@@ -600,6 +678,14 @@ async function createPostgreSQLTables(pool) {
       
       if (existingUsers.length > 0) {
         console.log('[DB] Tables already exist (managed by Supabase), checking column types...')
+        
+        // 确保 events 表有 final_ranking_published 列
+        try {
+          await client.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS final_ranking_published BOOLEAN DEFAULT FALSE`)
+          console.log('[DB] Added final_ranking_published column to events table (Supabase)')
+        } catch (e) {
+          console.log('[DB] final_ranking_published column may already exist:', e.message)
+        }
         
         // 检查 posts 表的列
         const { rows: postsColumns } = await client.query(`
@@ -807,6 +893,7 @@ async function createPostgreSQLTables(pool) {
             max_participants INTEGER,
             participant_count INTEGER DEFAULT 0,
             visibility VARCHAR(20) DEFAULT 'public',
+            final_ranking_published BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
           );
@@ -815,6 +902,14 @@ async function createPostgreSQLTables(pool) {
         await client.query('CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);')
         await client.query('CREATE INDEX IF NOT EXISTS idx_events_category ON events(category);')
         console.log('[DB] events table ensured')
+
+        // 添加 final_ranking_published 字段（如果不存在）
+        try {
+          await client.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS final_ranking_published BOOLEAN DEFAULT FALSE`)
+          console.log('[DB] Added final_ranking_published column to events table')
+        } catch (e) {
+          console.log('[DB] final_ranking_published column may already exist:', e.message)
+        }
 
         // 添加活动时间相关字段（如果不存在）
         await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS registration_deadline BIGINT;`)
@@ -1072,6 +1167,64 @@ async function createPostgreSQLTables(pool) {
       `)
       await client.query('CREATE INDEX IF NOT EXISTS idx_event_participants_event_id ON event_participants(event_id);')
       await client.query('CREATE INDEX IF NOT EXISTS idx_event_participants_user_id ON event_participants(user_id);')
+
+      // 创建 get_final_ranking 函数（用于获取活动最终排名）
+      try {
+        await client.query(`
+          CREATE OR REPLACE FUNCTION get_final_ranking(p_event_id TEXT)
+          RETURNS TABLE (
+            submission_id TEXT,
+            rank INTEGER,
+            title TEXT,
+            creator_id TEXT,
+            creator_name TEXT,
+            creator_avatar TEXT,
+            avg_score NUMERIC,
+            score_count BIGINT,
+            judge_count BIGINT,
+            submitted_at TIMESTAMP WITH TIME ZONE
+          ) AS $$
+          BEGIN
+            RETURN QUERY
+            WITH ranked_submissions AS (
+              SELECT 
+                es.id as submission_id,
+                es.title,
+                es.user_id as creator_id,
+                COALESCE(u.username, '匿名用户') as creator_name,
+                u.avatar_url as creator_avatar,
+                COALESCE(AVG(sr.score), 0) as avg_score,
+                COUNT(sr.id) as score_count,
+                COUNT(DISTINCT sr.judge_id) as judge_count,
+                es.submitted_at,
+                ROW_NUMBER() OVER (ORDER BY COALESCE(AVG(sr.score), 0) DESC, es.submitted_at ASC) as rank_num
+              FROM event_submissions es
+              LEFT JOIN users u ON es.user_id = u.id
+              LEFT JOIN submission_reviews sr ON es.id = sr.submission_id AND sr.status = 'approved'
+              WHERE es.event_id = p_event_id
+                AND es.status IN ('submitted', 'under_review', 'reviewed')
+              GROUP BY es.id, es.title, es.user_id, u.username, u.avatar_url, es.submitted_at
+            )
+            SELECT 
+              rs.submission_id,
+              rs.rank_num::INTEGER as rank,
+              rs.title,
+              rs.creator_id,
+              rs.creator_name,
+              rs.creator_avatar,
+              rs.avg_score::NUMERIC,
+              rs.score_count,
+              rs.judge_count,
+              rs.submitted_at
+            FROM ranked_submissions rs
+            ORDER BY rs.rank_num ASC;
+          END;
+          $$ LANGUAGE plpgsql;
+        `)
+        console.log('[DB] get_final_ranking function created')
+      } catch (e) {
+        console.log('[DB] Failed to create get_final_ranking function:', e.message)
+      }
 
       // 创建分类表
       await client.query(`
@@ -6289,6 +6442,30 @@ export const eventDB = {
         console.log('[DB] getEvent query result:', { id, rowCount: rows.length })
         if (rows.length === 0) return null
         const pgRow = rows[0]
+        
+        // 从 event_participants 表查询实际参与人数，如果没有则从 event_submissions 统计
+        let participantCount = 0
+        try {
+          const { rows: countRows } = await db.query(
+            'SELECT COUNT(*) as count FROM event_participants WHERE event_id = $1',
+            [id]
+          )
+          participantCount = parseInt(countRows[0]?.count || 0)
+          
+          // 如果 event_participants 表没有数据，尝试从 event_submissions 统计
+          if (participantCount === 0) {
+            const { rows: submissionRows } = await db.query(
+              'SELECT COUNT(DISTINCT user_id) as count FROM event_submissions WHERE event_id = $1',
+              [id]
+            )
+            participantCount = parseInt(submissionRows[0]?.count || 0)
+          }
+        } catch (e) {
+          console.log('[DB] Failed to get participant count:', e.message)
+          // 如果查询失败，使用 participant_count 字段作为回退
+          participantCount = pgRow.participant_count || 0
+        }
+        
         return {
           ...pgRow,
           startTime: pgRow.start_date * 1000,
@@ -6298,7 +6475,8 @@ export const eventDB = {
           created_at: pgRow.created_at,
           updated_at: pgRow.updated_at,
           tags: pgRow.tags && typeof pgRow.tags === 'string' && pgRow.tags.trim() ? JSON.parse(pgRow.tags) : [],
-          media: pgRow.image_url ? [{ url: pgRow.image_url, type: 'image' }] : []
+          media: pgRow.image_url ? [{ url: pgRow.image_url, type: 'image' }] : [],
+          participants: participantCount
         }
         
       case DB_TYPE.MEMORY:
@@ -6537,8 +6715,43 @@ export const eventDB = {
             const allRows = await db.query('SELECT id, organizer_id, brand_id, title FROM events ORDER BY created_at DESC LIMIT 5');
             console.log('[DB] Sample events:', allRows.rows);
           }
+          
+          // 获取所有活动的参与人数（从 event_participants 和 event_submissions 统计）
+          const eventIds = rows.map(r => r.id)
+          let participantCounts = {}
+          let submissionCounts = {}
+          if (eventIds.length > 0) {
+            try {
+              // 从 event_participants 统计
+              const { rows: countRows } = await db.query(
+                `SELECT event_id, COUNT(*) as count FROM event_participants 
+                 WHERE event_id = ANY($1) GROUP BY event_id`,
+                [eventIds]
+              )
+              participantCounts = countRows.reduce((acc, row) => {
+                acc[row.event_id] = parseInt(row.count)
+                return acc
+              }, {})
+              
+              // 从 event_submissions 统计（作为补充）
+              const { rows: submissionRows } = await db.query(
+                `SELECT event_id, COUNT(DISTINCT user_id) as count FROM event_submissions 
+                 WHERE event_id = ANY($1) GROUP BY event_id`,
+                [eventIds]
+              )
+              submissionCounts = submissionRows.reduce((acc, row) => {
+                acc[row.event_id] = parseInt(row.count)
+                return acc
+              }, {})
+            } catch (e) {
+              console.log('[DB] Failed to get participant counts:', e.message)
+            }
+          }
+          
           return rows.map(pgRow => {
             console.log('[DB] getEvents row:', { id: pgRow.id, image_url: pgRow.image_url, thumbnail_url: pgRow.thumbnail_url });
+            // 优先使用 event_participants 数据，如果没有则使用 event_submissions
+            const participantCount = participantCounts[pgRow.id] || submissionCounts[pgRow.id] || pgRow.participant_count || 0
             return {
               ...pgRow,
               startTime: pgRow.start_date * 1000,
@@ -6550,7 +6763,8 @@ export const eventDB = {
               created_at: pgRow.created_at,
               updated_at: pgRow.updated_at,
               tags: pgRow.tags && typeof pgRow.tags === 'string' && pgRow.tags.trim() ? JSON.parse(pgRow.tags) : [],
-              media: pgRow.image_url ? [{ url: pgRow.image_url, type: 'image' }] : []
+              media: pgRow.image_url ? [{ url: pgRow.image_url, type: 'image' }] : [],
+              participants: participantCount
             };
           })
         } catch (e) { 
@@ -6569,6 +6783,39 @@ export const eventDB = {
               console.log('[DB] Executing fallback SQL:', pgSql, 'with params:', pgParams)
               const { rows } = await db.query(pgSql, pgParams)
               console.log('[DB] getEvents fallback query returned:', rows.length, 'rows')
+              
+              // 获取所有活动的参与人数（从 event_participants 和 event_submissions 统计）
+              const eventIds = rows.map(r => r.id)
+              let participantCounts = {}
+              let submissionCounts = {}
+              if (eventIds.length > 0) {
+                try {
+                  // 从 event_participants 统计
+                  const { rows: countRows } = await db.query(
+                    `SELECT event_id, COUNT(*) as count FROM event_participants 
+                     WHERE event_id = ANY($1) GROUP BY event_id`,
+                    [eventIds]
+                  )
+                  participantCounts = countRows.reduce((acc, row) => {
+                    acc[row.event_id] = parseInt(row.count)
+                    return acc
+                  }, {})
+                  
+                  // 从 event_submissions 统计（作为补充）
+                  const { rows: submissionRows } = await db.query(
+                    `SELECT event_id, COUNT(DISTINCT user_id) as count FROM event_submissions 
+                     WHERE event_id = ANY($1) GROUP BY event_id`,
+                    [eventIds]
+                  )
+                  submissionCounts = submissionRows.reduce((acc, row) => {
+                    acc[row.event_id] = parseInt(row.count)
+                    return acc
+                  }, {})
+                } catch (e) {
+                  console.log('[DB] Failed to get participant counts:', e.message)
+                }
+              }
+              
               return rows.map(pgRow => ({
                 ...pgRow,
                 startTime: pgRow.start_date * 1000,
@@ -6580,7 +6827,8 @@ export const eventDB = {
                 created_at: pgRow.created_at,
                 updated_at: pgRow.updated_at,
                 tags: pgRow.tags && typeof pgRow.tags === 'string' && pgRow.tags.trim() ? JSON.parse(pgRow.tags) : [],
-                media: pgRow.image_url ? [{ url: pgRow.image_url, type: 'image' }] : []
+                media: pgRow.image_url ? [{ url: pgRow.image_url, type: 'image' }] : [],
+                participants: participantCounts[pgRow.id] || submissionCounts[pgRow.id] || pgRow.participant_count || 0
               }))
             } catch (fallbackError) {
               console.error('[DB] getEvents fallback query error:', fallbackError)

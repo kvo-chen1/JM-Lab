@@ -1108,7 +1108,7 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
       </aside>
       {/* 中文注释：恢复点击自动收起功能，但优化实现方式避免跳动 */}
       <div 
-        className={`flex-1 min-w-0 flex flex-col relative z-10 ${location.pathname.startsWith('/create/agent') ? 'overflow-hidden' : 'overflow-y-auto md:pb-0 pb-16'}`}
+        className={`flex-1 min-w-0 flex flex-col relative z-10 ${location.pathname.startsWith('/agent') ? 'overflow-hidden' : 'overflow-y-auto md:pb-0 pb-16'}`}
         onClick={(e) => {
           // 确保点击的不是内部的可交互元素
           const target = e.target as HTMLElement;

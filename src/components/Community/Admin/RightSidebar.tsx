@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { 
   Users, 
   TrendingUp, 
@@ -81,7 +80,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full"
+      style={{
+        textRendering: 'optimizeLegibility',
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale'
+      }}
+    >
       {/* 社群信息卡片 */}
       <div className={`p-6 ${isDark ? 'border-b border-slate-700/50' : 'border-b border-gray-200'}`}>
         <div className={`
@@ -126,14 +132,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           快捷操作
         </h4>
         <div className="space-y-2">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <button
             onClick={onAddMember}
             className={`
               w-full flex items-center gap-3 px-4 py-3 rounded-xl
               font-medium text-sm
               transition-all duration-200
+              hover:scale-[1.02] active:scale-[0.98]
               ${isDark 
                 ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30' 
                 : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
@@ -142,16 +147,15 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           >
             <Plus size={18} />
             <span>添加成员</span>
-          </motion.button>
+          </button>
           
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <button
             onClick={onGenerateInvite}
             className={`
               w-full flex items-center gap-3 px-4 py-3 rounded-xl
               font-medium text-sm
               transition-all duration-200
+              hover:scale-[1.02] active:scale-[0.98]
               ${isDark 
                 ? 'bg-slate-700/50 text-slate-300 hover:bg-slate-700' 
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -160,7 +164,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           >
             <LinkIcon size={18} />
             <span>生成邀请链接</span>
-          </motion.button>
+          </button>
         </div>
       </div>
 
@@ -178,29 +182,38 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         {onlineMembers.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {onlineMembers.slice(0, 8).map((member) => (
-              <div 
+              <div
                 key={member.id}
                 className="relative group"
                 title={`${member.name} (${member.role === 'admin' ? '管理员' : member.role === 'editor' ? '编辑' : '成员'})`}
               >
                 <div className={`
                   w-10 h-10 rounded-full flex items-center justify-center
-                  text-sm font-medium
+                  text-sm font-medium overflow-hidden relative
                   ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-gray-200 text-gray-700'}
                 `}>
                   {member.avatar ? (
-                    <img src={member.avatar} alt="" className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    member.name.charAt(0).toUpperCase()
-                  )}
+                    <img
+                      src={member.avatar}
+                      alt={member.name}
+                      className="w-full h-full rounded-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : null}
+                  <span className="flex items-center justify-center w-full h-full absolute inset-0">
+                    {member.name.charAt(0).toUpperCase()}
+                  </span>
                 </div>
                 {/* 角色指示点 */}
                 <div className={`
                   absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2
-                  ${isDark ? 'border-slate-800' : 'border-white'}
+                  ${isDark ? 'border-[#1e293b]' : 'border-white'}
                   ${getRoleColor(member.role)}
+                  shadow-sm
                 `} />
-                
+
                 {/* 悬浮提示 */}
                 <div className={`
                   absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded-lg text-xs
@@ -242,12 +255,9 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         
         {activities.length > 0 ? (
           <div className="space-y-4">
-            {activities.map((activity, index) => (
-              <motion.div
+            {activities.map((activity) => (
+              <div
                 key={activity.id}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
                 className="flex gap-3"
               >
                 <div className={`
@@ -265,7 +275,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     {activity.time}
                   </p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         ) : (

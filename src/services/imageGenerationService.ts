@@ -49,6 +49,15 @@ export async function generateImage(
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       
+      // 检查是否是内容审核错误
+      if (errorData.code === 'inappropriate-content' || errorData.error === 'Content moderation failed') {
+        const moderationError = new Error(errorData.message || '内容审核未通过');
+        (moderationError as any).type = 'CONTENT_MODERATION_ERROR';
+        (moderationError as any).code = 'inappropriate-content';
+        (moderationError as any).suggestion = errorData.suggestion || '请尝试换种描述方式，避免使用敏感词汇';
+        throw moderationError;
+      }
+      
       // 如果是 429 (Too Many Requests) 或 403 (Forbidden)，等待后重试
       if ((response.status === 429 || response.status === 403) && retryCount < maxRetries) {
         const waitTime = Math.pow(2, retryCount) * 2000; // 指数退避: 2s, 4s, 8s

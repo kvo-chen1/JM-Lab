@@ -56,6 +56,7 @@ import ComponentShowcase from "@/pages/ComponentShowcase";
 import IPCharacterShowcase from "@/pages/IPCharacterShowcase";
 import IPDesignShowcase from "@/pages/IPDesignShowcase";
 import IPPosterGenerator from "@/pages/IPPosterGenerator";
+import IPPosterComposerPage from "@/pages/IPPosterComposerPage";
 import ThemeTestPage from "@/pages/ThemeTestPage";
 import HamsterLoaderDemo from "@/pages/HamsterLoaderDemo";
 
@@ -114,6 +115,10 @@ const Create = createLazyComponent(() => import(/* webpackChunkName: "pages-crea
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'create'
 });
+const SkillAgentChatPage = createLazyComponent(() => import(/* webpackChunkName: "pages-skill" */ "@/pages/skill/chat"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'skill-agent-chat'
+});
 const Studio = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/Studio"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'studio'
@@ -125,6 +130,12 @@ const AIWriter = createLazyComponent(() => import(/* webpackChunkName: "pages-cr
 const AIWriterV2 = createLazyComponent(() => import(/* webpackChunkName: "pages-create" */ "@/pages/create/AIWriterV2"), {
   priority: ROUTE_PRIORITIES.HIGH,
   name: 'ai-writer-v2'
+});
+
+// Agent 页面 - 独立于 create 目录
+const AgentPage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent" */ "@/pages/agent"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'agent'
 });
 
 // 其他次要页面保持懒加载
@@ -835,6 +846,10 @@ const CommunityAdminPanel = createLazyComponent(() => import(/* webpackChunkName
   priority: ROUTE_PRIORITIES.MEDIUM
 });
 
+// 导入 supabase
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { toast } from 'sonner';
+
 // 社群管理面板包装组件 - 提供必要的props
 const CommunityAdminPanelWrapper: React.FC = () => {
   const { isDark } = useTheme();
@@ -846,10 +861,212 @@ const CommunityAdminPanelWrapper: React.FC = () => {
   const [rejectedContent, setRejectedContent] = useState<any[]>([]);
   const [moderationRules, setModerationRules] = useState<any[]>([]);
   const [announcement, setAnnouncement] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
-  
+
   const isAdmin = user?.isAdmin || false;
-  
+
+  // 获取社群数据
+  useEffect(() => {
+    const fetchCommunityData = async () => {
+      if (!id) return;
+
+      setIsLoading(true);
+      try {
+        // 获取社群信息
+        const { data: communityData, error: communityError } = await supabase
+          .from('communities')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (communityError) {
+          console.error('Failed to fetch community:', communityError);
+          toast.error('获取社群信息失败');
+        } else if (communityData) {
+          setCommunity({
+            id: communityData.id,
+            name: communityData.name,
+            description: communityData.description || '',
+            cover: communityData.cover_url,
+            tags: communityData.tags || [],
+            members: communityData.member_count || 0,
+            bookmarks: communityData.bookmarks || []
+          });
+        }
+
+        // 获取社群成员
+        const { data: membersData, error: membersError } = await supabase
+          .from('community_members')
+          .select('user_id, role, joined_at')
+          .eq('community_id', id);
+
+        if (membersError) {
+          console.error('Failed to fetch members:', membersError);
+        } else if (membersData && membersData.length > 0) {
+          const userIds = membersData.map(m => m.user_id).filter(Boolean);
+
+          if (userIds.length > 0) {
+            const { data: usersData, error: usersError } = await supabaseAdmin
+              .from('users')
+              .select('id, username, email, avatar_url')
+              .in('id', userIds);
+
+            if (usersError) {
+              console.error('Failed to fetch users:', usersError);
+            } else {
+              const userMap = new Map(usersData?.map(u => [u.id, u]) || []);
+
+              const formattedMembers = membersData.map(m => {
+                const user = userMap.get(m.user_id);
+                return {
+                  id: m.user_id,
+                  email: user?.email || '',
+                  name: user?.username || '未知用户',
+                  role: m.role || 'member',
+                  joinedAt: new Date(m.joined_at),
+                  avatar: user?.avatar_url
+                };
+              });
+
+              setMembers(formattedMembers);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching community data:', error);
+        toast.error('加载社群数据失败');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCommunityData();
+  }, [id]);
+
+  // 添加成员
+  const handleAddMember = async (email: string, role: string) => {
+    try {
+      // 1. 根据邮箱查找用户
+      const { data: users, error: userError } = await supabase
+        .from('users')
+        .select('id, username, email, avatar_url')
+        .eq('email', email)
+        .limit(1);
+
+      if (userError || !users || users.length === 0) {
+        toast.error('未找到该邮箱对应的用户');
+        return;
+      }
+
+      const user = users[0];
+
+      // 2. 检查是否已经是成员
+      const { data: existingMember } = await supabase
+        .from('community_members')
+        .select('*')
+        .eq('community_id', id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingMember) {
+        toast.error('该用户已经是社群成员');
+        return;
+      }
+
+      // 3. 添加到数据库
+      const { error: insertError } = await supabase
+        .from('community_members')
+        .insert({
+          community_id: id,
+          user_id: user.id,
+          role: role,
+          joined_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error('Failed to add member:', insertError);
+        toast.error('添加成员失败');
+        return;
+      }
+
+      // 4. 更新本地状态
+      const newMember = {
+        id: user.id,
+        email: user.email || '',
+        name: user.username || '未知用户',
+        role: role,
+        joinedAt: new Date(),
+        avatar: user.avatar_url
+      };
+      setMembers(prev => [...prev, newMember]);
+      toast.success('成员已添加');
+
+    } catch (error) {
+      console.error('Error adding member:', error);
+      toast.error('添加成员失败');
+    }
+  };
+
+  // 移除成员
+  const handleRemoveMember = async (memberId: string) => {
+    try {
+      const { error } = await supabase
+        .from('community_members')
+        .delete()
+        .eq('community_id', id)
+        .eq('user_id', memberId);
+
+      if (error) {
+        console.error('Failed to remove member:', error);
+        toast.error('移除成员失败');
+        return;
+      }
+
+      setMembers(prev => prev.filter(m => m.id !== memberId));
+      toast.success('成员已移除');
+    } catch (error) {
+      console.error('Error removing member:', error);
+      toast.error('移除成员失败');
+    }
+  };
+
+  // 更新成员角色
+  const handleUpdateMemberRole = async (memberId: string, role: string) => {
+    try {
+      const { error } = await supabase
+        .from('community_members')
+        .update({ role })
+        .eq('community_id', id)
+        .eq('user_id', memberId);
+
+      if (error) {
+        console.error('Failed to update member role:', error);
+        toast.error('更新角色失败');
+        return;
+      }
+
+      setMembers(prev => prev.map(m =>
+        m.id === memberId ? { ...m, role } : m
+      ));
+      toast.success('角色已更新');
+    } catch (error) {
+      console.error('Error updating member role:', error);
+      toast.error('更新角色失败');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-slate-900' : 'bg-gray-50'}`}>
+        <div className="text-center">
+          <div className={`w-12 h-12 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4 ${isDark ? 'border-blue-500' : 'border-blue-600'}`} />
+          <p className={isDark ? 'text-slate-400' : 'text-gray-600'}>加载中...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <CommunityAdminPanel
       isDark={isDark}
@@ -862,9 +1079,9 @@ const CommunityAdminPanelWrapper: React.FC = () => {
       moderationRules={moderationRules}
       announcement={announcement}
       isAdmin={isAdmin}
-      onAddMember={(email, role) => console.log('Add member:', email, role)}
-      onRemoveMember={(memberId) => console.log('Remove member:', memberId)}
-      onUpdateMemberRole={(memberId, role) => console.log('Update role:', memberId, role)}
+      onAddMember={handleAddMember}
+      onRemoveMember={handleRemoveMember}
+      onUpdateMemberRole={handleUpdateMemberRole}
       onUpdateAnnouncement={(content) => setAnnouncement(content)}
       onUpdateCommunity={(community) => setCommunity({ ...community })}
       onApproveContent={(contentId) => console.log('Approve:', contentId)}
@@ -1222,6 +1439,9 @@ export default function App() {
           <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
           {/* 设计平台路由 - 使用 DesignPlatformGuard 进行严格保护 */}
           <Route path="/create/*" element={<LazyComponent><DesignPlatformGuard><Create /></DesignPlatformGuard></LazyComponent>} />
+          {/* Agent 路由 - 独立于 create */}
+          <Route path="/agent/*" element={<LazyComponent><DesignPlatformGuard><AgentPage /></DesignPlatformGuard></LazyComponent>} />
+          <Route path="/skill/chat" element={<LazyComponent><SkillAgentChatPage /></LazyComponent>} />
           <Route path="/create-activity" element={<Navigate to="/organizer" replace />} />
           <Route path="/creates" element={<Navigate to="/create" replace />} />
           <Route path="/wizard" element={<LazyComponent><DesignPlatformGuard><Wizard /></DesignPlatformGuard></LazyComponent>} />
@@ -1276,6 +1496,7 @@ export default function App() {
           <Route path="/ip-design" element={<IPDesignShowcase />} />
           <Route path="/ip-design/:id" element={<IPDesignShowcase />} />
           <Route path="/ip-poster-generator" element={<IPPosterGenerator />} />
+          <Route path="/ip-poster-composer" element={<IPPosterComposerPage />} />
           <Route path="/hamster-loader-demo" element={<HamsterLoaderDemo />} />
           <Route path="/trending-card-demo" element={<LazyComponent><TrendingCardDemo /></LazyComponent>} />
           <Route path="/image-paste-input-demo" element={<LazyComponent><ImagePasteInputDemo /></LazyComponent>} />
@@ -1287,12 +1508,14 @@ export default function App() {
           <Route path="/inspiration-mindmap" element={<LazyComponent><PrivateRoute><InspirationMindMapPage /></PrivateRoute></LazyComponent>} />
 
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
+          <Route path="/events/:id" element={<LazyComponent><ActivityDetail /></LazyComponent>} />
           <Route path="/events/:id/works" element={<LazyComponent>{isMobile ? <MobileEventWorks /> : <EventWorks />}</LazyComponent>} />
           <Route path="/events/:id/submit" element={<LazyComponent><PrivateRoute>{isMobile ? <MobileSubmitWork /> : <SubmitWork />}</PrivateRoute></LazyComponent>} />
           <Route path="/events/:eventId/works/:workId" element={<LazyComponent>{isMobile ? <MobileWorkDetail /> : <WorkDetail />}</LazyComponent>} />
           <Route path="/cultural-events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           
           {/* 活动管理相关路由 */}
+          <Route path="/activities" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
           <Route path="/activities/:id" element={<LazyComponent><PrivateRoute><ActivityDetail /></PrivateRoute></LazyComponent>} />
           <Route path="/edit-activity/:id" element={<LazyComponent><PrivateRoute><EditActivity /></PrivateRoute></LazyComponent>} />
           <Route path="/my-activities" element={<LazyComponent><PrivateRoute><MyActivities /></PrivateRoute></LazyComponent>} />

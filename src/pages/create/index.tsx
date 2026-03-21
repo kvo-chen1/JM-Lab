@@ -8,7 +8,6 @@ import AIWriterHistoryPage from './AIWriterHistoryPage';
 import Wizard from '../Wizard';
 import PlanLibrary from './components/PlanLibrary';
 import IPIncubationSubmit from './IPIncubationSubmit';
-import AgentPage from './agent';
 
 function Create() {
   return (
@@ -16,8 +15,9 @@ function Create() {
       {/* 独立路由 - 全屏显示，不包含 CreateLayout */}
       <Route path="ai-writer-editor" element={<AIWriterEditor />} />
       <Route path="ip-submit" element={<IPIncubationSubmit />} />
-      <Route path="agent" element={<AgentPage />} />
-      <Route path="inspiration" element={<AgentPage />} />
+      {/* agent 和 inspiration 路由已移至独立 /agent 路径 */}
+      <Route path="agent" element={<Navigate to="/agent" replace />} />
+      <Route path="inspiration" element={<Navigate to="/agent" replace />} />
 
       {/* 包含 CreateLayout 的路由 */}
       <Route element={<CreateLayout />}>

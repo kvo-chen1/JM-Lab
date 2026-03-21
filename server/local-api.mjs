@@ -10861,6 +10861,339 @@ async function route(req, res, u, path) {
     return names[metricType] || metricType
   }
 
+  // ==================== AI 对话 API ====================
+
+  // 获取用户的对话列表
+  if (req.method === 'GET' && path === '/api/ai/conversations') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const limit = parseInt(u.searchParams.get('limit') || '20')
+      const offset = parseInt(u.searchParams.get('offset') || '0')
+
+      const { data: conversations, error } = await supabaseServer
+        .from('ai_conversations')
+        .select('*')
+        .eq('user_id', decoded.userId)
+        .order('updated_at', { ascending: false })
+        .limit(limit)
+        .range(offset, offset + limit - 1)
+
+      if (error) {
+        console.error('[API] 获取对话列表失败:', error)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取对话列表失败' })
+        return
+      }
+
+      // 为每个对话添加 message_count 默认值
+      const processedData = (conversations || []).map(conv => ({
+        ...conv,
+        message_count: conv.message_count ?? 0
+      }))
+
+      sendJson(res, 200, {
+        code: 0,
+        data: processedData,
+        message: '获取对话列表成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取对话列表异常:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取对话列表失败' })
+    }
+    return
+  }
+
+  // 创建新对话
+  if (req.method === 'POST' && path === '/api/ai/conversations') {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const body = await readBody(req)
+      const { title, model_id, is_active } = body
+
+      // 先将其他对话设为非活跃
+      await supabaseServer
+        .from('ai_conversations')
+        .update({ is_active: false })
+        .eq('user_id', decoded.userId)
+
+      // 创建新对话
+      const { data: conversation, error } = await supabaseServer
+        .from('ai_conversations')
+        .insert({
+          user_id: decoded.userId,
+          title: title || '新对话',
+          model_id: model_id || 'qwen',
+          is_active: is_active !== false
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[API] 创建对话失败:', error)
+        sendJson(res, 500, { error: 'CREATE_FAILED', message: '创建对话失败' })
+        return
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: conversation,
+        message: '创建对话成功'
+      })
+    } catch (error) {
+      console.error('[API] 创建对话异常:', error)
+      sendJson(res, 500, { error: 'CREATE_FAILED', message: '创建对话失败' })
+    }
+    return
+  }
+
+  // 获取单个对话详情
+  if (req.method === 'GET' && path.match(/^\/api\/ai\/conversations\/[^/]+$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const conversationId = path.split('/').pop()
+
+      const { data: conversation, error } = await supabaseServer
+        .from('ai_conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .eq('user_id', decoded.userId)
+        .single()
+
+      if (error) {
+        console.error('[API] 获取对话详情失败:', error)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取对话详情失败' })
+        return
+      }
+
+      if (!conversation) {
+        sendJson(res, 404, { error: 'NOT_FOUND', message: '对话不存在' })
+        return
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: conversation,
+        message: '获取对话详情成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取对话详情异常:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取对话详情失败' })
+    }
+    return
+  }
+
+  // 更新对话
+  if (req.method === 'PUT' && path.match(/^\/api\/ai\/conversations\/[^/]+$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const conversationId = path.split('/').pop()
+      const body = await readBody(req)
+      const { title, is_active } = body
+
+      const updates = {}
+      if (title !== undefined) updates.title = title
+      if (is_active !== undefined) updates.is_active = is_active
+      updates.updated_at = new Date().toISOString()
+
+      const { data: conversation, error } = await supabaseServer
+        .from('ai_conversations')
+        .update(updates)
+        .eq('id', conversationId)
+        .eq('user_id', decoded.userId)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[API] 更新对话失败:', error)
+        sendJson(res, 500, { error: 'UPDATE_FAILED', message: '更新对话失败' })
+        return
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: conversation,
+        message: '更新对话成功'
+      })
+    } catch (error) {
+      console.error('[API] 更新对话异常:', error)
+      sendJson(res, 500, { error: 'UPDATE_FAILED', message: '更新对话失败' })
+    }
+    return
+  }
+
+  // 删除对话
+  if (req.method === 'DELETE' && path.match(/^\/api\/ai\/conversations\/[^/]+$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const conversationId = path.split('/').pop()
+
+      // 先删除对话相关的消息
+      await supabaseServer
+        .from('ai_messages')
+        .delete()
+        .eq('conversation_id', conversationId)
+
+      // 删除对话
+      const { error } = await supabaseServer
+        .from('ai_conversations')
+        .delete()
+        .eq('id', conversationId)
+        .eq('user_id', decoded.userId)
+
+      if (error) {
+        console.error('[API] 删除对话失败:', error)
+        sendJson(res, 500, { error: 'DELETE_FAILED', message: '删除对话失败' })
+        return
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        message: '删除对话成功'
+      })
+    } catch (error) {
+      console.error('[API] 删除对话异常:', error)
+      sendJson(res, 500, { error: 'DELETE_FAILED', message: '删除对话失败' })
+    }
+    return
+  }
+
+  // 获取对话的消息列表
+  if (req.method === 'GET' && path.match(/^\/api\/ai\/conversations\/[^/]+\/messages$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const conversationId = path.split('/')[3]
+      const limit = parseInt(u.searchParams.get('limit') || '50')
+      const offset = parseInt(u.searchParams.get('offset') || '0')
+
+      // 验证对话所有权
+      const { data: conversation, error: convError } = await supabaseServer
+        .from('ai_conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .eq('user_id', decoded.userId)
+        .single()
+
+      if (convError || !conversation) {
+        sendJson(res, 404, { error: 'NOT_FOUND', message: '对话不存在或无权限访问' })
+        return
+      }
+
+      const { data: messages, error } = await supabaseServer
+        .from('ai_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+        .limit(limit)
+        .range(offset, offset + limit - 1)
+
+      if (error) {
+        console.error('[API] 获取消息列表失败:', error)
+        sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取消息列表失败' })
+        return
+      }
+
+      sendJson(res, 200, {
+        code: 0,
+        data: messages || [],
+        message: '获取消息列表成功'
+      })
+    } catch (error) {
+      console.error('[API] 获取消息列表异常:', error)
+      sendJson(res, 500, { error: 'FETCH_FAILED', message: '获取消息列表失败' })
+    }
+    return
+  }
+
+  // 添加消息到对话
+  if (req.method === 'POST' && path.match(/^\/api\/ai\/conversations\/[^/]+\/messages$/)) {
+    const decoded = verifyRequestToken(req)
+    if (!decoded) {
+      sendJson(res, 401, { error: 'UNAUTHORIZED', message: '未授权访问' })
+      return
+    }
+
+    try {
+      const conversationId = path.split('/')[3]
+      const body = await readBody(req)
+      const { role, content, metadata } = body
+
+      // 验证对话所有权
+      const { data: conversation, error: convError } = await supabaseServer
+        .from('ai_conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .eq('user_id', decoded.userId)
+        .single()
+
+      if (convError || !conversation) {
+        sendJson(res, 404, { error: 'NOT_FOUND', message: '对话不存在或无权限访问' })
+        return
+      }
+
+      const { data: message, error } = await supabaseServer
+        .from('ai_messages')
+        .insert({
+          conversation_id: conversationId,
+          role: role || 'user',
+          content: content || '',
+          metadata: metadata || {}
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[API] 添加消息失败:', error)
+        sendJson(res, 500, { error: 'CREATE_FAILED', message: '添加消息失败' })
+        return
+      }
+
+      // 更新对话的 updated_at
+      await supabaseServer
+        .from('ai_conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversationId)
+
+      sendJson(res, 200, {
+        code: 0,
+        data: message,
+        message: '添加消息成功'
+      })
+    } catch (error) {
+      console.error('[API] 添加消息异常:', error)
+      sendJson(res, 500, { error: 'CREATE_FAILED', message: '添加消息失败' })
+    }
+    return
+  }
+
   sendJson(res, 404, { error: 'NOT_FOUND', message: '接口不存在' })
 }
 

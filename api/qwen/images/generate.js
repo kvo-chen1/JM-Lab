@@ -154,9 +154,31 @@ export default async function handler(req, res) {
       }
 
       if (status === 'FAILED') {
+        const errorMessage = taskData.output?.message || '图像生成失败';
+        const errorCode = taskData.output?.code || '';
+        
+        // 检查是否是内容审核错误
+        const isContentModerationError = 
+          errorCode === 'inappropriate-content' ||
+          errorMessage.includes('inappropriate content') ||
+          errorMessage.includes('不适当内容') ||
+          errorMessage.includes('内容审核') ||
+          errorMessage.includes('敏感内容');
+        
+        if (isContentModerationError) {
+          return res.status(400).json({
+            error: 'Content moderation failed',
+            code: 'inappropriate-content',
+            message: '抱歉，您的描述可能包含敏感词汇或受限内容，无法生成图像。',
+            suggestion: '请尝试换种描述方式，比如：\n1. 避免使用具体品牌名称\n2. 使用更通用的描述词汇\n3. 调整描述的角度或侧重点',
+            details: errorMessage
+          });
+        }
+        
         return res.status(500).json({
           error: 'Task failed',
-          message: taskData.output?.message || '图像生成失败'
+          code: errorCode,
+          message: errorMessage
         });
       }
     }

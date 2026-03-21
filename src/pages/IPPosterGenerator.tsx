@@ -41,6 +41,7 @@ import {
   type IPPosterHistoryItem,
 } from '@/services/ipPosterHistoryService';
 
+
 // 生成步骤
 const generationSteps = [
   { id: 'mainVisual', label: '主视觉海报', icon: Image },
@@ -120,6 +121,8 @@ export default function IPPosterGenerator() {
   const [history, setHistory] = useState<IPPosterHistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [historySearchQuery, setHistorySearchQuery] = useState('');
+
+
 
   // 加载历史记录
   useEffect(() => {
@@ -731,6 +734,38 @@ export default function IPPosterGenerator() {
                 );
               })}
             </AnimatePresence>
+
+            {/* 拼接海报按钮 */}
+            {Object.keys(generatedImages).length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl p-6 shadow-xl text-white"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold mb-1">拼接完整海报</h3>
+                    <p className="text-white/80 text-sm">
+                      将生成的 {Object.keys(generatedImages).length} 张图片拼接成一张专业展示海报
+                    </p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => navigate('/ip-poster-composer', {
+                      state: {
+                        images: generatedImages,
+                        defaultTitle: formData.characterName,
+                        defaultSubtitle: formData.characterDescription,
+                      }
+                    })}
+                    className="px-6 py-3 bg-white text-purple-600 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                  >
+                    开始拼接
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
       </div>

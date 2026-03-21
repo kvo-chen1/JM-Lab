@@ -30,7 +30,8 @@ export interface NavGroup {
 // 1. 🏠 平台首页 (Platform Home)
 export const homeNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home', priority: 'high' },
-  { id: 'agent', path: '/create/agent', label: '津小脉 Agent', icon: 'fas fa-robot', priority: 'high', badge: 'NEW', description: '智能设计助手，AI驱动创意' }
+  { id: 'agent', path: '/agent', label: '津小脉 Agent', icon: 'fas fa-robot', priority: 'high', badge: 'NEW', description: '智能设计助手，AI驱动创意' },
+  { id: 'skill-chat', path: '/skill/chat', label: '津小脉 Skill', icon: 'fas fa-magic', priority: 'high', badge: 'NEW', description: 'Skill技能对话，AI智能调用' }
 ];
 
 // 2. ✨ 创作中心 (Creation Center)
@@ -44,15 +45,16 @@ export const creationNavItems: NavItem[] = [
 // 3. 🎨 发现与探索 (Discover)
 export const discoverNavItems: NavItem[] = [
   { id: 'square', path: '/square', label: '津脉广场', icon: 'fas fa-th-large', priority: 'high' },
-  { id: 'community', path: '/community', label: '津脉社区', icon: 'fas fa-users', priority: 'high' },
-  { id: 'leaderboard', path: '/leaderboard', label: '人气排行', icon: 'fas fa-chart-line', priority: 'medium' }
+  { id: 'community', path: '/community', label: '作品与社区', icon: 'fas fa-users', priority: 'high' },
+  { id: 'leaderboard', path: '/leaderboard', label: '人气榜', icon: 'fas fa-chart-line', priority: 'medium' },
+  { id: 'events', path: '/cultural-events', label: '津脉活动', icon: 'fas fa-calendar-alt', priority: 'medium' }
 ];
 
 // 4. 🏛️ 津门文化 (Tianjin Culture)
 export const cultureNavItems: NavItem[] = [
+  { id: 'tianjin', path: '/tianjin', label: '津脉作品', icon: 'fas fa-landmark', priority: 'high' },
   { id: 'knowledge', path: '/knowledge', label: '文化知识库', icon: 'fas fa-book', priority: 'high' },
-  { id: 'inspiration-mindmap', path: '/inspiration-mindmap', label: '津脉脉络', icon: 'fas fa-project-diagram', priority: 'high', description: '可视化创作思维导图' },
-  { id: 'events', path: '/cultural-events', label: '文化活动', icon: 'fas fa-calendar-alt', priority: 'medium' }
+  { id: 'inspiration-mindmap', path: '/inspiration-mindmap', label: '津脉脉络', icon: 'fas fa-project-diagram', priority: 'high', description: '可视化创作思维导图' }
 ];
 
 // 5. 🎁 福利中心 (Rewards)
@@ -126,7 +128,7 @@ export const navigationGroups: NavGroup[] = [
 /** @deprecated 使用新的 navigationGroups */
 export const coreNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home', priority: 'high' },
-  { id: 'agent', path: '/create/agent', label: '津小脉Agent', icon: 'fas fa-robot', priority: 'high', badge: 'NEW', description: '智能设计助手，AI驱动创意' },
+  { id: 'agent', path: '/agent', label: '津小脉Agent', icon: 'fas fa-robot', priority: 'high', badge: 'NEW', description: '智能设计助手，AI驱动创意' },
   { id: 'create', path: '/create', label: '创作中心', icon: 'fas fa-tools', priority: 'high' },
   { id: 'wizard', path: '/wizard', label: '品牌向导', icon: 'fas fa-hat-wizard', priority: 'high' },
   { id: 'ai-writer', path: '/ai-writer', label: 'AI智作文案', icon: 'fas fa-pen-nib', priority: 'high' },
@@ -184,7 +186,7 @@ export const bottomNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home' },
   { id: 'marketplace', path: '/marketplace', label: '商城', icon: 'fas fa-store' },
   { id: 'square', path: '/square', label: '广场', icon: 'fas fa-th-large' },
-  { id: 'agent', path: '/create/agent', label: 'Agent', icon: 'fas fa-robot', badge: 'NEW' },
+  { id: 'agent', path: '/agent', label: 'Agent', icon: 'fas fa-robot', badge: 'NEW' },
   { id: 'dashboard', path: '/dashboard', label: '我的', icon: 'fas fa-user' }
 ];
 

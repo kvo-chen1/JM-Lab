@@ -68,6 +68,7 @@ interface CommunityMember {
   name: string;
   role: CommunityRole;
   joinedAt: Date;
+  avatar?: string;
 }
 
 interface CommunityAdminPanelProps {
@@ -210,7 +211,8 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
               email: user?.email || '',
               name: user?.username || '未知用户',
               role: isCreator ? 'admin' : ((m.role as CommunityRole) || 'member'),
-              joinedAt: new Date(m.joined_at)
+              joinedAt: new Date(m.joined_at),
+              avatar: user?.avatar_url || undefined
             };
           });
           setMembers(formattedMembers);
@@ -1186,7 +1188,8 @@ const CommunityAdminPanel: React.FC<CommunityAdminPanelProps> = ({
   const onlineMembers = members.slice(0, 5).map(m => ({
     id: m.id,
     name: m.name,
-    role: m.role
+    role: m.role,
+    avatar: m.avatar
   }));
 
   return (

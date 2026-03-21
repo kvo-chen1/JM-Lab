@@ -9,6 +9,9 @@ import type { User } from '@supabase/supabase-js';
 // API 基础 URL
 const API_BASE_URL = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:3030';
 
+// 使用后端 API 还是直接访问 Supabase
+const USE_BACKEND_API = true;
+
 // 记忆类型
 export type MemoryType = 'preference' | 'fact' | 'habit' | 'goal' | 'context';
 
@@ -144,11 +147,35 @@ class AIMemoryService {
   }
 
   /**
-   * 检查是否有有效的 Supabase session
+   * 检查是否有有效的认证
+   * 优先检查自定义 token（后端 API 认证）
    */
   private async hasValidSession(): Promise<boolean> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return !!session;
+    // 首先检查自定义 token（后端 API 认证）
+    const customToken = this.getAuthToken();
+    if (customToken) {
+      return true;
+    }
+    
+    // 如果没有自定义 token，检查 Supabase session
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return !!session;
+    } catch (error) {
+      console.warn('[aiMemoryService.hasValidSession] 检查 Supabase session 失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取认证头
+   */
+  private getAuthHeaders(): Record<string, string> {
+    const token = this.getAuthToken();
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
   }
 
   /**
@@ -162,13 +189,55 @@ class AIMemoryService {
       return null;
     }
 
-    // 检查是否有有效的 Supabase session
+    // 检查是否有有效的认证
     const hasSession = await this.hasValidSession();
     if (!hasSession) {
-      console.warn('[aiMemoryService.createConversation] 没有有效的 Supabase session，跳过创建对话');
+      console.warn('[aiMemoryService.createConversation] 没有有效的认证，跳过创建对话');
       return null;
     }
 
+    // 使用后端 API
+    if (USE_BACKEND_API) {
+      try {
+        const token = this.getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/api/ai/conversations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            title,
+            model_id: modelId,
+            is_active: true
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: '未知错误' }));
+          console.error('[aiMemoryService.createConversation] API 创建对话失败:', errorData);
+          // 如果后端 API 不可用，降级到直接 Supabase 访问
+          console.log('[aiMemoryService.createConversation] 尝试降级到 Supabase 直接访问...');
+          return this.createConversationDirect(userId, title, modelId);
+        }
+
+        const data = await response.json();
+        console.log('[aiMemoryService.createConversation] API 创建成功:', data);
+        this.currentConversation = data;
+        return data;
+      } catch (error) {
+        console.error('[aiMemoryService.createConversation] API 请求异常，尝试降级:', error);
+        return this.createConversationDirect(userId, title, modelId);
+      }
+    }
+
+    return this.createConversationDirect(userId, title, modelId);
+  }
+
+  /**
+   * 直接通过 Supabase 创建对话（降级方案）
+   */
+  private async createConversationDirect(userId: string, title: string, modelId: string): Promise<Conversation | null> {
     try {
       // 先将其他对话设为非活跃
       const { error: updateError } = await supabase
@@ -177,11 +246,11 @@ class AIMemoryService {
         .eq('user_id', userId);
 
       if (updateError) {
-        console.error('[aiMemoryService.createConversation] 更新其他对话失败:', updateError);
+        console.error('[aiMemoryService.createConversationDirect] 更新其他对话失败:', updateError);
       }
 
       // 创建新对话
-      console.log('[aiMemoryService.createConversation] 尝试插入数据:', { user_id: userId, title, model_id: modelId });
+      console.log('[aiMemoryService.createConversationDirect] 尝试插入数据:', { user_id: userId, title, model_id: modelId });
       const { data, error } = await supabase
         .from('ai_conversations')
         .insert({
@@ -194,15 +263,15 @@ class AIMemoryService {
         .single();
 
       if (error) {
-        console.error('[aiMemoryService.createConversation] 创建对话失败:', error);
+        console.error('[aiMemoryService.createConversationDirect] 创建对话失败:', error);
         return null;
       }
 
-      console.log('[aiMemoryService.createConversation] 创建成功:', data);
+      console.log('[aiMemoryService.createConversationDirect] 创建成功:', data);
       this.currentConversation = data;
       return data;
     } catch (error) {
-      console.error('[aiMemoryService.createConversation] 创建对话异常:', error);
+      console.error('[aiMemoryService.createConversationDirect] 创建对话异常:', error);
       return null;
     }
   }
@@ -219,15 +288,56 @@ class AIMemoryService {
       return [];
     }
 
-    // 检查是否有有效的 Supabase session
+    // 检查是否有有效的认证
     const hasSession = await this.hasValidSession();
     if (!hasSession) {
-      console.warn('[aiMemoryService.getConversations] 没有有效的 Supabase session，返回空数组');
+      console.warn('[aiMemoryService.getConversations] 没有有效的认证，返回空数组');
       return [];
     }
 
+    // 使用后端 API
+    if (USE_BACKEND_API) {
+      try {
+        const token = this.getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/api/ai/conversations?limit=${limit}&offset=${offset}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: '未知错误' }));
+          console.error('[aiMemoryService.getConversations] API 获取对话列表失败:', errorData);
+          console.log('[aiMemoryService.getConversations] 尝试降级到 Supabase 直接访问...');
+          return this.getConversationsDirect(userId, limit);
+        }
+
+        const data = await response.json();
+        console.log('[aiMemoryService.getConversations] API 获取成功，会话数量:', data?.length || 0);
+
+        // 为每个对话添加 message_count 默认值
+        const processedData = (data || []).map((conv: any) => ({
+          ...conv,
+          message_count: conv.message_count ?? 0
+        }));
+
+        return processedData;
+      } catch (error) {
+        console.error('[aiMemoryService.getConversations] API 请求异常，尝试降级:', error);
+        return this.getConversationsDirect(userId, limit);
+      }
+    }
+
+    return this.getConversationsDirect(userId, limit);
+  }
+
+  /**
+   * 直接通过 Supabase 获取对话列表（降级方案）
+   */
+  private async getConversationsDirect(userId: string, limit: number): Promise<Conversation[]> {
     try {
-      // 直接查询表
       const { data, error } = await supabase
         .from('ai_conversations')
         .select('*')
@@ -236,12 +346,12 @@ class AIMemoryService {
         .limit(limit);
 
       if (error) {
-        console.error('[aiMemoryService.getConversations] 获取对话列表失败:', error);
+        console.error('[aiMemoryService.getConversationsDirect] 获取对话列表失败:', error);
         return [];
       }
 
-      console.log('[aiMemoryService.getConversations] 原始数据:', data);
-      console.log('[aiMemoryService.getConversations] 会话数量:', data?.length || 0);
+      console.log('[aiMemoryService.getConversationsDirect] 原始数据:', data);
+      console.log('[aiMemoryService.getConversationsDirect] 会话数量:', data?.length || 0);
 
       // 为每个对话添加 message_count 默认值，以防数据库列不存在
       const processedData = (data || []).map((conv: any) => ({
@@ -251,7 +361,7 @@ class AIMemoryService {
 
       return processedData;
     } catch (error) {
-      console.error('[aiMemoryService.getConversations] 获取对话列表异常:', error);
+      console.error('[aiMemoryService.getConversationsDirect] 获取对话列表异常:', error);
       return [];
     }
   }

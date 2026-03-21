@@ -13,9 +13,11 @@ interface ChatCallParams {
 
 /**
  * 带有重试机制和超时控制的 Fetch
+ * 优化：减少超时时间和重试延迟
  */
 async function fetchWithRetry(url: string, options: RequestInit & { timeout?: number, retries?: number } = {}): Promise<Response> {
-  const { timeout = 60000, retries = 2, ...fetchOptions } = options;
+  // 优化：减少默认超时时间从 60 秒到 30 秒
+  const { timeout = 30000, retries = 1, ...fetchOptions } = options;
 
   let lastError: any;
 
@@ -47,8 +49,8 @@ async function fetchWithRetry(url: string, options: RequestInit & { timeout?: nu
       if (response.status >= 500 && i < retries) {
         lastError = new Error(`Server Error: ${response.status}`);
         console.warn(`请求失败 ${response.status}，正在重试 (${i+1}/${retries})...`);
-        // 指数退避
-        await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+        // 优化：使用固定 500ms 延迟代替指数退避
+        await new Promise(r => setTimeout(r, 500));
         continue;
       }
 
@@ -65,7 +67,8 @@ async function fetchWithRetry(url: string, options: RequestInit & { timeout?: nu
       // 如果还有重试次数，等待后重试
       if (i < retries) {
         console.warn(`请求出错 ${error.message}，正在重试 (${i+1}/${retries})...`);
-        await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+        // 优化：使用固定 500ms 延迟代替指数退避
+        await new Promise(r => setTimeout(r, 500));
         continue;
       }
     }
@@ -115,7 +118,7 @@ export async function callKimiChat(params: ChatCallParams): Promise<string> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: params.signal,
-      timeout: 120000,
+      timeout: 30000, // 优化：从 120 秒减少到 30 秒
     });
 
     console.log('[KimiChat] Response status:', response.status);
@@ -146,6 +149,11 @@ export async function callKimiChat(params: ChatCallParams): Promise<string> {
     const responseData = data.ok ? data.data : data;
     return responseData?.choices?.[0]?.message?.content || '未获取到响应';
   } catch (error: any) {
+    // 如果是 AbortError（请求被取消），不记录为错误，这是正常行为
+    if (error.name === 'AbortError') {
+      console.log('[KimiChat] Request was aborted (normal behavior)');
+      throw error;
+    }
     console.error('Kimi Chat Error:', error);
     throw error;
   }
@@ -192,7 +200,7 @@ export async function callQwenChat(params: ChatCallParams): Promise<string> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: params.signal,
-      timeout: 120000,
+      timeout: 30000, // 优化：从 120 秒减少到 30 秒
     });
 
     console.log('[QwenChat] Response status:', response.status);
@@ -228,6 +236,11 @@ export async function callQwenChat(params: ChatCallParams): Promise<string> {
     console.log('[QwenChat] Extracted text:', text.substring(0, 100));
     return text;
   } catch (error: any) {
+    // 如果是 AbortError（请求被取消），不记录为错误，这是正常行为
+    if (error.name === 'AbortError') {
+      console.log('[QwenChat] Request was aborted (normal behavior)');
+      throw error;
+    }
     console.error('Qwen Chat Error:', error);
     throw error;
   }

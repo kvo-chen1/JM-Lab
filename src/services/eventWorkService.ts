@@ -35,8 +35,9 @@ class EventWorkService {
   ): Promise<{ submissions: SubmissionWithStats[]; total: number }> {
     const { mediaType = 'all', sortBy = 'newest', status = 'submitted' } = filters;
 
+    // 首先获取基础提交数据
     let query = supabase
-      .from('submission_with_stats')
+      .from('event_submissions')
       .select('*', { count: 'exact' })
       .eq('event_id', eventId);
 
@@ -71,15 +72,102 @@ class EventWorkService {
     const to = from + pageSize - 1;
     query = query.range(from, to);
 
-    const { data, error, count } = await query;
+    const { data: submissionsData, error: submissionsError, count } = await query;
 
-    if (error) {
-      console.error('获取活动作品失败:', error);
-      throw new Error('获取活动作品失败: ' + error.message);
+    if (submissionsError) {
+      console.error('获取活动作品失败:', submissionsError);
+      throw new Error('获取活动作品失败: ' + submissionsError.message);
     }
 
+    if (!submissionsData || submissionsData.length === 0) {
+      return {
+        submissions: [],
+        total: count || 0,
+      };
+    }
+
+    // 获取提交ID列表用于查询统计数据
+    const submissionIds = submissionsData.map(s => s.id);
+    // 获取用户ID列表用于查询用户信息
+    const userIds = [...new Set(submissionsData.map(s => s.user_id).filter(Boolean))];
+
+    // 并行获取统计数据和用户信息
+    const [votesResult, likesResult, ratingsResult, usersResult] = await Promise.all([
+      // 获取投票数
+      supabase
+        .from('submission_votes')
+        .select('submission_id')
+        .in('submission_id', submissionIds),
+      // 获取点赞数
+      supabase
+        .from('submission_likes')
+        .select('submission_id')
+        .in('submission_id', submissionIds),
+      // 获取评分
+      supabase
+        .from('submission_ratings')
+        .select('submission_id, rating')
+        .in('submission_id', submissionIds),
+      // 获取用户信息
+      userIds.length > 0
+        ? supabase
+            .from('users')
+            .select('id, username, avatar_url')
+            .in('id', userIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    // 计算统计数据
+    const voteCounts = new Map<string, number>();
+    const likeCounts = new Map<string, number>();
+    const ratingSums = new Map<string, number>();
+    const ratingCounts = new Map<string, number>();
+
+    (votesResult.data || []).forEach((v: any) => {
+      voteCounts.set(v.submission_id, (voteCounts.get(v.submission_id) || 0) + 1);
+    });
+
+    (likesResult.data || []).forEach((l: any) => {
+      likeCounts.set(l.submission_id, (likeCounts.get(l.submission_id) || 0) + 1);
+    });
+
+    (ratingsResult.data || []).forEach((r: any) => {
+      ratingSums.set(r.submission_id, (ratingSums.get(r.submission_id) || 0) + r.rating);
+      ratingCounts.set(r.submission_id, (ratingCounts.get(r.submission_id) || 0) + 1);
+    });
+
+    // 构建用户信息映射
+    const usersMap = new Map<string, { username?: string; avatar_url?: string }>();
+    (usersResult.data || []).forEach((user: any) => {
+      usersMap.set(user.id, {
+        username: user.username,
+        avatar_url: user.avatar_url,
+      });
+    });
+
+    // 合并数据
+    const submissionsWithStats = submissionsData.map(submission => {
+      const voteCount = voteCounts.get(submission.id) || 0;
+      const likeCount = likeCounts.get(submission.id) || 0;
+      const ratingSum = ratingSums.get(submission.id) || 0;
+      const ratingCount = ratingCounts.get(submission.id) || 0;
+      const avgRating = ratingCount > 0 ? ratingSum / ratingCount : 0;
+      const userInfo = usersMap.get(submission.user_id);
+
+      return {
+        ...submission,
+        vote_count: voteCount,
+        like_count: likeCount,
+        avg_rating: avgRating,
+        rating_count: ratingCount,
+        creator_name: userInfo?.username || '匿名用户',
+        creator_avatar: userInfo?.avatar_url,
+        creator_full_name: undefined,
+      };
+    });
+
     return {
-      submissions: (data || []).map(this.mapToSubmissionWithStats),
+      submissions: submissionsWithStats.map(this.mapToSubmissionWithStats),
       total: count || 0,
     };
   }
@@ -88,18 +176,66 @@ class EventWorkService {
    * 获取单个作品详情
    */
   async getSubmissionDetail(submissionId: string): Promise<SubmissionWithStats | null> {
-    const { data, error } = await supabase
-      .from('submission_with_stats')
+    // 获取基础提交数据
+    const { data: submission, error: submissionError } = await supabase
+      .from('event_submissions')
       .select('*')
       .eq('id', submissionId)
       .single();
 
-    if (error) {
-      console.error('获取作品详情失败:', error);
-      throw new Error('获取作品详情失败: ' + error.message);
+    if (submissionError) {
+      console.error('获取作品详情失败:', submissionError);
+      throw new Error('获取作品详情失败: ' + submissionError.message);
     }
 
-    return data ? this.mapToSubmissionWithStats(data) : null;
+    if (!submission) return null;
+
+    // 获取统计数据和用户信息
+    const [votesResult, likesResult, ratingsResult, userResult] = await Promise.all([
+      supabase
+        .from('submission_votes')
+        .select('submission_id')
+        .eq('submission_id', submissionId),
+      supabase
+        .from('submission_likes')
+        .select('submission_id')
+        .eq('submission_id', submissionId),
+      supabase
+        .from('submission_ratings')
+        .select('rating')
+        .eq('submission_id', submissionId),
+      // 获取用户信息
+      submission.user_id
+        ? supabase
+            .from('users')
+            .select('username, avatar_url')
+            .eq('id', submission.user_id)
+            .single()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    const voteCount = (votesResult.data || []).length;
+    const likeCount = (likesResult.data || []).length;
+    const ratings = ratingsResult.data || [];
+    const ratingCount = ratings.length;
+    const avgRating = ratingCount > 0
+      ? ratings.reduce((sum: number, r: any) => sum + r.rating, 0) / ratingCount
+      : 0;
+
+    const userInfo = userResult.data;
+
+    const submissionWithStats = {
+      ...submission,
+      vote_count: voteCount,
+      like_count: likeCount,
+      avg_rating: avgRating,
+      rating_count: ratingCount,
+      creator_name: userInfo?.username || '匿名用户',
+      creator_avatar: userInfo?.avatar_url,
+      creator_full_name: undefined,
+    };
+
+    return this.mapToSubmissionWithStats(submissionWithStats);
   }
 
   /**
@@ -276,8 +412,9 @@ class EventWorkService {
    * 获取热门作品（用于推荐）
    */
   async getPopularSubmissions(eventId: string, limit: number = 5): Promise<SubmissionWithStats[]> {
-    const { data, error } = await supabase
-      .from('submission_with_stats')
+    // 获取基础提交数据
+    const { data: submissions, error } = await supabase
+      .from('event_submissions')
       .select('*')
       .eq('event_id', eventId)
       .order('like_count', { ascending: false })
@@ -288,7 +425,85 @@ class EventWorkService {
       return [];
     }
 
-    return (data || []).map(this.mapToSubmissionWithStats);
+    if (!submissions || submissions.length === 0) return [];
+
+    // 获取提交ID列表和用户ID列表
+    const submissionIds = submissions.map(s => s.id);
+    const userIds = [...new Set(submissions.map(s => s.user_id).filter(Boolean))];
+
+    // 并行获取统计数据和用户信息
+    const [votesResult, likesResult, ratingsResult, usersResult] = await Promise.all([
+      supabase
+        .from('submission_votes')
+        .select('submission_id')
+        .in('submission_id', submissionIds),
+      supabase
+        .from('submission_likes')
+        .select('submission_id')
+        .in('submission_id', submissionIds),
+      supabase
+        .from('submission_ratings')
+        .select('submission_id, rating')
+        .in('submission_id', submissionIds),
+      // 获取用户信息
+      userIds.length > 0
+        ? supabase
+            .from('users')
+            .select('id, username, avatar_url')
+            .in('id', userIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    // 计算统计数据
+    const voteCounts = new Map<string, number>();
+    const likeCounts = new Map<string, number>();
+    const ratingSums = new Map<string, number>();
+    const ratingCounts = new Map<string, number>();
+
+    (votesResult.data || []).forEach((v: any) => {
+      voteCounts.set(v.submission_id, (voteCounts.get(v.submission_id) || 0) + 1);
+    });
+
+    (likesResult.data || []).forEach((l: any) => {
+      likeCounts.set(l.submission_id, (likeCounts.get(l.submission_id) || 0) + 1);
+    });
+
+    (ratingsResult.data || []).forEach((r: any) => {
+      ratingSums.set(r.submission_id, (ratingSums.get(r.submission_id) || 0) + r.rating);
+      ratingCounts.set(r.submission_id, (ratingCounts.get(r.submission_id) || 0) + 1);
+    });
+
+    // 构建用户信息映射
+    const usersMap = new Map<string, { username?: string; avatar_url?: string }>();
+    (usersResult.data || []).forEach((user: any) => {
+      usersMap.set(user.id, {
+        username: user.username,
+        avatar_url: user.avatar_url,
+      });
+    });
+
+    // 合并数据
+    const submissionsWithStats = submissions.map(submission => {
+      const voteCount = voteCounts.get(submission.id) || 0;
+      const likeCount = likeCounts.get(submission.id) || 0;
+      const ratingSum = ratingSums.get(submission.id) || 0;
+      const ratingCount = ratingCounts.get(submission.id) || 0;
+      const avgRating = ratingCount > 0 ? ratingSum / ratingCount : 0;
+      const userInfo = usersMap.get(submission.user_id);
+
+      return {
+        ...submission,
+        vote_count: voteCount,
+        like_count: likeCount,
+        avg_rating: avgRating,
+        rating_count: ratingCount,
+        creator_name: userInfo?.username || '匿名用户',
+        creator_avatar: userInfo?.avatar_url,
+        creator_full_name: undefined,
+      };
+    });
+
+    return submissionsWithStats.map(this.mapToSubmissionWithStats);
   }
 
   /**

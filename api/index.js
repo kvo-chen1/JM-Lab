@@ -1514,6 +1514,15 @@ async function handleFollows(req, res, path) {
     // 获取关注列表
     if (path === '/follows/following') {
       console.log('[API] Getting following list for user:', userId);
+      console.log('[API] decoded token:', JSON.stringify(decoded));
+      
+      // 先检查数据库中是否有该用户的关注数据
+      const checkResult = await queryWithRetry(
+        'SELECT COUNT(*) as count FROM follows WHERE follower_id = $1',
+        [userId]
+      );
+      console.log('[API] Following count check:', checkResult.rows[0]?.count);
+      
       const result = await queryWithRetry(`
         SELECT f.*, u.username, u.avatar_url
         FROM follows f
@@ -1538,6 +1547,14 @@ async function handleFollows(req, res, path) {
     // 获取粉丝列表
     if (path === '/follows/followers') {
       console.log('[API] Getting followers list for user:', userId);
+      
+      // 先检查数据库中是否有该用户的粉丝数据
+      const checkResult = await queryWithRetry(
+        'SELECT COUNT(*) as count FROM follows WHERE following_id = $1',
+        [userId]
+      );
+      console.log('[API] Followers count check:', checkResult.rows[0]?.count);
+      
       const result = await queryWithRetry(`
         SELECT f.*, u.username, u.avatar_url
         FROM follows f

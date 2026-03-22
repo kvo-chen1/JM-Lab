@@ -38,7 +38,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [input]);
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4">
+    <div className="p-4">
       <div className="max-w-4xl mx-auto">
         <div className="relative flex items-end gap-2 bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
           <textarea
@@ -69,9 +69,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </button>
           </div>
         </div>
-        <p className="text-xs text-gray-400 mt-2 text-center">
-          按 Enter 发送，Shift + Enter 换行
-        </p>
       </div>
     </div>
   );

@@ -46,23 +46,23 @@ const iconMap = {
 
 export const PresetScenarios: React.FC<PresetScenariosProps> = ({ onSelect }) => {
   return (
-    <div className="grid grid-cols-2 gap-3 p-4">
+    <div className="grid grid-cols-2 gap-2 p-3">
       {scenarios.map((scenario) => {
         const Icon = iconMap[scenario.icon as keyof typeof iconMap];
         return (
           <button
             key={scenario.id}
             onClick={() => onSelect(scenario.message)}
-            className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left group"
+            className="flex items-center gap-2 p-2.5 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all text-left group"
           >
-            <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Icon className="w-5 h-5 text-white" />
+            <div className="flex-shrink-0 w-7 h-7 rounded-md bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Icon className="w-3.5 h-3.5 text-white" />
             </div>
-            <div>
-              <h3 className="font-medium text-gray-800 group-hover:text-blue-600 transition-colors">
+            <div className="min-w-0">
+              <h3 className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors truncate">
                 {scenario.name}
               </h3>
-              <p className="text-xs text-gray-500 mt-1">{scenario.description}</p>
+              <p className="text-[10px] text-gray-500 truncate">{scenario.description}</p>
             </div>
           </button>
         );

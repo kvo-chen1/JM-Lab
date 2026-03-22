@@ -226,6 +226,12 @@ export class AgentOrchestrator {
 
     console.log('[Orchestrator] Director input, stage:', reqCollection.stage);
 
+    // 检测用户是否询问历史记录
+    if (this.isHistoryQuery(userMessage)) {
+      console.log('[Orchestrator] 用户询问历史记录');
+      return this.handleHistoryQuery(context);
+    }
+
     // 检测用户是否想要跳过需求收集直接生成
     if (this.isSkipToGeneration(userMessage)) {
       console.log('[Orchestrator] User wants to skip requirement collection');
@@ -247,6 +253,21 @@ export class AgentOrchestrator {
         // 初始阶段：检测用户输入是否已经包含设计类型
         const designTypeInfo = this.extractDesignTypeFromInput(userMessage);
 
+        // 检测用户是否明确拒绝详细需求收集（快速开始模式）
+        if (designTypeInfo.detected && this.isRejectingDetailCollection(userMessage)) {
+          console.log('[Orchestrator] 用户拒绝详细收集，进入快速开始模式:', designTypeInfo.type);
+          reqCollection.stage = 'completed';
+          reqCollection.collectedInfo.projectType = designTypeInfo.type;
+          reqCollection.collectedInfo.skipDetails = true;
+          reqCollection.collectedInfo.note = '用户选择快速开始，使用默认配置';
+
+          return {
+            type: 'response',
+            agent: 'director',
+            content: `好的！我理解了你的需求。\n\n**项目类型**：${designTypeInfo.type}\n\n我将基于专业判断为你设计。如果你有任何具体的想法，随时可以告诉我。\n\n现在让我为你生成设计方案...`
+          };
+        }
+
         // 检测用户是否有明确的生成意图
         if (designTypeInfo.detected && this.hasGenerationIntent(userMessage)) {
           console.log('[Orchestrator] Director检测到生成意图，跳过需求收集直接生成:', designTypeInfo.type);
@@ -260,8 +281,23 @@ export class AgentOrchestrator {
           return this.executeDirectGeneration(userMessage, context);
         }
 
+        // 检测用户是否提供了足够详细的信息（快速开始模式）
+        if (designTypeInfo.detected && this.shouldQuickStart(userMessage, reqCollection.collectedInfo)) {
+          console.log('[Orchestrator] 用户提供了详细信息，进入快速开始模式:', designTypeInfo.type);
+          reqCollection.stage = 'completed';
+          reqCollection.collectedInfo.projectType = designTypeInfo.type;
+          reqCollection.collectedInfo.skipDetails = true;
+          reqCollection.collectedInfo.note = '用户提供了详细信息，快速开始';
+
+          return {
+            type: 'response',
+            agent: 'director',
+            content: `收到！你的需求很清晰。\n\n**项目类型**：${designTypeInfo.type}\n\n我会基于你提供的信息为你设计。如果需要调整，随时可以告诉我。\n\n现在让我为你生成设计方案...`
+          };
+        }
+
         if (designTypeInfo.detected) {
-          // 用户已指定设计类型，直接记录并进入收集阶段
+          // 用户已指定设计类型，但未提供详细信息，进入收集阶段
           console.log('[Orchestrator] 用户已指定设计类型:', designTypeInfo.type);
           reqCollection.stage = 'collecting';
           reqCollection.collectedInfo.projectType = designTypeInfo.type;
@@ -270,7 +306,7 @@ export class AgentOrchestrator {
           return {
             type: 'response',
             agent: 'director',
-            content: `收到！你想做${designTypeInfo.type}。为了给你最好的设计方案，能否告诉我更多细节？比如目标受众是谁？`
+            content: `收到！你想做${designTypeInfo.type}。\n\n为了确保设计效果，我需要了解一个关键信息：\n\n**目标受众是谁？**\n比如：年轻人、儿童、商务人士、家庭用户等\n\n（如果你希望直接开始，可以说"直接开始"或"你决定"）`
           };
         }
 
@@ -279,17 +315,32 @@ export class AgentOrchestrator {
 
       case 'collecting':
         // 收集阶段：检测用户是否想要跳过并直接生成
-        if (this.isSkipToGeneration(userMessage)) {
+        if (this.isSkipToGeneration(userMessage) || this.isRejectingDetailCollection(userMessage)) {
           console.log('[Orchestrator] User wants to skip and generate directly');
           reqCollection.stage = 'completed';
-          // 直接触发图像生成
-          return this.executeImageGeneration(userMessage, context);
+          reqCollection.collectedInfo.skipDetails = true;
+          reqCollection.collectedInfo.note = '用户在收集阶段选择快速开始';
+
+          return {
+            type: 'response',
+            agent: 'director',
+            content: `好的！我将基于已收集的信息为你设计。\n\n**已了解的信息**：\n${this.formatCollectedInfo(reqCollection.collectedInfo)}\n\n现在让我为你生成设计方案...`
+          };
         }
+
+        // 检测用户是否提供了足够信息可以进入确认阶段
+        if (this.shouldQuickStart(userMessage, reqCollection.collectedInfo)) {
+          console.log('[Orchestrator] 收集阶段检测到足够信息，进入确认阶段');
+          reqCollection.stage = 'confirming';
+          return this.executeRequirementConfirmation(context);
+        }
+
         if (this.isConfirmation(userMessage)) {
           console.log('[Orchestrator] User confirmed during collecting stage, proceeding to assignment');
           reqCollection.stage = 'completed';
           return this.executeTaskAssignment(context);
         }
+
         // 继续收集需求信息
         return this.executeRequirementDeepDive(userMessage, context);
 
@@ -503,6 +554,37 @@ export class AgentOrchestrator {
   }
 
   /**
+   * 执行需求确认阶段
+   * 展示已收集的信息并等待用户确认
+   */
+  private async executeRequirementConfirmation(
+    context: ConversationContext
+  ): Promise<OrchestratorResponse> {
+    const reqCollection = context.requirementCollection!;
+
+    // 格式化已收集的信息
+    const infoLines = this.formatCollectedInfo(reqCollection.collectedInfo);
+
+    const content = `很好！我已经收集了足够的信息。让我为你总结一下：
+
+**已确认的需求：**
+${infoLines}
+
+**接下来我将：**
+- 基于这些信息为你设计
+- 如果需要调整，随时可以告诉我
+- 准备好后就可以开始生成
+
+确认无误的话，我将立即开始为你创作！`;
+
+    return {
+      type: 'response',
+      agent: 'director',
+      content: content
+    };
+  }
+
+  /**
    * 执行任务分配
    */
   private async executeTaskAssignment(
@@ -566,11 +648,13 @@ export class AgentOrchestrator {
    */
   private getSmartDefaultAssignment(): AgentDecision {
     const context = this.currentContext;
+    const currentAgent = context?.currentAgent || 'director'; // 使用当前Agent，默认为总监
+
     if (!context?.requirementCollection) {
       return {
-        action: 'delegate',
-        targetAgent: 'designer',
-        reasoning: '默认分配给品牌设计师'
+        action: 'respond', // 改为respond，不切换Agent
+        targetAgent: currentAgent,
+        reasoning: '保持当前Agent继续服务'
       };
     }
 
@@ -620,11 +704,11 @@ export class AgentOrchestrator {
       };
     }
 
-    // 默认分配给设计师
+    // 默认保持当前Agent，不自动切换
     return {
-      action: 'delegate',
-      targetAgent: 'designer',
-      reasoning: '品牌设计项目分配给品牌设计师'
+      action: 'respond',
+      targetAgent: currentAgent,
+      reasoning: '保持当前Agent继续服务'
     };
   }
 
@@ -638,6 +722,34 @@ export class AgentOrchestrator {
   }
 
   /**
+   * 格式化已收集的需求信息
+   */
+  private formatCollectedInfo(collectedInfo: any): string {
+    const infoLines: string[] = [];
+
+    if (collectedInfo.projectType) {
+      infoLines.push(`- 项目类型：${collectedInfo.projectType}`);
+    }
+    if (collectedInfo.targetAudience) {
+      infoLines.push(`- 目标受众：${collectedInfo.targetAudience}`);
+    }
+    if (collectedInfo.stylePreference) {
+      infoLines.push(`- 风格偏好：${collectedInfo.stylePreference}`);
+    }
+    if (collectedInfo.usageScenario) {
+      infoLines.push(`- 使用场景：${collectedInfo.usageScenario}`);
+    }
+    if (collectedInfo.brandTone) {
+      infoLines.push(`- 品牌调性：${collectedInfo.brandTone}`);
+    }
+    if (collectedInfo.timeline) {
+      infoLines.push(`- 时间要求：${collectedInfo.timeline}`);
+    }
+
+    return infoLines.length > 0 ? infoLines.join('\n') : '- 项目类型：已确认\n- 其他信息：使用默认配置';
+  }
+
+  /**
    * 检测用户是否有明确的生成意图
    */
   private hasGenerationIntent(userMessage: string): boolean {
@@ -648,6 +760,18 @@ export class AgentOrchestrator {
       '给我画', '给我生成', '做一个', '做个'
     ];
     const lowerMsg = userMessage.toLowerCase();
+
+    // 排除词：这些词表示用户只是咨询/寻求建议，不是要生成设计
+    const exclusionKeywords = [
+      '需求描述', '需求文档', '怎么写', '如何写', '模板', '框架',
+      '灵感', '建议', '推荐', '参考', '例子', '案例'
+    ];
+
+    // 如果包含排除词，不认为是生成意图
+    if (exclusionKeywords.some(keyword => lowerMsg.includes(keyword))) {
+      return false;
+    }
+
     return generationKeywords.some(keyword => lowerMsg.includes(keyword));
   }
 
@@ -660,17 +784,13 @@ export class AgentOrchestrator {
   ): Promise<OrchestratorResponse> {
     console.log('[Orchestrator] 执行直接生成流程');
 
-    // 先委派给设计师
-    const delegationResult = await this.executeDelegate({
-      action: 'delegate',
-      targetAgent: 'designer',
-      reasoning: '用户明确请求生成，跳过需求收集直接执行'
-    }, userMessage, context);
+    // 使用当前Agent，不强制切换
+    const currentAgent = context.currentAgent;
 
-    // 然后执行图像生成
+    // 直接执行图像生成，保持当前Agent
     return this.executeImageGeneration(userMessage, {
       ...context,
-      currentAgent: 'designer'
+      currentAgent
     });
   }
 
@@ -687,6 +807,56 @@ export class AgentOrchestrator {
     ];
     const lowerMsg = message.toLowerCase();
     return skipKeywords.some(keyword => lowerMsg.includes(keyword));
+  }
+
+  /**
+   * 检测用户是否在询问历史记录
+   */
+  private isHistoryQuery(message: string): boolean {
+    const historyKeywords = [
+      '前面', '之前', '刚才', '历史', '记录',
+      '刚才的', '之前的', '刚才不是', '我前面',
+      '刚才设计', '刚才做的', '刚才生成'
+    ];
+    const lowerMsg = message.toLowerCase();
+    return historyKeywords.some(keyword => lowerMsg.includes(keyword));
+  }
+
+  /**
+   * 处理历史记录查询
+   */
+  private async handleHistoryQuery(
+    context: ConversationContext
+  ): Promise<OrchestratorResponse> {
+    // 获取之前的消息历史
+    const messages = context.messages || [];
+    
+    // 查找之前的设计请求（用户消息通常是 'user' 角色，但这里使用类型断言）
+    const lastDesignRequest = messages.slice().reverse().find(m => {
+      const content = m.content?.toLowerCase() || '';
+      // 检查是否是用户消息（role 为 'user' 或 content 不为空）
+      const isUserMessage = m.role === ('user' as any) || 
+                           (!m.metadata?.toolCalls && !m.metadata?.delegationInfo);
+      return isUserMessage && (
+        content.includes('设计') || content.includes('生成') ||
+        content.includes('画') || content.includes('做')
+      );
+    });
+
+    if (lastDesignRequest) {
+      return {
+        type: 'response',
+        agent: 'director',
+        content: `是的，我们刚才确实在进行设计。\n\n**你刚才说**：\n"${lastDesignRequest.content}"\n\n我们已经完成了这个设计，你可以在右侧画布中查看结果。\n\n如果需要调整或有新的想法，随时告诉我！`
+      };
+    }
+
+    // 如果没有找到历史记录
+    return {
+      type: 'response',
+      agent: 'director',
+      content: `抱歉，我没有找到之前的设计记录。\n\n这是当前对话的开始，我们可以从头开始设计。\n\n请告诉我你想要设计什么？`
+    };
   }
 
   /**
@@ -712,6 +882,64 @@ export class AgentOrchestrator {
     }
 
     return { type: '', detected: false };
+  }
+
+  /**
+   * 检测用户是否想要快速开始（提供了足够详细的需求）
+   * 如果用户提供了设计类型 + 至少一个详细信息（风格/受众/场景），则允许快速开始
+   */
+  private shouldQuickStart(message: string, collectedInfo: any): boolean {
+    const lowerMsg = message.toLowerCase();
+
+    // 检查是否包含设计类型
+    const designTypeInfo = this.extractDesignTypeFromInput(message);
+    if (!designTypeInfo.detected) return false;
+
+    // 检查是否包含详细信息（风格、受众、场景、颜色等）
+    const detailKeywords = [
+      // 风格相关
+      '风格', 'style', '简约', '复古', '可爱', '酷炫', '温馨', '科技',
+      '现代', '传统', '时尚', '古典', '清新', '华丽', '极简',
+      // 受众相关
+      '受众', 'audience', '年轻人', '儿童', '老人', '商务', '学生',
+      '家庭', '女性', '男性', '职场', '宝宝', '亲子',
+      // 场景相关
+      '场景', 'scenario', '线上', '线下', '印刷', '社交媒体',
+      '朋友圈', '宣传', '推广', '展示', '包装', '海报',
+      // 颜色相关
+      '颜色', 'color', '红色', '蓝色', '绿色', '黄色', '黑白',
+      '暖色', '冷色', '鲜艳', '柔和', '深色', '浅色',
+      // 元素相关
+      '元素', 'element', '包含', '需要', '要有', '加上'
+    ];
+
+    const hasDetailInfo = detailKeywords.some(kw => lowerMsg.includes(kw));
+
+    // 如果已有收集的信息，也算作有详细信息
+    const hasCollectedInfo = collectedInfo && (
+      collectedInfo.targetAudience ||
+      collectedInfo.stylePreference ||
+      collectedInfo.usageScenario ||
+      collectedInfo.brandTone
+    );
+
+    return hasDetailInfo || hasCollectedInfo;
+  }
+
+  /**
+   * 检测用户是否明确拒绝详细需求收集
+   */
+  private isRejectingDetailCollection(message: string): boolean {
+    const rejectPatterns = [
+      '不用问', '别问', '不需要问', '不用收集', '直接',
+      '先做出来', '先做', '先看看', '先给我',
+      '边做边', '一边做', '做着看', '试试',
+      '简单点', '简单做', '随便', '随意',
+      '你决定', '你来定', '你看着办', '专业判断'
+    ];
+
+    const lowerMsg = message.toLowerCase();
+    return rejectPatterns.some(pattern => lowerMsg.includes(pattern));
   }
 
   /**
@@ -932,7 +1160,7 @@ export class AgentOrchestrator {
 
     const lowerMsg = userMessage.toLowerCase();
 
-    // 检测生成图像的关键词
+    // 检测生成图像的关键词（更严格）
     const generationKeywords = [
       '生成', '画', '画一个', '画一下', '绘制', '创作', '设计',
       '生成图像', '生成图片', '画出来', '画个', '画幅',
@@ -940,13 +1168,14 @@ export class AgentOrchestrator {
       '你能画', '你能生成', '可以画', '可以生成'
     ];
 
-    const hasGenerationIntent = generationKeywords.some(keyword => 
+    const hasGenerationIntent = generationKeywords.some(keyword =>
       lowerMsg.includes(keyword)
     );
 
-    // 检测确认/同意类关键词（在需求收集完成后）
-    const confirmationKeywords = ['可以', '好的', '行', '没问题', '确认', '就这样', '开始吧', '生成吧', '做吧'];
-    const hasConfirmation = confirmationKeywords.some(keyword => 
+    // 检测确认/同意类关键词（更严格：必须明确表达生成意图）
+    // 收紧关键词列表，避免误触发
+    const confirmationKeywords = ['确认生成', '确认设计', '就这样生成', '开始生成吧', '直接生成', '立即生成'];
+    const hasConfirmation = confirmationKeywords.some(keyword =>
       lowerMsg.includes(keyword)
     );
 
@@ -961,12 +1190,21 @@ export class AgentOrchestrator {
       '风格', '样式', '效果', '暖色', '冷色', '鲜艳', '柔和'
     ];
     const hasMentionedWorks = context.mentionedWorks && context.mentionedWorks.length > 0;
-    const hasModificationIntent = modificationKeywords.some(keyword => 
+    const hasModificationIntent = modificationKeywords.some(keyword =>
       lowerMsg.includes(keyword)
     );
     const isModificationRequest = hasMentionedWorks && hasModificationIntent;
 
-    const shouldGenerate = hasGenerationIntent || (hasConfirmation && hasTaskDescription) || isModificationRequest;
+    // 新增：检查是否已选择风格
+    const hasExplicitStyle = !!context.selectedStyle;
+
+    // 修改触发条件：
+    // 1. 有明确的生成意图关键词，或者
+    // 2. 有明确的确认生成关键词 + 有任务描述 + 已选择风格，或者
+    // 3. 是修改请求（引用作品 + 修改意图）
+    const shouldGenerate = hasGenerationIntent ||
+                           (hasConfirmation && hasTaskDescription && hasExplicitStyle) ||
+                           isModificationRequest;
 
     console.log('[Orchestrator] 检测图像生成意图:', {
       userMessage,
@@ -974,6 +1212,7 @@ export class AgentOrchestrator {
       hasGenerationIntent,
       hasConfirmation,
       hasTaskDescription,
+      hasExplicitStyle,
       hasMentionedWorks,
       hasModificationIntent,
       isModificationRequest,
@@ -996,10 +1235,21 @@ export class AgentOrchestrator {
     console.log('[Orchestrator] 选择的风格:', context.selectedStyle);
 
     // 构建图像生成提示词
-    // 优先使用用户选择的风格，其次是任务需求中的风格，最后是默认风格
-    let selectedStyle = context.selectedStyle ||
-                         context.currentTask?.requirements?.style ||
-                         this.getStylePrompt(context.currentAgent);
+    // 只使用用户选择的风格，如果没有选择则提示用户选择
+    let selectedStyle = context.selectedStyle;
+
+    // 如果没有选择风格，返回提示用户选择风格的消息
+    if (!selectedStyle) {
+      console.log('[Orchestrator] 未选择风格，提示用户选择');
+      return {
+        type: 'text',
+        agent: context.currentAgent,
+        content: '在开始生成之前，请先选择一个你喜欢的风格。你可以从下方选择，或者告诉我你想要的风格。',
+        metadata: {
+          showStyleSelector: true
+        }
+      };
+    }
 
     // 构建完整的提示词，包含用户的完整需求
     // 智能提取用户当前输入中的实际内容（去除指令词如"直接生成"、"开始吧"等）
@@ -1216,7 +1466,7 @@ export class AgentOrchestrator {
       console.log('[Orchestrator] 检测到角色设计需求，启动向导式工作流');
       return {
         type: 'response',
-        agent: 'designer',
+        agent: context.currentAgent, // 使用当前Agent，避免硬编码切换
         content: '我来帮你设计一个独特的角色形象！请按照下方的向导逐步完成角色设定。',
         aiResponse: {
           content: '我来帮你设计一个独特的角色形象！请按照下方的向导逐步完成角色设定。',

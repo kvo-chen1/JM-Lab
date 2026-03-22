@@ -53,8 +53,6 @@ import EntryAnimation from '@/components/EntryAnimation';
 import Home from "@/pages/Home";
 import MobileHome from "@/pages/MobileHome";
 import ComponentShowcase from "@/pages/ComponentShowcase";
-import IPCharacterShowcase from "@/pages/IPCharacterShowcase";
-import IPDesignShowcase from "@/pages/IPDesignShowcase";
 import IPPosterGenerator from "@/pages/IPPosterGenerator";
 import IPPosterComposerPage from "@/pages/IPPosterComposerPage";
 import ThemeTestPage from "@/pages/ThemeTestPage";
@@ -260,6 +258,12 @@ const OrganizerEventDetail = createLazyComponent(() => import(/* webpackChunkNam
 const EventRanking = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/EventRanking"), {
   priority: ROUTE_PRIORITIES.MEDIUM,
   name: 'event-ranking'
+});
+
+// 活动详情页 - 全新设计
+const EventDetail = createLazyComponent(() => import(/* webpackChunkName: "pages-activities" */ "@/pages/EventDetail"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'event-detail'
 });
 
 // 管理相关 - 懒加载
@@ -1492,9 +1496,6 @@ export default function App() {
           <Route path="/notifications" element={<LazyComponent><PrivateRoute><Notifications /></PrivateRoute></LazyComponent>} />
           <Route path="/messages" element={<LazyComponent><PrivateRoute><MessageCenter /></PrivateRoute></LazyComponent>} />
           <Route path="/component-showcase" element={<ComponentShowcase />} />
-          <Route path="/ip-character" element={<IPCharacterShowcase />} />
-          <Route path="/ip-design" element={<IPDesignShowcase />} />
-          <Route path="/ip-design/:id" element={<IPDesignShowcase />} />
           <Route path="/ip-poster-generator" element={<IPPosterGenerator />} />
           <Route path="/ip-poster-composer" element={<IPPosterComposerPage />} />
           <Route path="/hamster-loader-demo" element={<HamsterLoaderDemo />} />
@@ -1508,7 +1509,7 @@ export default function App() {
           <Route path="/inspiration-mindmap" element={<LazyComponent><PrivateRoute><InspirationMindMapPage /></PrivateRoute></LazyComponent>} />
 
           <Route path="/events" element={<LazyComponent><CulturalEvents /></LazyComponent>} />
-          <Route path="/events/:id" element={<LazyComponent><ActivityDetail /></LazyComponent>} />
+          <Route path="/events/:id" element={<LazyComponent><EventDetail /></LazyComponent>} />
           <Route path="/events/:id/works" element={<LazyComponent>{isMobile ? <MobileEventWorks /> : <EventWorks />}</LazyComponent>} />
           <Route path="/events/:id/submit" element={<LazyComponent><PrivateRoute>{isMobile ? <MobileSubmitWork /> : <SubmitWork />}</PrivateRoute></LazyComponent>} />
           <Route path="/events/:eventId/works/:workId" element={<LazyComponent>{isMobile ? <MobileWorkDetail /> : <WorkDetail />}</LazyComponent>} />

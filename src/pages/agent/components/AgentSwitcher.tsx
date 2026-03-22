@@ -9,13 +9,15 @@ interface AgentSwitcherProps {
   toAgent: AgentType;
   isVisible: boolean;
   onComplete?: () => void;
+  reasoning?: string; // 切换原因
 }
 
 export default function AgentSwitcher({
   fromAgent,
   toAgent,
   isVisible,
-  onComplete
+  onComplete,
+  reasoning
 }: AgentSwitcherProps) {
   const { isDark } = useAgentStore();
 
@@ -121,6 +123,25 @@ export default function AgentSwitcher({
                   </span>
                 </motion.div>
               </div>
+
+              {/* 切换原因 */}
+              {reasoning && (
+                <motion.div
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className={`mb-4 p-3 rounded-lg border-l-4 border-blue-500 ${
+                    isDark ? 'bg-blue-500/10' : 'bg-blue-50'
+                  }`}
+                >
+                  <p className={`text-xs ${isDark ? 'text-blue-300' : 'text-blue-600'} font-medium mb-1`}>
+                    切换原因
+                  </p>
+                  <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {reasoning}
+                  </p>
+                </motion.div>
+              )}
 
               {/* 描述 */}
               <motion.div

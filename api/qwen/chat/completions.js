@@ -25,7 +25,8 @@ export default async function handler(req, res) {
       console.error('[Qwen API] API key not configured');
       return res.status(500).json({
         error: 'API key not configured',
-        message: 'DashScope API密钥未配置'
+        message: 'DashScope API密钥未配置',
+        solution: '请在 .env 文件中设置 DASHSCOPE_API_KEY 或 VITE_QWEN_API_KEY 环境变量'
       });
     }
 
@@ -45,7 +46,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: model || 'qwen-turbo',
+        model: model || 'qwen3-max-2026-01-23',
         input: {
           messages: dashscopeMessages
         },
@@ -59,14 +60,24 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorText = await response.text();
+      let errorData = {};
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { raw: errorText };
+      }
       console.error('[Qwen API] DashScope API error:', {
         status: response.status,
-        error: errorData
+        statusText: response.statusText,
+        error: errorData,
+        apiKeyPrefix: apiKey ? apiKey.substring(0, 10) + '...' : 'undefined'
       });
       return res.status(response.status).json({
         error: 'DashScope API error',
-        message: errorData.message || `API请求失败: ${response.status}`
+        status: response.status,
+        message: errorData.message || errorData.error?.message || `API请求失败: ${response.status} ${response.statusText}`,
+        details: errorData
       });
     }
 

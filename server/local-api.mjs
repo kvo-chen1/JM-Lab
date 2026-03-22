@@ -2291,6 +2291,9 @@ async function route(req, res, u, path) {
       console.log('[API] Creating work with creator_id:', creatorId)
       console.log('[API] Work data type:', workData.type)
       console.log('[API] Work data video_url:', workData.video_url)
+      console.log('[API] Work data cover_url:', workData.cover_url)
+      console.log('[API] Work data thumbnail:', workData.thumbnail)
+      console.log('[API] Full workData:', JSON.stringify(workData, null, 2))
       const work = await workDB.createWork(workData)
       console.log('[API] Work created:', work)
       sendJson(res, 200, { code: 0, data: work })
@@ -6833,7 +6836,7 @@ async function route(req, res, u, path) {
       }
       
       // 删除作品相关的点赞记录
-      await db.query('DELETE FROM work_likes WHERE work_id = $1', [workId])
+      await db.query('DELETE FROM works_likes WHERE work_id = $1', [workId])
       
       // 删除作品相关的收藏记录
       await db.query('DELETE FROM work_bookmarks WHERE work_id = $1', [workId])
@@ -6952,7 +6955,7 @@ async function route(req, res, u, path) {
       for (const work of expiredWorks) {
         try {
           // 删除作品相关的点赞记录
-          await db.query('DELETE FROM work_likes WHERE work_id = $1', [work.id])
+          await db.query('DELETE FROM works_likes WHERE work_id = $1', [work.id])
           
           // 删除作品相关的收藏记录
           await db.query('DELETE FROM work_bookmarks WHERE work_id = $1', [work.id])

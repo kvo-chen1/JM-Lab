@@ -30,6 +30,7 @@ console.log('[DB] Supabase URL:', supabaseUrl)
 export { supabaseUrl, supabaseAnonKey }
 
 // 增强的 fetch，带有重试逻辑
+// 注意：不在此处添加认证头，因为 supabase 客户端会自动处理
 const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit, retries = 3, backoff = 300): Promise<Response> => {
   try {
     const response = await fetch(url, options);
@@ -66,6 +67,8 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
     enabled: true  // 启用 realtime 功能
   }
 })
+
+
 
 // ⚠️ 重要安全提示：
 // Service Role Key 绝对不应该在前端使用！这会导致严重的安全漏洞。

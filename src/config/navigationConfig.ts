@@ -31,7 +31,7 @@ export interface NavGroup {
 export const homeNavItems: NavItem[] = [
   { id: 'home', path: '/', label: '首页', icon: 'fas fa-home', priority: 'high' },
   { id: 'agent', path: '/agent', label: '津小脉 Agent', icon: 'fas fa-robot', priority: 'high', badge: 'NEW', description: '智能设计助手，AI驱动创意' },
-  { id: 'skill-chat', path: '/skill/chat', label: '津小脉 Skill', icon: 'fas fa-magic', priority: 'high', badge: 'NEW', description: 'Skill技能对话，AI智能调用' }
+  { id: 'skill-chat', path: '/skill/chat', label: '津小脉 Skill（测试）', icon: 'fas fa-magic', priority: 'high', badge: 'NEW', description: 'Skill技能对话，AI智能调用' }
 ];
 
 // 2. ✨ 创作中心 (Creation Center)

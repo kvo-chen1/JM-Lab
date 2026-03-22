@@ -137,6 +137,18 @@ export async function callKimiChat(params: ChatCallParams): Promise<string> {
         throw new Error('Kimi API 密钥无效或缺失。请检查服务器配置或联系管理员。');
       }
       
+      // 针对 403 错误（权限不足/访问被禁止）
+      if (response.status === 403) {
+        const detailedMessage = errorData.message || errorData.error?.message || '';
+        console.error('[KimiChat] 403 Error details:', { errorData, detailedMessage });
+        throw new Error(`Kimi API 访问被拒绝 (403)。可能原因：1. API Key 无效或过期 2. 账户余额不足 3. 请求频率超限。详细信息：${detailedMessage || '无'}`);
+      }
+      
+      // 针对 429 错误（请求过于频繁）
+      if (response.status === 429) {
+        throw new Error('Kimi API 请求过于频繁，请稍后再试。');
+      }
+      
       // 针对 503 错误（服务不可用）
       if (response.status === 503) {
         throw new Error('Kimi 服务暂时不可用，请稍后再试。');
@@ -217,6 +229,16 @@ export async function callQwenChat(params: ChatCallParams): Promise<string> {
       // 针对 401 错误提供友好的提示
       if (response.status === 401) {
         throw new Error('通义千问 API 密钥无效或缺失。请检查服务器配置或联系管理员。');
+      }
+      
+      // 针对 403 错误（权限不足/访问被禁止）
+      if (response.status === 403) {
+        throw new Error('通义千问 API 访问被拒绝。可能原因：1. API Key 无权访问该模型 2. 账户余额不足 3. 请求频率超限。请检查账户状态或联系管理员。');
+      }
+      
+      // 针对 429 错误（请求过于频繁）
+      if (response.status === 429) {
+        throw new Error('通义千问 API 请求过于频繁，请稍后再试。');
       }
       
       // 针对 503 错误（服务不可用）

@@ -122,6 +122,18 @@ const INTENT_DEFINITIONS: IntentDefinition[] = [
     ],
     description: '用户问候',
     entities: []
+  },
+  {
+    type: 'history-query',
+    keywords: ['前面', '之前', '刚才', '历史', '记录', '刚才的', '之前的', '刚才不是', '我前面', '刚才设计'],
+    patterns: [
+      /(?:前面|之前|刚才).*(?:设计|做|生成|画)/i,
+      /(?:我|我们).*(?:前面|之前|刚才)/i,
+      /(?:看|查看|找).*(?:前面|之前|历史)/i,
+      /^(?:前面|之前|刚才)/i
+    ],
+    description: '用户询问历史记录或之前的设计',
+    entities: []
   }
 ];
 

@@ -5,8 +5,6 @@ import { useAgentStore, DERIVATIVE_OPTIONS } from '../hooks/useAgentStore';
 import WorkCard from './WorkCard';
 import CharacterDesignWorkflow from './CharacterDesignWorkflow';
 import CanvasControls from './DraggableCanvas/CanvasControls';
-import PosterCanvas from './PosterCanvas';
-import { usePosterDesign } from '../hooks/usePosterDesign';
 import {
   Download,
   Share2,
@@ -22,14 +20,13 @@ import {
   Smile,
   Check,
   X,
-  Loader2,
-  ArrowLeft,
-  Edit3,
-  MousePointer2
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { assignDefaultPositions } from '../utils/cardLayout';
 import { CardPosition } from '../types/agent';
+import { usePosterDesign } from '../hooks/usePosterDesign';
+import PosterCanvas from './PosterCanvas';
 
 // 扩展 GeneratedOutput 类型以支持引用
 type GeneratedOutputWithMention = GeneratedOutput & { isMentioned?: boolean };
@@ -134,12 +131,12 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
     resetCardPositions
   } = useAgentStore();
 
+  // 海报设计状态管理
+  const posterDesign = usePosterDesign();
+
   const [viewMode, setViewMode] = useState<'gallery' | 'grid'>('gallery');
   const [showDerivativeOptions, setShowDerivativeOptions] = useState(false);
   const [selectedDerivative, setSelectedDerivative] = useState<string | null>(null);
-
-  // 海报设计状态
-  const posterDesign = usePosterDesign();
 
   // 画布控制状态
   const [canvasZoom, setCanvasZoom] = useState(100);
@@ -175,39 +172,40 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
   };
 
   // 处理作品选择 - 自动聚焦并放大
-  const handleSelectOutput = (id: string, event?: React.MouseEvent, index?: number, mode?: 'gallery' | 'grid') => {
+  const handleSelectOutput = (id: string, event?: React.MouseEvent) => {
     selectOutput(id);
+
+    // 获取选中的作品
+    const selectedOutput = generatedOutputs.find(out => out.id === id);
+    if (!selectedOutput || !canvasRef.current) return;
 
     // 自动聚焦到作品并放大到合适大小
     const targetZoom = 100; // 放大到100%
-    setCanvasZoom(targetZoom);
-
+    
     // 计算居中位置
-    if (canvasRef.current) {
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      const centerX = canvasRect.width / 2;
-      const centerY = canvasRect.height / 2;
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const centerX = canvasRect.width / 2;
+    const centerY = canvasRect.height / 2;
 
-      // 估算卡片位置（基于索引）
-      const cardWidth = mode === 'grid' ? 320 : 448; // 更准确的卡片宽度
-      const cardHeight = 600; // 更准确的卡片高度（包含图片和文字）
-      const gap = mode === 'grid' ? 96 : 128; // gap-24 或 gap-32
-      const cols = mode === 'grid' ? 3 : 2;
-      const padding = 80; // p-20 = 80px
-      
-      const row = Math.floor((index || 0) / cols);
-      const col = (index || 0) % cols;
-      
-      // 计算卡片中心位置（相对于画布内容区域）
-      const cardCenterX = col * (cardWidth + gap) + cardWidth / 2 + padding;
-      const cardCenterY = row * (cardHeight + gap) + cardHeight / 2 + padding;
+    // 使用卡片实际位置
+    const cardX = selectedOutput.position?.x || 0;
+    const cardY = selectedOutput.position?.y || 0;
+    const cardWidth = 380; // 默认卡片宽度
+    const cardHeight = 520; // 默认卡片高度
+    
+    // 计算卡片中心位置
+    const cardCenterX = cardX + cardWidth / 2;
+    const cardCenterY = cardY + cardHeight / 2;
 
-      // 计算需要平移的距离，使卡片居中
-      setCanvasPosition({
-        x: centerX - cardCenterX,
-        y: centerY - cardCenterY
-      });
-    }
+    // 计算需要平移的距离，使卡片居中
+    const newPosition = {
+      x: centerX - cardCenterX,
+      y: centerY - cardCenterY
+    };
+
+    // 同时更新缩放和位置
+    setCanvasZoom(targetZoom);
+    setCanvasPosition(newPosition);
 
     toast.success('已聚焦到选中作品');
   };
@@ -476,41 +474,15 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
         isDark ? 'bg-[#1a1f1a]/50 border-[#2a2f2a]' : 'bg-white/50 border-gray-200'
       }`}>
         <div className="flex items-center gap-2">
-          {posterDesign.isActive ? (
-            <>
-              <button
-                onClick={posterDesign.endPosterDesign}
-                className={`p-1.5 rounded-lg transition-colors ${
-                  isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
-                }`}
-                title="退出海报设计"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                海报设计
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                posterDesign.isEditMode
-                  ? 'bg-green-500/20 text-green-500'
-                  : isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
-              }`}>
-                {posterDesign.isEditMode ? '编辑模式' : '预览模式'}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                {currentTask ? currentTask.title : '画布'}
-              </span>
-              {generatedOutputs.length > 0 && (
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {generatedOutputs.length} 个作品
-                </span>
-              )}
-            </>
+          <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+            {currentTask ? currentTask.title : '画布'}
+          </span>
+          {generatedOutputs.length > 0 && (
+            <span className={`text-xs px-2 py-0.5 rounded-full ${
+              isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
+            }`}>
+              {generatedOutputs.length} 个作品
+            </span>
           )}
         </div>
 
@@ -541,34 +513,8 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
 
           <div className={`w-px h-4 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
 
-          {/* 海报设计编辑模式切换 */}
-          {posterDesign.isActive && (
-            <button
-              onClick={posterDesign.toggleEditMode}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors text-sm ${
-                posterDesign.isEditMode
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
-                  : isDark
-                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {posterDesign.isEditMode ? (
-                <>
-                  <MousePointer2 className="w-4 h-4" />
-                  完成编辑
-                </>
-              ) : (
-                <>
-                  <Edit3 className="w-4 h-4" />
-                  自由编辑
-                </>
-              )}
-            </button>
-          )}
-
           {/* Action Buttons */}
-          {selectedImage && !posterDesign.isActive && (
+          {selectedImage && (
             <>
               <button
                 onClick={handleDownload}
@@ -639,8 +585,8 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
           />
         )}
 
-        {/* 角色设计工作流 - 当任务是IP角色设计时显示 */}
-        {!posterDesign.isActive && currentTask?.type === 'ip-character' && (
+        {/* 角色设计工作流 - 当任务是IP角色设计且没有生成内容时显示 */}
+        {!posterDesign.isActive && currentTask?.type === 'ip-character' && generatedOutputs.length === 0 && (
           <CharacterDesignWorkflow
             onComplete={(result) => {
               console.log('[CanvasPanel] 角色设计工作流完成:', result);
@@ -648,7 +594,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
           />
         )}
 
-        {!posterDesign.isActive && generatedOutputs.length === 0 && currentTask?.type !== 'ip-character' ? (
+        {!posterDesign.isActive && generatedOutputs.length === 0 ? (
           // Empty State - 优化深色主题样式
           <div className="flex items-center justify-center h-full min-h-[400px]">
             <div className="text-center">
@@ -699,7 +645,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                     isSelected={selectedOutput === output.id}
                     onSelect={(e) => {
                       if (!isCardDragging) {
-                        handleSelectOutput(output.id, e, index, viewMode);
+                        handleSelectOutput(output.id, e);
                       }
                     }}
                     onUpdate={(id, updates) => {

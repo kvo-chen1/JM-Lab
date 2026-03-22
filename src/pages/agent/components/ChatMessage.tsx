@@ -12,6 +12,7 @@ import CharacterDesignWorkflow from './CharacterDesignWorkflow';
 import ChainTaskProgress from './ChainTaskProgress';
 import FeedbackButtons from './FeedbackButtons';
 import DelegationIndicator from './DelegationIndicator';
+import ThinkingProcessCard from './ThinkingProcessCard';
 import { generateVideo } from '../services/agentService';
 import { AgentError } from '../types/errors';
 import { ChevronDown, ChevronUp, Lightbulb, Wand2, Users, Loader2 } from 'lucide-react';
@@ -49,8 +50,10 @@ function MarkdownContent({
           strong: ({ children }) => (
             <strong className={`font-bold ${
               isUser 
-                ? 'text-white/95' 
-                : 'bg-gradient-to-r from-[#C02C38] to-[#E85D75] bg-clip-text text-transparent'
+                ? 'text-white' 
+                : isDark 
+                  ? 'text-[#E85D75]'  // 深色主题使用粉色
+                  : 'text-[#C02C38]'  // 浅色主题使用红色
             }`}>
               {children}
             </strong>
@@ -363,18 +366,17 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
     const mapping = agentMapping[option.id] || { agent: 'designer', questions: ['请描述一下你的具体需求'] };
     const agentConfig = AGENT_CONFIG[mapping.agent];
 
-    // 构建Agent回复消息，使用配置中的描述和能力
-    const agentMessage = `你好！我是${agentConfig.name}，${agentConfig.description}。
+    // 获取 pendingMention 中的品牌/作品信息
+    const { pendingMention } = useAgentStore.getState();
+    const mentionInfo = pendingMention;
 
-我的专长包括：${agentConfig.capabilities.join('、')}。
-
-我来为你进行${option.label}！请告诉我：
-${mapping.questions.map(q => `• ${q}`).join('\n')}`;
-
-    // 更新任务类型
+    // 更新任务类型，包含品牌信息
     updateTaskRequirements({
       projectType: option.id,
-      description: option.description
+      description: option.description,
+      mentionedBrand: mentionInfo?.name,  // 添加品牌信息
+      mentionedBrandId: mentionInfo?.id,
+      mentionedBrandType: mentionInfo?.type
     });
 
     // 延迟一下，模拟Agent切换的效果
@@ -397,11 +399,17 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
         }
       });
 
-      // 添加对应Agent的回复
+      // 添加对应Agent的回复 - 简洁标题 + 思考过程卡片
       addMessage({
         role: mapping.agent,
-        content: agentMessage,
-        type: 'text'
+        content: `获取${option.label}的关键信息`,
+        type: 'text',
+        metadata: {
+          showThinkingProcess: true,
+          designType: option.id,
+          agentType: mapping.agent,
+          mentionInfo: mentionInfo
+        }
       });
     }, 500);
   };
@@ -451,6 +459,11 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
           content: '好的！我们换个风格试试。你想尝试什么风格？',
           type: 'text'
         });
+        // 显示风格选择器
+        setTimeout(() => {
+          const { setShowStyleSelector } = useAgentStore.getState();
+          setShowStyleSelector(true);
+        }, 500);
         break;
       case 'finalize':
         addMessage({
@@ -459,6 +472,52 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
           type: 'text'
         });
         toast.success('作品已保存！');
+        break;
+      // 新增：Agent切换后的确认操作
+      case 'generate_now':
+        // 用户确认立即生成
+        addMessage({
+          role: 'designer',
+          content: '好的！我立即开始为你生成设计作品，请稍候...',
+          type: 'text'
+        });
+        // 触发生成
+        setTimeout(() => {
+          const { selectedStyle, currentTask, currentAgent } = useAgentStore.getState();
+          if (selectedStyle && currentTask) {
+            // 触发自动图像生成
+            window.dispatchEvent(new CustomEvent('trigger-auto-generation'));
+          }
+        }, 500);
+        break;
+      case 'continue_chat':
+        // 用户选择继续沟通，不生成
+        addMessage({
+          role: 'designer',
+          content: '没问题！我们可以继续交流，你可以告诉我更多关于设计的需求和想法。',
+          type: 'text'
+        });
+        break;
+      // 新增：确认生成（在 executeRespond 中询问确认时使用）
+      case 'confirm_generate':
+        // 用户确认生成
+        addMessage({
+          role: 'designer',
+          content: '好的！我立即开始为你生成设计作品，请稍候...',
+          type: 'text'
+        });
+        // 触发生成
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('trigger-auto-generation'));
+        }, 500);
+        break;
+      // 新增：选择风格
+      case 'select_style':
+        // 显示风格选择器
+        setTimeout(() => {
+          const { setShowStyleSelector } = useAgentStore.getState();
+          setShowStyleSelector(true);
+        }, 300);
         break;
       default:
         break;
@@ -1048,9 +1107,127 @@ ${mapping.questions.map(q => `• ${q}`).join('\n')}`;
       case 'text':
       default:
         return (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {renderDelegationIndicator()}
             <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
+            
+            {/* 显示设计类型选择器（如果消息中包含）- 卡片按钮式布局 */}
+            {message.metadata?.showDesignTypeSelector && Array.isArray(message.metadata?.designTypeOptions) && (
+              <div className="mt-4 space-y-4">
+                {/* 分类列表 */}
+                {message.metadata.designTypeOptions.map((category: any, catIndex: number) => (
+                  <div key={catIndex} className="space-y-3">
+                    {/* 分类标题 */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{category.category.split(' ')[0]}</span>
+                      <span className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {category.category.split(' ').slice(1).join(' ')}
+                      </span>
+                    </div>
+                    
+                    {/* 类型列表 - 卡片按钮样式 */}
+                    <div className="space-y-2">
+                      {category.items.map((option: any, index: number) => {
+                        // 计算全局编号
+                        let globalIndex = 1;
+                        for (let i = 0; i < catIndex; i++) {
+                          globalIndex += message.metadata.designTypeOptions[i].items.length;
+                        }
+                        globalIndex += index;
+                        
+                        return (
+                          <motion.div
+                            key={option.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: globalIndex * 0.05 }}
+                            whileHover={{ 
+                              scale: 1.01,
+                              boxShadow: isDark 
+                                ? '0 4px 20px rgba(0,0,0,0.4)' 
+                                : '0 4px 20px rgba(0,0,0,0.1)'
+                            }}
+                            whileTap={{ scale: 0.99, y: 1 }}
+                            className={`group relative flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border-2 ${
+                              isDark 
+                                ? 'bg-gray-800/80 border-gray-700 hover:border-[#C02C38]/50 hover:bg-gray-800' 
+                                : 'bg-white border-gray-200 hover:border-[#C02C38]/50 hover:bg-gray-50'
+                            }`}
+                            onClick={() => handleDesignTypeOption(option)}
+                          >
+                            {/* 序号 - 圆形背景 */}
+                            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                              isDark 
+                                ? 'bg-gray-700 text-gray-300 group-hover:bg-[#C02C38]/20 group-hover:text-[#C02C38]' 
+                                : 'bg-gray-100 text-gray-600 group-hover:bg-[#C02C38]/10 group-hover:text-[#C02C38]'
+                            } transition-colors`}>
+                              {globalIndex}
+                            </div>
+                            
+                            {/* 内容区域 */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-bold text-base ${
+                                  isDark ? 'text-gray-100' : 'text-gray-800'
+                                }`}>
+                                  {option.label}
+                                </span>
+                                {/* 类型标签 */}
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                  isDark 
+                                    ? 'bg-gray-700 text-gray-400' 
+                                    : 'bg-gray-100 text-gray-500'
+                                }`}>
+                                  {option.icon}
+                                </span>
+                              </div>
+                              <p className={`text-sm mt-0.5 truncate ${
+                                isDark ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                {option.description}
+                              </p>
+                            </div>
+                            
+                            {/* 右侧箭头 */}
+                            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                              isDark 
+                                ? 'bg-gray-700/50 text-gray-500 group-hover:bg-[#C02C38]/20 group-hover:text-[#C02C38]' 
+                                : 'bg-gray-100 text-gray-400 group-hover:bg-[#C02C38]/10 group-hover:text-[#C02C38]'
+                            }`}>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* 底部提示 */}
+                <div className={`flex items-start gap-2 pt-3 border-t ${
+                  isDark ? 'border-gray-700/30' : 'border-gray-200/50'
+                }`}>
+                  <span className="text-base">💡</span>
+                  <p className={`text-xs leading-relaxed ${
+                    isDark ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    没找到合适的选项？您可以直接在下方输入框中描述您的需求。
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* 显示思考过程卡片（如果消息中包含） */}
+            {message.metadata?.showThinkingProcess && message.metadata?.designType && message.metadata?.agentType && (
+              <div className="mt-4">
+                <ThinkingProcessCard 
+                  agentType={message.metadata.agentType}
+                  designType={message.metadata.designType}
+                />
+              </div>
+            )}
           </div>
         );
     }

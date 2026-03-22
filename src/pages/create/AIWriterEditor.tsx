@@ -51,14 +51,14 @@ interface AIWriterEditorProps {
 
 // 菜单项
 const menuItems = [
-  { label: 'File', items: ['新建文档', '打开', '保存', '导出'] },
-  { label: 'Edit', items: ['撤销', '重做', '剪切', '复制', '粘贴'] },
-  { label: 'View', items: ['编辑模式', '预览模式', '分屏模式'] },
-  { label: 'Insert', items: ['图片', '表格', '链接', '代码块', '分隔线'] },
-  { label: 'Format', items: ['加粗', '斜体', '下划线', '删除线'] },
-  { label: 'Tools', items: ['拼写检查', '字数统计', 'AI润色'] },
-  { label: 'Table', items: ['插入表格', '删除表格', '合并单元格'] },
-  { label: 'Help', items: ['快捷键', '使用指南', '反馈'] },
+  { label: '文件', items: ['新建文档', '打开', '保存', '导出'] },
+  { label: '编辑', items: ['撤销', '重做', '剪切', '复制', '粘贴'] },
+  { label: '视图', items: ['编辑模式', '预览模式', '分屏模式'] },
+  { label: '插入', items: ['图片', '表格', '链接', '代码块', '分隔线'] },
+  { label: '格式', items: ['加粗', '斜体', '下划线', '删除线'] },
+  { label: '工具', items: ['拼写检查', '字数统计', 'AI润色'] },
+  { label: '表格', items: ['插入表格', '删除表格', '合并单元格'] },
+  { label: '帮助', items: ['快捷键', '使用指南', '反馈'] },
 ];
 
 // AI建议
@@ -632,9 +632,13 @@ ${outlineText}
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
 
+    console.log('[AI Writer] 开始发送消息:', inputMessage.trim());
+
     // 检查津币余额（AI助手对话消耗10津币）
     const CHAT_COST = 10;
     const balanceCheck = await checkBalance(CHAT_COST);
+    console.log('[AI Writer] 津币余额检查:', balanceCheck);
+    
     if (!balanceCheck.sufficient) {
       setShowJinbiModal(true);
       return;
@@ -668,6 +672,7 @@ ${outlineText}
     setChatMessages(prev => [...prev, userMsg]);
 
     try {
+      console.log('[AI Writer] 开始调用 AI 服务');
       let accumulatedContent = '';
       let aiResponse = '';
       let pendingContent = '';
@@ -682,6 +687,7 @@ ${outlineText}
         }
       }, 100);
       
+      console.log('[AI Writer] 调用 llmService.directGenerateResponse');
       await llmService.directGenerateResponse(
         `当前文档内容：\n${content}\n\n用户请求：${userMessage}\n\n请根据用户的请求，对文档进行优化修改。如果是修改请求，请直接返回修改后的完整HTML内容；如果是询问或建议，请给出专业的回复。`,
         {
@@ -711,6 +717,7 @@ ${outlineText}
       }
       
       // 添加AI回复到聊天
+      console.log('[AI Writer] AI 响应完成:', aiResponse.substring(0, 100));
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -720,7 +727,7 @@ ${outlineText}
       setChatMessages(prev => [...prev, aiMsg]);
       
     } catch (error) {
-      console.error('AI对话失败:', error);
+      console.error('[AI Writer] AI对话失败:', error);
       // 添加错误消息
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -817,6 +824,150 @@ ${outlineText}
       .replace(/<[^>]*>/g, '');
   };
 
+  // 菜单项点击处理函数
+  const handleMenuItemClick = (menuLabel: string, item: string) => {
+    console.log(`点击菜单: ${menuLabel} - ${item}`);
+
+    // 根据菜单项执行相应操作
+    switch (menuLabel) {
+      case '文件':
+        handleFileMenu(item);
+        break;
+      case '编辑':
+        handleEditMenu(item);
+        break;
+      case '视图':
+        handleViewMenu(item);
+        break;
+      case '插入':
+        handleInsertMenu(item);
+        break;
+      case '格式':
+        handleFormatMenu(item);
+        break;
+      case '工具':
+        handleToolsMenu(item);
+        break;
+      case '表格':
+        handleTableMenu(item);
+        break;
+      case '帮助':
+        handleHelpMenu(item);
+        break;
+    }
+
+    // 关闭菜单
+    setActiveMenu(null);
+  };
+
+  const handleFileMenu = (item: string) => {
+    switch (item) {
+      case '新建文档':
+        setContent('');
+        setTitle('');
+        toast.success('新建文档成功');
+        break;
+      case '打开':
+        navigate('/create/ai-writer');
+        break;
+      case '保存':
+        handleSave();
+        break;
+      case '导出':
+        setShowExportMenu(true);
+        break;
+    }
+  };
+
+  const handleEditMenu = (item: string) => {
+    switch (item) {
+      case '撤销':
+        execCommand('undo');
+        break;
+      case '重做':
+        execCommand('redo');
+        break;
+      case '剪切':
+        execCommand('cut');
+        break;
+      case '复制':
+        execCommand('copy');
+        break;
+      case '粘贴':
+        execCommand('paste');
+        break;
+    }
+  };
+
+  const handleViewMenu = (item: string) => {
+    toast.info(`${item}功能开发中`);
+  };
+
+  const handleInsertMenu = (item: string) => {
+    switch (item) {
+      case '图片':
+        {
+          const url = prompt('请输入图片地址:', 'https://');
+          if (url) execCommand('insertImage', url);
+        }
+        break;
+      case '表格':
+        toast.info('表格插入功能开发中');
+        break;
+      case '链接':
+        {
+          const url = prompt('请输入链接地址:', 'https://');
+          if (url) execCommand('createLink', url);
+        }
+        break;
+      case '代码块':
+        toast.info('代码块插入功能开发中');
+        break;
+      case '分隔线':
+        execCommand('insertHorizontalRule');
+        break;
+    }
+  };
+
+  const handleFormatMenu = (item: string) => {
+    switch (item) {
+      case '加粗':
+        execCommand('bold');
+        break;
+      case '斜体':
+        execCommand('italic');
+        break;
+      case '下划线':
+        execCommand('underline');
+        break;
+      case '删除线':
+        execCommand('strikeThrough');
+        break;
+    }
+  };
+
+  const handleToolsMenu = (item: string) => {
+    toast.info(`${item}功能开发中`);
+  };
+
+  const handleTableMenu = (item: string) => {
+    toast.info(`${item}功能开发中`);
+  };
+
+  const handleHelpMenu = (item: string) => {
+    switch (item) {
+      case '快捷键':
+        toast.info('快捷键功能开发中');
+        break;
+      case '使用指南':
+        toast.info('使用指南功能开发中');
+        break;
+      case '反馈':
+        toast.info('反馈功能开发中');
+        break;
+    }
+  };
+
   // 添加自定义样式到编辑器
   useEffect(() => {
     // 动态添加编辑器样式
@@ -906,6 +1057,14 @@ ${outlineText}
         border-top: 1px solid #e5e7eb;
         margin: 2rem 0;
       }
+      /* 隐藏滚动条但保持滚动功能 */
+      .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
     `;
     document.head.appendChild(style);
     return () => {
@@ -914,23 +1073,23 @@ ${outlineText}
   }, []);
 
   return (
-    <div 
+    <div
       className={`fixed inset-0 z-[70] flex flex-col ${isDark ? 'bg-white dark:bg-gray-900' : 'bg-white'}`}
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+      style={{ position: 'fixed', top: 0, left: '80px', right: 0, bottom: 0, zIndex: 9999 }}
     >
       {/* 顶部导航栏 */}
-      <header className={`flex items-center justify-between px-4 h-14 border-b ${isDark ? 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900' : 'border-gray-200 bg-white'}`}>
+      <header className={`flex items-center justify-between px-4 h-14 border-b min-w-0 ${isDark ? 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900' : 'border-gray-200 bg-white'}`}>
         {/* 左侧：Logo和菜单 */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0">
               <Sparkles className="w-4 h-4" />
             </div>
-            <span className={`font-semibold ${isDark ? 'text-gray-900 dark:text-white' : 'text-gray-900'}`}>AI 智作文案</span>
+            <span className={`font-semibold whitespace-nowrap ${isDark ? 'text-gray-900 dark:text-white' : 'text-gray-900'}`}>AI 智作文案</span>
           </div>
-          
-          {/* 菜单栏 */}
-          <nav className="hidden md:flex items-center gap-1">
+
+          {/* 菜单栏 - 在 lg 以下隐藏 */}
+          <nav className="hidden lg:flex items-center gap-1 flex-shrink min-w-0">
             {menuItems.map((menu) => (
               <div key={menu.label} className="relative">
                 <button
@@ -944,12 +1103,13 @@ ${outlineText}
                   {menu.label}
                 </button>
                 {activeMenu === menu.label && (
-                  <div className={`absolute top-full left-0 mt-1 w-40 rounded-lg shadow-lg border py-1 z-50 ${
+                  <div className={`absolute left-0 top-full mt-1 w-40 rounded-lg shadow-lg border py-1 z-[100] ${
                     isDark ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' : 'bg-white border-gray-200'
                   }`}>
                     {menu.items.map((item) => (
                       <button
                         key={item}
+                        onClick={() => handleMenuItemClick(menu.label, item)}
                         className={`w-full px-4 py-2 text-sm text-left transition-colors ${
                           isDark ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-50'
                         }`}
@@ -965,25 +1125,25 @@ ${outlineText}
         </div>
 
         {/* 中间：AI模型选择 */}
-        <div className="flex items-center gap-2">
-          <button 
+        <div className="flex items-center gap-2 flex-shrink-0 mx-2">
+          <button
             onClick={() => setShowModelSelector(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap ${
               isDark ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
             }`}
           >
-            <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+            <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
               <span className="text-white text-xs font-bold">
                 {selectedModel === 'Kimi' ? 'K' : '通'}
               </span>
             </div>
-            <span>{selectedModel}</span>
-            <ChevronDown className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{selectedModel}</span>
+            <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
           </button>
         </div>
 
         {/* 右侧：操作按钮 */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* 一键参赛按钮 */}
           <SubmitToEventButton
             content={content}
@@ -1072,7 +1232,7 @@ ${outlineText}
       </header>
 
       {/* 工具栏 */}
-      <div className={`flex items-center gap-1 px-4 py-2 border-b ${isDark ? 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
+      <div className={`flex items-center gap-1 px-4 py-2 border-b overflow-x-auto whitespace-nowrap ${isDark ? 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
         {/* 撤销重做 */}
         <div className="flex items-center gap-0.5">
           <button onClick={() => execCommand('undo')} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400" title="撤销">

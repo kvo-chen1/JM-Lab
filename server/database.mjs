@@ -102,13 +102,13 @@ const config = {
   postgresql: {
     connectionString: connectionString,
     options: {
-      // 连接池大小：增加连接数以提高并发性能
-      // Neon 免费版支持 10 个并发连接，这里设置为 5 以预留余量
-      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '5'),
-      // 最小连接数：保持 2 个空闲连接以避免冷启动延迟
-      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '2'),
-      // 空闲连接超时：增加到 2 分钟以保持连接更久，减少重新连接开销
-      idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '120000'),
+      // 连接池大小：Supabase 免费版限制 10 个并发连接
+      // 设置为 3 以避免连接池耗尽（预留连接给其他服务）
+      max: parseInt(process.env.POSTGRES_MAX_POOL_SIZE || '3'),
+      // 最小连接数：设置为 0，让连接在不使用时释放
+      min: parseInt(process.env.POSTGRES_MIN_POOL_SIZE || '0'),
+      // 空闲连接超时：设置为 30 秒，让不用的连接快速释放
+      idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '30000'),
       // 连接超时：增加到 30 秒以适应 Neon 数据库连接较慢的情况
       connectionTimeoutMillis: isVercel ? 30000 : parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '30000'),
       // 连接最大生命周期：增加到 30 分钟以减少重新连接
@@ -910,6 +910,15 @@ async function createPostgreSQLTables(pool) {
         } catch (e) {
           console.log('[DB] final_ranking_published column may already exist:', e.message)
         }
+
+        // 添加 final_ranking_published_at 字段（如果不存在）
+        await ensureColumn('events', 'final_ranking_published_at', 'TIMESTAMP WITH TIME ZONE')
+
+        // 添加 final_ranking_published_by 字段（如果不存在）
+        await ensureColumn('events', 'final_ranking_published_by', 'TEXT')
+
+        // 添加 final_ranking_data 字段（如果不存在）- JSONB格式存储排名数据
+        await ensureColumn('events', 'final_ranking_data', 'JSONB DEFAULT \'[]\'::jsonb')
 
         // 添加活动时间相关字段（如果不存在）
         await client.query(`ALTER TABLE IF EXISTS events ADD COLUMN IF NOT EXISTS registration_deadline BIGINT;`)

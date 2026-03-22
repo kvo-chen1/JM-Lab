@@ -66,6 +66,7 @@ export interface QualityCheckResult {
 
 // 预定义工作流模板
 const WORKFLOW_TEMPLATES: Record<string, Workflow> = {
+  // ==================== 功能工作流 ====================
   'ip-design': {
     id: 'ip-design',
     name: 'IP形象设计工作流',
@@ -240,6 +241,554 @@ const WORKFLOW_TEMPLATES: Record<string, Workflow> = {
     ],
     startNodeId: 'start',
     endNodeId: 'end'
+  },
+
+  // ==================== 角色专属工作流 ====================
+
+  // 1. 设计总监专属工作流
+  'director-workflow': {
+    id: 'director-workflow',
+    name: '设计总监工作流',
+    description: '统筹全局、需求分析、任务分配、质量把控',
+    nodes: [
+      {
+        id: 'requirement_collection',
+        type: WorkflowNodeType.START,
+        agent: 'director',
+        name: '需求收集',
+        description: '收集用户需求',
+        inputs: [],
+        outputs: ['rawRequirements'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: [],
+        autoExecute: false
+      },
+      {
+        id: 'intent_analysis',
+        type: WorkflowNodeType.ANALYSIS,
+        agent: 'director',
+        name: '意图分析',
+        description: '分析用户意图',
+        inputs: ['rawRequirements'],
+        outputs: ['intentAnalysis'],
+        estimatedTime: 2 * 60 * 1000,
+        dependencies: ['requirement_collection'],
+        autoExecute: true
+      },
+      {
+        id: 'task_planning',
+        type: WorkflowNodeType.ANALYSIS,
+        agent: 'director',
+        name: '任务规划',
+        description: '制定项目计划',
+        inputs: ['intentAnalysis'],
+        outputs: ['projectPlan'],
+        estimatedTime: 3 * 60 * 1000,
+        dependencies: ['intent_analysis'],
+        autoExecute: true
+      },
+      {
+        id: 'agent_assignment',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'director',
+        name: 'Agent分配',
+        description: '分配任务给专业Agent',
+        inputs: ['projectPlan'],
+        outputs: ['taskAssignments'],
+        estimatedTime: 2 * 60 * 1000,
+        dependencies: ['task_planning'],
+        autoExecute: true
+      },
+      {
+        id: 'progress_monitoring',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'director',
+        name: '进度监控',
+        description: '监控项目进度',
+        inputs: ['taskAssignments'],
+        outputs: ['progressReport'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['agent_assignment'],
+        autoExecute: false
+      },
+      {
+        id: 'quality_review',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'director',
+        name: '质量评审',
+        description: '质量评审',
+        inputs: ['progressReport'],
+        outputs: ['qualityReport'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['progress_monitoring'],
+        autoExecute: false
+      },
+      {
+        id: 'final_delivery',
+        type: WorkflowNodeType.END,
+        agent: 'director',
+        name: '最终交付',
+        description: '最终交付',
+        inputs: ['qualityReport'],
+        outputs: [],
+        estimatedTime: 2 * 60 * 1000,
+        dependencies: ['quality_review'],
+        autoExecute: true
+      }
+    ],
+    startNodeId: 'requirement_collection',
+    endNodeId: 'final_delivery'
+  },
+
+  // 2. 品牌设计师专属工作流
+  'designer-workflow': {
+    id: 'designer-workflow',
+    name: '品牌设计师工作流',
+    description: '视觉设计、图像生成、品牌/海报/包装设计',
+    nodes: [
+      {
+        id: 'requirement_analysis',
+        type: WorkflowNodeType.START,
+        agent: 'designer',
+        name: '需求分析',
+        description: '分析设计需求',
+        inputs: [],
+        outputs: ['designRequirements'],
+        estimatedTime: 3 * 60 * 1000,
+        dependencies: [],
+        autoExecute: false
+      },
+      {
+        id: 'style_exploration',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'designer',
+        name: '风格探索',
+        description: '探索设计风格',
+        inputs: ['designRequirements'],
+        outputs: ['styleOptions'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['requirement_analysis'],
+        autoExecute: true
+      },
+      {
+        id: 'draft_design',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'designer',
+        name: '初稿设计',
+        description: '制作设计初稿',
+        inputs: ['styleOptions'],
+        outputs: ['designDrafts'],
+        estimatedTime: 10 * 60 * 1000,
+        dependencies: ['style_exploration'],
+        autoExecute: true
+      },
+      {
+        id: 'design_review',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'designer',
+        name: '方案评审',
+        description: '设计方案评审',
+        inputs: ['designDrafts'],
+        outputs: ['reviewFeedback'],
+        estimatedTime: 3 * 60 * 1000,
+        dependencies: ['draft_design'],
+        autoExecute: false
+      },
+      {
+        id: 'design_refinement',
+        type: WorkflowNodeType.REVISE,
+        agent: 'designer',
+        name: '优化调整',
+        description: '优化调整设计',
+        inputs: ['designDrafts', 'reviewFeedback'],
+        outputs: ['refinedDesign'],
+        estimatedTime: 8 * 60 * 1000,
+        dependencies: ['design_review'],
+        autoExecute: true
+      },
+      {
+        id: 'final_design',
+        type: WorkflowNodeType.APPROVE,
+        agent: 'designer',
+        name: '最终定稿',
+        description: '最终定稿',
+        inputs: ['refinedDesign'],
+        outputs: ['finalDesign'],
+        estimatedTime: 2 * 60 * 1000,
+        dependencies: ['design_refinement'],
+        autoExecute: false
+      },
+      {
+        id: 'design_end',
+        type: WorkflowNodeType.END,
+        agent: 'designer',
+        name: '完成',
+        description: '工作流完成',
+        inputs: ['finalDesign'],
+        outputs: [],
+        estimatedTime: 0,
+        dependencies: ['final_design'],
+        autoExecute: true
+      }
+    ],
+    startNodeId: 'requirement_analysis',
+    endNodeId: 'design_end'
+  },
+
+  // 3. 插画师专属工作流
+  'illustrator-workflow': {
+    id: 'illustrator-workflow',
+    name: '插画师工作流',
+    description: '手绘风格、角色设计、概念插画',
+    nodes: [
+      {
+        id: 'requirement_understanding',
+        type: WorkflowNodeType.START,
+        agent: 'illustrator',
+        name: '需求理解',
+        description: '理解创作需求',
+        inputs: [],
+        outputs: ['creativeRequirements'],
+        estimatedTime: 3 * 60 * 1000,
+        dependencies: [],
+        autoExecute: false
+      },
+      {
+        id: 'sketch_drawing',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'illustrator',
+        name: '草图绘制',
+        description: '绘制概念草图',
+        inputs: ['creativeRequirements'],
+        outputs: ['sketches'],
+        estimatedTime: 8 * 60 * 1000,
+        dependencies: ['requirement_understanding'],
+        autoExecute: true
+      },
+      {
+        id: 'lineart_drawing',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'illustrator',
+        name: '线稿绘制',
+        description: '绘制精细线稿',
+        inputs: ['sketches'],
+        outputs: ['lineart'],
+        estimatedTime: 10 * 60 * 1000,
+        dependencies: ['sketch_drawing'],
+        autoExecute: true
+      },
+      {
+        id: 'coloring_rendering',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'illustrator',
+        name: '上色渲染',
+        description: '上色和渲染',
+        inputs: ['lineart'],
+        outputs: ['coloredArtwork'],
+        estimatedTime: 12 * 60 * 1000,
+        dependencies: ['lineart_drawing'],
+        autoExecute: true
+      },
+      {
+        id: 'detail_refinement',
+        type: WorkflowNodeType.REVISE,
+        agent: 'illustrator',
+        name: '细节完善',
+        description: '细节完善',
+        inputs: ['coloredArtwork'],
+        outputs: ['refinedArtwork'],
+        estimatedTime: 6 * 60 * 1000,
+        dependencies: ['coloring_rendering'],
+        autoExecute: true
+      },
+      {
+        id: 'final_artwork',
+        type: WorkflowNodeType.APPROVE,
+        agent: 'illustrator',
+        name: '完稿交付',
+        description: '完稿交付',
+        inputs: ['refinedArtwork'],
+        outputs: ['finalArtwork'],
+        estimatedTime: 2 * 60 * 1000,
+        dependencies: ['detail_refinement'],
+        autoExecute: false
+      },
+      {
+        id: 'illustrator_end',
+        type: WorkflowNodeType.END,
+        agent: 'illustrator',
+        name: '完成',
+        description: '工作流完成',
+        inputs: ['finalArtwork'],
+        outputs: [],
+        estimatedTime: 0,
+        dependencies: ['final_artwork'],
+        autoExecute: true
+      }
+    ],
+    startNodeId: 'requirement_understanding',
+    endNodeId: 'illustrator_end'
+  },
+
+  // 4. 文案策划专属工作流
+  'copywriter-workflow': {
+    id: 'copywriter-workflow',
+    name: '文案策划工作流',
+    description: '品牌文案、标语创作、故事编写',
+    nodes: [
+      {
+        id: 'requirement_research',
+        type: WorkflowNodeType.START,
+        agent: 'copywriter',
+        name: '需求调研',
+        description: '调研文案需求',
+        inputs: [],
+        outputs: ['copyRequirements'],
+        estimatedTime: 3 * 60 * 1000,
+        dependencies: [],
+        autoExecute: false
+      },
+      {
+        id: 'creative_conception',
+        type: WorkflowNodeType.ANALYSIS,
+        agent: 'copywriter',
+        name: '创意构思',
+        description: '创意构思',
+        inputs: ['copyRequirements'],
+        outputs: ['creativeConcepts'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['requirement_research'],
+        autoExecute: true
+      },
+      {
+        id: 'copywriting',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'copywriter',
+        name: '文案撰写',
+        description: '撰写文案',
+        inputs: ['creativeConcepts'],
+        outputs: ['copyDrafts'],
+        estimatedTime: 8 * 60 * 1000,
+        dependencies: ['creative_conception'],
+        autoExecute: true
+      },
+      {
+        id: 'internal_review',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'copywriter',
+        name: '内部审核',
+        description: '内部审核',
+        inputs: ['copyDrafts'],
+        outputs: ['reviewNotes'],
+        estimatedTime: 3 * 60 * 1000,
+        dependencies: ['copywriting'],
+        autoExecute: false
+      },
+      {
+        id: 'copy_optimization',
+        type: WorkflowNodeType.REVISE,
+        agent: 'copywriter',
+        name: '修改优化',
+        description: '修改优化',
+        inputs: ['copyDrafts', 'reviewNotes'],
+        outputs: ['optimizedCopy'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['internal_review'],
+        autoExecute: true
+      },
+      {
+        id: 'final_copy',
+        type: WorkflowNodeType.APPROVE,
+        agent: 'copywriter',
+        name: '最终文案',
+        description: '最终文案',
+        inputs: ['optimizedCopy'],
+        outputs: ['finalCopy'],
+        estimatedTime: 2 * 60 * 1000,
+        dependencies: ['copy_optimization'],
+        autoExecute: false
+      },
+      {
+        id: 'copywriter_end',
+        type: WorkflowNodeType.END,
+        agent: 'copywriter',
+        name: '完成',
+        description: '工作流完成',
+        inputs: ['finalCopy'],
+        outputs: [],
+        estimatedTime: 0,
+        dependencies: ['final_copy'],
+        autoExecute: true
+      }
+    ],
+    startNodeId: 'requirement_research',
+    endNodeId: 'copywriter_end'
+  },
+
+  // 5. 动画师专属工作流
+  'animator-workflow': {
+    id: 'animator-workflow',
+    name: '动画师工作流',
+    description: '动画制作、视频编辑、动效设计、表情包制作',
+    nodes: [
+      {
+        id: 'requirement_confirmation',
+        type: WorkflowNodeType.START,
+        agent: 'animator',
+        name: '需求确认',
+        description: '确认动画需求',
+        inputs: [],
+        outputs: ['animationRequirements'],
+        estimatedTime: 3 * 60 * 1000,
+        dependencies: [],
+        autoExecute: false
+      },
+      {
+        id: 'storyboard_design',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'animator',
+        name: '分镜设计',
+        description: '分镜设计',
+        inputs: ['animationRequirements'],
+        outputs: ['storyboard'],
+        estimatedTime: 8 * 60 * 1000,
+        dependencies: ['requirement_confirmation'],
+        autoExecute: true
+      },
+      {
+        id: 'keyframe_drawing',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'animator',
+        name: '关键帧绘制',
+        description: '关键帧绘制',
+        inputs: ['storyboard'],
+        outputs: ['keyframes'],
+        estimatedTime: 10 * 60 * 1000,
+        dependencies: ['storyboard_design'],
+        autoExecute: true
+      },
+      {
+        id: 'animation_production',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'animator',
+        name: '动画制作',
+        description: '动画制作',
+        inputs: ['keyframes'],
+        outputs: ['animation'],
+        estimatedTime: 15 * 60 * 1000,
+        dependencies: ['keyframe_drawing'],
+        autoExecute: true
+      },
+      {
+        id: 'post_editing',
+        type: WorkflowNodeType.REVISE,
+        agent: 'animator',
+        name: '后期编辑',
+        description: '后期编辑',
+        inputs: ['animation'],
+        outputs: ['editedAnimation'],
+        estimatedTime: 8 * 60 * 1000,
+        dependencies: ['animation_production'],
+        autoExecute: true
+      },
+      {
+        id: 'final_export',
+        type: WorkflowNodeType.END,
+        agent: 'animator',
+        name: '导出交付',
+        description: '导出交付',
+        inputs: ['editedAnimation'],
+        outputs: ['finalAnimation'],
+        estimatedTime: 3 * 60 * 1000,
+        dependencies: ['post_editing'],
+        autoExecute: true
+      }
+    ],
+    startNodeId: 'requirement_confirmation',
+    endNodeId: 'final_export'
+  },
+
+  // 6. 研究员专属工作流
+  'researcher-workflow': {
+    id: 'researcher-workflow',
+    name: '研究员工作流',
+    description: '市场调研、竞品分析、趋势研究',
+    nodes: [
+      {
+        id: 'research_objective',
+        type: WorkflowNodeType.START,
+        agent: 'researcher',
+        name: '研究目标',
+        description: '明确研究目标',
+        inputs: [],
+        outputs: ['researchGoals'],
+        estimatedTime: 2 * 60 * 1000,
+        dependencies: [],
+        autoExecute: false
+      },
+      {
+        id: 'data_collection',
+        type: WorkflowNodeType.ANALYSIS,
+        agent: 'researcher',
+        name: '数据收集',
+        description: '收集市场数据',
+        inputs: ['researchGoals'],
+        outputs: ['marketData'],
+        estimatedTime: 10 * 60 * 1000,
+        dependencies: ['research_objective'],
+        autoExecute: true
+      },
+      {
+        id: 'competitor_analysis',
+        type: WorkflowNodeType.ANALYSIS,
+        agent: 'researcher',
+        name: '竞品分析',
+        description: '竞品分析',
+        inputs: ['marketData'],
+        outputs: ['competitorReport'],
+        estimatedTime: 8 * 60 * 1000,
+        dependencies: ['data_collection'],
+        autoExecute: true
+      },
+      {
+        id: 'trend_research',
+        type: WorkflowNodeType.ANALYSIS,
+        agent: 'researcher',
+        name: '趋势研究',
+        description: '趋势研究',
+        inputs: ['competitorReport'],
+        outputs: ['trendAnalysis'],
+        estimatedTime: 6 * 60 * 1000,
+        dependencies: ['competitor_analysis'],
+        autoExecute: true
+      },
+      {
+        id: 'report_writing',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'researcher',
+        name: '报告撰写',
+        description: '撰写研究报告',
+        inputs: ['trendAnalysis'],
+        outputs: ['researchReport'],
+        estimatedTime: 10 * 60 * 1000,
+        dependencies: ['trend_research'],
+        autoExecute: true
+      },
+      {
+        id: 'result_presentation',
+        type: WorkflowNodeType.END,
+        agent: 'researcher',
+        name: '成果汇报',
+        description: '成果汇报',
+        inputs: ['researchReport'],
+        outputs: ['finalReport'],
+        estimatedTime: 3 * 60 * 1000,
+        dependencies: ['report_writing'],
+        autoExecute: true
+      }
+    ],
+    startNodeId: 'research_objective',
+    endNodeId: 'result_presentation'
   }
 };
 

@@ -6,6 +6,7 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
 import viteCompression from 'vite-plugin-compression'
 import path from 'path'
+import fs from 'fs'
 // import { createRequire } from 'node:module'
 // const require = createRequire(import.meta.url)
 // 从环境变量获取API端口，支持 VITE_LOCAL_API_URL 或 LOCAL_API_PORT
@@ -14,11 +15,38 @@ const LOCAL_API_PORT = process.env.LOCAL_API_PORT || '3030'
 // 使用127.0.0.1而不是localhost，避免IPv6连接问题
 const LOCAL_API_TARGET = LOCAL_API_URL || `http://127.0.0.1:${LOCAL_API_PORT}`
 
+// 自定义插件：为津小脉 IP 目录提供静态文件服务
+const ipPosterStaticPlugin = () => ({
+  name: 'ip-poster-static',
+  configureServer(server) {
+    server.middlewares.use('/津小脉 IP', (req, res, next) => {
+      const filePath = path.join(__dirname, '津小脉 IP', req.url)
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath).toLowerCase()
+        const contentType = {
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.gif': 'image/gif',
+          '.svg': 'image/svg+xml',
+        }[ext] || 'application/octet-stream'
+        
+        res.setHeader('Content-Type', contentType)
+        res.setHeader('Cache-Control', 'public, max-age=31536000')
+        fs.createReadStream(filePath).pipe(res)
+      } else {
+        next()
+      }
+    })
+  },
+})
+
 export default defineConfig({
   base: '/',
   plugins: [
     react(), 
     tsconfigPaths(),
+    ipPosterStaticPlugin(),
     // ViteImageOptimizer 在 Vercel 构建环境中可能导致 sharp 依赖问题
     // 仅在非 Vercel 环境中启用
     ...(process.env.VERCEL !== '1' ? [ViteImageOptimizer({
@@ -352,12 +380,23 @@ export default defineConfig({
   server: {
     // 启用 gzip 压缩
     compress: true,
-    // 设置端口为3005，避开常用端口缓存
+    // 设置端口为 3005，避开常用端口缓存
     port: 3005,
-    // 增加请求头大小限制，避免431错误
+    // 增加请求头大小限制，避免 431 错误
     maxHeaderSize: 32768, // 32KB
     // 自动打开浏览器，直接打开首页
     open: '/',
+    // 添加静态文件中间件，允许访问项目根目录下的特定目录
+    middlewareMode: false,
+    // 配置 fs.allow 以允许访问项目根目录外的文件
+    fs: {
+      allow: [
+        // 允许访问项目根目录
+        __dirname,
+        // 允许访问津小脉 IP 目录
+        path.join(__dirname, '津小脉 IP'),
+      ],
+    },
     // 优化热更新
     hmr: {
       timeout: 3000,

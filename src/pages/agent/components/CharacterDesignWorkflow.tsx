@@ -1,9 +1,9 @@
 /**
  * 角色设计工作流组件
- * 引导用户一步步完成IP形象设计
+ * 使用工作流引擎引导用户一步步完成IP形象设计
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore } from '../hooks/useAgentStore';
@@ -12,6 +12,7 @@ import {
   CheckCircle, Clock, Wand2, RefreshCw 
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getWorkflowEngine, WorkflowInstance } from '../services/workflowEngine';
 import { llmService } from '@/services/llmService';
 
 // 角色设定信息
@@ -40,14 +41,14 @@ export interface CharacterProfile {
   usageScenario: string;
 }
 
-// 工作流步骤
+// 工作流步骤 - 对应 illustrator-workflow 的节点
 export type WorkflowStep = 
-  | 'collecting_basic'      // 收集基本信息
-  | 'collecting_appearance' // 收集外貌特征
-  | 'collecting_clothing'   // 收集服装风格
-  | 'collecting_background' // 收集背景故事
-  | 'generating_profile'    // 生成角色设定
-  | 'showing_profile'       // 展示角色设定
+  | 'collecting_basic'      // requirement_understanding: 收集基本信息
+  | 'collecting_appearance' // sketch_drawing: 收集外貌特征
+  | 'collecting_clothing'   // lineart_drawing: 收集服装风格
+  | 'collecting_background' // coloring_rendering: 收集背景故事
+  | 'generating_profile'    // detail_refinement: 生成角色设定
+  | 'showing_profile'       // final_artwork: 展示角色设定
   | 'selecting_style'       // 选择艺术风格
   | 'generating_concept'    // 生成概念图
   | 'showing_concept'       // 展示概念图
@@ -93,9 +94,9 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
   const { 
     addMessage, 
     addOutput, 
-    updateOutput,
     currentAgent,
-    setCurrentAgent 
+    setCurrentAgent,
+    currentTask
   } = useAgentStore();
   
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('collecting_basic');
@@ -111,6 +112,34 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
   const [selectedStyle, setSelectedStyle] = useState<string>('');
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [isSatisfied, setIsSatisfied] = useState<boolean | null>(null);
+  
+  // 工作流引擎实例
+  const [workflowInstance, setWorkflowInstance] = useState<WorkflowInstance | null>(null);
+  const workflowEngine = getWorkflowEngine();
+
+  // 初始化工作流
+  useEffect(() => {
+    // 创建插画师工作流实例
+    const instance = workflowEngine.createWorkflow('illustrator-workflow', {
+      characterProfile: {},
+      currentStep: 'collecting_basic'
+    });
+    
+    if (instance) {
+      setWorkflowInstance(instance);
+      console.log('[CharacterDesignWorkflow] 工作流已创建:', instance.id);
+    }
+    
+    // 设置当前Agent为插画师
+    setCurrentAgent('illustrator');
+    
+    return () => {
+      // 清理工作流
+      if (instance) {
+        workflowEngine.cancelWorkflow(instance.id);
+      }
+    };
+  }, []);
 
   // 模拟进度更新
   const startProgressSimulation = useCallback((message: string, estimatedTime: number = 20) => {
@@ -152,14 +181,31 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     }));
   }, []);
 
+  // 更新工作流数据
+  const updateWorkflowData = useCallback((data: Record<string, any>) => {
+    if (workflowInstance) {
+      workflowInstance.data = { ...workflowInstance.data, ...data };
+    }
+  }, [workflowInstance]);
+
   // 步骤1: 收集基本信息
   const handleBasicInfoCollected = (info: Partial<CharacterProfile>) => {
     setCharacterProfile(prev => ({ ...prev, ...info }));
     setCurrentStep('collecting_appearance');
     
+    // 更新工作流数据
+    updateWorkflowData({ 
+      characterProfile: { ...characterProfile, ...info },
+      currentStep: 'collecting_appearance'
+    });
+    
     addMessage({
-      role: 'designer',
-      content: `很好！现在让我了解一下${info.name || '这个角色'}的外貌特征。请告诉我：\n\n1. 发色和发型是什么样的？\n2. 眼睛是什么颜色？\n3. 有什么特别的外貌特征吗？（比如雀斑、疤痕、特殊标记等）`,
+      role: 'illustrator',
+      content: `很好！现在让我了解一下${info.name || '这个角色'}的外貌特征。请告诉我：
+
+1. 发色和发型是什么样的？
+2. 眼睛是什么颜色？
+3. 有什么特别的外貌特征吗？（比如雀斑、疤痕、特殊标记等）`,
       type: 'text'
     });
   };
@@ -169,8 +215,13 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     setCharacterProfile(prev => ({ ...prev, appearance }));
     setCurrentStep('collecting_clothing');
     
+    updateWorkflowData({ 
+      characterProfile: { ...characterProfile, appearance },
+      currentStep: 'collecting_clothing'
+    });
+    
     addMessage({
-      role: 'designer',
+      role: 'illustrator',
       content: '了解了！现在来说说服装风格吧。你希望角色穿什么样的衣服？\n\n• 日常休闲风\n• 职场正式风\n• 潮流街头风\n• 古风汉服\n• 未来科幻风\n• 还是其他风格？',
       type: 'text'
     });
@@ -181,8 +232,13 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     setCharacterProfile(prev => ({ ...prev, clothing }));
     setCurrentStep('collecting_background');
     
+    updateWorkflowData({ 
+      characterProfile: { ...characterProfile, clothing },
+      currentStep: 'collecting_background'
+    });
+    
     addMessage({
-      role: 'designer',
+      role: 'illustrator',
       content: '完美！最后，这个角色有什么背景故事吗？\n\n比如：\n• 职业是什么？\n• 性格特点？\n• 有什么特殊能力或爱好？\n• 目标受众是谁？',
       type: 'text'
     });
@@ -190,10 +246,16 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
 
   // 步骤4: 收集背景故事
   const handleBackgroundCollected = (info: { background: string; story: string; targetAudience: string }) => {
-    setCharacterProfile(prev => ({ ...prev, ...info }));
+    const updatedProfile = { ...characterProfile, ...info };
+    setCharacterProfile(updatedProfile);
     setCurrentStep('generating_profile');
     
-    // 开始生成角色设定
+    updateWorkflowData({ 
+      characterProfile: updatedProfile,
+      currentStep: 'generating_profile'
+    });
+    
+    // 开始生成角色设定 - 对应工作流的 detail_refinement 节点
     generateCharacterProfile();
   };
 
@@ -202,25 +264,35 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     startProgressSimulation('正在整理角色设定...', 5);
     
     try {
-      // 模拟AI处理时间
+      // 模拟AI处理时间 - 对应工作流节点执行
       await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // 完成工作流节点
+      if (workflowInstance) {
+        await workflowEngine.completeNode(workflowInstance.id, 'detail_refinement', {
+          profileDescription: generateProfileDescription()
+        });
+      }
       
       stopProgressSimulation(true);
       setCurrentStep('showing_profile');
       
-      // 添加角色设定展示消息
+      const profileDescription = generateProfileDescription();
+      
+      // 添加角色设定到对话消息
       addMessage({
-        role: 'designer',
-        content: '角色设定已完成！👆 请在右侧查看详细的角色档案。确认无误后，我们就可以开始创作概念图了！',
+        role: 'illustrator',
+        content: `## 📋 ${characterProfile.name} 的角色档案\n\n${profileDescription}\n\n---\n*角色设定已完成！确认无误后，我们就可以开始创作概念图了！*`,
         type: 'text'
       });
       
-      // 添加到画布展示角色设定
+      // 同时添加到画布展示
       addOutput({
         type: 'text',
+        url: '',
         title: `${characterProfile.name} - 角色设定`,
-        description: generateProfileDescription(),
-        agentType: 'designer'
+        description: profileDescription,
+        agentType: 'illustrator'
       });
       
     } catch (error) {
@@ -263,10 +335,15 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     setSelectedStyle(styleId);
     setCurrentStep('generating_concept');
     
+    updateWorkflowData({ 
+      selectedStyle: styleId,
+      currentStep: 'generating_concept'
+    });
+    
     const style = ART_STYLES.find(s => s.id === styleId);
     
     addMessage({
-      role: 'designer',
+      role: 'illustrator',
       content: `选择了${style?.name}风格！现在开始生成角色概念图...`,
       type: 'text'
     });
@@ -299,13 +376,21 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
         throw new Error('无法获取图像URL');
       }
       
+      // 完成工作流
+      if (workflowInstance) {
+        await workflowEngine.completeNode(workflowInstance.id, 'final_artwork', {
+          conceptImage: imageUrl,
+          style: style?.name
+        });
+      }
+      
       stopProgressSimulation(true);
       setGeneratedImages([imageUrl]);
       setCurrentStep('showing_concept');
       
       // 添加图像到聊天
       addMessage({
-        role: 'designer',
+        role: 'illustrator',
         content: `✨ ${characterProfile.name}的角色概念图已完成！这是${style?.name}风格的呈现效果。`,
         type: 'image',
         metadata: { images: [imageUrl] }
@@ -318,19 +403,20 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
         thumbnail: imageUrl,
         title: `${characterProfile.name} - 概念图`,
         description: `${style?.name}风格`,
-        agentType: 'designer'
+        agentType: 'illustrator'
       });
       
       // 延迟显示满意度确认
       setTimeout(() => {
         setCurrentStep('satisfaction_check');
+        updateWorkflowData({ currentStep: 'satisfaction_check' });
       }, 1500);
       
     } catch (error: any) {
       stopProgressSimulation(false);
       toast.error(`概念图生成失败: ${error.message}`);
       addMessage({
-        role: 'designer',
+        role: 'illustrator',
         content: '抱歉，概念图生成遇到了问题。请重试或换一种风格。',
         type: 'text'
       });
@@ -343,7 +429,17 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     const a = p.appearance;
     const c = p.clothing;
     
-    return `${styleName}风格的角色设计，
+    // 获取品牌信息
+    const brandName = currentTask?.requirements?.mentionedBrand;
+    
+    let prompt = `${styleName}风格的角色设计`;
+    
+    // 如果用户引用了品牌，添加品牌风格参考
+    if (brandName) {
+      prompt += `，参考品牌"${brandName}"的风格和调性`;
+    }
+    
+    prompt += `，
 ${p.gender === 'male' ? '男性' : p.gender === 'female' ? '女性' : '中性'}角色，
 ${p.age}岁，
 ${a?.hairColor}色${a?.hairStyle}，
@@ -353,6 +449,8 @@ ${c?.accessories?.length ? '佩戴' + c?.accessories?.join('、') : ''}，
 ${a?.distinctiveFeatures?.length ? '特征：' + a?.distinctiveFeatures?.join('、') : ''}，
 ${p.personality?.join('、')}的性格，
 高质量，精美细节，专业角色设计，白色背景，全身像`;
+    
+    return prompt;
   };
 
   // 满意度确认
@@ -361,15 +459,30 @@ ${p.personality?.join('、')}的性格，
     
     if (satisfied) {
       setCurrentStep('derivative_selection');
+      updateWorkflowData({ 
+        isSatisfied: true,
+        currentStep: 'derivative_selection'
+      });
+      
       addMessage({
-        role: 'designer',
+        role: 'illustrator',
         content: '太棒了！🎉 你对这个角色满意吗？我们还可以为它创作更多精彩内容：',
         type: 'text'
       });
+      
+      // 完成工作流
+      if (workflowInstance) {
+        workflowEngine.completeWorkflow(workflowInstance.id);
+      }
     } else {
       setCurrentStep('selecting_style');
+      updateWorkflowData({ 
+        isSatisfied: false,
+        currentStep: 'selecting_style'
+      });
+      
       addMessage({
-        role: 'designer',
+        role: 'illustrator',
         content: '没问题！让我们调整一下。你可以：\n1. 修改角色设定\n2. 换一种艺术风格\n3. 告诉我具体哪里需要改进',
         type: 'text'
       });
@@ -381,7 +494,7 @@ ${p.personality?.join('、')}的性格，
     const option = DERIVATIVE_OPTIONS.find(o => o.id === optionId);
     
     addMessage({
-      role: 'designer',
+      role: 'illustrator',
       content: `选择了${option?.name}！这是一个很棒的想法。让我开始为你创作...`,
       type: 'text'
     });
@@ -507,7 +620,7 @@ ${p.personality?.join('、')}的性格，
     );
   };
 
-  // 渲染风格选择
+  // 渲染风格选择 - 优化样式
   const renderStyleSelection = () => {
     if (currentStep !== 'selecting_style') return null;
     
@@ -515,40 +628,45 @@ ${p.personality?.join('、')}的性格，
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`p-6 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg`}
+        className="space-y-4"
       >
-        <h3 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          🎨 选择艺术风格
-        </h3>
-        <p className={`mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-          你希望角色以什么风格呈现？
-        </p>
+        {/* 标题 */}
+        <div className={`text-base font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+          选择你喜欢的风格
+        </div>
         
-        <div className="grid grid-cols-2 gap-3">
+        {/* 风格选择网格 - 参考 oii 设计 */}
+        <div className="grid grid-cols-2 gap-2">
           {ART_STYLES.map((style) => (
             <motion.button
               key={style.id}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handleStyleSelected(style.id)}
-              className={`p-4 rounded-xl border-2 transition-all text-left ${
+              className={`flex items-center gap-3 p-3 rounded-xl transition-all group text-left ${
                 selectedStyle === style.id
-                  ? 'border-[#C02C38] bg-[#C02C38]/10'
+                  ? 'bg-[#C02C38]/10 border border-[#C02C38]/50'
                   : isDark
-                    ? 'border-gray-700 hover:border-gray-600'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'bg-[#1E1E2E]/60 border border-[#2A2A3E] hover:border-[#C02C38]/30'
+                    : 'bg-white/60 border border-gray-200 hover:border-[#C02C38]/30'
               }`}
             >
               <div 
-                className="w-8 h-8 rounded-lg mb-2"
+                className="w-10 h-10 rounded-lg flex-shrink-0"
                 style={{ backgroundColor: style.color }}
               />
-              <h4 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {style.name}
-              </h4>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                {style.description}
-              </p>
+              <div className="min-w-0">
+                <div className={`text-sm font-medium truncate transition-colors ${
+                  selectedStyle === style.id 
+                    ? 'text-[#E85D75]' 
+                    : isDark ? 'text-gray-200' : 'text-gray-800'
+                }`}>
+                  {style.name}
+                </div>
+                <div className={`text-xs truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  {style.description}
+                </div>
+              </div>
             </motion.button>
           ))}
         </div>

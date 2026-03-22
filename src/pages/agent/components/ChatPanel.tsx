@@ -9,7 +9,7 @@ import { usePrediction } from '../hooks/usePrediction';
 import { useABTesting } from '../hooks/useABTesting';
 import { useDynamicWorkflow } from '../hooks/useDynamicWorkflow';
 import { useJinbi } from '@/hooks/useJinbi';
-import { Send, Image as ImageIcon, Sparkles, Trash2, Wand2, Layers, Store, Library, Coins, AlertCircle } from 'lucide-react';
+import { Send, Image as ImageIcon, Sparkles, Trash2, Wand2, Layers, Store, Library, Coins, AlertCircle, LayoutTemplate } from 'lucide-react';
 import { toast } from 'sonner';
 import ChatMessage from './ChatMessage';
 import AgentAvatar from './AgentAvatar';
@@ -26,6 +26,8 @@ import VoiceInputButton from './VoiceInputButton';
 import StyleLibrary from './StyleLibrary';
 import BrandLibrary from './BrandLibrary';
 import WorkLibrary from './WorkLibrary';
+import IPPosterLibrary from './IPPosterLibrary';
+import StyleSelector from './StyleSelector';
 import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 import { IPMascotVideoLoader } from '@/components/ip-mascot';
 import type { InspirationHint, StyleOption } from '../types/agent';
@@ -177,6 +179,7 @@ export default function ChatPanel() {
     currentModel,
     pendingMention,
     generatedOutputs,
+    showStyleSelector,
     addMessage,
     addOutput,
     updateOutput,
@@ -202,9 +205,12 @@ export default function ChatPanel() {
   const [showAgentSwitcher, setShowAgentSwitcher] = useState(false);
   const [switcherFromAgent, setSwitcherFromAgent] = useState<AgentType | undefined>();
   const [switcherToAgent, setSwitcherToAgent] = useState<AgentType>('director');
+  const [switcherReasoning, setSwitcherReasoning] = useState<string>('');
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [analyzingImage, setAnalyzingImage] = useState<string | null>(null);
   const [showStyleLibrary, setShowStyleLibrary] = useState(false);
+  const [showIPPosterLibrary, setShowIPPosterLibrary] = useState(false);
+  const [selectedIPPosterLayoutId, setSelectedIPPosterLayoutId] = useState<string | undefined>();
   // AI生成状态
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -300,6 +306,33 @@ export default function ChatPanel() {
     };
   }, [scrollToBottom]);
 
+  // 使用 ref 存储 handleAutoImageGeneration 函数，避免循环依赖
+  const handleAutoImageGenerationRef = useRef<(() => void) | null>(null);
+
+  // 页面加载时，检查是否需要显示风格选择器
+  useEffect(() => {
+    // 延迟执行，确保消息数据已从持久化存储中恢复
+    const timer = setTimeout(() => {
+      // 检查消息历史中是否有提示选择风格的消息
+      const lastMessage = messages[messages.length - 1];
+      const hasStyleSelectionPrompt = lastMessage &&
+        (lastMessage.content?.includes('请先选择一个你喜欢的风格') ||
+         lastMessage.metadata?.showStyleSelector);
+
+      // 检查是否没有选择风格且没有生成内容
+      const shouldShowSelector = !selectedStyle &&
+        generatedOutputs.length === 0 &&
+        hasStyleSelectionPrompt;
+
+      if (shouldShowSelector) {
+        console.log('[ChatPanel] 检测到需要显示风格选择器');
+        setShowStyleSelector(true);
+      }
+    }, 500); // 延迟500ms，确保状态已恢复
+
+    return () => clearTimeout(timer);
+  }, [messages, selectedStyle, generatedOutputs, setShowStyleSelector]);
+
   // 获取用户信息和会话ID
   useEffect(() => {
     const initUserSession = async () => {
@@ -387,12 +420,13 @@ export default function ChatPanel() {
   }, [pendingMention, clearPendingMention]);
 
   // 处理 Agent 切换动画
-  const handleAgentSwitch = useCallback((fromAgent: AgentType | undefined, toAgent: AgentType) => {
+  const handleAgentSwitch = useCallback((fromAgent: AgentType | undefined, toAgent: AgentType, reasoning?: string) => {
     // 先切换当前Agent，确保后续消息使用正确的Agent
     setCurrentAgent(toAgent);
 
     setSwitcherFromAgent(fromAgent);
     setSwitcherToAgent(toAgent);
+    setSwitcherReasoning(reasoning || '');
     setShowAgentSwitcher(true);
   }, [setCurrentAgent]);
 
@@ -554,6 +588,24 @@ export default function ChatPanel() {
     }
   }, [selectedStyle, currentTask, currentAgent, addMessage, addOutput, updateOutput, generatedOutputs, setShowStyleSelector]);
 
+  // 将函数赋值给 ref
+  handleAutoImageGenerationRef.current = handleAutoImageGeneration;
+
+  // 监听触发生成事件（来自 ChatMessage 中的确认按钮）
+  useEffect(() => {
+    const handleTriggerGeneration = () => {
+      console.log('[ChatPanel] 收到触发生成事件');
+      if (selectedStyle && currentTask) {
+        handleAutoImageGenerationRef.current?.();
+      }
+    };
+
+    window.addEventListener('trigger-auto-generation', handleTriggerGeneration);
+    return () => {
+      window.removeEventListener('trigger-auto-generation', handleTriggerGeneration);
+    };
+  }, [selectedStyle, currentTask]);
+
   // 处理编排器响应
   const handleOrchestratorResponse = useCallback(async (
     response: OrchestratorResponse,
@@ -574,10 +626,11 @@ export default function ChatPanel() {
     switch (response.type) {
       case 'delegation':
         if (response.delegationTask) {
-          // 显示 Agent 切换动画
+          // 显示 Agent 切换动画，传递切换原因
           handleAgentSwitch(
             response.delegationTask.fromAgent,
-            response.delegationTask.toAgent
+            response.delegationTask.toAgent,
+            response.delegationTask.context // 使用 context 作为切换原因
           );
 
           // 添加委派指示消息
@@ -595,13 +648,38 @@ export default function ChatPanel() {
             }
           });
 
-          // Agent切换后，自动触发图像生成
+          // Agent切换后，检查是否需要显示风格选择器或确认生成
           setTimeout(() => {
             console.log('[ChatPanel] Agent切换后检查 - selectedStyle:', selectedStyle);
             if (selectedStyle) {
-              // 如果已选择风格，直接触发图像生成
-              console.log('[ChatPanel] 已选择风格，自动触发生成');
-              handleAutoImageGeneration();
+              // 如果已选择风格，询问用户是否立即生成，而不是直接生成
+              const style = PRESET_STYLES.find(s => s.id === selectedStyle);
+              console.log('[ChatPanel] 已选择风格，询问用户确认:', style?.name);
+
+              addMessage({
+                role: 'system',
+                content: `已选择「${style?.name || '当前'}」风格，是否立即开始生成？`,
+                type: 'quick-actions',
+                metadata: {
+                  quickActions: [
+                    {
+                      label: '✅ 立即生成',
+                      action: 'generate_now',
+                      description: '使用当前风格立即生成'
+                    },
+                    {
+                      label: '🎨 更换风格',
+                      action: 'change_style',
+                      description: '选择其他风格'
+                    },
+                    {
+                      label: '💬 继续沟通',
+                      action: 'continue_chat',
+                      description: '先不生成，继续交流'
+                    }
+                  ]
+                }
+              });
             } else {
               // 如果没有选择风格，显示风格选择器
               console.log('[ChatPanel] 未选择风格，显示风格选择器');
@@ -645,8 +723,8 @@ export default function ChatPanel() {
         break;
 
       case 'handoff':
-        // 完全交接给新 Agent
-        handleAgentSwitch(currentAgent, response.agent);
+        // 完全交接给新 Agent，传递交接原因
+        handleAgentSwitch(currentAgent, response.agent, '根据你的需求，更适合由这位同事为你服务');
         break;
 
       case 'image_generation':
@@ -707,7 +785,7 @@ export default function ChatPanel() {
       default:
         // 普通响应，检查是否需要切换 Agent
         if (response.agent !== currentAgent) {
-          handleAgentSwitch(currentAgent, response.agent);
+          handleAgentSwitch(currentAgent, response.agent, '为你安排更专业的团队成员');
         }
 
         // 处理角色设计工作流
@@ -723,6 +801,14 @@ export default function ChatPanel() {
     // 处理风格选项
     if (response.aiResponse?.type === 'style-options') {
       setShowStyleSelector(true);
+    }
+
+    // 新增：处理 metadata 中标记的显示风格选择器
+    if (response.metadata?.showStyleSelector) {
+      console.log('[ChatPanel] 根据 metadata 显示风格选择器');
+      setTimeout(() => {
+        setShowStyleSelector(true);
+      }, 300);
     }
 
     // 智能检测：如果设计师或总监说开始设计/生成方案等，自动显示风格选择器
@@ -744,8 +830,8 @@ export default function ChatPanel() {
     const isGreetingOnly = /^(你好|您好|哈喽|hi|hello|嗨|欢迎)/i.test(response.content.trim());
     const isTooShort = response.content.length < 30;
 
-    // 检查是否已经有生成的内容
-    const hasGeneratedContent = generatedOutputs.length > 0;
+    // 检查是否已经有生成的内容 - 使用 getState 避免依赖项循环
+    const hasGeneratedContent = useAgentStore.getState().generatedOutputs.length > 0;
 
     // 排除疑问句 - 如果 AI 在询问问题，不显示风格选择器
     const isAskingQuestion = response.content.includes('？') ||
@@ -789,9 +875,9 @@ export default function ChatPanel() {
       console.log('[ChatPanel] 触发风格选择器显示');
       setTimeout(() => {
         setShowStyleSelector(true);
-        // 添加风格选择提示
+        // 添加风格选择提示（使用当前Agent，避免硬编码切换）
         const styleMessageId = addMessage({
-          role: 'designer',
+          role: currentAgent,
           content: '请选择你喜欢的设计风格：',
           type: 'style-options'
         });
@@ -799,10 +885,10 @@ export default function ChatPanel() {
       }, 500);
     }
 
-    // 智能检测：如果Agent询问设计类型，显示设计类型选项按钮
+    // 智能检测：如果总监询问设计类型，在消息中显示设计类型选项
     const designTypeKeywords = [
       '设计什么类型', '想设计什么', '设计类型', '项目类型',
-      '选一个最想开始', '选择类型', '设计方向'
+      '选一个最想开始', '选择类型', '设计方向', '创作什么内容'
     ];
 
     // 检查是否已经在当前会话中选择了设计类型或用户已指定设计类型
@@ -813,32 +899,47 @@ export default function ChatPanel() {
     );
 
     const shouldShowDesignTypeOptions = !hasSelectedDesignType &&
-      (response.agent === 'designer' || response.agent === 'director') &&
+      response.agent === 'director' && // 只有总监发送类型选择器
       designTypeKeywords.some(keyword => response.content.includes(keyword));
 
     if (shouldShowDesignTypeOptions) {
-      console.log('[ChatPanel] 触发设计类型选项显示');
-      setTimeout(() => {
-        // 添加设计类型选项消息
-        const designTypeMessageId = addMessage({
-          role: 'designer',
-          content: '请选择一个设计类型开始：',
-          type: 'design-type-options',
-          metadata: {
-            designTypeOptions: [
-              { id: 'ip-character', label: 'IP形象', description: '独特的角色形象设计', icon: '🎭' },
-              { id: 'brand-design', label: '品牌设计', description: '品牌视觉识别系统', icon: '🎨' },
-              { id: 'packaging', label: '包装设计', description: '产品包装创意设计', icon: '📦' },
-              { id: 'poster', label: '海报设计', description: '宣传海报与物料设计', icon: '🖼️' },
-              { id: 'animation', label: '动画视频', description: '动态视觉与视频制作', icon: '🎬' },
-              { id: 'illustration', label: '插画设计', description: '手绘风格插画创作', icon: '✏️' }
-            ]
-          }
-        });
-        console.log('[ChatPanel] 已添加设计类型选项消息:', designTypeMessageId);
-      }, 500);
+      console.log('[ChatPanel] 总监消息触发设计类型选项显示');
+      // 更新当前消息，添加类型选择器 metadata
+      updateMessage(messageId, {
+        metadata: {
+          showDesignTypeSelector: true,
+          designTypeOptions: [
+            {
+              category: '🎨 品牌形象类',
+              items: [
+                { id: 'ip-character', label: 'IP形象设计', description: '打造独特的角色、吉祥物或虚拟形象', icon: '🎭' },
+                { id: 'brand-design', label: '品牌设计', description: '构建完整的品牌视觉识别系统', icon: '🎨' }
+              ]
+            },
+            {
+              category: '📦 产品包装类',
+              items: [
+                { id: 'packaging', label: '包装设计', description: '产品包装创意设计与视觉呈现', icon: '📦' }
+              ]
+            },
+            {
+              category: '📢 营销推广类',
+              items: [
+                { id: 'poster', label: '海报设计', description: '宣传海报、物料设计与视觉传达', icon: '🖼️' },
+                { id: 'animation', label: '动画视频', description: '动态视觉内容与短视频制作', icon: '🎬' }
+              ]
+            },
+            {
+              category: '✏️ 插画创作类',
+              items: [
+                { id: 'illustration', label: '插画设计', description: '手绘风格插画与艺术创作', icon: '✏️' }
+              ]
+            }
+          ]
+        }
+      });
     }
-  }, [currentAgent, updateMessage, addMessage, setCollaborating, addToAgentQueue, handleAgentSwitch, setShowStyleSelector, generatedOutputs]);
+  }, [currentAgent, updateMessage, addMessage, setCollaborating, addToAgentQueue, handleAgentSwitch, setShowStyleSelector]);
 
   // 流式显示AI响应 - 优化版：动态延迟
   const streamResponse = useCallback(async (content: string, messageId: string) => {
@@ -1016,11 +1117,21 @@ export default function ChatPanel() {
 
     try {
       // 检查是否是明确的设计需求
+      // 排除词：这些词表示用户只是咨询/寻求建议，不是要做设计
+      const exclusionKeywords = /(灵感|建议|推荐|参考|例子|案例|看看|了解一下|有什么|哪些|需求描述|需求文档|怎么写|如何写|模板|框架)/i;
+
       const isDesignRequest = /(设计|生成|创作|绘制|海报|logo|ip|形象|品牌|包装|插画|动画)/i.test(cleanInput) &&
+        !exclusionKeywords.test(cleanInput) && // 排除咨询类输入
         cleanInput.length > 5 &&
         !/^(你好|您好|哈喽|hi|hello|嗨|早上好|下午好|晚上好)/i.test(cleanInput.trim());
 
-      console.log('[ChatPanel] 设计需求检测:', { cleanInput, isDesignRequest });
+      console.log('[ChatPanel] 设计需求检测:', {
+        cleanInput,
+        isDesignRequest,
+        hasDesignKeyword: /(设计|生成|创作|绘制|海报|logo|ip|形象|品牌|包装|插画|动画)/i.test(cleanInput),
+        hasExclusionKeyword: exclusionKeywords.test(cleanInput),
+        exclusionMatch: cleanInput.match(exclusionKeywords)
+      });
 
       // 如果没有当前任务，先分析需求并创建任务（使用清理后的内容）
       if (!currentTask && isDesignRequest) {
@@ -1108,9 +1219,19 @@ export default function ChatPanel() {
         async () => {
           const response = await processWithOrchestrator(userMessage, context);
 
-          // 更新当前 Agent（但如果用户已选择设计类型，保持当前专业Agent不变）
-          if (response.agent !== currentAgent && !currentTask?.requirements?.projectType) {
+          // 更新当前 Agent（仅当编排器明确建议切换且用户没有指定设计类型时）
+          // 避免过度切换：如果用户只是咨询，不要切换Agent
+          const isConsultation = /(灵感|建议|推荐|参考|例子|案例|看看|了解一下|有什么|哪些|需求描述|需求文档|怎么写|如何写|模板|框架)/i.test(userMessage);
+          const shouldSwitchAgent = response.agent !== currentAgent && 
+                                    !currentTask?.requirements?.projectType && 
+                                    !isConsultation &&
+                                    response.type === 'delegation'; // 只有明确的委派才切换
+          
+          if (shouldSwitchAgent) {
+            console.log('[ChatPanel] Switching agent:', currentAgent, '->', response.agent);
             setCurrentAgent(response.agent);
+          } else if (response.agent !== currentAgent) {
+            console.log('[ChatPanel] Keeping current agent:', currentAgent, '(requested:', response.agent, ', isConsultation:', isConsultation, ')');
           }
 
           // 流式显示响应
@@ -1318,6 +1439,20 @@ export default function ChatPanel() {
     inputRef.current?.focus();
   };
 
+  // 处理 IP 海报排版库选择
+  const handleIPPosterLibrarySelect = (layout: any) => {
+    setSelectedIPPosterLayoutId(layout.id);
+    // 在输入框中显示 @排版名，并保留用户已输入的内容
+    setInputValue(prev => {
+      const mention = `@${layout.name} `;
+      return prev ? `${prev} ${mention}` : mention;
+    });
+    toast.success(`已选择排版：${layout.name}，请在输入框中描述您的需求`);
+    setShowIPPosterLibrary(false);
+    // 聚焦到输入框
+    inputRef.current?.focus();
+  };
+
   // 处理品牌选择
   const handleBrandSelect = (brand: Brand) => {
     setSelectedBrand(brand);
@@ -1351,10 +1486,11 @@ export default function ChatPanel() {
     { icon: Trash2, label: '清空对话', onClick: handleClear },
     { icon: ImageIcon, label: '上传参考', onClick: () => setShowUploadDialog(true) },
     { icon: Sparkles, label: '灵感提示', onClick: toggleInspirationPanel },
-    { icon: Wand2, label: 'AI优化', onClick: handleOptimizePrompt, loading: isOptimizingPrompt },
+    { icon: Wand2, label: 'AI 优化', onClick: handleOptimizePrompt, loading: isOptimizingPrompt },
     { icon: Layers, label: '风格库', onClick: () => setShowStyleLibrary(true) },
     { icon: Store, label: '品牌库', onClick: () => setShowBrandLibrary(true) },
-    { icon: Library, label: '作品库', onClick: () => setShowWorkLibrary(true) }
+    { icon: Library, label: '作品库', onClick: () => setShowWorkLibrary(true) },
+    { icon: LayoutTemplate, label: '排版库', onClick: () => setShowIPPosterLibrary(true) }
   ];
 
   // 获取当前 Agent 的颜色
@@ -1425,6 +1561,7 @@ export default function ChatPanel() {
         toAgent={switcherToAgent}
         isVisible={showAgentSwitcher}
         onComplete={() => setShowAgentSwitcher(false)}
+        reasoning={switcherReasoning}
       />
 
       {/* 上传对话框 */}
@@ -1499,6 +1636,27 @@ export default function ChatPanel() {
               onStyleSelect={handleStyleLibrarySelect}
               onClose={() => setShowStyleLibrary(false)}
               currentStyle={selectedStyle || undefined}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* IP 海报排版库面板 */}
+      <AnimatePresence>
+        {showIPPosterLibrary && (
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`fixed right-0 top-0 h-full w-[480px] shadow-2xl z-40 ${
+              isDark ? 'bg-gray-800' : 'bg-white'
+            }`}
+          >
+            <IPPosterLibrary
+              onLayoutSelect={handleIPPosterLibrarySelect}
+              onClose={() => setShowIPPosterLibrary(false)}
+              currentLayoutId={selectedIPPosterLayoutId}
             />
           </motion.div>
         )}
@@ -1661,6 +1819,26 @@ export default function ChatPanel() {
               </div>
             </div>
           </motion.div>
+        )}
+
+        {/* 风格选择器 - 在消息容器内部显示，限制宽度并居中 */}
+        {showStyleSelector && (
+          <div className="mt-4 max-w-lg mx-auto">
+            <div className={`p-4 rounded-2xl border ${
+              isDark
+                ? 'bg-[#1E1E2E] border-gray-700'
+                : 'bg-white border-gray-200 shadow-sm'
+            }`}>
+              <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                请选择你喜欢的风格：
+              </p>
+              <StyleSelector 
+                onOpenStyleLibrary={() => setShowStyleLibrary(true)}
+                onCloseStyleLibrary={() => setShowStyleLibrary(false)}
+                showStyleLibrary={showStyleLibrary}
+              />
+            </div>
+          </div>
         )}
 
         <div ref={messagesEndRef} />

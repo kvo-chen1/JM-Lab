@@ -251,7 +251,7 @@ export class EmbeddingService {
 注意：请确保返回的是有效的JSON数组格式。`;
 
       const response = await callQwenChat({
-        model: 'qwen3.5-122b-a10b',
+        model: 'qwen3-max-2026-01-23',
         messages: [
           { 
             role: 'system', 

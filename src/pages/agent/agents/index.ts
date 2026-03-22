@@ -31,12 +31,20 @@ export interface AgentInfo {
 export { BaseAgent } from './BaseAgent';
 export { DirectorAgent } from './DirectorAgent';
 export { DesignerAgent } from './DesignerAgent';
+export { IllustratorAgent } from './IllustratorAgent';
+export { CopywriterAgent } from './CopywriterAgent';
+export { AnimatorAgent } from './AnimatorAgent';
+export { ResearcherAgent } from './ResearcherAgent';
 
 // 导入类型用于函数
 import type { AgentType } from '../types/agent';
 import { BaseAgent } from './BaseAgent';
 import { DirectorAgent } from './DirectorAgent';
 import { DesignerAgent } from './DesignerAgent';
+import { IllustratorAgent } from './IllustratorAgent';
+import { CopywriterAgent } from './CopywriterAgent';
+import { AnimatorAgent } from './AnimatorAgent';
+import { ResearcherAgent } from './ResearcherAgent';
 
 // Agent 工厂
 export function createAgent(type: AgentType): BaseAgent {
@@ -45,6 +53,14 @@ export function createAgent(type: AgentType): BaseAgent {
       return new DirectorAgent();
     case 'designer':
       return new DesignerAgent();
+    case 'illustrator':
+      return new IllustratorAgent();
+    case 'copywriter':
+      return new CopywriterAgent();
+    case 'animator':
+      return new AnimatorAgent();
+    case 'researcher':
+      return new ResearcherAgent();
     default:
       throw new Error(`Unknown agent type: ${type}`);
   }

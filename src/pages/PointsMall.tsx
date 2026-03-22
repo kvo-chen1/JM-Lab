@@ -8,7 +8,6 @@ import { Search, ShoppingCart, History, Package, CheckCircle, AlertCircle, Coins
 import { AuthContext } from '@/contexts/authContext';
 import BlindBoxSection from '@/components/points-mall/BlindBoxSection';
 import blindBoxService, { BlindBox } from '@/services/blindBoxService';
-import membershipService from '@/services/membershipService';
 import { useNavigate } from 'react-router-dom';
 
 const PointsMall: React.FC = () => {
@@ -28,7 +27,7 @@ const PointsMall: React.FC = () => {
   const [showBlindBoxConfirm, setShowBlindBoxConfirm] = useState(false);
 
   // 使用 Supabase 积分服务获取真实积分
-  const { balance, isLoading: pointsLoading, refreshBalance } = useSupabasePoints();
+  const { balance, isLoading: pointsLoading, refreshBalance, consumePoints } = useSupabasePoints();
   const currentPoints = balance?.balance || 0;
   const userId = user?.id;
 
@@ -153,17 +152,17 @@ const PointsMall: React.FC = () => {
 
     try {
       setIsLoading(true);
-      
-      // 扣除积分（使用 membershipService）
-      const pointsResult = await membershipService.spendPoints(
-        userId,
+
+      // 扣除积分（使用 useSupabasePoints 的 consumePoints）
+      const pointsResult = await consumePoints(
         selectedBlindBox.price,
         'blind_box_exchange',
+        'exchange',
         `兑换${selectedBlindBox.name}`
       );
-      
-      if (!pointsResult.success) {
-        throw new Error(pointsResult.error || '积分扣减失败');
+
+      if (!pointsResult) {
+        throw new Error('积分扣减失败');
       }
       
       // 购买盲盒（更新库存）

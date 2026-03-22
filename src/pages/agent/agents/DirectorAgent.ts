@@ -66,15 +66,11 @@ export class DirectorAgent extends BaseAgent {
    */
   private handleGreeting(): AgentResponse {
     return this.createTextResponse(
-      `下午好！欢迎回来，我是津脉设计总监，很高兴再次为您服务。
+      `您好！欢迎来到津脉设计～
 
-我可以帮您完成：
-• IP形象设计与孵化
-• 品牌创意包装设计
-• 老字号宣传海报设计
-• 其他创意设计需求
+我是津脉设计总监，专注于将您的创意转化为惊艳的视觉作品。无论是品牌形象、包装设计还是创意海报，我都能为您提供专业的设计服务。
 
-今天想要设计什么？`,
+今天想创作什么内容呢？`,
       { type: 'greeting' }
     );
   }

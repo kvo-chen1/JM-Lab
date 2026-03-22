@@ -47,25 +47,13 @@ const getWelcomeMessage = (options: WelcomeMessageOptions = {}): AgentMessage =>
 
   if (isReturningUser && previousTaskType) {
     // 回头客，提及之前的任务类型
-    welcomeContent = `${greeting}${namePart}！欢迎回来，我是津脉设计总监。\n\n我可以帮你完成：
-• IP形象设计与孵化
-• 品牌创意包装设计
-• 老字号宣传海报设计
-• 其他创意设计需求\n\n上次你关注了${previousTaskType}，今天想要设计什么？我会为你安排最合适的团队成员。`;
+    welcomeContent = `${greeting}${namePart}！欢迎回来，我是津脉设计总监。\n\n我可以帮你完成：\n\n**1. IP形象设计与孵化**\n打造独特的角色、吉祥物或虚拟形象\n\n**2. 品牌创意包装设计**\n产品包装、礼盒设计，提升品牌价值\n\n**3. 老字号宣传海报设计**\n宣传物料、推广海报，传承文化魅力\n\n**4. 其他创意设计需求**\n动画视频、品牌视觉、文案策划等\n\n上次你关注了${previousTaskType}，今天想要设计什么？`;
   } else if (isReturningUser) {
     // 回头客，无特定任务类型
-    welcomeContent = `${greeting}${namePart}！欢迎回来，我是津脉设计总监，很高兴再次为你服务。\n\n我可以帮你完成：
-• IP形象设计与孵化
-• 品牌创意包装设计
-• 老字号宣传海报设计
-• 其他创意设计需求\n\n今天想要设计什么？`;
+    welcomeContent = `${greeting}${namePart}！欢迎回来，我是津脉设计总监，很高兴再次为你服务。\n\n我可以帮你完成：\n\n**1. IP形象设计与孵化**\n打造独特的角色、吉祥物或虚拟形象\n\n**2. 品牌创意包装设计**\n产品包装、礼盒设计，提升品牌价值\n\n**3. 老字号宣传海报设计**\n宣传物料、推广海报，传承文化魅力\n\n**4. 其他创意设计需求**\n动画视频、品牌视觉、文案策划等\n\n今天想要设计什么？`;
   } else {
     // 新用户
-    welcomeContent = `${greeting}${namePart}！我是津脉设计总监，很高兴为你服务。\n\n我可以帮你完成：
-• IP形象设计与孵化
-• 品牌创意包装设计
-• 老字号宣传海报设计
-• 其他创意设计需求\n\n请告诉我你想要设计什么？我会根据你的需求安排最合适的团队成员为你服务。`;
+    welcomeContent = `${greeting}${namePart}！我是津脉设计总监，很高兴为你服务。\n\n我可以帮你完成：\n\n**1. IP形象设计与孵化**\n打造独特的角色、吉祥物或虚拟形象\n\n**2. 品牌创意包装设计**\n产品包装、礼盒设计，提升品牌价值\n\n**3. 老字号宣传海报设计**\n宣传物料、推广海报，传承文化魅力\n\n**4. 其他创意设计需求**\n动画视频、品牌视觉、文案策划等\n\n请告诉我你想要设计什么？我会根据你的需求安排最合适的团队成员为你服务。`;
   }
 
   return {
@@ -650,7 +638,8 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         messages: state.messages.slice(-50), // 只保留最近50条消息
         currentTask: state.currentTask,
         generatedOutputs: state.generatedOutputs,
-        selectedStyle: state.selectedStyle,
+        // 不持久化 selectedStyle，确保每次会话都需要重新选择风格
+        // selectedStyle: state.selectedStyle,
         delegationHistory: state.delegationHistory,
         currentAgent: state.currentAgent,
         currentModel: state.currentModel

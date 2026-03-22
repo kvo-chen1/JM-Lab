@@ -1170,27 +1170,25 @@ class MembershipService {
     relatedId?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // 积分字段可能不存在，使用默认值
-      const currentPoints = 0;
-
-      if (currentPoints < points) {
-        return { success: false, error: '积分不足' };
-      }
-
-      const newBalance = currentPoints - points;
-
-      // 创建积分记录
-      const { error: recordError } = await supabase.from('points_records').insert({
-        user_id: userId,
-        points: -points,
-        type: 'spend',
-        source,
-        description,
-        related_id: relatedId,
-        balance_after: newBalance,
+      // 使用RPC函数消耗积分（绕过RLS限制）
+      const { data, error } = await supabase.rpc('update_user_points_balance', {
+        p_user_id: userId,
+        p_points: -Math.abs(points),
+        p_type: 'spent',
+        p_source: source,
+        p_source_type: 'exchange',
+        p_description: description,
+        p_metadata: relatedId ? { related_id: relatedId } : {}
       });
 
-      if (recordError) throw recordError;
+      if (error) {
+        console.error('[MembershipService] 消耗积分失败:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!data.success) {
+        return { success: false, error: data.error_message || '积分不足' };
+      }
 
       // 清除缓存
       this.cache.lastUpdated.points = 0;
@@ -1200,7 +1198,7 @@ class MembershipService {
       eventBus.emit('membership:pointsChanged', {
         userId,
         change: -points,
-        balance: newBalance,
+        balance: data.new_balance,
         source,
       });
 

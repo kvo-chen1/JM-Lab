@@ -1024,3 +1024,769 @@
   color: #000 !important;
   box-shadow: var(--shadow-sm);
 }
+
+/* ============================================
+   Agent 对话样式覆盖 - Chat Message Overrides
+   ============================================ */
+
+/* Agent 消息气泡 - 增强对比度 */
+.cyber-brutalist [class*="chat-message"] .bg-\[\#1E1E2E\],
+.cyber-brutalist [class*="message-bubble"],
+.cyber-brutalist .agent-message,
+.cyber-brutalist [class*="rounded-2xl"][class*="rounded-tl-sm"]:not(.bg-gradient-to-br) {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 用户消息气泡 - 使用主题主色 */
+.cyber-brutalist [class*="chat-message"] .bg-gradient-to-br.from-\[\#8B5CF6\],
+.cyber-brutalist [class*="chat-message"] [class*="bg-gradient-to-br"][class*="from-\\[\\#8B5CF6\\]"] {
+  background: var(--color-primary) !important;
+  color: #000 !important;
+  border: 2px solid #000 !important;
+  box-shadow: var(--shadow-md);
+}
+
+.cyber-brutalist [class*="chat-message"] .bg-gradient-to-br.from-\[\#8B5CF6\] *,
+.cyber-brutalist [class*="chat-message"] [class*="bg-gradient-to-br"] * {
+  color: #000 !important;
+}
+
+/* Agent 消息文字 - 强制使用高对比度颜色 */
+.cyber-brutalist [class*="chat-message"] p,
+.cyber-brutalist [class*="chat-message"] span:not([class*="bg-gradient"]):not([class*="rounded"]),
+.cyber-brutalist [class*="message-bubble"] {
+  color: var(--text-primary) !important;
+}
+
+/* 次要文字 - 时间戳等 */
+.cyber-brutalist [class*="chat-message"] .text-gray-400,
+.cyber-brutalist [class*="chat-message"] .text-gray-500,
+.cyber-brutalist [class*="chat-message"] .text-gray-300,
+.cyber-brutalist [class*="chat-message"] [class*="text-xs"][class*="mt-1"] {
+  color: var(--text-tertiary) !important;
+}
+
+/* Markdown 列表项 */
+.cyber-brutalist [class*="chat-message"] li,
+.cyber-brutalist [class*="chat-message"] ul,
+.cyber-brutalist [class*="chat-message"] ol {
+  color: var(--text-primary) !important;
+}
+
+/* Markdown 列表项标记 */
+.cyber-brutalist [class*="chat-message"] li span[class*="bg-gradient-to-br"] {
+  background: var(--color-primary) !important;
+  color: #000 !important;
+  border: 1px solid #000 !important;
+}
+
+/* Markdown 代码块 */
+.cyber-brutalist [class*="chat-message"] code {
+  background-color: var(--bg-primary) !important;
+  color: var(--color-primary) !important;
+  border: 1px solid var(--border-primary);
+  font-family: 'Courier New', monospace !important;
+}
+
+/* Markdown 引用块 */
+.cyber-brutalist [class*="chat-message"] blockquote {
+  border-left-color: var(--color-primary) !important;
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-secondary) !important;
+  border: 2px solid var(--border-primary);
+  border-left-width: 4px !important;
+}
+
+/* Markdown 加粗文字 */
+.cyber-brutalist [class*="chat-message"] strong,
+.cyber-brutalist [class*="chat-message"] b {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 输入框区域 */
+.cyber-brutalist [class*="input-area"],
+.cyber-brutalist [class*="chat-input"],
+.cyber-brutalist [class*="border-t"][class*="p-4"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* 输入框 */
+.cyber-brutalist [class*="input-area"] textarea,
+.cyber-brutalist [class*="chat-input"] textarea,
+.cyber-brutalist textarea[class*="bg-transparent"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--color-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+  font-family: var(--font-pixel), monospace !important;
+}
+
+.cyber-brutalist [class*="input-area"] textarea::placeholder,
+.cyber-brutalist [class*="chat-input"] textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* ============================================
+   Skill 面板文字对比度修复
+   ============================================ */
+
+/* Skill 卡片整体 */
+.cyber-brutalist [class*="skill-call"],
+.cyber-brutalist [class*="SkillCall"] {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+/* Skill 头部 */
+.cyber-brutalist [class*="skill-call"] button,
+.cyber-brutalist [class*="SkillCall"] button {
+  background-color: transparent !important;
+}
+
+.cyber-brutalist [class*="skill-call"] button span[class*="text-gray-200"],
+.cyber-brutalist [class*="skill-call"] button span[class*="text-gray-700"],
+.cyber-brutalist [class*="SkillCall"] button span[class*="text-gray-200"],
+.cyber-brutalist [class*="SkillCall"] button span[class*="text-gray-700"] {
+  color: var(--text-primary) !important;
+}
+
+/* 意图标签 */
+.cyber-brutalist [class*="skill-call"] span[class*="bg-gray-700"],
+.cyber-brutalist [class*="skill-call"] span[class*="bg-gray-100"],
+.cyber-brutalist [class*="SkillCall"] span[class*="bg-gray-700"],
+.cyber-brutalist [class*="SkillCall"] span[class*="bg-gray-100"] {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--border-primary) !important;
+}
+
+/* 进度指示 */
+.cyber-brutalist [class*="skill-call"] span[class*="bg-blue-500/20"],
+.cyber-brutalist [class*="skill-call"] span[class*="bg-blue-100"],
+.cyber-brutalist [class*="SkillCall"] span[class*="bg-blue-500/20"],
+.cyber-brutalist [class*="SkillCall"] span[class*="bg-blue-100"] {
+  background-color: var(--color-primary) !important;
+  color: var(--bg-primary) !important;
+  font-weight: bold !important;
+}
+
+/* 展开/收起图标 */
+.cyber-brutalist [class*="skill-call"] svg[class*="text-gray-500"],
+.cyber-brutalist [class*="skill-call"] svg[class*="text-gray-400"],
+.cyber-brutalist [class*="SkillCall"] svg[class*="text-gray-500"],
+.cyber-brutalist [class*="SkillCall"] svg[class*="text-gray-400"] {
+  color: var(--text-tertiary) !important;
+}
+
+/* 意图显示 */
+.cyber-brutalist [class*="skill-call"] span[class*="text-gray-400"],
+.cyber-brutalist [class*="skill-call"] span[class*="text-gray-500"],
+.cyber-brutalist [class*="SkillCall"] span[class*="text-gray-400"],
+.cyber-brutalist [class*="SkillCall"] span[class*="text-gray-500"] {
+  color: var(--text-secondary) !important;
+}
+
+/* 技能名称 */
+.cyber-brutalist [class*="skill-call"] span[class*="text-gray-200"],
+.cyber-brutalist [class*="skill-call"] span[class*="text-gray-700"],
+.cyber-brutalist [class*="SkillCall"] span[class*="text-gray-200"],
+.cyber-brutalist [class*="SkillCall"] span[class*="text-gray-700"] {
+  color: var(--text-primary) !important;
+}
+
+/* 已收集信息区域 */
+.cyber-brutalist [class*="skill-call"] [class*="bg-gray-900/50"],
+.cyber-brutalist [class*="skill-call"] [class*="bg-gray-50"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-gray-900/50"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-gray-50"] {
+  background-color: var(--bg-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+.cyber-brutalist [class*="skill-call"] [class*="bg-gray-900/50"] span,
+.cyber-brutalist [class*="skill-call"] [class*="bg-gray-50"] span,
+.cyber-brutalist [class*="SkillCall"] [class*="bg-gray-900/50"] span,
+.cyber-brutalist [class*="SkillCall"] [class*="bg-gray-50"] span {
+  color: var(--text-primary) !important;
+}
+
+/* 待收集信息区域 - 关键修复 */
+.cyber-brutalist [class*="skill-call"] [class*="bg-blue-900/20"],
+.cyber-brutalist [class*="skill-call"] [class*="bg-blue-50"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-blue-900/20"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-blue-50"] {
+  background-color: var(--bg-primary) !important;
+  border: 2px solid var(--color-primary) !important;
+}
+
+/* 待收集信息标题 */
+.cyber-brutalist [class*="skill-call"] [class*="bg-blue-900/20"] div[class*="text-blue-400"],
+.cyber-brutalist [class*="skill-call"] [class*="bg-blue-900/20"] div[class*="text-blue-600"],
+.cyber-brutalist [class*="skill-call"] [class*="bg-blue-50"] div[class*="text-blue-400"],
+.cyber-brutalist [class*="skill-call"] [class*="bg-blue-50"] div[class*="text-blue-600"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-blue-900/20"] div[class*="text-blue-400"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-blue-900/20"] div[class*="text-blue-600"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-blue-50"] div[class*="text-blue-400"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-blue-50"] div[class*="text-blue-600"] {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 待收集信息列表项 */
+.cyber-brutalist [class*="skill-call"] [class*="bg-blue-900/20"] span,
+.cyber-brutalist [class*="skill-call"] [class*="bg-blue-50"] span,
+.cyber-brutalist [class*="SkillCall"] [class*="bg-blue-900/20"] span,
+.cyber-brutalist [class*="SkillCall"] [class*="bg-blue-50"] span {
+  color: var(--text-primary) !important;
+}
+
+/* 必填标签 */
+.cyber-brutalist [class*="skill-call"] span[class*="bg-red-500/20"],
+.cyber-brutalist [class*="skill-call"] span[class*="bg-red-100"],
+.cyber-brutalist [class*="SkillCall"] span[class*="bg-red-500/20"],
+.cyber-brutalist [class*="SkillCall"] span[class*="bg-red-100"] {
+  background-color: var(--color-accent) !important;
+  color: var(--bg-primary) !important;
+  font-weight: bold !important;
+}
+
+/* 建议回复 */
+.cyber-brutalist [class*="skill-call"] [class*="text-gray-500"],
+.cyber-brutalist [class*="skill-call"] [class*="text-gray-400"],
+.cyber-brutalist [class*="SkillCall"] [class*="text-gray-500"],
+.cyber-brutalist [class*="SkillCall"] [class*="text-gray-400"] {
+  color: var(--text-secondary) !important;
+}
+
+/* 建议标签 */
+.cyber-brutalist [class*="skill-call"] span[class*="bg-gray-700"],
+.cyber-brutalist [class*="skill-call"] span[class*="bg-white"],
+.cyber-brutalist [class*="skill-call"] span[class*="border-gray-600"],
+.cyber-brutalist [class*="skill-call"] span[class*="border-gray-200"],
+.cyber-brutalist [class*="SkillCall"] span[class*="bg-gray-700"],
+.cyber-brutalist [class*="SkillCall"] span[class*="bg-white"],
+.cyber-brutalist [class*="SkillCall"] span[class*="border-gray-600"],
+.cyber-brutalist [class*="SkillCall"] span[class*="border-gray-200"] {
+  background-color: var(--bg-hover) !important;
+  border-color: var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* 进度条容器 */
+.cyber-brutalist [class*="skill-call"] [class*="bg-gray-700"],
+.cyber-brutalist [class*="skill-call"] [class*="bg-gray-200"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-gray-700"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-gray-200"] {
+  background-color: var(--bg-primary) !important;
+}
+
+/* 进度条 */
+.cyber-brutalist [class*="skill-call"] [class*="bg-gradient-to-r"][class*="from-blue-500"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-gradient-to-r"][class*="from-blue-500"] {
+  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary)) !important;
+  box-shadow: var(--glow-primary-sm) !important;
+}
+
+/* 参数区域 */
+.cyber-brutalist [class*="skill-call"] [class*="font-mono"],
+.cyber-brutalist [class*="SkillCall"] [class*="font-mono"] {
+  background-color: var(--bg-primary) !important;
+  color: var(--color-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+.cyber-brutalist [class*="skill-call"] [class*="font-mono"] div,
+.cyber-brutalist [class*="SkillCall"] [class*="font-mono"] div {
+  color: var(--text-tertiary) !important;
+}
+
+/* 错误信息 */
+.cyber-brutalist [class*="skill-call"] [class*="bg-red-500/10"],
+.cyber-brutalist [class*="SkillCall"] [class*="bg-red-500/10"] {
+  background-color: var(--color-accent) !important;
+  border: 2px solid var(--color-accent) !important;
+  color: var(--bg-primary) !important;
+}
+
+/* 周边类型选择器按钮 */
+.cyber-brutalist [class*="skill-call"] button[class*="bg-gray-800"],
+.cyber-brutalist [class*="skill-call"] button[class*="bg-white"],
+.cyber-brutalist [class*="SkillCall"] button[class*="bg-gray-800"],
+.cyber-brutalist [class*="SkillCall"] button[class*="bg-white"] {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="skill-call"] button[class*="bg-gray-800"]:hover,
+.cyber-brutalist [class*="skill-call"] button[class*="bg-white"]:hover,
+.cyber-brutalist [class*="SkillCall"] button[class*="bg-gray-800"]:hover,
+.cyber-brutalist [class*="SkillCall"] button[class*="bg-white"]:hover {
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--glow-primary-sm) !important;
+}
+
+/* 确认选择按钮 */
+.cyber-brutalist [class*="skill-call"] button[class*="from-purple-500"],
+.cyber-brutalist [class*="SkillCall"] button[class*="from-purple-500"] {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) !important;
+  box-shadow: var(--glow-primary-sm) !important;
+  color: var(--bg-primary) !important;
+  font-weight: bold !important;
+}
+
+/* 需求分析标题 */
+.cyber-brutalist h3[class*="需求分析"],
+.cyber-brutalist [class*="requirement-analysis"] h3 {
+  color: var(--text-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 信息收集标题 */
+.cyber-brutalist h4[class*="信息收集"],
+.cyber-brutalist [class*="info-collection"] h4 {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 收集进度文字 */
+.cyber-brutalist [class*="收集进度"],
+.cyber-brutalist [class*="collection-progress"] {
+  color: var(--text-secondary) !important;
+}
+
+/* 百分比显示 */
+.cyber-brutalist [class*="skill-call"] span[class*="text-xs"][class*="text-gray-400"],
+.cyber-brutalist [class*="SkillCall"] span[class*="text-xs"][class*="text-gray-400"] {
+  color: var(--color-primary) !important;
+  font-weight: bold !important;
+}
+
+/* ============================================
+   AI写作助手面板文字对比度修复
+   ============================================ */
+
+/* AI助手面板整体背景 */
+.cyber-brutalist [class*="ai-assistant"],
+.cyber-brutalist [class*="AIAssistant"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+/* AI助手头部 */
+.cyber-brutalist [class*="ai-assistant"] h3,
+.cyber-brutalist [class*="AIAssistant"] h3,
+.cyber-brutalist h3[class*="AI"] {
+  color: var(--text-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* AI助手描述文字 */
+.cyber-brutalist [class*="ai-assistant"] p[class*="text-xs"],
+.cyber-brutalist [class*="AIAssistant"] p[class*="text-xs"] {
+  color: var(--text-tertiary) !important;
+}
+
+/* 聊天消息气泡 - AI助手消息 */
+.cyber-brutalist [class*="ai-assistant"] [class*="rounded-2xl"][class*="bg-gray-100"],
+.cyber-brutalist [class*="ai-assistant"] [class*="rounded-2xl"][class*="dark:bg-gray-800"],
+.cyber-brutalist [class*="AIAssistant"] [class*="rounded-2xl"][class*="bg-gray-100"],
+.cyber-brutalist [class*="AIAssistant"] [class*="rounded-2xl"][class*="dark:bg-gray-800"] {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* 聊天消息文字 */
+.cyber-brutalist [class*="ai-assistant"] [class*="rounded-2xl"] [class*="text-gray-700"],
+.cyber-brutalist [class*="ai-assistant"] [class*="rounded-2xl"] [class*="dark:text-gray-300"],
+.cyber-brutalist [class*="AIAssistant"] [class*="rounded-2xl"] [class*="text-gray-700"],
+.cyber-brutalist [class*="AIAssistant"] [class*="rounded-2xl"] [class*="dark:text-gray-300"] {
+  color: var(--text-primary) !important;
+}
+
+/* 用户消息气泡 - 保持蓝色但增强 */
+.cyber-brutalist [class*="ai-assistant"] [class*="bg-blue-600"],
+.cyber-brutalist [class*="AIAssistant"] [class*="bg-blue-600"] {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) !important;
+  box-shadow: var(--glow-primary-sm) !important;
+}
+
+/* 时间戳 */
+.cyber-brutalist [class*="ai-assistant"] [class*="text-gray-500"],
+.cyber-brutalist [class*="ai-assistant"] [class*="text-gray-400"],
+.cyber-brutalist [class*="AIAssistant"] [class*="text-gray-500"],
+.cyber-brutalist [class*="AIAssistant"] [class*="text-gray-400"] {
+  color: var(--text-tertiary) !important;
+}
+
+/* 智能建议标题 */
+.cyber-brutalist [class*="ai-assistant"] h4[class*="text-amber-600"],
+.cyber-brutalist [class*="ai-assistant"] h4[class*="dark:text-amber-400"],
+.cyber-brutalist [class*="AIAssistant"] h4[class*="text-amber-600"],
+.cyber-brutalist [class*="AIAssistant"] h4[class*="dark:text-amber-400"] {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 快捷操作标题 */
+.cyber-brutalist [class*="ai-assistant"] h4[class*="text-gray-500"],
+.cyber-brutalist [class*="ai-assistant"] h4[class*="dark:text-gray-400"],
+.cyber-brutalist [class*="AIAssistant"] h4[class*="text-gray-500"],
+.cyber-brutalist [class*="AIAssistant"] h4[class*="dark:text-gray-400"] {
+  color: var(--text-secondary) !important;
+}
+
+/* 建议按钮 */
+.cyber-brutalist [class*="ai-assistant"] button[class*="bg-white"],
+.cyber-brutalist [class*="ai-assistant"] button[class*="dark:bg-gray-800"],
+.cyber-brutalist [class*="AIAssistant"] button[class*="bg-white"],
+.cyber-brutalist [class*="AIAssistant"] button[class*="dark:bg-gray-800"] {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="ai-assistant"] button[class*="bg-white"] [class*="text-gray-700"],
+.cyber-brutalist [class*="ai-assistant"] button[class*="dark:bg-gray-800"] [class*="dark:text-gray-300"],
+.cyber-brutalist [class*="AIAssistant"] button[class*="bg-white"] [class*="text-gray-700"],
+.cyber-brutalist [class*="AIAssistant"] button[class*="dark:bg-gray-800"] [class*="dark:text-gray-300"] {
+  color: var(--text-primary) !important;
+}
+
+/* 建议按钮悬停 */
+.cyber-brutalist [class*="ai-assistant"] button[class*="bg-white"]:hover,
+.cyber-brutalist [class*="ai-assistant"] button[class*="dark:bg-gray-800"]:hover,
+.cyber-brutalist [class*="AIAssistant"] button[class*="bg-white"]:hover,
+.cyber-brutalist [class*="AIAssistant"] button[class*="dark:bg-gray-800"]:hover {
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--glow-primary-sm) !important;
+}
+
+/* 输入框区域 */
+.cyber-brutalist [class*="ai-assistant"] input[type="text"],
+.cyber-brutalist [class*="AIAssistant"] input[type="text"] {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="ai-assistant"] input[type="text"]::placeholder,
+.cyber-brutalist [class*="AIAssistant"] input[type="text"]::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* 发送按钮 */
+.cyber-brutalist [class*="ai-assistant"] button[class*="bg-blue-600"],
+.cyber-brutalist [class*="AIAssistant"] button[class*="bg-blue-600"] {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) !important;
+  box-shadow: var(--glow-primary-sm) !important;
+}
+
+/* 底部提示文字 */
+.cyber-brutalist [class*="ai-assistant"] p[class*="text-center"],
+.cyber-brutalist [class*="AIAssistant"] p[class*="text-center"] {
+  color: var(--text-muted) !important;
+}
+
+/* 加载动画 */
+.cyber-brutalist [class*="ai-assistant"] [class*="animate-bounce"],
+.cyber-brutalist [class*="AIAssistant"] [class*="animate-bounce"] {
+  background-color: var(--color-primary) !important;
+  box-shadow: var(--glow-primary-sm) !important;
+}
+
+/* 快捷操作按钮 */
+.cyber-brutalist [class*="ai-assistant"] [class*="grid-cols-3"] button,
+.cyber-brutalist [class*="AIAssistant"] [class*="grid-cols-3"] button {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="ai-assistant"] [class*="grid-cols-3"] button:hover,
+.cyber-brutalist [class*="AIAssistant"] [class*="grid-cols-3"] button:hover {
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--glow-primary-sm) !important;
+}
+
+/* 编辑器主区域 - 确保编辑区域文字清晰 */
+.cyber-brutalist [class*="editor-content"] {
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="editor-content"] h1,
+.cyber-brutalist [class*="editor-content"] h2,
+.cyber-brutalist [class*="editor-content"] h3 {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+.cyber-brutalist [class*="editor-content"] p {
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="editor-content"] strong {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 编辑器标题输入框 */
+.cyber-brutalist input[placeholder*="标题"] {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+.cyber-brutalist input[placeholder*="标题"]::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* 发送按钮 */
+.cyber-brutalist [class*="chat-input"] button[class*="bg-gradient"],
+.cyber-brutalist [class*="input-area"] button[class*="bg-gradient"] {
+  background: var(--color-primary) !important;
+  color: #000 !important;
+  border: 2px solid #000 !important;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 快捷操作按钮 */
+.cyber-brutalist [class*="chat-input"] button:not([class*="bg-gradient"]),
+.cyber-brutalist [class*="input-area"] button:not([class*="bg-gradient"]) {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+.cyber-brutalist [class*="chat-input"] button:not([class*="bg-gradient"]):hover,
+.cyber-brutalist [class*="input-area"] button:not([class*="bg-gradient"]):hover {
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
+}
+
+/* Agent 头像 */
+.cyber-brutalist [class*="chat-message"] .rounded-full,
+.cyber-brutalist [class*="chat-message"] img[class*="rounded"] {
+  border-radius: 0 !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+/* Agent 名称 */
+.cyber-brutalist [class*="chat-message"] [class*="text-xs"][class*="font-medium"] {
+  color: var(--color-primary) !important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* 思考过程按钮 */
+.cyber-brutalist [class*="chat-message"] button[class*="rounded-full"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+.cyber-brutalist [class*="chat-message"] button[class*="rounded-full"]:hover {
+  background-color: var(--bg-hover) !important;
+  border-color: var(--color-primary) !important;
+}
+
+/* 卡片式选项按钮 */
+.cyber-brutalist [class*="chat-message"] [class*="rounded-xl"][class*="border"],
+.cyber-brutalist [class*="chat-message"] [class*="rounded-2xl"][class*="border"] {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.cyber-brutalist [class*="chat-message"] [class*="rounded-xl"][class*="border"]:hover,
+.cyber-brutalist [class*="chat-message"] [class*="rounded-2xl"][class*="border"]:hover {
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--shadow-md);
+}
+
+/* 图片容器 */
+.cyber-brutalist [class*="chat-message"] [class*="rounded-lg"][class*="overflow-hidden"] {
+  border: 2px solid var(--border-primary) !important;
+  border-radius: 0 !important;
+}
+
+.cyber-brutalist [class*="chat-message"] [class*="rounded-lg"][class*="overflow-hidden"]:hover {
+  border-color: var(--color-primary) !important;
+}
+
+/* 进度条 */
+.cyber-brutalist [class*="chat-message"] [class*="progress-bar"],
+.cyber-brutalist [class*="chat-message"] [class*="h-1"][class*="bg-gray"] {
+  background-color: var(--bg-primary) !important;
+  border: 1px solid var(--border-primary);
+}
+
+.cyber-brutalist [class*="chat-message"] [class*="h-full"][class*="bg-gradient"] {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-primary),
+    var(--color-primary) 8px,
+    var(--color-primary-dark) 8px,
+    var(--color-primary-dark) 10px
+  ) !important;
+  box-shadow: var(--glow-primary-sm);
+}
+
+/* ============================================
+   ChatMessage 组件文字对比度修复 - 增强可读性
+   ============================================ */
+
+/* 强制所有消息文字使用高对比度颜色 */
+.cyber-brutalist [class*="chat-message"] .text-gray-200,
+.cyber-brutalist [class*="chat-message"] .text-gray-300,
+.cyber-brutalist [class*="chat-message"] .text-gray-400,
+.cyber-brutalist [class*="chat-message"] .text-gray-500,
+.cyber-brutalist [class*="chat-message"] .text-gray-600,
+.cyber-brutalist [class*="chat-message"] .text-gray-700 {
+  color: var(--text-primary) !important;
+}
+
+/* 列表项文字 */
+.cyber-brutalist [class*="chat-message"] li span[class*="text-gray"] {
+  color: var(--text-secondary) !important;
+}
+
+/* 代码块文字 */
+.cyber-brutalist [class*="chat-message"] code {
+  color: var(--color-primary) !important;
+  background-color: var(--bg-primary) !important;
+}
+
+/* 引用块文字 */
+.cyber-brutalist [class*="chat-message"] blockquote {
+  color: var(--text-secondary) !important;
+  border-left-color: var(--color-primary) !important;
+}
+
+/* 时间戳 */
+.cyber-brutalist [class*="chat-message"] .text-xs[class*="mt-1"],
+.cyber-brutalist [class*="chat-message"] [class*="text-gray-500"] {
+  color: var(--text-tertiary) !important;
+}
+
+/* 卡片和按钮中的描述文字 */
+.cyber-brutalist [class*="chat-message"] p[class*="text-gray-400"],
+.cyber-brutalist [class*="chat-message"] p[class*="text-gray-500"] {
+  color: var(--text-secondary) !important;
+}
+
+/* 消息气泡背景增强 */
+.cyber-brutalist [class*="chat-message"] .bg-\[\#1E1E2E\] {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+/* Agent 名称颜色 */
+.cyber-brutalist [class*="chat-message"] [class*="text-\[\#A78BFA\]"] {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 加粗文字 */
+.cyber-brutalist [class*="chat-message"] strong,
+.cyber-brutalist [class*="chat-message"] b {
+  color: var(--color-primary) !important;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 设计类型选项卡片 */
+.cyber-brutalist [class*="chat-message"] [class*="bg-gray-800"] {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-primary) !important;
+}
+
+.cyber-brutalist [class*="chat-message"] [class*="bg-gray-800"] [class*="text-gray-100"] {
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="chat-message"] [class*="bg-gray-800"] [class*="text-gray-400"] {
+  color: var(--text-secondary) !important;
+}
+
+/* 快速操作按钮 */
+.cyber-brutalist [class*="chat-message"] button [class*="text-gray-400"],
+.cyber-brutalist [class*="chat-message"] button [class*="text-gray-500"] {
+  color: var(--text-secondary) !important;
+}
+
+/* 思考过程按钮 */
+.cyber-brutalist [class*="chat-message"] button[class*="bg-gray-800"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+/* 分割线 */
+.cyber-brutalist [class*="chat-message"] [class*="border-gray-700"] {
+  border-color: var(--border-primary) !important;
+}
+
+/* 右侧信息面板特定修复 */
+.cyber-brutalist [class*="sidebar"] .text-gray-300,
+.cyber-brutalist [class*="sidebar"] .text-gray-400,
+.cyber-brutalist [class*="sidebar"] .text-gray-500 {
+  color: var(--text-secondary) !important;
+}
+
+/* 需求分析等卡片文字 */
+.cyber-brutalist [class*="sidebar"] [class*="bg-gray-800"] .text-gray-100,
+.cyber-brutalist [class*="sidebar"] [class*="bg-gray-800"] .text-gray-200 {
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="sidebar"] [class*="bg-gray-800"] .text-gray-400,
+.cyber-brutalist [class*="sidebar"] [class*="bg-gray-800"] .text-gray-500 {
+  color: var(--text-secondary) !important;
+}
+
+/* 信息收集卡片 */
+.cyber-brutalist [class*="sidebar"] [class*="bg-gray-900"] {
+  background-color: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+.cyber-brutalist [class*="sidebar"] [class*="bg-gray-900"] * {
+  color: var(--text-primary) !important;
+}
+
+/* 标签和徽章 */
+.cyber-brutalist [class*="sidebar"] [class*="badge"],
+.cyber-brutalist [class*="sidebar"] [class*="tag"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+/* 历史会话列表 */
+.cyber-brutalist [class*="sidebar"] [class*="session-item"] {
+  background-color: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+.cyber-brutalist [class*="sidebar"] [class*="session-item"] * {
+  color: var(--text-primary) !important;
+}
+
+.cyber-brutalist [class*="sidebar"] [class*="session-item"]:hover {
+  background-color: var(--bg-hover) !important;
+  border-color: var(--color-primary) !important;
+}
+
+/* 输入框区域 */
+.cyber-brutalist [class*="input-area"] textarea,
+.cyber-brutalist [class*="chat-input"] textarea {
+  color: var(--color-primary) !important;
+}
+
+.cyber-brutalist [class*="input-area"] textarea::placeholder,
+.cyber-brutalist [class*="chat-input"] textarea::placeholder {
+  color: var(--text-muted) !important;
+}

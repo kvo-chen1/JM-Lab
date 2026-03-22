@@ -25,12 +25,18 @@ export type AgentType =
 // 为了向后兼容，保留 AgentRole
 export type AgentRole = AgentType;
 
-export type MessageType = 'text' | 'image' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'thinking' | 'delegation' | 'collaboration' | 'error' | 'character-workflow' | 'chain-progress' | 'design-type-options';
+export type MessageType = 'text' | 'image' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'thinking' | 'delegation' | 'collaboration' | 'error' | 'character-workflow' | 'chain-progress' | 'design-type-options' | 'quick-actions';
 export type TaskType = 'ip-character' | 'brand-packaging' | 'poster' | 'custom';
 export type TaskStage = 'requirement' | 'design' | 'review' | 'derivative' | 'completed';
 
 // Agent 决策动作类型
 export type AgentAction = 'respond' | 'delegate' | 'collaborate' | 'handoff' | 'chain';
+
+export interface QuickAction {
+  label: string;
+  action: string;
+  description?: string;
+}
 
 export interface AgentMessage {
   id: string;
@@ -71,6 +77,18 @@ export interface AgentMessage {
     // Upload
     imageUrl?: string;
     imageName?: string;
+    // Quick actions
+    quickActions?: QuickAction[];
+    // Design type selector
+    showDesignTypeSelector?: boolean;
+    designTypeOptions?: any[];
+    designTypeSelected?: boolean;
+    selectedDesignType?: string;
+    // Thinking process
+    showThinkingProcess?: boolean;
+    designType?: string;
+    agentType?: AgentType;
+    mentionInfo?: { type: 'work' | 'brand' | 'style'; name: string; id?: string } | null;
   };
 }
 
@@ -157,6 +175,8 @@ export interface CollectedRequirementInfo {
   references?: string[];       // 参考案例
   brandTone?: string;          // 品牌调性
   additionalInfo?: string;     // 其他信息
+  skipDetails?: boolean;       // 是否跳过详细收集（快速开始模式）
+  note?: string;               // 备注说明
 }
 
 // 需求收集状态管理

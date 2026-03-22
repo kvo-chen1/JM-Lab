@@ -222,9 +222,25 @@ export default function Dashboard() {
               if (statsResponse.ok) {
                 const statsResult = await statsResponse.json();
                 if (statsResult.code === 0 && statsResult.data) {
+                  const apiData = statsResult.data;
                   setRealUserStats((prev: any) => ({
                     ...prev,
-                    ...statsResult.data
+                    // 映射 API 字段到前端字段
+                    views_count: parseInt(apiData.total_views || apiData.views_count || 0),
+                    likes_count: parseInt(apiData.total_likes || apiData.likes_count || 0),
+                    works_count: parseInt(apiData.works_count || 0),
+                    followers_count: parseInt(apiData.followers_count || 0),
+                    following_count: parseInt(apiData.following_count || 0),
+                    points: parseInt(apiData.points || 0),
+                    level: parseInt(apiData.level || 1),
+                    // 保留其他字段
+                    favorites: apiData.favorites,
+                    bookmarks_count: apiData.bookmarks_count,
+                    likes: apiData.likes,
+                    membership_level: apiData.membership_level,
+                    membership_status: apiData.membership_status,
+                    level_progress: apiData.level_progress,
+                    next_level_points: apiData.next_level_points
                   }));
                 }
               }
@@ -309,12 +325,13 @@ export default function Dashboard() {
               if (response.ok) {
                 const result = await response.json();
                 if (result.code === 0 && result.data) {
+                  const apiData = result.data;
                   setQuickNavCounts({
-                    bookmarks: result.data.bookmarks_count || 0,
-                    likes: result.data.likes_count || 0,
-                    drafts: result.data.drafts_count || 0,
-                    friends: result.data.friends_count || 0,
-                    notifications: result.data.notifications_count || 0
+                    bookmarks: parseInt(apiData.bookmarks_count || apiData.bookmarks || 0),
+                    likes: parseInt(apiData.likes || apiData.likes_count || 0),
+                    drafts: parseInt(apiData.drafts_count || 0),
+                    friends: parseInt(apiData.friends_count || apiData.following_count || 0),
+                    notifications: parseInt(apiData.notifications_count || 0)
                   });
                   return;
                 }
@@ -810,6 +827,34 @@ export default function Dashboard() {
                 <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {creatorLevelInfo.currentLevel.name}
                 </p>
+
+                {/* 用户统计 - 关注、粉丝、作品、金币 */}
+                <div className="grid grid-cols-4 gap-2 w-full mt-4">
+                  <div className="text-center">
+                    <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {realUserStats?.following_count || 0}
+                    </p>
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>关注</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {realUserStats?.followers_count || 0}
+                    </p>
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>粉丝</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {realUserStats?.works_count || displayWorks.length || 0}
+                    </p>
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>作品</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {balance?.balance || 0}
+                    </p>
+                    <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>金币</p>
+                  </div>
+                </div>
 
                 {/* 积分 */}
                 <div className="flex items-center gap-2 mt-3 px-4 py-2 rounded-full bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20">

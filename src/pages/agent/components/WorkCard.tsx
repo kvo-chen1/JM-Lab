@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import {
   Pencil,
@@ -10,11 +10,9 @@ import {
   X,
   Loader2,
   AtSign,
-  ZoomIn,
   GripVertical
 } from 'lucide-react';
 import { toast } from 'sonner';
-import ImageLightbox from './ImageLightbox';
 import { CardPosition } from '../types/agent';
 
 export interface WorkCardData {
@@ -187,8 +185,7 @@ function ImageWithLoading({
   isGenerating = false,
   status,
   title,
-  description,
-  onImageClick
+  description
 }: {
   src: string;
   alt: string;
@@ -197,7 +194,6 @@ function ImageWithLoading({
   status?: 'pending' | 'generating' | 'completed' | 'error';
   title?: string;
   description?: string;
-  onImageClick?: () => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -314,11 +310,10 @@ function ImageWithLoading({
       <img
         src={src}
         alt={alt}
-        className={`${className} ${onImageClick ? 'cursor-zoom-in' : ''}`}
+        className={className}
         onLoad={handleLoad}
         onError={handleError}
         crossOrigin="anonymous"
-        onClick={onImageClick}
       />
     </div>
   );
@@ -331,7 +326,6 @@ function HoverActions({
   onDownload,
   onDelete,
   onMention,
-  onZoom,
   isVisible,
   isDark,
   showMentionButton
@@ -341,7 +335,6 @@ function HoverActions({
   onDownload: () => void;
   onDelete: () => void;
   onMention?: () => void;
-  onZoom?: () => void;
   isVisible: boolean;
   isDark: boolean;
   showMentionButton?: boolean;
@@ -358,21 +351,6 @@ function HoverActions({
             isDark ? 'bg-black/60' : 'bg-white/80'
           }`}
         >
-          {/* 放大按钮 */}
-          {onZoom && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onZoom(); }}
-              className={`p-2 rounded-lg transition-all ${
-                isDark
-                  ? 'text-gray-300 hover:text-white hover:bg-white/10'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-black/10'
-              }`}
-              title="放大查看"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-          )}
-
           {/* 引用按钮 */}
           {showMentionButton && onMention && (
             <button
@@ -460,10 +438,10 @@ export default function WorkCard({
   const { isDark } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const dragStartPosRef = useRef({ x: 0, y: 0 });
+  const dragStartPosRef = useRef({ x: 0, y: 0, mouseX: 0, mouseY: 0 });
+  const isDraggingRef = useRef(false);
 
   const handleEditStart = useCallback(() => {
     setIsEditing(true);
@@ -500,55 +478,90 @@ export default function WorkCard({
     toast.success(`已引用作品：${data.title}`);
   }, [data, onMention]);
 
-  const handleZoom = useCallback(() => {
-    setIsLightboxOpen(true);
-  }, []);
+  // 同步 isDragging 状态到 ref
+  useEffect(() => {
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
 
-  const handleCloseLightbox = useCallback(() => {
-    setIsLightboxOpen(false);
-  }, []);
-
-  // 使用 Framer Motion 的 dragControls 控制拖拽
-  const dragControls = useDragControls();
-
-  // 开始拖拽的条件判断 - 只有点击手柄时才启用拖拽
-  const startDrag = useCallback((e: React.MouseEvent) => {
+  // 开始拖拽 - 只响应手柄
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    if (target.closest('[data-drag-handle]')) {
-      dragControls.start(e);
-      setIsDragging(true);
-      onDragStart?.();
+    if (!target.closest('[data-drag-handle]')) {
+      return;
     }
-  }, [dragControls, onDragStart]);
 
-  // 拖拽结束处理
-  const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number; y: number } }) => {
-    setIsDragging(false);
-    onDragEnd?.();
+    e.preventDefault();
+    e.stopPropagation();
 
-    // 计算最终位置（考虑画布缩放）
-    const scale = (canvasZoom || 100) / 100;
-    const newPosition: CardPosition = {
-      x: (position?.x || 0) + info.offset.x / scale,
-      y: (position?.y || 0) + info.offset.y / scale
+    // 获取当前实际位置（从 DOM 读取，避免闭包问题）
+    const currentX = position?.x || 0;
+    const currentY = position?.y || 0;
+
+    // 记录起始位置
+    dragStartPosRef.current = {
+      x: currentX,
+      y: currentY,
+      mouseX: e.clientX,
+      mouseY: e.clientY
     };
 
-    onPositionChange?.(newPosition);
-  }, [canvasZoom, position, onPositionChange, onDragEnd]);
+    setIsDragging(true);
+    onDragStart?.();
+
+    // 添加全局鼠标事件监听
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
+
+      // 如果不在拖拽状态，忽略
+      if (!isDraggingRef.current) return;
+
+      const scale = (canvasZoom || 100) / 100;
+      const deltaX = (moveEvent.clientX - dragStartPosRef.current.mouseX) / scale;
+      const deltaY = (moveEvent.clientY - dragStartPosRef.current.mouseY) / scale;
+
+      // 实时更新位置（通过 ref 避免重渲染）
+      if (cardRef.current) {
+        cardRef.current.style.left = `${dragStartPosRef.current.x + deltaX}px`;
+        cardRef.current.style.top = `${dragStartPosRef.current.y + deltaY}px`;
+      }
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      // 如果不在拖拽状态，忽略
+      if (!isDraggingRef.current) return;
+
+      const scale = (canvasZoom || 100) / 100;
+      const deltaX = (upEvent.clientX - dragStartPosRef.current.mouseX) / scale;
+      const deltaY = (upEvent.clientY - dragStartPosRef.current.mouseY) / scale;
+
+      const newPosition: CardPosition = {
+        x: dragStartPosRef.current.x + deltaX,
+        y: dragStartPosRef.current.y + deltaY
+      };
+
+      setIsDragging(false);
+      onDragEnd?.();
+
+      // 延迟通知父组件，确保状态已更新
+      requestAnimationFrame(() => {
+        onPositionChange?.(newPosition);
+      });
+
+      // 移除事件监听
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [canvasZoom, onDragStart, onDragEnd, onPositionChange]);
 
   const isCurrentlyDragging = isDragging || externalIsDragging;
 
   return (
     <>
-      <motion.div
+      <div
         ref={cardRef}
-        layoutId={data.id}
-        drag
-        dragControls={dragControls}
-        dragMomentum={false}
-        dragElastic={0}
-        onDragStart={() => setIsDragging(true)}
-        onDragEnd={handleDragEnd}
         onClick={(e) => {
           if (!isCurrentlyDragging) {
             onSelect?.(e);
@@ -556,7 +569,7 @@ export default function WorkCard({
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onMouseDown={startDrag}
+        onMouseDown={handleMouseDown}
         data-work-card="true"
         data-dragging={isCurrentlyDragging}
         style={{
@@ -564,7 +577,9 @@ export default function WorkCard({
           left: position?.x || 0,
           top: position?.y || 0,
           cursor: isCurrentlyDragging ? 'grabbing' : 'default',
-          zIndex: isCurrentlyDragging ? 100 : (isHovered ? 10 : 1)
+          zIndex: isCurrentlyDragging ? 100 : (isHovered ? 10 : 1),
+          touchAction: 'none',
+          userSelect: 'none'
         }}
         className={`
           relative rounded-2xl overflow-hidden
@@ -609,19 +624,18 @@ export default function WorkCard({
 
         {/* 图片区域（在下） */}
         <div
-          className="relative overflow-hidden min-h-[200px]"
+          className="relative overflow-hidden min-h-[200px] flex items-center justify-center"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
           <ImageWithLoading
             src={data.imageUrl}
             alt={data.title}
-            className="w-full h-auto object-contain transition-transform duration-500 hover:scale-105"
+            className="w-full h-auto max-h-[50vh] object-contain transition-transform duration-500 hover:scale-105"
             isGenerating={!data.imageUrl}
             status={data.status}
             title={data.title}
             description={data.description}
-            onImageClick={handleZoom}
           />
 
           {/* 悬浮操作按钮 */}
@@ -631,7 +645,6 @@ export default function WorkCard({
             onDownload={handleDownload}
             onDelete={handleDelete}
             onMention={handleMention}
-            onZoom={handleZoom}
             isVisible={isHovered && !isEditing}
             isDark={isDark}
             showMentionButton={showMentionButton}
@@ -654,16 +667,7 @@ export default function WorkCard({
             <span className={isDark ? 'text-[#8B5CF6]' : 'text-[#C02C38]'}>已收藏</span>
           )}
         </div>
-      </motion.div>
-
-      {/* 图片放大查看器 */}
-      <ImageLightbox
-        isOpen={isLightboxOpen}
-        onClose={handleCloseLightbox}
-        imageUrl={data.imageUrl}
-        title={data.title}
-        description={data.description}
-      />
+      </div>
     </>
   );
 }

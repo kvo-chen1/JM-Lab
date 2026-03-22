@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore, PRESET_STYLES } from '../hooks/useAgentStore';
-import { Shuffle, Sparkles } from 'lucide-react';
+import { Shuffle, Sparkles, Library, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { llmService } from '@/services/llmService';
 
@@ -110,9 +110,15 @@ function buildOptimizedPrompt(
   return prompt;
 }
 
-export default function StyleSelector() {
+interface StyleSelectorProps {
+  onOpenStyleLibrary?: () => void;
+  onCloseStyleLibrary?: () => void;
+  showStyleLibrary?: boolean;
+}
+
+export default function StyleSelector({ onOpenStyleLibrary, onCloseStyleLibrary, showStyleLibrary }: StyleSelectorProps) {
   const { isDark } = useTheme();
-  const { selectedStyle, selectStyle, addMessage, addOutput, updateOutput, currentTask, messages, generatedOutputs } = useAgentStore();
+  const { selectedStyle, selectStyle, addMessage, addOutput, updateOutput, currentTask, messages, generatedOutputs, currentAgent } = useAgentStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
   // 如果已经有生成的内容，显示完成状态而不是选择器
@@ -126,6 +132,32 @@ export default function StyleSelector() {
     const style = PRESET_STYLES.find(s => s.id === styleId);
     if (style) {
       toast.success(`已选择风格：${style.name}`);
+
+      // 添加：自动触发确认提示消息（使用当前Agent，避免切换）
+      addMessage({
+        role: currentAgent,
+        content: `已选择「${style.name}」风格，是否立即开始生成？`,
+        type: 'quick-actions',
+        metadata: {
+          quickActions: [
+            {
+              label: '✅ 立即生成',
+              action: 'generate_now',
+              description: '使用当前风格立即生成'
+            },
+            {
+              label: '🎨 更换风格',
+              action: 'change_style',
+              description: '选择其他风格'
+            },
+            {
+              label: '💬 继续沟通',
+              action: 'continue_chat',
+              description: '先不生成，继续交流'
+            }
+          ]
+        }
+      });
     }
   };
 
@@ -144,9 +176,9 @@ export default function StyleSelector() {
     setIsGenerating(true);
     const style = PRESET_STYLES.find(s => s.id === selectedStyle);
 
-    // 添加设计师消息
+    // 添加设计师消息（使用当前Agent，避免硬编码切换）
     addMessage({
-      role: 'designer',
+      role: currentAgent,
       content: `好的！我将以「${style?.name}」风格为你设计。正在调用AI模型生成概念图，请稍候...`,
       type: 'text'
     });
@@ -232,7 +264,7 @@ export default function StyleSelector() {
         thumbnail: imageUrl,
         prompt: prompt,
         style: selectedStyle,
-        agentType: 'designer',
+        agentType: currentAgent,
         title: title,
         description: agentDescription || taskDescription
       });
@@ -255,9 +287,9 @@ export default function StyleSelector() {
         }
       }
 
-      // 添加生成结果消息（只显示1张）
+      // 添加生成结果消息（只显示1张，使用当前Agent）
       addMessage({
-        role: 'designer',
+        role: currentAgent,
         content: '概念图已生成！这是根据你选择的风格设计的IP形象初稿。你觉得怎么样？',
         type: 'image',
         metadata: {
@@ -265,10 +297,10 @@ export default function StyleSelector() {
         }
       });
 
-      // 添加满意度检查消息
+      // 添加满意度检查消息（使用当前Agent）
       setTimeout(() => {
         addMessage({
-          role: 'designer',
+          role: currentAgent,
           content: '请问你对当前设计满意吗？如果满意，我可以继续为你制作：\n• 短视频\n• 剧情故事短片\n• 文创周边\n• 宣传海报',
           type: 'satisfaction-check'
         });
@@ -280,9 +312,9 @@ export default function StyleSelector() {
       console.error('[StyleSelector] 错误详情:', error.stack);
       toast.error(`图像生成失败: ${error.message || '请重试'}`);
 
-      // 添加错误提示消息
+      // 添加错误提示消息（使用当前Agent）
       addMessage({
-        role: 'designer',
+        role: currentAgent,
         content: `抱歉，图像生成遇到了问题：${error.message || '请稍后重试，或者尝试换一种描述方式。'}`,
         type: 'text'
       });
@@ -331,16 +363,16 @@ export default function StyleSelector() {
 
   return (
     <div className="space-y-4">
-      {/* Style Grid */}
-      <div className="grid grid-cols-2 gap-2">
+      {/* Style Grid - 4列紧凑布局 */}
+      <div className="grid grid-cols-4 gap-2">
         {PRESET_STYLES.map((style, index) => (
           <motion.button
             key={style.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
+            transition={{ delay: index * 0.03 }}
             onClick={() => handleStyleSelect(style.id)}
-            className={`relative group rounded-xl overflow-hidden border-2 transition-all ${
+            className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
               selectedStyle === style.id
                 ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20'
                 : isDark
@@ -349,7 +381,7 @@ export default function StyleSelector() {
             }`}
           >
             {/* Style Image */}
-            <div className="aspect-square relative bg-gray-100 dark:bg-gray-700">
+            <div className="aspect-[3/4] relative bg-gray-100 dark:bg-gray-700">
               <img
                 src={style.thumbnail}
                 alt={style.name}
@@ -360,7 +392,7 @@ export default function StyleSelector() {
                   target.style.display = 'none';
                   const parent = target.parentElement;
                   if (parent) {
-                    parent.innerHTML = `<div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500"><span class="text-2xl">${style.name.charAt(0)}</span></div>`;
+                    parent.innerHTML = `<div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500"><span class="text-lg">${style.name.charAt(0)}</span></div>`;
                   }
                 }}
               />
@@ -373,8 +405,8 @@ export default function StyleSelector() {
 
               {/* Selected Indicator */}
               {selectedStyle === style.id && (
-                <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#C02C38] flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[#C02C38] flex items-center justify-center">
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
@@ -382,10 +414,10 @@ export default function StyleSelector() {
             </div>
 
             {/* Style Name */}
-            <div className={`p-2 text-center ${
+            <div className={`p-1 text-center ${
               isDark ? 'bg-gray-800' : 'bg-white'
             }`}>
-              <p className={`text-xs font-medium truncate ${
+              <p className={`text-[10px] font-medium truncate ${
                 selectedStyle === style.id
                   ? 'text-[#C02C38]'
                   : isDark ? 'text-gray-200' : 'text-gray-700'
@@ -412,15 +444,44 @@ export default function StyleSelector() {
         <span className="text-sm">Surprise Me</span>
       </motion.button>
 
-      {/* Style Library Link */}
-      <div className={`flex items-center justify-between text-xs ${
-        isDark ? 'text-gray-400' : 'text-gray-500'
-      }`}>
-        <span className="flex items-center gap-1 text-gray-400">
-          <Sparkles className="w-3 h-3" />
-          更多风格请在对话区点击"风格库"
-        </span>
-      </div>
+      {/* Style Library Button */}
+      <motion.button
+        onClick={() => {
+          if (showStyleLibrary) {
+            onCloseStyleLibrary?.();
+          } else {
+            onOpenStyleLibrary?.();
+          }
+        }}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-colors ${
+          showStyleLibrary
+            ? isDark
+              ? 'bg-[#C02C38]/20 border border-[#C02C38]'
+              : 'bg-[#C02C38]/10 border border-[#C02C38]'
+            : isDark
+              ? 'bg-gray-800/50 hover:bg-gray-800 border border-gray-700'
+              : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <Library className={`w-4 h-4 ${showStyleLibrary ? 'text-[#C02C38]' : 'text-gray-400'}`} />
+          <span className={`text-sm font-medium ${
+            showStyleLibrary 
+              ? 'text-[#C02C38]' 
+              : isDark ? 'text-gray-300' : 'text-gray-700'
+          }`}>
+            风格库
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className={`text-xs ${showStyleLibrary ? 'text-[#C02C38]' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            143 Style
+          </span>
+          <ChevronRight className={`w-4 h-4 transition-transform ${showStyleLibrary ? 'rotate-90 text-[#C02C38]' : 'text-gray-400'}`} />
+        </div>
+      </motion.button>
 
       {/* Start Design Button */}
       {selectedStyle && (

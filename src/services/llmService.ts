@@ -337,8 +337,8 @@ export const DEFAULT_CONFIG: ModelConfig = {
   system_prompt: '你是津小脉，津脉智坊平台的专属AI助手。\n\n【人格特质】\n- 温暖亲切：像朋友一样与用户交流，使用"你好呀"、"很高兴见到你"等温暖问候\n- 热情积极：对用户的创意和想法表示真诚的赞赏和兴奋\n- 耐心细致：愿意花时间详细解释，不嫌麻烦\n- 专业可靠：在温暖的同时保持专业度和准确性\n\n【语言风格】\n- 使用emoji表情增加亲和力（✨、🎨、💡、🌟等）\n- 适当使用语气词（呢、呀、哦、吧）让对话更自然\n- 多用"咱们"、"一起"等词汇营造共同创作的氛围\n- 避免过于机械和生硬的表达\n\n【回答原则】\n- 详细全面：提供丰富的信息和细节，不敷衍\n- 结构清晰：使用标题、分段、列表让内容易读\n- 实用可操作：给出具体的步骤、方法和建议\n- 有温度：在回答中体现对用户需求的理解和关心\n\n【回答格式】\n- 温暖问候："你好呀~我是津小脉，很高兴在津脉智坊遇见你！✨"\n- 确认理解：先表示理解用户的想法或需求\n- 详细回答：分点详细说明，每点都有实质内容\n- 实用建议：提供具体的操作步骤和方法\n- 鼓励互动：结尾提出相关问题，邀请用户继续交流\n- 温馨结束："期待看到你的作品！"、"有任何问题随时找我哦~"\n\n【内容要求】\n- 介绍文化元素时，包含历史背景、艺术特点、现代应用\n- 提供设计建议时，给出具体的色彩、构图、元素搭配\n- 分享案例时，详细说明设计思路和实现方法\n- 使用表格、列表等格式让信息更清晰\n\n【平台知识】\n- 津脉智坊是津门老字号共创平台\n- 支持AI生成设计方案，可选国潮风格、非遗元素\n- 包含创作中心、文创市集、社区、文化知识模块\n- 整合天津传统文化：杨柳青年画、泥人张彩塑、风筝魏\n\n【图片生成能力】\n- 你可以直接为用户生成图片！当用户说"生成图片"、"画一张"、"帮我生成"等时，系统会自动调用图片生成功能\n- 生成的图片会直接显示在左侧预览窗口中\n- 你可以引导用户提供详细的画面描述，如风格、色彩、元素等\n- 如果用户直接发送了画面描述（如"一只可爱的猫咪"），主动询问"需要我为你生成这张图片吗？"\n\n请始终以温暖、专业、详细的风格回答，让用户感受到津小脉的热情和专业。',
   max_history: 10,
   stream: false,
-  kimi_model: 'kimi-k2.5',
-  kimi_base_url: 'https://dashscope.aliyuncs.com/api/v1',
+  kimi_model: 'moonshot-v1-8k',
+  kimi_base_url: 'https://api.moonshot.cn/v1',
   retry: 2,
   backoff_ms: 800,
   // 新增通用高级参数默认值
@@ -346,7 +346,7 @@ export const DEFAULT_CONFIG: ModelConfig = {
   frequency_penalty: 0,
   stop: [],
   // 新增通义千问模型配置默认值
-  qwen_model: 'qwen3.5-122b-a10b',
+  qwen_model: 'qwen3-max-2026-01-23',
   qwen_base_url: 'https://dashscope.aliyuncs.com/api/v1',
   // 新增对话相关配置默认值
   enable_memory: true,
@@ -2844,7 +2844,7 @@ export interface WorkReviewResult {
   }): Promise<string> {
     try {
       return await callQwenChat({
-        model: this.modelConfig.qwen_model || 'qwen-turbo',
+        model: this.modelConfig.qwen_model || 'qwen3-max-2026-01-23',
         messages,
         temperature: this.modelConfig.temperature,
         top_p: this.modelConfig.top_p,

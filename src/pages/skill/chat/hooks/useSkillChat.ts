@@ -1,29 +1,31 @@
 import { useState, useCallback, useRef } from 'react';
-import type { ChatMessage, SkillCallInfo } from '../types';
-import { SkillRegistry } from '../../skills/registry/SkillRegistry';
-import { IntentRecognitionSkill } from '../../skills/analysis/IntentRecognitionSkill';
-import { ImageGenerationSkill } from '../../skills/creation/ImageGenerationSkill';
+import type { ChatMessage, SkillCallInfo, RequirementPhase } from '../types';
+import { 
+  createChatContext, 
+  sendMessageStream, 
+  generateImage
+} from '../services/chatService';
+import { recognizeIntent, getIntentDisplayName, IntentType } from '../services/intentService';
+import { analyzeRequirements, isRequirementsComplete, RequirementField, MerchandiseCategory } from '../services/requirementService';
+import { toast } from 'sonner';
 
-// Initialize skill registry
-const skillRegistry = new SkillRegistry();
-const intentSkill = new IntentRecognitionSkill();
-const imageSkill = new ImageGenerationSkill();
-
-skillRegistry.register(intentSkill);
-skillRegistry.register(imageSkill);
-
-// Mock image URLs for demo
-const mockImages = [
-  'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1626785774573-4b799315345d?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=800&h=600&fit=crop',
-];
+// 多轮对话状态
+interface ConversationState {
+  intent?: IntentType;
+  collectedInfo: Record<string, string>;
+  missingFields: RequirementField[];
+  phase: RequirementPhase;
+}
 
 export const useSkillChat = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentSkillCall, setCurrentSkillCall] = useState<SkillCallInfo | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const messageIdRef = useRef(0);
+  
+  // 多轮对话状态
+  const conversationStateRef = useRef<ConversationState | null>(null);
 
   const generateMessageId = () => `msg_${++messageIdRef.current}`;
 
@@ -48,144 +50,291 @@ export const useSkillChat = () => {
     });
   }, []);
 
-  const simulateSkillExecution = async (
+  // 执行技能
+  const executeSkill = async (
+    intent: IntentType,
     userMessage: string,
-    intent: string,
-    confidence: number
+    collectedInfo: Record<string, string>,
+    onDelta: (content: string) => void
   ): Promise<{ content: string; attachments?: ChatMessage['attachments'] }> => {
-    // Simulate processing delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    // Update status to recognizing
-    setCurrentSkillCall((prev) =>
-      prev ? { ...prev, status: 'recognizing' } : null
-    );
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    // Update status to calling
-    setCurrentSkillCall((prev) =>
-      prev ? { ...prev, status: 'calling' } : null
-    );
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Update status to executing
-    setCurrentSkillCall((prev) =>
-      prev ? { ...prev, status: 'executing' } : null
-    );
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Generate response based on intent
-    let content = '';
-    let attachments: ChatMessage['attachments'] = undefined;
-
+    const context = createChatContext(messages);
+    
+    // 构建完整的提示词
+    const fullPrompt = Object.keys(collectedInfo).length > 0
+      ? `${userMessage}\n\n【已收集的信息】\n${Object.entries(collectedInfo).map(([k, v]) => `${k}: ${v}`).join('\n')}`
+      : userMessage;
+    
     switch (intent) {
       case 'image-generation':
       case 'logo-design':
-        content = `我注意到您选择了品牌Logo技能，想要设计一套品牌周边。不过我需要先了解您的Logo设计，才能为您创建配套的品牌周边应用。
-
-让我先获取品牌Logo技能的指导：
-
-好的，我了解了品牌周边设计的流程。现在我需要您提供一些信息：
-
-• 您的Logo图片 - 请上传或分享您现有的Logo设计
-• 品牌名称 - 如果Logo中没有明确显示
-• 想要设计的周边类型 - 例如：
-  📝 商务文具（名片、信纸、信封）
-  👕 服饰周边（T恤、帽子、帆布袋）
-  📦 包装产品（包装盒、手提袋、贴纸）
-  ☕ 生活用品（马克杯、笔记本、徽章）
-  🏪 环境应用（店面招牌、指示牌）
-
-请先上传您的Logo，我会根据它为您设计配套的品牌周边应用！`;
-        attachments = [
-          {
-            type: 'image',
-            url: mockImages[Math.floor(Math.random() * mockImages.length)],
-            title: '品牌周边设计预览',
-          },
-        ];
-        break;
+      case 'poster-design': {
+        try {
+          console.log('[executeSkill] 开始生成图片，intent:', intent);
+          console.log('[executeSkill] fullPrompt:', fullPrompt);
+          
+          // 先发送思考中的消息
+          const thinkingContent = `🎨 **${getIntentDisplayName(intent)}**\n\n正在根据您的需求生成图片...\n\n${Object.entries(collectedInfo).map(([k, v]) => `• ${k}: ${v}`).join('\n')}`;
+          onDelta(thinkingContent);
+          
+          // 调用图片生成
+          const imageUrl = await generateImage(fullPrompt);
+          console.log('[executeSkill] 图片 URL:', imageUrl);
+          
+          if (!imageUrl) {
+            throw new Error('图片生成失败：返回 URL 为空');
+          }
+          
+          // 生成描述文字
+          let description = '';
+          await sendMessageStream(
+            `请为这张图片写一段简短的描述，说明这是根据以下需求生成的：${fullPrompt}`,
+            context,
+            (delta) => {
+              description += delta;
+            },
+            abortControllerRef.current?.signal
+          );
+          
+          const attachment = {
+            id: `img_${Date.now()}`,
+            type: 'image' as const,
+            url: imageUrl,
+            thumbnailUrl: imageUrl,
+            title: getIntentDisplayName(intent),
+            status: 'completed' as const,
+          };
+          
+          console.log('[executeSkill] 返回 attachment:', attachment);
+          
+          return {
+            content: `✅ **${getIntentDisplayName(intent)}完成**\n\n${description}`,
+            attachments: [attachment],
+          };
+        } catch (error) {
+          console.error('[executeSkill] 图片生成失败:', error);
+          return {
+            content: `❌ **${getIntentDisplayName(intent)}失败**\n\n${error instanceof Error ? error.message : '未知错误'}`,
+            attachments: [],
+          };
+        }
+      }
 
       case 'text-generation':
       case 'brand-copy':
-        content = `好的，我为您生成了一段品牌宣传文案：
-
----
-
-**品牌宣言**
-
-在这个快节奏的时代，我们坚持慢工出细活。
-每一个产品，都承载着我们对品质的执着；
-每一次服务，都倾注着我们对客户的真诚。
-
-我们不只是在创造产品，
-更是在传递一种生活态度——
-精致、优雅、与众不同。
-
-选择我们，选择品质生活。
-
----
-
-这段文案突出了品牌的品质感和独特性。您觉得怎么样？需要调整风格或内容吗？`;
-        break;
-
+      case 'marketing-copy':
+      case 'social-copy':
       case 'color-scheme':
-        content = `为您推荐一套适合科技公司的品牌配色方案：
+      case 'creative-idea': {
+        let content = '';
+        await sendMessageStream(
+          fullPrompt,
+          context,
+          (delta) => {
+            content += delta;
+            onDelta(content);
+          },
+          abortControllerRef.current?.signal
+        );
 
-**主色调**
-• 深海蓝 #1E3A5F - 专业、可靠、科技感
-• 电光紫 #6366F1 - 创新、活力、未来感
+        // 将生成的文案作为文本附件返回，以便在画布上显示
+        const attachment = {
+          type: 'text' as const,
+          content: content,
+          title: getIntentDisplayName(intent),
+        };
 
-**辅助色**
-• 云雾灰 #F1F5F9 - 简洁、现代、背景
-• 薄荷绿 #10B981 - 成长、环保、点缀
+        return {
+          content,
+          attachments: [attachment],
+        };
+      }
 
-**文字色**
-• 深空黑 #0F172A - 标题、重要内容
-• 石墨灰 #475569 - 正文、描述
+      case 'greeting': {
+        return {
+          content: '你好！我是津小脉 Skill Agent，很高兴为你服务。😊\n\n我可以帮助你完成以下任务：\n\n🎨 **图片生成** - Logo设计、海报设计、创意图片\n📝 **文案创作** - 品牌文案、营销文案、社媒内容\n🎨 **配色方案** - 品牌配色、设计配色建议\n💡 **创意点子** - 营销创意、活动方案\n\n请告诉我你需要什么帮助？',
+        };
+      }
 
-这套配色既有科技公司的专业感，又不失活力和创新。您觉得这个配色方案如何？`;
-        break;
+      case 'help': {
+        return {
+          content: '**津小脉 Skill Agent 使用指南**\n\n🎯 **如何使用**\n直接在对话框中描述你的需求，例如：\n- "帮我设计一个科技公司的Logo"\n- "写一段品牌宣传文案"\n- "推荐一套适合电商的配色方案"\n\n🛠️ **支持的技能**\n- 图片生成（Logo、海报、创意图）\n- 文案创作（品牌、营销、社媒）\n- 配色方案推荐\n- 创意点子生成\n\n💡 **小贴士**\n- 描述越详细，生成效果越好\n- 可以多次调整直到满意\n- 生成的作品会显示在左侧画布中\n\n有什么我可以帮你的吗？',
+        };
+      }
 
-      case 'creative-idea':
-        content = `为您构思了几个创新的营销活动点子：
+      case 'general':
+      default: {
+        // 一般对话，使用流式输出
+        let content = '';
+        await sendMessageStream(
+          userMessage,
+          context,
+          (delta) => {
+            content += delta;
+            onDelta(content);
+          },
+          abortControllerRef.current?.signal
+        );
+        
+        return { content };
+      }
+    }
+  };
 
-**1. "24小时创意马拉松"**
-邀请用户参与24小时不间断的创意挑战，通过直播形式展示创作过程，增加品牌曝光和用户互动。
+  // 收集信息阶段
+  const collectRequirements = async (
+    intent: IntentType,
+    userMessage: string
+  ): Promise<{
+    ready: boolean;
+    collectedInfo: Record<string, string>;
+    skillCall: SkillCallInfo;
+  }> => {
+    // 分析需求
+    const analysis = await analyzeRequirements(
+      intent,
+      userMessage,
+      messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
+      abortControllerRef.current?.signal
+    );
 
-**2. "用户故事征集计划"**
-鼓励用户分享与品牌相关的故事，优秀作品可获得奖励并在官方渠道展示，增强用户归属感。
+    // 更新对话状态
+    conversationStateRef.current = {
+      intent,
+      collectedInfo: analysis.collectedInfo,
+      missingFields: analysis.missingFields,
+      phase: analysis.ready ? 'confirming' : 'collecting',
+    };
 
-**3. "AR互动体验"**
-开发AR滤镜或小程序，让用户可以通过手机体验虚拟产品试用，提升购买欲望。
+    const progress = {
+      current: Object.keys(analysis.collectedInfo).length,
+      total: Object.keys(analysis.collectedInfo).length + analysis.missingFields.length,
+    };
 
-**4. "限量版盲盒营销"**
-推出神秘盲盒产品，每盒包含不同惊喜，刺激用户收集和分享欲望。
-
-这些点子您觉得哪个比较适合您的品牌？我可以帮您进一步完善。`;
-        break;
-
-      default:
-        content = `我理解您的需求了。让我为您分析一下...
-
-根据您的描述，我识别到这是一个关于「${intent}」的需求。我可以帮您处理这个任务。
-
-不过为了给您提供最准确的解决方案，您能否提供更多细节？比如：
-- 具体的使用场景
-- 目标受众
-- 期望的风格或效果
-
-这样我就能更好地为您服务了！`;
+    // 检查是否需要收集周边类型信息
+    const merchandiseField = analysis.missingFields?.find(f => f.key === 'merchandiseType');
+    let merchandiseSelection: SkillCallInfo['merchandiseSelection'];
+    
+    if (merchandiseField && merchandiseField.categories) {
+      merchandiseSelection = {
+        categories: merchandiseField.categories,
+        selectedIds: [],
+      };
     }
 
-    return { content, attachments };
+    const skillCall: SkillCallInfo = {
+      skillId: 'requirement-collection',
+      skillName: 'RequirementCollectionSkill',
+      intent,
+      confidence: 0.9,
+      status: 'calling',
+      phase: analysis.ready ? 'confirming' : 'collecting',
+      collectedInfo: analysis.collectedInfo,
+      missingFields: analysis.missingFields,
+      currentQuestion: analysis.nextQuestion,
+      suggestions: analysis.suggestions,
+      summary: analysis.summary,
+      progress,
+      ...(merchandiseSelection && { merchandiseSelection }),
+    };
+
+    return {
+      ready: analysis.ready,
+      collectedInfo: analysis.collectedInfo,
+      skillCall,
+    };
+  };
+
+  // 从历史消息中提取图片描述
+  const extractImagePrompt = (msgs: ChatMessage[]): string => {
+    // 查找包含"图片描述"的消息
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const msg = msgs[i];
+      if (msg.content.includes('图片描述') || msg.content.includes('图片生成')) {
+        // 提取描述内容
+        const match = msg.content.match(/(?:图片描述|生成).*?(?::|：)?\s*([\s\S]+)/);
+        if (match) {
+          return match[1].trim();
+        }
+      }
+    }
+    return '现代风格的设计';
   };
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (isProcessing) return;
+      if (isProcessing) {
+        toast.warning('请等待当前任务完成');
+        return;
+      }
 
-      // Add user message
+      // 特殊处理：检查是否是对"是否需要生成图片"的回复
+      const lastAgentMessage = messages.filter(m => m.role === 'agent').pop();
+      // 扩展匹配条件，支持更多类似的询问语句
+      const isGenerationRequest = lastAgentMessage?.content.includes('是否需要我生成') ||
+                                  lastAgentMessage?.content.includes('您是否希望我立即生成') ||
+                                  lastAgentMessage?.content.includes('是否希望我生成') ||
+                                  lastAgentMessage?.content.includes('是否需要生成');
+      if (isGenerationRequest &&
+          (content === '需要' || content === '是的' || content === '好' || content === 'ok' || content === 'OK')) {
+        
+        console.log('[sendMessage] 检测到图片生成确认，开始提取描述并生成图片');
+        
+        // 从历史消息中提取图片描述
+        const imagePrompt = extractImagePrompt(messages);
+        console.log('[sendMessage] 提取到的图片描述:', imagePrompt);
+        
+        if (imagePrompt) {
+          // 添加用户消息
+          addMessage({
+            role: 'user',
+            content,
+          });
+          setIsProcessing(true);
+          
+          // 直接执行图片生成
+          try {
+            const imageUrl = await generateImage(imagePrompt);
+            console.log('[sendMessage] 图片 URL:', imageUrl);
+            
+            if (!imageUrl) {
+              throw new Error('图片生成失败：返回 URL 为空');
+            }
+            
+            addMessage({
+              role: 'agent',
+              content: `✅ **图片生成完成**\n\n已为您生成预览图。`,
+              attachments: [{
+                id: `img_${Date.now()}`,
+                type: 'image',
+                url: imageUrl,
+                thumbnailUrl: imageUrl,
+                title: '生成的预览图',
+                status: 'completed',
+              }],
+            });
+            
+            toast.success('图片生成完成！');
+            setIsProcessing(false);
+            return;
+          } catch (error) {
+            console.error('[sendMessage] 图片生成失败:', error);
+            addMessage({
+              role: 'agent',
+              content: `❌ **图片生成失败**\n\n${error instanceof Error ? error.message : '请稍后重试'}`,
+            });
+            setIsProcessing(false);
+            return;
+          }
+        }
+      }
+
+      // 取消之前的请求
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      // 添加用户消息
       addMessage({
         role: 'user',
         content,
@@ -193,92 +342,285 @@ export const useSkillChat = () => {
 
       setIsProcessing(true);
 
-      // Initialize skill call info
-      const skillCallInfo: SkillCallInfo = {
-        skillId: 'intent-recognition',
-        skillName: 'IntentRecognitionSkill',
-        intent: 'analyzing',
-        confidence: 0,
-        status: 'thinking',
-      };
-      setCurrentSkillCall(skillCallInfo);
-
-      // Add initial agent message
-      addMessage({
-        role: 'agent',
-        content: '🤖 正在思考...',
-        skillCall: skillCallInfo,
-      });
-
       try {
-        // Simulate intent recognition
-        const lowerContent = content.toLowerCase();
-        let intent = 'general';
-        let confidence = 0.7;
+        // 检查是否处于信息收集阶段
+        const currentState = conversationStateRef.current;
+        
+        if (currentState && currentState.phase === 'collecting' && currentState.intent) {
+          // 继续收集信息
+          const { ready, collectedInfo, skillCall } = await collectRequirements(
+            currentState.intent,
+            content
+          );
 
-        if (lowerContent.includes('logo') || lowerContent.includes('设计') || lowerContent.includes('图片')) {
-          intent = 'image-generation';
-          confidence = 0.95;
-        } else if (lowerContent.includes('文案') || lowerContent.includes('文字') || lowerContent.includes('宣传')) {
-          intent = 'text-generation';
-          confidence = 0.88;
-        } else if (lowerContent.includes('配色') || lowerContent.includes('颜色') || lowerContent.includes('色彩')) {
-          intent = 'color-scheme';
-          confidence = 0.92;
-        } else if (lowerContent.includes('创意') || lowerContent.includes('点子') || lowerContent.includes('想法')) {
-          intent = 'creative-idea';
-          confidence = 0.85;
+          if (ready) {
+            // 信息收集完成，显示确认
+            conversationStateRef.current = {
+              ...currentState,
+              collectedInfo,
+              phase: 'confirming',
+            };
+
+            addMessage({
+              role: 'agent',
+              content: `📋 **信息收集完成**\n\n我已了解您的需求：\n\n${Object.entries(collectedInfo).map(([k, v]) => `• ${k}: ${v}`).join('\n')}\n\n请确认以上信息是否正确，如果没问题我将开始为您${getIntentDisplayName(currentState.intent)}。`,
+              skillCall: {
+                ...skillCall,
+                phase: 'confirming',
+              },
+            });
+          } else {
+            // 继续询问
+            addMessage({
+              role: 'agent',
+              content: skillCall.currentQuestion || '请提供更多信息',
+              skillCall,
+            });
+          }
+          
+          setIsProcessing(false);
+          return;
         }
 
-        // Update skill call info
-        const updatedSkillCall: SkillCallInfo = {
-          ...skillCallInfo,
-          intent,
-          confidence,
+        if (currentState && currentState.phase === 'confirming' && currentState.intent) {
+          // 用户确认了信息，开始执行
+          const intent = currentState.intent;
+          const collectedInfo = currentState.collectedInfo;
+          
+          // 重置对话状态
+          conversationStateRef.current = null;
+
+          // 开始执行
+          const executingSkillCall: SkillCallInfo = {
+            skillId: 'skill-execution',
+            skillName: 'SkillExecutionSkill',
+            intent,
+            confidence: 0.95,
+            status: 'executing',
+            phase: 'executing',
+            collectedInfo,
+          };
+          setCurrentSkillCall(executingSkillCall);
+
+          // 更新最后一条消息为"开始执行..."
+          updateLastMessage({
+            content: `⚙️ **开始执行${getIntentDisplayName(intent)}**\n\n正在为您生成...`,
+            skillCall: executingSkillCall,
+          });
+
+          // 执行技能
+          let finalContent = '';
+          const result = await executeSkill(
+            intent,
+            content,
+            collectedInfo,
+            (delta) => {
+              finalContent = delta;
+              updateLastMessage({
+                content: delta,
+                skillCall: executingSkillCall,
+              });
+            }
+          );
+
+          // 完成
+          const completedSkillCall: SkillCallInfo = {
+            ...executingSkillCall,
+            status: 'completed',
+            phase: 'completed',
+            result,
+          };
+          setCurrentSkillCall(completedSkillCall);
+
+          // 更新最后一条消息，添加附件
+          updateLastMessage({
+            content: result.content,
+            skillCall: completedSkillCall,
+            attachments: result.attachments,
+          });
+
+          toast.success(`${getIntentDisplayName(intent)}完成！`);
+          setIsProcessing(false);
+          return;
+        }
+
+        // 新对话，开始意图识别
+        const skillCallInfo: SkillCallInfo = {
+          skillId: 'intent-recognition',
+          skillName: 'IntentRecognitionSkill',
+          intent: 'analyzing',
+          confidence: 0,
           status: 'thinking',
+          phase: 'analyzing',
         };
-        setCurrentSkillCall(updatedSkillCall);
+        setCurrentSkillCall(skillCallInfo);
 
-        // Execute skill
-        const result = await simulateSkillExecution(content, intent, confidence);
-
-        // Update skill call to completed
-        const completedSkillCall: SkillCallInfo = {
-          ...updatedSkillCall,
-          status: 'completed',
-          result,
-        };
-        setCurrentSkillCall(completedSkillCall);
-
-        // Update agent message with result
-        updateLastMessage({
-          content: result.content,
-          skillCall: completedSkillCall,
-          attachments: result.attachments,
+        addMessage({
+          role: 'agent',
+          content: '🤖 正在分析您的需求...',
+          skillCall: skillCallInfo,
         });
-      } catch (error) {
-        // Handle error
-        const errorSkillCall: SkillCallInfo = {
+
+        // 识别意图
+        const intentResult = await recognizeIntent(content, abortControllerRef.current.signal);
+        
+        // 更新意图识别状态
+        const recognizingSkillCall: SkillCallInfo = {
           ...skillCallInfo,
-          status: 'error',
-          error: error instanceof Error ? error.message : '执行失败',
+          intent: intentResult.intent,
+          confidence: intentResult.confidence,
+          status: 'recognizing',
+          phase: 'analyzing',
+          params: intentResult.params,
         };
-        setCurrentSkillCall(errorSkillCall);
-
+        setCurrentSkillCall(recognizingSkillCall);
+        
         updateLastMessage({
-          content: '抱歉，处理您的请求时出现了错误。请稍后重试。',
-          skillCall: errorSkillCall,
+          content: `🔍 **意图识别**\n\n识别到意图：**${getIntentDisplayName(intentResult.intent as IntentType)}**\n置信度：**${Math.round(intentResult.confidence * 100)}%**`,
+          skillCall: recognizingSkillCall,
         });
+
+        // 短暂延迟让用户看到识别结果
+        await new Promise((resolve) => setTimeout(resolve, 600));
+
+        // 如果是问候或帮助，直接回复
+        if (intentResult.intent === 'greeting' || intentResult.intent === 'help' || intentResult.intent === 'general') {
+          const result = await executeSkill(
+            intentResult.intent as IntentType,
+            content,
+            {},
+            (delta) => {
+              updateLastMessage({
+                content: delta,
+                skillCall: recognizingSkillCall,
+              });
+            }
+          );
+
+          const completedSkillCall: SkillCallInfo = {
+            ...recognizingSkillCall,
+            status: 'completed',
+            phase: 'completed',
+            result,
+          };
+          setCurrentSkillCall(completedSkillCall);
+
+          // 更新最后一条消息，添加附件
+          updateLastMessage({
+            content: result.content,
+            skillCall: completedSkillCall,
+            attachments: result.attachments,
+          });
+
+          setIsProcessing(false);
+          return;
+        }
+
+        // 开始收集需求
+        const { ready, collectedInfo, skillCall } = await collectRequirements(
+          intentResult.intent as IntentType,
+          content
+        );
+
+        if (ready) {
+          // 信息已完整，显示确认
+          conversationStateRef.current = {
+            intent: intentResult.intent as IntentType,
+            collectedInfo,
+            missingFields: [],
+            phase: 'confirming',
+          };
+
+          addMessage({
+            role: 'agent',
+            content: `📋 **需求已明确**\n\n我已了解您的需求：\n\n${Object.entries(collectedInfo).map(([k, v]) => `• ${k}: ${v}`).join('\n')}\n\n请确认以上信息是否正确，如果没问题我将开始为您${getIntentDisplayName(intentResult.intent as IntentType)}。`,
+            skillCall: {
+              ...skillCall,
+              phase: 'confirming',
+            },
+          });
+        } else {
+          // 需要收集更多信息
+          conversationStateRef.current = {
+            intent: intentResult.intent as IntentType,
+            collectedInfo,
+            missingFields: skillCall.missingFields || [],
+            phase: 'collecting',
+          };
+
+          addMessage({
+            role: 'agent',
+            content: `📝 **需求分析**\n\n${skillCall.currentQuestion || '为了更好地完成您的需求，我需要了解一些信息：'}`,
+            skillCall,
+          });
+        }
+
+      } catch (error: any) {
+        console.error('[useSkillChat] Error:', error);
+        
+        const errorMessage = error.message || '执行失败';
+        const errorSkillCall: SkillCallInfo = {
+          skillId: currentSkillCall?.skillId || 'unknown',
+          skillName: currentSkillCall?.skillName || 'Unknown',
+          intent: currentSkillCall?.intent || 'error',
+          confidence: 0,
+          status: 'error',
+          phase: 'error',
+          error: errorMessage,
+        };
+        
+        setCurrentSkillCall(errorSkillCall);
+        conversationStateRef.current = null;
+
+        if (errorMessage === '请求已取消') {
+          updateLastMessage({
+            content: '❌ 请求已取消',
+            skillCall: errorSkillCall,
+          });
+        } else {
+          updateLastMessage({
+            content: `❌ **执行失败**\n\n${errorMessage}\n\n请稍后重试，或尝试换一种方式描述您的需求。`,
+            skillCall: errorSkillCall,
+          });
+          toast.error('执行失败：' + errorMessage);
+        }
       } finally {
         setIsProcessing(false);
-        setCurrentSkillCall(null);
+        abortControllerRef.current = null;
       }
     },
-    [isProcessing, addMessage, updateLastMessage]
+    [isProcessing, messages, addMessage, updateLastMessage, currentSkillCall]
   );
 
   const clearMessages = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setMessages([]);
+    setCurrentSkillCall(null);
+    conversationStateRef.current = null;
+    setIsProcessing(false);
+  }, []);
+
+  // 加载消息（用于切换会话时恢复历史消息）
+  const loadMessages = useCallback((newMessages: ChatMessage[]) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setMessages(newMessages);
+    setCurrentSkillCall(null);
+    conversationStateRef.current = null;
+    setIsProcessing(false);
+  }, []);
+
+  const cancelProcessing = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsProcessing(false);
     setCurrentSkillCall(null);
   }, []);
 
@@ -288,6 +630,8 @@ export const useSkillChat = () => {
     currentSkillCall,
     sendMessage,
     clearMessages,
+    loadMessages,
+    cancelProcessing,
   };
 };
 

@@ -62,9 +62,14 @@ export default function ConversationSidebar({ isOpen, onToggle }: ConversationSi
     autoSaveSession();
   }, [messages.length]);
 
+  // 从 AgentStore 获取 selectStyle 方法
+  const { selectStyle } = useAgentStore();
+
   // 处理创建新会话
   const handleCreateSession = () => {
     console.log('[ConversationSidebar] 创建新会话');
+    // 重置风格选择
+    selectStyle(null);
     const newId = createSession();
     console.log('[ConversationSidebar] 新会话ID:', newId);
     toast.success('新会话已创建', {
@@ -79,6 +84,8 @@ export default function ConversationSidebar({ isOpen, onToggle }: ConversationSi
       return;
     }
     console.log('[ConversationSidebar] 切换会话:', sessionId);
+    // 重置风格选择，避免继承之前会话的风格
+    selectStyle(null);
     switchSession(sessionId);
     toast.success('已切换会话');
   };

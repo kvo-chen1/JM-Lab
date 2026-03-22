@@ -25,7 +25,8 @@ export default async function handler(req, res) {
       console.error('[Kimi API] API key not configured');
       return res.status(500).json({
         error: 'API key not configured',
-        message: 'Kimi API密钥未配置'
+        message: 'Kimi API密钥未配置',
+        solution: '请在 .env 文件中设置 KIMI_API_KEY 或 VITE_KIMI_API_KEY 环境变量'
       });
     }
 
@@ -49,14 +50,24 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorText = await response.text();
+      let errorData = {};
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { raw: errorText };
+      }
       console.error('[Kimi API] Moonshot API error:', {
         status: response.status,
-        error: errorData
+        statusText: response.statusText,
+        error: errorData,
+        apiKeyPrefix: apiKey ? apiKey.substring(0, 10) + '...' : 'undefined'
       });
       return res.status(response.status).json({
         error: 'Moonshot API error',
-        message: errorData.error?.message || `API请求失败: ${response.status}`
+        status: response.status,
+        message: errorData.error?.message || errorData.msg || `API请求失败: ${response.status} ${response.statusText}`,
+        details: errorData
       });
     }
 

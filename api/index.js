@@ -1600,8 +1600,25 @@ async function handleEvents(req, res, path) {
     `);
 
     if (req.method === 'GET') {
+      // 检查是否是获取单个活动详情 /events/:id
+      const eventMatch = path.match(/^\/events\/([^/]+)$/);
+      if (eventMatch) {
+        const eventId = eventMatch[1];
+        const result = await queryWithRetry(
+          'SELECT * FROM events WHERE id = $1',
+          [eventId]
+        );
+        
+        if (result.rows.length === 0) {
+          return res.status(404).json({ code: 404, error: '活动不存在' });
+        }
+        
+        return res.status(200).json({ code: 0, data: result.rows[0] });
+      }
+      
+      // 获取活动列表
       const result = await queryWithRetry(
-        'SELECT * FROM events WHERE status = $1 ORDER BY created_at DESC LIMIT 10',
+        'SELECT * FROM events WHERE status = $1 ORDER BY created_at DESC LIMIT 20',
         ['active']
       );
       return res.status(200).json({ code: 0, data: result.rows });

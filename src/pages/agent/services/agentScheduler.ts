@@ -18,6 +18,7 @@ import { AgentError, AgentErrorType, createAgentError } from './errors';
 import { agentOrchestrator, ConversationContext } from './agentOrchestrator';
 import { generateImage, generateVideo } from './agentService';
 import { useAgentStore } from '../hooks/useAgentStore';
+import { ipPosterService } from '@/services/ipPosterService';
 
 // 调度器配置
 export interface SchedulerConfig {
@@ -297,7 +298,12 @@ export class AgentScheduler {
    * 执行文本任务
    */
   private async executeTextTask(task: AITask, signal: AbortSignal): Promise<any> {
-    const { agentType, messages } = task.metadata || {};
+    const { agentType, messages, mentionedLayout, mentionedWorks } = task.metadata || {};
+
+    // 检查是否是 IP 海报设计任务
+    if (this.isIPPosterTask(task)) {
+      return this.executeIPPosterTask(task, signal);
+    }
 
     // 构建对话上下文
     const context: ConversationContext = {
@@ -327,6 +333,102 @@ export class AgentScheduler {
         agentType
       }
     };
+  }
+
+  /**
+   * 检查是否是 IP 海报设计任务
+   */
+  private isIPPosterTask(task: AITask): boolean {
+    const { mentionedLayout } = task.metadata || {};
+    return !!mentionedLayout || 
+           (task.prompt.includes('海报') && task.prompt.includes('排版')) ||
+           (task.prompt.includes('IP') && task.prompt.includes('海报'));
+  }
+
+  /**
+   * 执行 IP 海报设计任务
+   */
+  private async executeIPPosterTask(task: AITask, signal: AbortSignal): Promise<any> {
+    const { mentionedLayout, mentionedWorks, agentType } = task.metadata || {};
+
+    try {
+      // 1. 获取排版模板
+      let layout = mentionedLayout;
+      if (!layout) {
+        // 如果没有指定排版，使用默认推荐
+        const recommendedLayouts = ipPosterService.getRecommendedLayouts();
+        layout = recommendedLayouts[0];
+      }
+
+      if (!layout) {
+        throw new Error('未找到可用的排版模板');
+      }
+
+      // 检查是否被取消
+      if (signal.aborted) {
+        throw new Error('Task was cancelled');
+      }
+
+      // 2. 获取参考作品图片（如果有）
+      let referenceImage = null;
+      if (mentionedWorks && mentionedWorks.length > 0) {
+        referenceImage = mentionedWorks[0].imageUrl;
+      }
+
+      // 3. 构建提示词
+      const prompt = task.prompt.replace(/@[^\s]+/g, '').trim();
+      const fullPrompt = referenceImage 
+        ? `使用"${layout.name}"排版，参考提供的图片，${prompt}`
+        : `使用"${layout.name}"排版，${prompt}`;
+
+      // 4. 调用 IP 海报生成服务
+      // 注意：这里使用 generateImage 作为基础生成，实际应该调用专门的 IP 海报生成服务
+      const result = await generateImage(
+        fullPrompt,
+        layout.style || 'default',
+        {
+          width: layout.width || 1200,
+          height: layout.height || 2000,
+          referenceImage: referenceImage || undefined
+        }
+      );
+
+      // 检查是否被取消
+      if (signal.aborted) {
+        throw new Error('Task was cancelled');
+      }
+
+      // 5. 返回任务结果
+      return {
+        message: {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: `已成功使用"${layout.name}"排版生成 IP 海报！\n\n排版特点：${layout.description}\n\n![海报](${result.url})`,
+          timestamp: Date.now(),
+          type: 'text',
+          agentType,
+          metadata: {
+            generatedImage: result.url,
+            layoutId: layout.id,
+            layoutName: layout.name
+          }
+        }
+      };
+
+    } catch (error) {
+      console.error('[AgentScheduler] IP 海报生成失败:', error);
+      
+      return {
+        message: {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: `抱歉，IP 海报生成失败。${error instanceof Error ? error.message : '请稍后重试'}`,
+          timestamp: Date.now(),
+          type: 'text',
+          agentType
+        }
+      };
+    }
   }
 
   /**

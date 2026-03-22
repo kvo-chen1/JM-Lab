@@ -638,8 +638,7 @@ export const useAgentStore = create<AgentState & AgentActions>()(
         messages: state.messages.slice(-50), // 只保留最近50条消息
         currentTask: state.currentTask,
         generatedOutputs: state.generatedOutputs,
-        // 不持久化 selectedStyle，确保每次会话都需要重新选择风格
-        // selectedStyle: state.selectedStyle,
+        selectedStyle: state.generatedOutputs.length === 0 ? state.selectedStyle : null,
         delegationHistory: state.delegationHistory,
         currentAgent: state.currentAgent,
         currentModel: state.currentModel
@@ -656,6 +655,11 @@ export const useAgentStore = create<AgentState & AgentActions>()(
           if (!Array.isArray(state.messages)) {
             console.warn('[AgentStore] 恢复的消息不是数组，重置为空');
             state.messages = [];
+          }
+          // 如果有生成内容，清除selectedStyle（已完成的任务不需要）
+          if (state.generatedOutputs && state.generatedOutputs.length > 0) {
+            console.log('[AgentStore] 已有生成内容，清除selectedStyle');
+            state.selectedStyle = null;
           }
         }
       }

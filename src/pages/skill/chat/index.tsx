@@ -42,6 +42,80 @@ const SkillAgentChatPage: React.FC = () => {
   // 记录已处理的附件 ID，防止重复处理
   const processedAttachmentsRef = useRef<Set<string>>(new Set());
 
+  // 同步消息中的附件到画布
+  const syncAttachmentsToCanvas = useCallback((msgs: ChatMessage[]) => {
+    msgs.forEach((msg, index) => {
+      // 处理消息的条件：
+      // 1. 没有 skillCall 状态（普通消息）
+      // 2. skillCall 状态为 completed 或 error（已完成或出错）
+      // 3. 有 attachments 的消息（即使状态还是 calling，但已经有附件了）
+      const shouldProcess = !msg.skillCall?.status || 
+                           msg.skillCall.status === 'completed' || 
+                           msg.skillCall.status === 'error' ||
+                           (msg.attachments && msg.attachments.length > 0);
+      
+      if (!shouldProcess) {
+        return;
+      }
+
+      if (msg.role === 'agent' && msg.attachments && msg.attachments.length > 0) {
+        msg.attachments.forEach((attachment, attIndex) => {
+          // 生成附件唯一 ID（优先使用 attachment.id，否则使用 msg.id + index）
+          const attachmentId = attachment.id || `${msg.id}_att_${attIndex}`;
+
+          // 检查是否已处理
+          if (processedAttachmentsRef.current.has(attachmentId)) {
+            return;
+          }
+
+          try {
+            if (attachment.type === 'image' && attachment.url) {
+              // 检查是否已存在（通过 URL 判断）
+              const currentWorks = useCanvasStore.getState().works;
+              const exists = currentWorks.some(w => w.imageUrl === attachment.url);
+
+              if (!exists) {
+                // 使用 getState().addWork 确保使用最新的状态
+                useCanvasStore.getState().addWork({
+                  id: `work_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                  title: attachment.title || '生成的作品',
+                  type: 'image',
+                  imageUrl: attachment.url,
+                  thumbnailUrl: attachment.thumbnailUrl || attachment.url,
+                  description: msg.content.slice(0, 100),
+                  status: 'completed',
+                });
+              }
+            } else if (attachment.type === 'text' && attachment.content) {
+              // 处理文本类型附件（文案）
+              const currentWorks = useCanvasStore.getState().works;
+              const exists = currentWorks.some(w =>
+                w.type === 'text' && w.content === attachment.content
+              );
+
+              if (!exists) {
+                useCanvasStore.getState().addWork({
+                  id: `work_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                  title: attachment.title || '生成的文案',
+                  type: 'text',
+                  content: attachment.content,
+                  description: msg.content.slice(0, 100),
+                  status: 'completed',
+                });
+              }
+            }
+
+            // 标记为已处理（无论是否已存在，都标记为已处理）
+            processedAttachmentsRef.current.add(attachmentId);
+          } catch (error) {
+            console.error('[ChatPage] 添加作品失败:', error, attachment);
+            // 如果添加失败，不标记为已处理，下次重试
+          }
+        });
+      }
+    });
+  }, []);
+
   // 同步当前会话的消息到会话管理
   useEffect(() => {
     if (currentSessionId && messages.length > 0) {
@@ -54,35 +128,44 @@ const SkillAgentChatPage: React.FC = () => {
     if (currentSessionId && sessions.length > 0) {
       const session = sessions.find(s => s.id === currentSessionId);
       if (session && session.messages.length > 0) {
-        console.log('[ChatPage] 初始化加载会话消息:', session.messages.length);
+        // 清空画布和已处理记录，避免旧数据干扰
+        clearWorks();
+        processedAttachmentsRef.current.clear();
+        // 加载消息
         loadMessages(session.messages);
+        // 同步附件到画布
+        syncAttachmentsToCanvas(session.messages);
       }
     }
     // 只在 sessions 从空变为有数据时执行一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions.length > 0]);
+  }, [sessions.length > 0, syncAttachmentsToCanvas]);
 
   // 切换会话时加载对应的消息
   const handleSwitchSession = useCallback((sessionId: string) => {
     const session = switchSession(sessionId);
     if (session) {
+      // 清空画布和已处理记录，避免旧数据干扰
+      clearWorks();
+      processedAttachmentsRef.current.clear();
       // 加载会话的消息到 useSkillChat
       loadMessages(session.messages);
+      // 同步附件到画布（使用 setTimeout 确保在 loadMessages 完成后执行）
+      setTimeout(() => {
+        syncAttachmentsToCanvas(session.messages);
+      }, 0);
     }
-  }, [switchSession, loadMessages]);
+  }, [switchSession, loadMessages, syncAttachmentsToCanvas, clearWorks]);
 
   // 创建新会话
   const handleCreateSession = useCallback(() => {
-    console.log('[ChatPage] 开始创建新会话');
     // 先清空消息和画布
     clearMessages();
     clearWorks();
     // 清空已处理的附件记录，避免新会话的附件被跳过
     processedAttachmentsRef.current.clear();
-    console.log('[ChatPage] 已清空 processedAttachmentsRef');
     // 再创建新会话（确保新会话是空的）
     const newSession = createSession();
-    console.log('[ChatPage] 新会话创建完成:', newSession.id);
   }, [createSession, clearMessages, clearWorks]);
 
   // Auto-scroll to bottom
@@ -90,103 +173,12 @@ const SkillAgentChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // 将消息中的附件转换为画布作品
+  // 将消息中的附件转换为画布作品（用于实时消息）
   useEffect(() => {
-    console.log('[ChatPage] messages 更新，当前消息数:', messages.length);
-    console.log('[ChatPage] processedAttachmentsRef 大小:', processedAttachmentsRef.current.size);
-
-    // 直接处理，不使用 setTimeout 避免闭包问题
-    messages.forEach((msg, index) => {
-      // 只处理已完成或出错的消息（如果有 skillCall 状态）
-      // 如果没有 skillCall，说明是普通消息，直接处理附件
-      if (msg.skillCall?.status && msg.skillCall.status !== 'completed' && msg.skillCall.status !== 'error') {
-        console.log(`[ChatPage] 消息 ${index} 状态为 ${msg.skillCall.status}，跳过处理`);
-        return;
-      }
-
-      console.log(`[ChatPage] 检查消息 ${index}:`, msg.role, 'skillCall.status:', msg.skillCall?.status, 'attachments:', msg.attachments?.length);
-
-      if (msg.role === 'agent' && msg.attachments && msg.attachments.length > 0) {
-        console.log('[ChatPage] 发现 agent 消息，attachments:', msg.attachments.length);
-        console.log('[ChatPage] attachments:', JSON.stringify(msg.attachments));
-
-        msg.attachments.forEach((attachment, attIndex) => {
-          // 生成附件唯一 ID（优先使用 attachment.id，否则使用 msg.id + index）
-          const attachmentId = attachment.id || `${msg.id}_att_${attIndex}`;
-
-          console.log(`[ChatPage] 处理 attachment ${attIndex}, id:`, attachmentId, 'type:', attachment.type);
-
-          // 检查是否已处理
-          if (processedAttachmentsRef.current.has(attachmentId)) {
-            console.log('[ChatPage] 附件已处理，跳过:', attachmentId);
-            return;
-          }
-
-          if (attachment.type === 'image' && attachment.url) {
-            console.log('[ChatPage] 发现图片附件:', attachment.url);
-
-            // 检查是否已存在（通过 URL 判断）
-            const currentWorks = useCanvasStore.getState().works;
-            console.log('[ChatPage] 当前画布作品数:', currentWorks.length);
-            const exists = currentWorks.some(w => w.imageUrl === attachment.url);
-
-            if (!exists) {
-              console.log('[ChatPage] 添加新作品到画布');
-
-              // 使用 getState().addWork 确保使用最新的状态
-              useCanvasStore.getState().addWork({
-                id: `work_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                title: attachment.title || '生成的作品',
-                type: 'image',
-                imageUrl: attachment.url,
-                thumbnailUrl: attachment.thumbnailUrl || attachment.url,
-                description: msg.content.slice(0, 100),
-                status: 'completed',
-              });
-
-              console.log('[ChatPage] 作品添加完成，新作品数:', useCanvasStore.getState().works.length);
-            } else {
-              console.log('[ChatPage] 作品已存在，跳过添加');
-            }
-
-            // 标记为已处理（无论是否已存在，都标记为已处理）
-            processedAttachmentsRef.current.add(attachmentId);
-          } else if (attachment.type === 'text' && attachment.content) {
-            // 处理文本类型附件（文案）
-            console.log('[ChatPage] 发现文案附件, content长度:', attachment.content.length);
-
-            const currentWorks = useCanvasStore.getState().works;
-            console.log('[ChatPage] 当前画布作品数:', currentWorks.length);
-            const exists = currentWorks.some(w =>
-              w.type === 'text' && w.content === attachment.content
-            );
-
-            if (!exists) {
-              console.log('[ChatPage] 添加新文案到画布');
-
-              useCanvasStore.getState().addWork({
-                id: `work_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                title: attachment.title || '生成的文案',
-                type: 'text',
-                content: attachment.content,
-                description: msg.content.slice(0, 100),
-                status: 'completed',
-              });
-
-              console.log('[ChatPage] 文案添加完成，新作品数:', useCanvasStore.getState().works.length);
-            } else {
-              console.log('[ChatPage] 文案已存在，跳过添加');
-            }
-
-            // 标记为已处理
-            processedAttachmentsRef.current.add(attachmentId);
-          } else {
-            console.log('[ChatPage] 附件不是图片/文本或没有内容:', attachment.type, 'url:', attachment.url, 'content长度:', attachment.content?.length);
-          }
-        });
-      }
-    });
-  }, [messages]);
+    if (messages.length > 0) {
+      syncAttachmentsToCanvas(messages);
+    }
+  }, [messages, syncAttachmentsToCanvas]);
 
   const handleSendMessage = (content: string) => {
     sendMessage(content);
@@ -197,7 +189,6 @@ const SkillAgentChatPage: React.FC = () => {
     clearWorks();
     // 清空已处理的附件记录
     processedAttachmentsRef.current.clear();
-    console.log('[ChatPage] 清空所有内容，已重置 processedAttachmentsRef');
   };
 
   const handleWorkSelect = (work: WorkItem) => {

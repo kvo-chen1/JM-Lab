@@ -513,10 +513,31 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
         
         {/* Timestamp */}
         <span className={`text-xs mt-2 block ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-          {new Date(message.timestamp).toLocaleTimeString('zh-CN', { 
-            hour: '2-digit', 
-            minute: '2-digit'
-          })}
+          {(() => {
+            const msgDate = new Date(message.timestamp);
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const msgDay = new Date(msgDate.getFullYear(), msgDate.getMonth(), msgDate.getDate());
+            const diffDays = Math.floor((today.getTime() - msgDay.getTime()) / (1000 * 60 * 60 * 24));
+
+            const timeStr = msgDate.toLocaleTimeString('zh-CN', {
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+
+            if (diffDays === 0) {
+              return timeStr;
+            } else if (diffDays === 1) {
+              return `昨天 ${timeStr}`;
+            } else if (diffDays < 7) {
+              const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+              return `${weekdays[msgDate.getDay()]} ${timeStr}`;
+            } else if (msgDate.getFullYear() === now.getFullYear()) {
+              return `${msgDate.getMonth() + 1}月${msgDate.getDate()}日 ${timeStr}`;
+            } else {
+              return `${msgDate.getFullYear()}年${msgDate.getMonth() + 1}月${msgDate.getDate()}日 ${timeStr}`;
+            }
+          })()}
         </span>
       </div>
     </div>

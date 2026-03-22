@@ -581,13 +581,21 @@ class JinbiService {
 
       if (recordError) throw recordError;
 
-      // 3. 更新余额
+      // 3. 更新余额 - 先获取当前 total_earned
+      const { data: currentBalanceData } = await supabase
+        .from('user_jinbi_balance')
+        .select('total_earned')
+        .eq('user_id', userId)
+        .single();
+
+      const currentTotalEarned = currentBalanceData?.total_earned || 0;
+
       const { error: updateError } = await supabase
         .from('user_jinbi_balance')
         .update({
           total_balance: newBalance,
           available_balance: newBalance,
-          total_earned: supabase.rpc('increment', { x: amount }),
+          total_earned: currentTotalEarned + amount,
           last_updated: new Date().toISOString(),
         })
         .eq('user_id', userId);
@@ -609,6 +617,81 @@ class JinbiService {
       return { success: true, recordId: record.id };
     } catch (error: any) {
       console.error('[JinbiService] 发放津币失败:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 退款（用于消费失败时回滚）
+   */
+  async refundJinbi(
+    userId: string,
+    amount: number,
+    originalRecordId: string,
+    reason: string = '消费失败退款'
+  ): Promise<{ success: boolean; error?: string; recordId?: string }> {
+    if (!userId || amount <= 0) {
+      return { success: false, error: '参数错误' };
+    }
+
+    try {
+      // 1. 获取当前余额
+      const balance = await this.getBalance(userId);
+      const currentAvailable = balance?.availableBalance || 0;
+      const currentTotalSpent = balance?.totalSpent || 0;
+      const newAvailable = currentAvailable + amount;
+      const newTotalSpent = Math.max(0, currentTotalSpent - amount);
+
+      // 2. 创建退款记录
+      const { data: record, error: recordError } = await supabase
+        .from('jinbi_records')
+        .insert({
+          user_id: userId,
+          amount: amount,
+          type: 'refund',
+          source: 'agent_chat',
+          description: `${reason} (原记录ID: ${originalRecordId})`,
+          balance_after: newAvailable,
+          related_id: originalRecordId,
+          related_type: 'refund',
+        })
+        .select()
+        .single();
+
+      if (recordError) throw recordError;
+
+      // 3. 更新余额
+      const { error: updateError } = await supabase
+        .from('user_jinbi_balance')
+        .update({
+          available_balance: newAvailable,
+          total_spent: newTotalSpent,
+          last_updated: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+
+      // 4. 更新原消费记录状态为已退款
+      await supabase
+        .from('jinbi_consumption_details')
+        .update({ status: 'refunded' })
+        .eq('record_id', originalRecordId);
+
+      // 5. 清除缓存
+      this.cache.lastUpdated.balance = 0;
+
+      // 6. 发布事件
+      eventBus.emit('jinbi:refunded', {
+        userId,
+        amount,
+        originalRecordId,
+        newBalance: newAvailable,
+      });
+
+      return { success: true, recordId: record.id };
+    } catch (error: any) {
+      console.error('[JinbiService] 退款失败:', error);
       return { success: false, error: error.message };
     }
   }

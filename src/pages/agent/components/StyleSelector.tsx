@@ -118,7 +118,7 @@ interface StyleSelectorProps {
 
 export default function StyleSelector({ onOpenStyleLibrary, onCloseStyleLibrary, showStyleLibrary }: StyleSelectorProps) {
   const { isDark } = useTheme();
-  const { selectedStyle, selectStyle, addMessage, addOutput, updateOutput, currentTask, messages, generatedOutputs, currentAgent } = useAgentStore();
+  const { selectedStyle, selectStyle, addMessage, addOutput, updateOutput, currentTask, messages, generatedOutputs, currentAgent, setShowStyleSelector } = useAgentStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
   // 如果已经有生成的内容，显示完成状态而不是选择器
@@ -132,6 +132,9 @@ export default function StyleSelector({ onOpenStyleLibrary, onCloseStyleLibrary,
     const style = PRESET_STYLES.find(s => s.id === styleId);
     if (style) {
       toast.success(`已选择风格：${style.name}`);
+
+      // 关闭风格选择器
+      setShowStyleSelector(false);
 
       // 添加：自动触发确认提示消息（使用当前Agent，避免切换）
       addMessage({
@@ -224,23 +227,34 @@ export default function StyleSelector({ onOpenStyleLibrary, onCloseStyleLibrary,
         console.error('[StyleSelector] 图像生成失败:', result.error);
         throw new Error(result.error || '图像生成失败');
       }
-      
-      // 检查数据结构
+
+      // 统一提取图像URL
       let imageUrl: string | undefined;
-      
+
       console.log('[StyleSelector] 检查数据结构...');
       console.log('[StyleSelector] result.data:', result.data);
-      
+
+      // 情况1: { data: { data: [{url}] } }
       if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
-        // 标准结构：{ data: { data: [{url}] } }
         imageUrl = result.data.data[0].url;
         console.log('[StyleSelector] 从 result.data.data[0].url 获取图片URL:', imageUrl);
-      } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-        // 备选结构：{ data: [{url}] }
+      }
+      // 情况2: { data: [{url}] }
+      else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
         imageUrl = result.data[0].url;
         console.log('[StyleSelector] 从 result.data[0].url 获取图片URL:', imageUrl);
       }
-      
+      // 情况3: { data: { url: "..." } }
+      else if (result.data?.url) {
+        imageUrl = result.data.url;
+        console.log('[StyleSelector] 从 result.data.url 获取图片URL:', imageUrl);
+      }
+      // 情况4: { url: "..." }
+      else if (typeof result.data === 'object' && !Array.isArray(result.data) && (result.data as any).url) {
+        imageUrl = (result.data as any).url;
+        console.log('[StyleSelector] 从 result.data.url 获取图片URL（无包装）:', imageUrl);
+      }
+
       if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.trim() === '') {
         console.error('[StyleSelector] 图片URL无效:', imageUrl);
         throw new Error('生成的图片URL无效');

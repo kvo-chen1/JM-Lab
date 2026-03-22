@@ -42,28 +42,27 @@ export const MerchandiseTypeCollector: React.FC<MerchandiseTypeCollectorProps> =
   // 处理用户输入解析
   React.useEffect(() => {
     if (!message) return;
-    
+
     const lowerMessage = message.toLowerCase();
     const newSelections: string[] = [...selectedIds];
-    
+
     categories.forEach(category => {
-      const shouldSelect = category.name.some(name => 
-        lowerMessage.includes(name.toLowerCase())
-      ) || category.items.some(item =>
-        lowerMessage.includes(item.toLowerCase())
-      );
-      
+      const shouldSelect = lowerMessage.includes(category.name.toLowerCase())
+        || category.items.some(item =>
+          lowerMessage.includes(item.toLowerCase())
+        );
+
       if (shouldSelect && !newSelections.includes(category.id)) {
         if (newSelections.length < 3) {
           newSelections.push(category.id);
         }
       }
     });
-    
+
     if (newSelections.length !== selectedIds.length) {
       onSelect(newSelections);
     }
-  }, [message]);
+  }, [message, categories, selectedIds, onSelect]);
 
   const selectedCategories = categories.filter(c => selectedIds.includes(c.id));
 

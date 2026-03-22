@@ -19,8 +19,6 @@ import InspirationHints from './InspirationHints';
 import SuggestionPanel from './SuggestionPanel';
 import ImageAnalyzer from './ImageAnalyzer';
 import WorkflowStatus from './WorkflowStatus';
-import SchedulerStatus from './SchedulerStatus';
-import ResourceMonitor from './ResourceMonitor';
 import DataMigrationDialog from './DataMigrationDialog';
 import VoiceInputButton from './VoiceInputButton';
 import StyleLibrary from './StyleLibrary';
@@ -34,6 +32,7 @@ import type { InspirationHint, StyleOption } from '../types/agent';
 import type { Brand } from '@/lib/brands';
 import type { Work } from '@/services/workService';
 import { createDraftService, CreateDraft } from '@/services/createDraftService';
+import { ipPosterService } from '@/services/ipPosterService';
 import {
   processWithOrchestrator,
   ConversationContext
@@ -126,43 +125,122 @@ function detectStyleFromMessage(message: string): string | null {
   return null;
 }
 
-// 解析输入中的@提及（支持品牌、风格和作品）
+// 排版名称常量
+const LAYOUT_NAMES = [
+  '国潮风尚·雪豹小吉',
+  '游戏风·瓦当神韵',
+  '博物馆风·釉趣横生',
+  '经典展示·津小脉',
+  '清新简约·海河之夜',
+  '创意拼贴·天津印象',
+  '时尚潮流·都市脉动',
+  '文化传承·津门韵味'
+];
+
+// 扩展风格名称常量
+const EXTENDED_STYLE_NAMES = [
+  '国潮风尚', '水墨意境', '青花瓷韵', '敦煌飞天', '剪纸艺术', '书法韵味',
+  '极简主义', '复古怀旧', '赛博朋克', '北欧风格',
+  '卡通动漫', '日式萌系', '童话梦幻'
+];
+
+// @提及解析正则表达式
+const MENTION_REGEX = /@([^\s,，.。!！?？]+)/g;
+
+// 解析输入中的@提及（支持品牌、风格、作品和排版）
 function parseMentions(input: string): {
   cleanInput: string;
   brands: string[];
   styles: string[];
   works: string[];
+  layouts: string[];
 } {
+  // 快速检查是否包含@提及，避免不必要的处理
+  if (!input.includes('@')) {
+    return { cleanInput: input.trim(), brands: [], styles: [], works: [], layouts: [] };
+  }
+
   const brandMentions: string[] = [];
   const styleMentions: string[] = [];
   const workMentions: string[] = [];
-  const mentionRegex = /@([^\s,，.。!！?？]+)/g;
+  const layoutMentions: string[] = [];
   let match;
 
-  while ((match = mentionRegex.exec(input)) !== null) {
+  while ((match = MENTION_REGEX.exec(input)) !== null) {
     const mention = match[1];
-    // 简单判断：如果提及匹配风格名，则认为是风格
+
+    // 1. 检查是否是排版名称
+    const matchedLayout = LAYOUT_NAMES.find(name => name.includes(mention) || mention.includes(name));
+    if (matchedLayout) {
+      layoutMentions.push(matchedLayout);
+      continue;
+    }
+
+    // 2. 检查是否是风格名称
     const styleNames = PRESET_STYLES.map(s => s.name);
-    const extendedStyleNames = [
-      '国潮风尚', '水墨意境', '青花瓷韵', '敦煌飞天', '剪纸艺术', '书法韵味',
-      '极简主义', '复古怀旧', '赛博朋克', '北欧风格',
-      '卡通动漫', '日式萌系', '童话梦幻'
-    ];
-    const allStyleNames = [...styleNames, ...extendedStyleNames];
+    const allStyleNames = [...styleNames, ...EXTENDED_STYLE_NAMES];
 
     if (allStyleNames.includes(mention)) {
       styleMentions.push(mention);
     } else {
-      // 非风格提及，可能是品牌或作品
-      // 这里简单处理：先作为品牌，也可以同时作为作品引用
+      // 3. 非风格/排版提及，可能是品牌或作品
       brandMentions.push(mention);
       workMentions.push(mention);
     }
   }
 
-  const cleanInput = input.replace(mentionRegex, '').trim();
+  const cleanInput = input.replace(MENTION_REGEX, '').trim();
 
-  return { cleanInput, brands: brandMentions, styles: styleMentions, works: workMentions };
+  return { cleanInput, brands: brandMentions, styles: styleMentions, works: workMentions, layouts: layoutMentions };
+}
+
+// ==================== 图像URL提取辅助函数 ====================
+
+interface ImageGenerateResponse {
+  ok: boolean;
+  error?: string;
+  data?: any;
+}
+
+// 统一提取图像URL的函数
+function extractImageUrl(result: ImageGenerateResponse): string | null {
+  if (!result.ok || !result.data) {
+    console.error('[ChatPanel] 图像生成API返回错误:', result.error);
+    return null;
+  }
+
+  // 情况1: { data: [{ url: "..." }] }
+  if (result.data.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
+    const item = result.data.data[0];
+    if (item.url) {
+      console.log('[ChatPanel] 使用 data.data[0].url 格式');
+      return item.url;
+    }
+  }
+
+  // 情况2: { data: [{ url: "..." }] } (没有中间的 data 包装)
+  if (Array.isArray(result.data) && result.data.length > 0) {
+    const item = result.data[0];
+    if (item.url) {
+      console.log('[ChatPanel] 使用 data[0].url 格式');
+      return item.url;
+    }
+  }
+
+  // 情况3: { data: { url: "..." } } (直接是对象)
+  if (result.data.url) {
+    console.log('[ChatPanel] 使用 data.url 格式');
+    return result.data.url;
+  }
+
+  // 情况4: { url: "..." } (直接在顶层)
+  if (typeof result.data === 'object' && !Array.isArray(result.data) && result.data.url) {
+    console.log('[ChatPanel] 使用 data.url 格式（无包装）');
+    return result.data.url;
+  }
+
+  console.error('[ChatPanel] 无法识别图像URL格式:', JSON.stringify(result.data).slice(0, 200));
+  return null;
 }
 
 export default function ChatPanel() {
@@ -231,6 +309,7 @@ export default function ChatPanel() {
   const {
     balance: jinbiBalance,
     consumeJinbi,
+    refundJinbi,
     checkBalance,
     loading: jinbiLoading,
   } = useJinbi();
@@ -421,14 +500,13 @@ export default function ChatPanel() {
 
   // 处理 Agent 切换动画
   const handleAgentSwitch = useCallback((fromAgent: AgentType | undefined, toAgent: AgentType, reasoning?: string) => {
-    // 先切换当前Agent，确保后续消息使用正确的Agent
-    setCurrentAgent(toAgent);
-
+    // 只设置切换动画状态，不立即切换 currentAgent
+    // currentAgent 将在 handleOrchestratorResponse 中根据 response.agent 来更新
     setSwitcherFromAgent(fromAgent);
     setSwitcherToAgent(toAgent);
     setSwitcherReasoning(reasoning || '');
     setShowAgentSwitcher(true);
-  }, [setCurrentAgent]);
+  }, []);
 
   // Agent切换后自动触发图像生成
   const handleAutoImageGeneration = useCallback(async () => {
@@ -492,13 +570,8 @@ export default function ChatPanel() {
         throw new Error(result.error || '图像生成失败');
       }
 
-      // 提取图像URL
-      let imageUrl: string | undefined;
-      if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
-        imageUrl = result.data.data[0].url;
-      } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-        imageUrl = result.data[0].url;
-      }
+      // 使用统一函数提取图像URL
+      const imageUrl = extractImageUrl(result);
 
       if (!imageUrl) {
         throw new Error('无法获取生成的图像URL');
@@ -803,72 +876,105 @@ export default function ChatPanel() {
       setShowStyleSelector(true);
     }
 
-    // 新增：处理 metadata 中标记的显示风格选择器
-    if (response.metadata?.showStyleSelector) {
-      console.log('[ChatPanel] 根据 metadata 显示风格选择器');
-      setTimeout(() => {
-        setShowStyleSelector(true);
-      }, 300);
-    }
+    // ==================== 风格选择器智能检测逻辑 ====================
 
-    // 智能检测：如果设计师或总监说开始设计/生成方案等，自动显示风格选择器
-    // 但只有在没有选择风格且没有生成过图像时才触发
-    const designKeywords = [
+    // 设计意图关键词
+    const DESIGN_INTENT_KEYWORDS = [
       '开始设计', '生成方案', '呈现方案', '设计方案', '概念图', '概念草图', '初步方案',
       '为你设计', '提供方案', '制作方案', '提供初步', '设计形象',
-      '草图', '绘制', '创作', '呈现', '展示', '1分钟', '马上', '立即'
+      '草图', '绘制', '创作', '呈现', '展示'
     ];
-    // 排除"生成完成"、"已生成"等表示完成的词汇
-    const isGenerationCompleted = response.content.includes('生成完成') ||
-      response.content.includes('已生成') ||
-      response.content.includes('生成成功') ||
-      response.content.includes('完成了') ||
-      response.content.includes('概念图已生成') ||
-      response.content.includes('已为你生成');
 
-    // 排除纯问候语和短句
-    const isGreetingOnly = /^(你好|您好|哈喽|hi|hello|嗨|欢迎)/i.test(response.content.trim());
-    const isTooShort = response.content.length < 30;
+    // 完成相关词汇（用于排除）
+    const COMPLETION_KEYWORDS = [
+      '生成完成', '已生成', '生成成功', '完成了', '概念图已生成', '已为你生成'
+    ];
 
+    // 咨询类词汇（用于排除）
+    const CONSULTATION_KEYWORDS = [
+      '灵感', '建议', '推荐', '参考', '例子', '案例', '看看', '了解一下',
+      '有什么', '哪些', '需求描述', '需求文档', '怎么写', '如何写', '模板', '框架'
+    ];
+
+    // 检查是否匹配设计意图
+    const matchesDesignIntent = (content: string): boolean => {
+      return DESIGN_INTENT_KEYWORDS.some(keyword => content.includes(keyword));
+    };
+
+    // 检查是否是完成消息
+    const isCompletionMessage = (content: string): boolean => {
+      return COMPLETION_KEYWORDS.some(keyword => content.includes(keyword));
+    };
+
+    // 检查是否是咨询类消息
+    const isConsultationMessage = (content: string): boolean => {
+      return CONSULTATION_KEYWORDS.some(keyword => content.includes(keyword));
+    };
+
+    // 检查是否应该显示风格选择器
+    const shouldShowStyleSelectorForResponse = (
+      agent: string,
+      content: string,
+      hasSelectedStyle: boolean,
+      hasGeneratedOutput: boolean,
+      lastMsg?: Message
+    ): boolean => {
+      // 不是设计师或总监，不触发
+      if (agent !== 'designer' && agent !== 'director') return false;
+
+      // 已有风格选择，不重复显示
+      if (hasSelectedStyle) return false;
+
+      // 已有生成内容，不重复显示
+      if (hasGeneratedOutput) return false;
+
+      // 是完成消息，不显示
+      if (isCompletionMessage(content)) return false;
+
+      // 是咨询类消息，不显示
+      if (isConsultationMessage(content)) return false;
+
+      // 纯问候语
+      if (/^(你好|您好|哈喽|hi|hello|嗨|欢迎)/i.test(content.trim())) return false;
+
+      // 内容太短
+      if (content.length < 30) return false;
+
+      // 是疑问句
+      if (/[？?]/.test(content) || /(能否|请告诉我|需要了解|想知道|请问|什么|谁|哪里|怎么|多少|哪些|何时|为什么)/i.test(content)) return false;
+
+      // 在收集信息
+      if (/(为了给你|为了更好|请提供|请描述|请说明|详细|细节|信息)/i.test(content)) return false;
+
+      // 上一条是询问消息
+      if (lastMsg && /[？?]/.test(lastMsg.content)) return false;
+
+      // 匹配设计意图关键词
+      return matchesDesignIntent(content);
+    };
+
+    // 智能检测是否应该显示风格选择器（使用新的简化逻辑）
     // 检查是否已经有生成的内容 - 使用 getState 避免依赖项循环
     const hasGeneratedContent = useAgentStore.getState().generatedOutputs.length > 0;
 
-    // 排除疑问句 - 如果 AI 在询问问题，不显示风格选择器
-    const isAskingQuestion = response.content.includes('？') ||
-      response.content.includes('?') ||
-      /(能否|请告诉我|需要了解|想知道|请问|什么|谁|哪里|怎么|多少|哪些|何时|为什么|吗\s*$)/i.test(response.content);
-
-    // 排除信息收集类消息
-    const isCollectingInfo = /(为了给你|为了更好|能否|请提供|请描述|请说明|详细|细节|信息)/i.test(response.content);
-
     // 检查上一条消息是否是询问（避免连续询问后错误触发）
     const lastMessage = messages[messages.length - 1];
-    const isFollowingQuestion = lastMessage &&
-      lastMessage.role === 'assistant' &&
-      (lastMessage.content.includes('？') || lastMessage.content.includes('?') ||
-       /(能否|请告诉我|需要了解|想知道|请问|什么|谁|哪里|怎么|多少)/i.test(lastMessage.content));
 
-    const shouldShowStyleSelector = (response.agent === 'designer' || response.agent === 'director') &&
-      !selectedStyle && // 还没有选择风格
-      !isGenerationCompleted && // 不是生成完成的消息
-      !isGreetingOnly && // 不是纯问候语
-      !isTooShort && // 内容长度足够
-      !hasGeneratedContent && // 还没有生成过内容
-      !isAskingQuestion && // 不是疑问句
-      !isCollectingInfo && // 不是在收集信息
-      !isFollowingQuestion && // 不是紧跟着询问的消息
-      designKeywords.some(keyword => response.content.includes(keyword));
+    const shouldShowStyleSelector = shouldShowStyleSelectorForResponse(
+      response.agent,
+      response.content,
+      !!selectedStyle,
+      hasGeneratedContent,
+      lastMessage
+    );
 
     console.log('[ChatPanel] 智能检测风格选择器:', {
       agent: response.agent,
       content: response.content.slice(0, 100),
       shouldShowStyleSelector,
       selectedStyle,
-      isGenerationCompleted,
-      isAskingQuestion,
-      isCollectingInfo,
-      isFollowingQuestion,
-      matchedKeyword: designKeywords.find(keyword => response.content.includes(keyword))
+      hasGeneratedContent,
+      matchedKeyword: DESIGN_INTENT_KEYWORDS.find(keyword => response.content.includes(keyword))
     });
 
     if (shouldShowStyleSelector) {
@@ -939,7 +1045,9 @@ export default function ChatPanel() {
         }
       });
     }
-  }, [currentAgent, updateMessage, addMessage, setCollaborating, addToAgentQueue, handleAgentSwitch, setShowStyleSelector]);
+  }, [currentAgent, updateMessage, addMessage, setCollaborating, addToAgentQueue, handleAgentSwitch, setShowStyleSelector, selectedStyle, messages, requirementCollection]);
+
+  // ==================== 风格选择器智能检测逻辑结束 ====================
 
   // 流式显示AI响应 - 优化版：动态延迟
   const streamResponse = useCallback(async (content: string, messageId: string) => {
@@ -980,10 +1088,10 @@ export default function ChatPanel() {
     if (!inputValue.trim() || isTyping) return;
 
     // 解析@提及
-    const { cleanInput, brands, styles, works } = parseMentions(inputValue);
+    const { cleanInput, brands, styles, works, layouts } = parseMentions(inputValue);
 
     // 如果没有实际内容（只有@提及），不发送
-    if (!cleanInput && (brands.length > 0 || styles.length > 0 || works.length > 0)) {
+    if (!cleanInput && (brands.length > 0 || styles.length > 0 || works.length > 0 || layouts.length > 0)) {
       toast.warning('请选择品牌/风格/作品后输入您的需求');
       return;
     }
@@ -1056,6 +1164,14 @@ export default function ChatPanel() {
       }
     }
 
+    // 查询引用的排版详细信息
+    let mentionedLayout = null;
+    if (layouts.length > 0) {
+      const allLayouts = ipPosterService.getAllLayouts();
+      mentionedLayout = allLayouts.find(l => l.name === layouts[0]) || null;
+      console.log('[ChatPanel] 找到排版:', mentionedLayout?.name);
+    }
+
     setInputValue('');
 
     // 添加用户消息到 store - 使用原始输入值（包含@提及）
@@ -1069,7 +1185,8 @@ export default function ChatPanel() {
         brands, // 附加品牌信息
         styles, // 附加风格信息
         works,  // 附加作品名称列表（向后兼容）
-        mentionedWorks // 附加作品详细信息
+        mentionedWorks, // 附加作品详细信息
+        mentionedLayout // 附加排版信息
       }
     };
     addMessage({
@@ -1080,7 +1197,8 @@ export default function ChatPanel() {
         brands,
         styles,
         works,
-        mentionedWorks
+        mentionedWorks,
+        mentionedLayout
       }
     });
 
@@ -1098,6 +1216,7 @@ export default function ChatPanel() {
 
     // 消费津币（仅限登录用户）
     let jinbiConsumed = false;
+    let jinbiRecordId: string | undefined;
     if (userId && !userId.startsWith('anon_')) {
       const consumeResult = await consumeJinbi(
         jinbiCost,
@@ -1107,6 +1226,7 @@ export default function ChatPanel() {
       );
       if (consumeResult.success) {
         jinbiConsumed = true;
+        jinbiRecordId = consumeResult.recordId;
         toast.success(`已消耗 ${jinbiCost} 津币`, { duration: 2000 });
       } else {
         toast.error('津币扣除失败，请重试');
@@ -1265,6 +1385,17 @@ export default function ChatPanel() {
 
     } catch (error) {
       console.error('[Chat] Error:', error);
+
+      // 津币扣费回滚（如果已扣费但处理失败）
+      if (jinbiConsumed && jinbiRecordId && userId && !userId.startsWith('anon_')) {
+        console.log('[Chat] 津币扣费回滚，recordId:', jinbiRecordId);
+        const refundResult = await refundJinbi(jinbiCost, jinbiRecordId, 'Agent对话处理失败');
+        if (refundResult.success) {
+          toast.success('已退还扣减的津币');
+        } else {
+          console.error('[Chat] 津币回滚失败:', refundResult.error);
+        }
+      }
 
       // 使用 errorHandler 处理错误
       const agentError = errorHandler.handleError(error, {
@@ -1426,6 +1557,51 @@ export default function ChatPanel() {
     }
   };
 
+  // 处理风格库开关
+  const toggleStyleLibrary = () => {
+    const newState = !showStyleLibrary;
+    // 关闭其他库
+    if (newState) {
+      setShowBrandLibrary(false);
+      setShowWorkLibrary(false);
+      setShowIPPosterLibrary(false);
+    }
+    setShowStyleLibrary(newState);
+  };
+
+  // 处理品牌库开关
+  const toggleBrandLibrary = () => {
+    const newState = !showBrandLibrary;
+    if (newState) {
+      setShowStyleLibrary(false);
+      setShowWorkLibrary(false);
+      setShowIPPosterLibrary(false);
+    }
+    setShowBrandLibrary(newState);
+  };
+
+  // 处理作品库开关
+  const toggleWorkLibrary = () => {
+    const newState = !showWorkLibrary;
+    if (newState) {
+      setShowStyleLibrary(false);
+      setShowBrandLibrary(false);
+      setShowIPPosterLibrary(false);
+    }
+    setShowWorkLibrary(newState);
+  };
+
+  // 处理排版库开关
+  const toggleIPPosterLibrary = () => {
+    const newState = !showIPPosterLibrary;
+    if (newState) {
+      setShowStyleLibrary(false);
+      setShowBrandLibrary(false);
+      setShowWorkLibrary(false);
+    }
+    setShowIPPosterLibrary(newState);
+  };
+
   // 处理风格库选择
   const handleStyleLibrarySelect = (style: StyleOption) => {
     // 在输入框中显示 @风格名，并保留用户已输入的内容
@@ -1487,10 +1663,10 @@ export default function ChatPanel() {
     { icon: ImageIcon, label: '上传参考', onClick: () => setShowUploadDialog(true) },
     { icon: Sparkles, label: '灵感提示', onClick: toggleInspirationPanel },
     { icon: Wand2, label: 'AI 优化', onClick: handleOptimizePrompt, loading: isOptimizingPrompt },
-    { icon: Layers, label: '风格库', onClick: () => setShowStyleLibrary(true) },
-    { icon: Store, label: '品牌库', onClick: () => setShowBrandLibrary(true) },
-    { icon: Library, label: '作品库', onClick: () => setShowWorkLibrary(true) },
-    { icon: LayoutTemplate, label: '排版库', onClick: () => setShowIPPosterLibrary(true) }
+    { icon: Layers, label: '风格库', onClick: toggleStyleLibrary, isActive: showStyleLibrary },
+    { icon: Store, label: '品牌库', onClick: toggleBrandLibrary, isActive: showBrandLibrary },
+    { icon: Library, label: '作品库', onClick: toggleWorkLibrary, isActive: showWorkLibrary },
+    { icon: LayoutTemplate, label: '排版库', onClick: toggleIPPosterLibrary, isActive: showIPPosterLibrary }
   ];
 
   // 获取当前 Agent 的颜色
@@ -1560,7 +1736,11 @@ export default function ChatPanel() {
         fromAgent={switcherFromAgent}
         toAgent={switcherToAgent}
         isVisible={showAgentSwitcher}
-        onComplete={() => setShowAgentSwitcher(false)}
+        onComplete={() => {
+          // 动画完成后切换到目标Agent
+          setCurrentAgent(switcherToAgent);
+          setShowAgentSwitcher(false);
+        }}
         reasoning={switcherReasoning}
       />
 
@@ -1744,12 +1924,6 @@ export default function ChatPanel() {
 
       {/* Messages Area */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-        {/* 调度器状态 */}
-        <SchedulerStatus />
-
-        {/* 资源监控 */}
-        <ResourceMonitor />
-
         {/* 智能建议面板 */}
         <SuggestionPanel onSuggestionClick={handleSuggestionClick} />
 
@@ -1821,26 +1995,6 @@ export default function ChatPanel() {
           </motion.div>
         )}
 
-        {/* 风格选择器 - 在消息容器内部显示，限制宽度并居中 */}
-        {showStyleSelector && (
-          <div className="mt-4 max-w-lg mx-auto">
-            <div className={`p-4 rounded-2xl border ${
-              isDark
-                ? 'bg-[#1E1E2E] border-gray-700'
-                : 'bg-white border-gray-200 shadow-sm'
-            }`}>
-              <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                请选择你喜欢的风格：
-              </p>
-              <StyleSelector 
-                onOpenStyleLibrary={() => setShowStyleLibrary(true)}
-                onCloseStyleLibrary={() => setShowStyleLibrary(false)}
-                showStyleLibrary={showStyleLibrary}
-              />
-            </div>
-          </div>
-        )}
-
         <div ref={messagesEndRef} />
       </div>
 
@@ -1893,9 +2047,11 @@ export default function ChatPanel() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    isDark
-                      ? 'bg-[#1E1E2E] hover:bg-[#2A2A3E] text-gray-300 border border-[#2A2A3E] hover:border-[#3A3A54]'
-                      : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300 shadow-sm'
+                    (action as any).isActive
+                      ? 'bg-[#C02C38]/20 text-[#C02C38] border border-[#C02C38]'
+                      : isDark
+                        ? 'bg-[#1E1E2E] hover:bg-[#2A2A3E] text-gray-300 border border-[#2A2A3E] hover:border-[#3A3A54]'
+                        : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300 shadow-sm'
                   } ${(action as any).loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {(action as any).loading ? (

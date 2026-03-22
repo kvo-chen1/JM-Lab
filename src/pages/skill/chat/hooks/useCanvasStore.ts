@@ -66,8 +66,8 @@ interface CanvasState {
 }
 
 const DEFAULT_ZOOM = 100;
-const MIN_ZOOM = 10;
-const MAX_ZOOM = 300;
+const MIN_ZOOM = 25;
+const MAX_ZOOM = 200;
 const ZOOM_STEP = 10;
 
 // 生成默认位置（网格布局）

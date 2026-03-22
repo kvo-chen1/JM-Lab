@@ -5,3 +5,4 @@
 export * from './agent';
 export * from './skill';
 export * from './errors';
+export * from './suggestion';

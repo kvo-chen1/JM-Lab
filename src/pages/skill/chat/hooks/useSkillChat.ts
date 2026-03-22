@@ -189,13 +189,39 @@ export const useSkillChat = () => {
     collectedInfo: Record<string, string>;
     skillCall: SkillCallInfo;
   }> => {
-    // 分析需求
-    const analysis = await analyzeRequirements(
-      intent,
-      userMessage,
-      messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
-      abortControllerRef.current?.signal
-    );
+    // 检查是否是确认词（如"好的"、"是的"、"没错"等）
+    const confirmationPatterns = [
+      /^好的?$/i, /^是的?$/i, /^没错?$/i, /^正确?$/i,
+      /^ok$/i, /^okay$/i, /^yep$/i, /^yeah$/i, /^yes$/i,
+      /^好$/i, /^行$/i, /^可以$/i, /^同意$/i,
+    ];
+    const isConfirmation = confirmationPatterns.some(p => p.test(userMessage.trim()));
+
+    // 如果是确认词，检查之前是否有已推断的信息
+    let analysis;
+    if (isConfirmation && conversationStateRef.current?.collectedInfo) {
+      // 用户确认了之前的推断，使用之前的状态继续收集
+      const previousCollectedInfo = conversationStateRef.current.collectedInfo;
+
+      // 重新分析，传入历史信息以便继续收集缺失字段
+      analysis = await analyzeRequirements(
+        intent,
+        userMessage,
+        messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
+        abortControllerRef.current?.signal
+      );
+
+      // 合并之前收集的信息和新分析的信息
+      analysis.collectedInfo = { ...previousCollectedInfo, ...analysis.collectedInfo };
+    } else {
+      // 正常分析
+      analysis = await analyzeRequirements(
+        intent,
+        userMessage,
+        messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
+        abortControllerRef.current?.signal
+      );
+    }
 
     // 更新对话状态
     conversationStateRef.current = {
@@ -213,7 +239,7 @@ export const useSkillChat = () => {
     // 检查是否需要收集周边类型信息
     const merchandiseField = analysis.missingFields?.find(f => f.key === 'merchandiseType');
     let merchandiseSelection: SkillCallInfo['merchandiseSelection'];
-    
+
     if (merchandiseField && merchandiseField.categories) {
       merchandiseSelection = {
         categories: merchandiseField.categories,
@@ -242,7 +268,7 @@ export const useSkillChat = () => {
       collectedInfo: analysis.collectedInfo,
       skillCall,
     };
-  };
+  }
 
   // 从历史消息中提取图片描述
   const extractImagePrompt = (msgs: ChatMessage[]): string => {
@@ -262,6 +288,20 @@ export const useSkillChat = () => {
 
   const sendMessage = useCallback(
     async (content: string) => {
+      // 空消息校验
+      const trimmedContent = content.trim();
+      if (!trimmedContent) {
+        toast.warning('请输入内容');
+        return;
+      }
+
+      // 输入长度限制（最大 2000 字符）
+      const MAX_INPUT_LENGTH = 2000;
+      if (trimmedContent.length > MAX_INPUT_LENGTH) {
+        toast.warning(`输入内容过长，请控制在 ${MAX_INPUT_LENGTH} 字符以内`);
+        return;
+      }
+
       if (isProcessing) {
         toast.warning('请等待当前任务完成');
         return;
@@ -432,11 +472,34 @@ export const useSkillChat = () => {
           };
           setCurrentSkillCall(completedSkillCall);
 
-          // 更新最后一条消息，添加附件
-          updateLastMessage({
-            content: result.content,
-            skillCall: completedSkillCall,
-            attachments: result.attachments,
+          // 使用函数形式更新消息，确保能访问最新的 messages 状态
+          setMessages((prevMessages) => {
+            const lastMessageIsAgent = prevMessages.length > 0 && prevMessages[prevMessages.length - 1].role === 'agent';
+            
+            if (lastMessageIsAgent) {
+              // 更新最后一条消息，添加附件
+              const lastIndex = prevMessages.length - 1;
+              return [
+                ...prevMessages.slice(0, lastIndex),
+                { 
+                  ...prevMessages[lastIndex],
+                  content: result.content,
+                  skillCall: completedSkillCall,
+                  attachments: result.attachments,
+                },
+              ];
+            } else {
+              // 添加新的 agent 消息
+              const newMessage: ChatMessage = {
+                id: generateMessageId(),
+                role: 'agent',
+                content: result.content,
+                skillCall: completedSkillCall,
+                attachments: result.attachments,
+                timestamp: Date.now(),
+              };
+              return [...prevMessages, newMessage];
+            }
           });
 
           toast.success(`${getIntentDisplayName(intent)}完成！`);
@@ -484,7 +547,7 @@ export const useSkillChat = () => {
         await new Promise((resolve) => setTimeout(resolve, 600));
 
         // 如果是问候或帮助，直接回复
-        if (intentResult.intent === 'greeting' || intentResult.intent === 'help' || intentResult.intent === 'general') {
+        if (intentResult.intent === 'greeting' || intentResult.intent === 'help') {
           const result = await executeSkill(
             intentResult.intent as IntentType,
             content,
@@ -516,7 +579,7 @@ export const useSkillChat = () => {
           return;
         }
 
-        // 开始收集需求
+        // 开始收集需求（对于 general 意图也尝试分析需求）
         const { ready, collectedInfo, skillCall } = await collectRequirements(
           intentResult.intent as IntentType,
           content

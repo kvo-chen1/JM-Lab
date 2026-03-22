@@ -54,6 +54,9 @@ const INTENT_RECOGNITION_PROMPT = `你是一个意图识别专家。请分析用
 2. params 是提取的关键参数，如风格、主题、用途等
 3. 只返回 JSON，不要包含其他内容`;
 
+// 置信度阈值
+const CONFIDENCE_THRESHOLD = 0.6;
+
 // 识别用户意图
 export const recognizeIntent = async (
   userMessage: string,
@@ -74,9 +77,23 @@ export const recognizeIntent = async (
     // 解析 JSON 响应
     try {
       const result = JSON.parse(response);
+      const confidence = result.confidence || 0.5;
+      const intent = result.intent || 'general';
+
+      // 如果置信度低于阈值，降级为 general 意图
+      if (confidence < CONFIDENCE_THRESHOLD && intent !== 'general' && intent !== 'greeting' && intent !== 'help') {
+        console.log(`[IntentService] Confidence ${confidence} below threshold ${CONFIDENCE_THRESHOLD}, falling back to general`);
+        return {
+          intent: 'general',
+          confidence: confidence,
+          params: result.params || {},
+          reasoning: `置信度低于阈值(${CONFIDENCE_THRESHOLD})，降级为一般对话`,
+        };
+      }
+
       return {
-        intent: result.intent || 'general',
-        confidence: result.confidence || 0.5,
+        intent: intent,
+        confidence: confidence,
         params: result.params || {},
         reasoning: result.reasoning || '',
       };
@@ -98,9 +115,9 @@ export const recognizeIntent = async (
 // 降级意图识别（基于关键词）
 const fallbackIntentRecognition = (message: string): IntentResult => {
   const lowerMessage = message.toLowerCase();
-  
-  // 图片生成相关
-  if (lowerMessage.includes('logo') || lowerMessage.includes('标志')) {
+
+  // Logo 设计相关（支持中英文）
+  if (lowerMessage.includes('logo') || lowerMessage.includes('标志') || lowerMessage.includes('品牌标识') || lowerMessage.includes('brand identity') || lowerMessage.includes('商标')) {
     return {
       intent: 'logo-design',
       confidence: 0.9,
@@ -108,8 +125,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：logo/标志',
     };
   }
-  
-  if (lowerMessage.includes('海报') || lowerMessage.includes('宣传')) {
+
+  // 海报设计相关（支持中英文）
+  if (lowerMessage.includes('海报') || lowerMessage.includes('宣传') || lowerMessage.includes('poster') || lowerMessage.includes('banner') || lowerMessage.includes('flyer')) {
     return {
       intent: 'poster-design',
       confidence: 0.85,
@@ -117,8 +135,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：海报/宣传',
     };
   }
-  
-  if (lowerMessage.includes('图') || lowerMessage.includes('画') || lowerMessage.includes('生成')) {
+
+  // 图片生成相关
+  if (lowerMessage.includes('图') || lowerMessage.includes('画') || lowerMessage.includes('生成') || lowerMessage.includes('image') || lowerMessage.includes('picture') || lowerMessage.includes('generate')) {
     return {
       intent: 'image-generation',
       confidence: 0.8,
@@ -126,9 +145,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：图/画/生成',
     };
   }
-  
-  // 文案生成相关
-  if (lowerMessage.includes('品牌')) {
+
+  // 品牌文案相关
+  if (lowerMessage.includes('品牌') || lowerMessage.includes('brand')) {
     return {
       intent: 'brand-copy',
       confidence: 0.85,
@@ -136,8 +155,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：品牌',
     };
   }
-  
-  if (lowerMessage.includes('营销') || lowerMessage.includes('推广')) {
+
+  // 营销文案相关（支持中英文）
+  if (lowerMessage.includes('营销') || lowerMessage.includes('推广') || lowerMessage.includes('marketing') || lowerMessage.includes('promotion') || lowerMessage.includes('advertising')) {
     return {
       intent: 'marketing-copy',
       confidence: 0.85,
@@ -145,8 +165,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：营销/推广',
     };
   }
-  
-  if (lowerMessage.includes('朋友圈') || lowerMessage.includes('微博') || lowerMessage.includes('小红书')) {
+
+  // 社交媒体文案（支持中英文）
+  if (lowerMessage.includes('朋友圈') || lowerMessage.includes('微博') || lowerMessage.includes('小红书') || lowerMessage.includes('抖音') || lowerMessage.includes('微信') || lowerMessage.includes('weibo') || lowerMessage.includes('xiaohongshu') || lowerMessage.includes('tiktok') || lowerMessage.includes('instagram') || lowerMessage.includes('facebook') || lowerMessage.includes('twitter') || lowerMessage.includes('social media')) {
     return {
       intent: 'social-copy',
       confidence: 0.9,
@@ -154,8 +175,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：社交媒体平台',
     };
   }
-  
-  if (lowerMessage.includes('文案') || lowerMessage.includes('文字') || lowerMessage.includes('写')) {
+
+  // 文案生成相关（支持中英文）
+  if (lowerMessage.includes('文案') || lowerMessage.includes('文字') || lowerMessage.includes('写') || lowerMessage.includes('copy') || lowerMessage.includes('writing') || lowerMessage.includes('content')) {
     return {
       intent: 'text-generation',
       confidence: 0.8,
@@ -163,9 +185,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：文案/文字/写',
     };
   }
-  
-  // 配色相关
-  if (lowerMessage.includes('配色') || lowerMessage.includes('颜色') || lowerMessage.includes('色彩')) {
+
+  // 配色方案相关（支持中英文）
+  if (lowerMessage.includes('配色') || lowerMessage.includes('颜色') || lowerMessage.includes('色彩') || lowerMessage.includes('color') || lowerMessage.includes('colour') || lowerMessage.includes('palette')) {
     return {
       intent: 'color-scheme',
       confidence: 0.9,
@@ -173,9 +195,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：配色/颜色/色彩',
     };
   }
-  
-  // 创意相关
-  if (lowerMessage.includes('创意') || lowerMessage.includes('点子') || lowerMessage.includes('想法') || lowerMessage.includes('方案')) {
+
+  // 创意相关（支持中英文）
+  if (lowerMessage.includes('创意') || lowerMessage.includes('点子') || lowerMessage.includes('想法') || lowerMessage.includes('方案') || lowerMessage.includes('creative') || lowerMessage.includes('idea') || lowerMessage.includes('brainstorm')) {
     return {
       intent: 'creative-idea',
       confidence: 0.85,
@@ -183,9 +205,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：创意/点子/想法/方案',
     };
   }
-  
-  // 问候相关
-  if (lowerMessage.includes('你好') || lowerMessage.includes('您好') || lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
+
+  // 问候相关（支持中英文）
+  if (lowerMessage.includes('你好') || lowerMessage.includes('您好') || lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey') || lowerMessage.includes('greetings')) {
     return {
       intent: 'greeting',
       confidence: 0.9,
@@ -193,9 +215,9 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：问候语',
     };
   }
-  
-  // 帮助相关
-  if (lowerMessage.includes('帮助') || lowerMessage.includes('怎么用') || lowerMessage.includes('功能')) {
+
+  // 帮助相关（支持中英文）
+  if (lowerMessage.includes('帮助') || lowerMessage.includes('怎么用') || lowerMessage.includes('功能') || lowerMessage.includes('help') || lowerMessage.includes('how to') || lowerMessage.includes('what can')) {
     return {
       intent: 'help',
       confidence: 0.85,
@@ -203,7 +225,7 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       reasoning: '关键词匹配：帮助/功能',
     };
   }
-  
+
   // 默认一般对话
   return {
     intent: 'general',

@@ -53,6 +53,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({
   const cardRef = React.useRef<HTMLDivElement>(null);
   const dragStartPos = React.useRef({ x: 0, y: 0, mouseX: 0, mouseY: 0 });
   const isDraggingRef = React.useRef(false);
+  const currentDragPos = React.useRef({ x: 0, y: 0 });
 
   // 同步 isDragging 状态到 ref
   React.useEffect(() => {
@@ -96,6 +97,9 @@ export const WorkCard: React.FC<WorkCardProps> = ({
       mouseY: e.clientY
     };
 
+    // 初始化当前拖拽位置
+    currentDragPos.current = { x: currentX, y: currentY };
+
     setIsDragging(true);
     onDragStart();
   }, [viewMode, work.position.x, work.position.y, onDragStart]);
@@ -113,9 +117,17 @@ export const WorkCard: React.FC<WorkCardProps> = ({
       const deltaX = (moveEvent.clientX - dragStartPos.current.mouseX) / scale;
       const deltaY = (moveEvent.clientY - dragStartPos.current.mouseY) / scale;
 
-      // 实时更新 DOM 位置（避免 React 重渲染）
+      // 计算新位置
+      const newX = dragStartPos.current.x + deltaX;
+      const newY = dragStartPos.current.y + deltaY;
+
+      // 保存当前拖拽位置
+      currentDragPos.current = { x: newX, y: newY };
+
+      // 实时更新 DOM 位置（使用 left/top 而不是 transform，避免与 React 渲染冲突）
       if (cardRef.current) {
-        cardRef.current.style.transform = `translate(${dragStartPos.current.x + deltaX}px, ${dragStartPos.current.y + deltaY}px)`;
+        cardRef.current.style.left = `${newX}px`;
+        cardRef.current.style.top = `${newY}px`;
       }
     };
 
@@ -194,35 +206,41 @@ export const WorkCard: React.FC<WorkCardProps> = ({
   const cardWidth = viewMode === 'grid' ? 320 : 448;
   const cardHeight = work.type === 'image' || work.type === 'design' ? 400 : 300;
 
+  // 根据拖拽状态返回不同的 transition 配置
+  const getTransition = () => {
+    if (isDragging) {
+      return { duration: 0 }; // 拖拽时无动画
+    }
+    return {
+      type: 'spring' as const,
+      stiffness: 300,
+      damping: 30
+    };
+  };
+
   return (
     <motion.div
       ref={cardRef}
       data-work-card
-      layoutId={work.id}
       initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ 
-        opacity: 1, 
+      animate={{
+        opacity: 1,
         scale: isSelected ? 1.02 : 1,
       }}
       exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ 
-        type: 'spring', 
-        stiffness: 300, 
-        damping: 30,
-        layout: { duration: 0.3 }
-      }}
+      transition={getTransition()}
       className={`absolute rounded-2xl overflow-hidden shadow-lg transition-shadow duration-200 ${
-        isSelected 
-          ? 'ring-2 ring-purple-500 shadow-purple-500/20' 
-          : isHovered 
-            ? 'shadow-xl' 
+        isSelected
+          ? 'ring-2 ring-purple-500 shadow-purple-500/20'
+          : isHovered
+            ? 'shadow-xl'
             : ''
       } ${isDark ? 'bg-[#1a1f1a] border border-gray-800' : 'bg-white border border-gray-200'}`}
       style={{
         width: cardWidth,
         height: cardHeight,
-        left: work.position.x,
-        top: work.position.y,
+        left: isDragging ? currentDragPos.current.x : work.position.x,
+        top: isDragging ? currentDragPos.current.y : work.position.y,
         cursor: viewMode === 'gallery' ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
       }}
       onMouseDown={handleMouseDown}

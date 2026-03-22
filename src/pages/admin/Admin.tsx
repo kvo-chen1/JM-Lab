@@ -55,10 +55,11 @@ const OrderAudit = lazy(() => import('./OrderAudit'));
 const BrandOrderExecution = lazy(() => import('./BrandOrderExecution'));
 const HomeRecommendationManagement = lazy(() => import('./HomeRecommendationManagement'));
 const MarketplaceAdmin = lazy(() => import('./MarketplaceAdmin'));
+const JinbiManagementAdmin = lazy(() => import('./JinbiManagementAdmin'));
 
 const COLORS = ['#f59e0b', '#34d399', '#f87171'];
 
-type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'lotteryManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement' | 'promotionOrderImplementation' | 'promotionAnalytics' | 'advancedAnalytics' | 'searchRecords' | 'orderAudit' | 'brandOrderExecution' | 'homeRecommendation' | 'marketplace';
+type TabType = 'dashboard' | 'audit' | 'analytics' | 'adoption' | 'users' | 'settings' | 'campaigns' | 'creators' | 'brandPartnerships' | 'feedback' | 'contentAudit' | 'auditLog' | 'userAudit' | 'productManagement' | 'lotteryManagement' | 'paymentAudit' | 'notificationManagement' | 'systemMonitor' | 'jinmaiCommunity' | 'knowledgeBase' | 'templates' | 'achievements' | 'aiFeedback' | 'reportManagement' | 'brandTaskAudit' | 'workSubmissionAudit' | 'promotionUserManagement' | 'promotionOrderManagement' | 'promotionOrderImplementation' | 'promotionAnalytics' | 'advancedAnalytics' | 'searchRecords' | 'orderAudit' | 'brandOrderExecution' | 'homeRecommendation' | 'marketplace' | 'jinbiManagement';
 
 // 安全的 localStorage 操作
 const safeLocalStorage = {
@@ -4991,6 +4992,21 @@ export default function Admin() {
             </div>
           }>
             <LotteryManagement />
+          </Suspense>
+        )}
+
+        {/* 津币管理页面 */}
+        {activeTab === 'jinbiManagement' && (
+          <Suspense fallback={
+            <div className={`flex items-center justify-center h-96 ${isDark ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-md`}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                className="w-12 h-12 border-4 border-amber-200 border-t-amber-500 rounded-full"
+              />
+            </div>
+          }>
+            <JinbiManagementAdmin />
           </Suspense>
         )}
 

@@ -297,6 +297,89 @@ export const generateRequirementForm = (intent: IntentType): RequirementField[] 
   return INTENT_REQUIREMENTS[intent] || [];
 };
 
+// 字段验证规则
+const VALIDATION_RULES: Record<string, (value: string) => { valid: boolean; message?: string }> = {
+  // 品牌名称：不能为空，长度2-50
+  brandName: (value) => {
+    if (!value || value.trim().length === 0) return { valid: false, message: '品牌名称不能为空' };
+    if (value.trim().length < 2) return { valid: false, message: '品牌名称至少需要2个字符' };
+    if (value.trim().length > 50) return { valid: false, message: '品牌名称不能超过50个字符' };
+    return { valid: true };
+  },
+  // 主题内容：不能为空，长度5-500
+  subject: (value) => {
+    if (!value || value.trim().length === 0) return { valid: false, message: '主题内容不能为空' };
+    if (value.trim().length < 5) return { valid: false, message: '主题内容描述需要更详细一些（至少5个字符）' };
+    if (value.trim().length > 500) return { valid: false, message: '主题内容不能超过500个字符' };
+    return { valid: true };
+  },
+  // 标题：不能为空，长度2-100
+  title: (value) => {
+    if (!value || value.trim().length === 0) return { valid: false, message: '标题不能为空' };
+    if (value.trim().length < 2) return { valid: false, message: '标题至少需要2个字符' };
+    if (value.trim().length > 100) return { valid: false, message: '标题不能超过100个字符' };
+    return { valid: true };
+  },
+  // 主题/话题：不能为空，长度2-200
+  topic: (value) => {
+    if (!value || value.trim().length === 0) return { valid: false, message: '主题不能为空' };
+    if (value.trim().length < 2) return { valid: false, message: '主题描述需要更详细一些' };
+    if (value.trim().length > 200) return { valid: false, message: '主题不能超过200个字符' };
+    return { valid: true };
+  },
+  // 产品/服务：不能为空
+  product: (value) => {
+    if (!value || value.trim().length === 0) return { valid: false, message: '产品/服务名称不能为空' };
+    if (value.trim().length < 2) return { valid: false, message: '产品/服务名称至少需要2个字符' };
+    return { valid: true };
+  },
+  // 目标受众：不能为空
+  targetAudience: (value) => {
+    if (!value || value.trim().length === 0) return { valid: false, message: '目标受众不能为空' };
+    return { valid: true };
+  },
+};
+
+// 验证单个字段
+export const validateField = (
+  fieldKey: string,
+  value: string
+): { valid: boolean; message?: string } => {
+  const validator = VALIDATION_RULES[fieldKey];
+  if (validator) {
+    return validator(value);
+  }
+  // 默认验证：非空检查
+  if (!value || value.trim().length === 0) {
+    return { valid: false, message: '该字段不能为空' };
+  }
+  return { valid: true };
+};
+
+// 验证所有已收集的字段
+export const validateCollectedInfo = (
+  intent: IntentType,
+  collectedInfo: Record<string, string>
+): { valid: boolean; errors: Record<string, string> } => {
+  const requirements = INTENT_REQUIREMENTS[intent] || [];
+  const errors: Record<string, string> = {};
+
+  requirements
+    .filter(r => r.required)
+    .forEach(r => {
+      const value = collectedInfo[r.key];
+      const validation = validateField(r.key, value || '');
+      if (!validation.valid) {
+        errors[r.key] = validation.message || `${r.label}无效`;
+      }
+    });
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+  };
+};
+
 // 检查是否收集完成
 export const isRequirementsComplete = (
   intent: IntentType,
@@ -305,11 +388,18 @@ export const isRequirementsComplete = (
   const requirements = INTENT_REQUIREMENTS[intent] || [];
   return requirements
     .filter(r => r.required)
-    .every(r => collectedInfo[r.key] && collectedInfo[r.key].trim() !== '');
+    .every(r => {
+      const value = collectedInfo[r.key];
+      if (!value || value.trim() === '') return false;
+      const validation = validateField(r.key, value);
+      return validation.valid;
+    });
 };
 
 export default {
   analyzeRequirements,
   generateRequirementForm,
   isRequirementsComplete,
+  validateField,
+  validateCollectedInfo,
 };

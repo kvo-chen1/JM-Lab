@@ -125,33 +125,46 @@ export const generateImage = async (
   signal?: AbortSignal
 ): Promise<string> => {
   console.log('[ChatService] Generating image with prompt:', prompt);
-  
-  try {
-    // 调用真实的图片生成 API
-    const { generateImage: generateImageAPI } = await import('@/services/imageGenerationService');
-    
-    const result = await generateImageAPI({
-      prompt: prompt,
-      size: options?.size || '1024x1024',
-      model: 'qwen-image-2.0-pro',
-      n: 1,
-    });
-    
-    const imageUrl = result.data?.[0]?.url;
-    
-    if (!imageUrl) {
-      throw new Error('API 返回的图片 URL 为空');
+
+  // 最大重试次数
+  const maxRetries = 2;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // 调用真实的图片生成 API
+      const { generateImage: generateImageAPI } = await import('@/services/imageGenerationService');
+
+      const result = await generateImageAPI({
+        prompt: prompt,
+        size: options?.size || '1024x1024',
+        model: 'qwen-image-2.0-pro',
+        n: 1,
+      });
+
+      const imageUrl = result.data?.[0]?.url;
+
+      if (!imageUrl) {
+        throw new Error('API 返回的图片 URL 为空');
+      }
+
+      console.log('[ChatService] Image generated successfully:', imageUrl);
+      return imageUrl;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('图片生成失败');
+      console.error(`[ChatService] Image generation failed (attempt ${attempt + 1}/${maxRetries + 1}):`, error);
+
+      // 如果不是最后一次尝试，等待后重试
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000; // 指数退避：1s, 2s
+        console.log(`[ChatService] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
-    
-    console.log('[ChatService] Image generated successfully:', imageUrl);
-    return imageUrl;
-  } catch (error) {
-    console.error('[ChatService] Image generation failed:', error);
-    
-    // 如果 API 调用失败，抛出错误让上层处理
-    const errorMessage = error instanceof Error ? error.message : '图片生成失败';
-    throw new Error(errorMessage);
   }
+
+  // 所有重试都失败了，抛出错误
+  throw new Error(lastError?.message || '图片生成失败，请稍后重试');
 };
 
 // 生成文案

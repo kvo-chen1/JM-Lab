@@ -37,16 +37,80 @@ const saveSessionsToStorage = (sessions: ChatSession[]) => {
   }
 };
 
+// 智能提取关键词生成标题
+const extractKeywords = (content: string): string => {
+  // 常见意图关键词映射
+  const intentKeywords: Record<string, string[]> = {
+    'Logo设计': ['logo', '标志', '品牌标识', '商标'],
+    '海报设计': ['海报', '宣传', 'banner', '招贴'],
+    '图片生成': ['图片', '图像', '画图', '生成图', '插画'],
+    '文案创作': ['文案', '文字', '写作', '写文章'],
+    '品牌文案': ['品牌', '宣传文案', '品牌故事'],
+    '营销文案': ['营销', '推广', '广告', '促销'],
+    '社媒文案': ['朋友圈', '微博', '小红书', '抖音', '社交媒体'],
+    '配色方案': ['配色', '颜色', '色彩', '色调'],
+    '创意点子': ['创意', '点子', '想法', '方案', '策划'],
+  };
+
+  const lowerContent = content.toLowerCase();
+
+  // 检查是否匹配特定意图
+  for (const [title, keywords] of Object.entries(intentKeywords)) {
+    if (keywords.some(kw => lowerContent.includes(kw.toLowerCase()))) {
+      return title;
+    }
+  }
+
+  return '';
+};
+
 // 生成会话标题
 const generateSessionTitle = (messages: ChatMessage[]): string => {
   // 找到第一条用户消息
   const firstUserMessage = messages.find(m => m.role === 'user');
-  if (firstUserMessage) {
-    // 截取前20个字符
-    const title = firstUserMessage.content.slice(0, 20);
-    return title.length >= 20 ? title + '...' : title;
+  if (!firstUserMessage) return '新会话';
+
+  const content = firstUserMessage.content;
+
+  // 尝试提取意图关键词
+  const intentKeyword = extractKeywords(content);
+  if (intentKeyword) {
+    // 提取主题（关于...的）
+    const aboutMatch = content.match(/关于[""']([^""']+)[""']|关于\s*([^，,。！!？?]+)/);
+    const topic = aboutMatch ? (aboutMatch[1] || aboutMatch[2])?.trim() : '';
+
+    if (topic && topic.length > 0 && topic.length <= 15) {
+      return `${intentKeyword} · ${topic}`;
+    }
+
+    // 提取品牌名或产品名
+    const brandMatch = content.match(/品牌[叫名为]?\s*[""']?([^""'，,。！!？?\s]+)/i);
+    const brandName = brandMatch ? brandMatch[1] : '';
+
+    if (brandName && brandName.length <= 10) {
+      return `${intentKeyword} · ${brandName}`;
+    }
+
+    return intentKeyword;
   }
-  return '新会话';
+
+  // 默认：截取前20个字符，但尽量在语义完整处截断
+  const cleanContent = content.replace(/[\n\r]/g, ' ').trim();
+  if (cleanContent.length <= 20) return cleanContent;
+
+  // 尝试在标点处截断
+  const punctuationMatch = cleanContent.slice(0, 25).match(/.*?[，,。！!？?]/);
+  if (punctuationMatch && punctuationMatch[0].length >= 5) {
+    return punctuationMatch[0].slice(0, -1);
+  }
+
+  // 尝试在空格处截断
+  const spaceIndex = cleanContent.slice(0, 21).lastIndexOf(' ');
+  if (spaceIndex > 10) {
+    return cleanContent.slice(0, spaceIndex) + '...';
+  }
+
+  return cleanContent.slice(0, 20) + '...';
 };
 
 // 格式化时间

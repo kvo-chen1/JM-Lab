@@ -379,9 +379,9 @@ export const generateNextQuestion = (
 
   // 生成智能问题
   const question = generateSmartQuestion(intent, nextField.key, collectedInfo);
-  
-  // 生成建议回复
-  const suggestions = generateSuggestions(intent, nextField.key);
+
+  // 生成建议回复（传递 collectedInfo 以便动态生成更贴合的建议）
+  const suggestions = generateSuggestions(intent, nextField.key, collectedInfo);
 
   return {
     question,
@@ -431,11 +431,14 @@ const generateSmartQuestion = (
 
 /**
  * 生成建议回复选项
+ * 根据已收集的信息动态生成更贴合的建议
  */
 const generateSuggestions = (
   intent: IntentType,
-  fieldKey: string
+  fieldKey: string,
+  collectedInfo?: Record<string, string>
 ): string[] => {
+  // 基础建议映射
   const suggestionsMap: Record<string, string[]> = {
     'style': ['简约现代', '科技感', '高端大气', '年轻活力'],
     'tone': ['专业严谨', '亲切友好', '幽默风趣', '简洁有力'],
@@ -444,7 +447,66 @@ const generateSuggestions = (
     'colorPreference': ['蓝色系', '绿色系', '红色系', '黑白色'],
   };
 
-  return suggestionsMap[fieldKey] || [];
+  // 基于已收集信息动态调整建议
+  const contextSuggestions: Record<string, Record<string, string[]>> = {
+    'style': {
+      '科技': ['简约现代', '科技感', '赛博朋克', '极简几何'],
+      '环保': ['自然生态', '绿色清新', '低碳环保'],
+      '时尚': ['高端奢华', '精致优雅', '潮流前卫'],
+      '餐饮': ['温馨亲切', '现代简约', '手绘风格'],
+      '教育': ['专业可信', '活力青春', '简洁明了'],
+      '儿童': ['可爱活泼', '卡通趣味', '色彩缤纷'],
+    },
+    'tone': {
+      '专业': ['专业严谨', '简洁有力', '权威可信'],
+      '亲切': ['亲切友好', '温暖感人', '轻松活泼'],
+      '年轻': ['幽默风趣', '活力四射', '时尚潮流'],
+    },
+    'emotion': {
+      '科技': ['专业可信', '科技感', '未来感'],
+      '环保': ['自然清新', '健康活力', '舒适放松'],
+      '高端': ['高端优雅', '尊贵奢华', '精致品质'],
+    },
+    'colorPreference': {
+      '科技': ['蓝色系', '紫色系', '黑白色'],
+      '环保': ['绿色系', '蓝绿色', '自然色'],
+      '时尚': ['玫瑰金', '黑白色', '金色系'],
+      '餐饮': ['橙色系', '红色系', '暖色调'],
+      '儿童': ['多彩配色', '粉色系', '明亮色'],
+    },
+  };
+
+  let suggestions = suggestionsMap[fieldKey] || [];
+
+  // 根据行业关键词调整建议
+  if (collectedInfo && (fieldKey === 'style' || fieldKey === 'tone' || fieldKey === 'emotion' || fieldKey === 'colorPreference')) {
+    const contextMap = contextSuggestions[fieldKey];
+    if (contextMap) {
+      for (const [keyword, keywordsSuggestions] of Object.entries(contextMap)) {
+        // 检查是否提到了相关行业关键词
+        const industryKeywords: Record<string, string[]> = {
+          '科技': ['科技', '互联网', 'AI', '智能', '软件', '数码'],
+          '环保': ['环保', '绿色', '生态', '自然', '可持续'],
+          '时尚': ['时尚', '服装', '美妆', '奢侈品', '潮流'],
+          '餐饮': ['餐饮', '美食', '咖啡', '餐厅', '食品'],
+          '教育': ['教育', '学校', '培训', '学习', '课程'],
+          '儿童': ['儿童', '小孩', '宝贝', '亲子', '早教'],
+          '高端': ['高端', '奢华', '尊贵', '精品'],
+        };
+
+        const industryKws = industryKeywords[keyword] || [];
+        const collectedText = Object.values(collectedInfo).join('');
+
+        if (industryKws.some(kw => collectedText.includes(kw))) {
+          // 合并建议，优先使用行业相关的建议
+          suggestions = [...keywordsSuggestions, ...suggestions.filter(s => !keywordsSuggestions.includes(s))];
+          break;
+        }
+      }
+    }
+  }
+
+  return suggestions;
 };
 
 /**

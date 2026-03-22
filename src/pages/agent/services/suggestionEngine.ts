@@ -4,50 +4,21 @@ import { getPredictionService, BehaviorType } from './predictionService';
 import { getRAGService } from './ragService';
 import { getMemoryService } from './memoryService';
 import { getIntentRecognitionService } from './intentRecognition';
+import { getPromptOptimizer } from './promptOptimizer';
+import { getElementRecommender } from './elementRecommender';
+import { getCaseMatcher } from './caseMatcher';
 import { AgentType, PRESET_STYLES, AGENT_CONFIG } from '../types/agent';
+import { 
+  SuggestionType, 
+  SuggestionTriggerEvent
+} from '../types/suggestion';
+import type { 
+  Suggestion, 
+  SuggestionContext 
+} from '../types/suggestion';
 
-// 建议类型
-export enum SuggestionType {
-  STYLE = 'style',
-  AGENT = 'agent',
-  TASK = 'task',
-  ACTION = 'action',
-  CONTENT = 'content',
-  SHORTCUT = 'shortcut'
-}
-
-// 建议项
-export interface Suggestion {
-  id: string;
-  type: SuggestionType;
-  title: string;
-  description: string;
-  icon?: string;
-  action: {
-    type: 'message' | 'switch_agent' | 'generate' | 'navigate';
-    payload: any;
-  };
-  priority: number; // 0-100
-  reason: string;
-  confidence: number;
-  timestamp: number;
-  expiresAt?: number;
-}
-
-// 建议上下文
-export interface SuggestionContext {
-  currentAgent: AgentType;
-  conversationStage: 'initial' | 'collecting' | 'confirming' | 'executing' | 'reviewing';
-  recentMessages: { role: string; content: string }[];
-  currentTask?: {
-    type?: string;
-    requirements?: Record<string, any>;
-  };
-  userPreferences?: {
-    preferredStyles?: string[];
-    frequentTasks?: string[];
-  };
-}
+// 重新导出类型
+export { Suggestion, SuggestionType, SuggestionTriggerEvent, SuggestionContext };
 
 // 建议配置
 interface SuggestionConfig {
@@ -73,9 +44,13 @@ export class SuggestionEngine {
   private ragService = getRAGService();
   private memoryService = getMemoryService();
   private intentService = getIntentRecognitionService();
+  private promptOptimizer = getPromptOptimizer();
+  private elementRecommender = getElementRecommender();
+  private caseMatcher = getCaseMatcher();
   private config: SuggestionConfig = DEFAULT_CONFIG;
   private currentSuggestions: Suggestion[] = [];
   private lastUpdateTime = 0;
+  private eventListeners: Map<SuggestionTriggerEvent, Set<Function>> = new Map();
 
   /**
    * 配置引擎
@@ -125,6 +100,10 @@ export class SuggestionEngine {
       suggestions.push(...shortcutSuggestions);
     }
 
+    // 6. 生成智能内容建议（新增）
+    const intelligentSuggestions = await this.generateIntelligentSuggestions(context);
+    suggestions.push(...intelligentSuggestions);
+
     // 过滤和排序
     const filteredSuggestions = this.filterAndSortSuggestions(suggestions);
     
@@ -132,6 +111,210 @@ export class SuggestionEngine {
     this.lastUpdateTime = now;
 
     return filteredSuggestions;
+  }
+
+  /**
+   * 生成智能内容建议（新增）
+   */
+  private async generateIntelligentSuggestions(
+    context: SuggestionContext
+  ): Promise<Suggestion[]> {
+    const suggestions: Suggestion[] = [];
+
+    // 获取最近的用户消息
+    const recentUserMessage = context.recentMessages
+      .filter(m => m.role === 'user')
+      .pop()?.content;
+
+    if (!recentUserMessage) return suggestions;
+
+    // 1. Prompt优化建议
+    if (this.config.enabledTypes.includes(SuggestionType.PROMPT_OPTIMIZATION)) {
+      try {
+        const promptSuggestion = await this.promptOptimizer.generateOptimizationSuggestion(
+          recentUserMessage,
+          { currentAgent: context.currentAgent, taskType: context.currentTask?.type }
+        );
+        if (promptSuggestion) {
+          suggestions.push(promptSuggestion);
+        }
+      } catch (error) {
+        console.error('[SuggestionEngine] Failed to generate prompt optimization:', error);
+      }
+    }
+
+    // 2. 元素推荐建议
+    if (this.config.enabledTypes.includes(SuggestionType.ELEMENT_SUGGESTION)) {
+      try {
+        const elementSuggestion = await this.elementRecommender.generateElementSuggestion(
+          recentUserMessage,
+          { currentAgent: context.currentAgent }
+        );
+        if (elementSuggestion) {
+          suggestions.push(elementSuggestion);
+        }
+      } catch (error) {
+        console.error('[SuggestionEngine] Failed to generate element suggestion:', error);
+      }
+    }
+
+    // 3. 案例匹配建议
+    if (this.config.enabledTypes.includes(SuggestionType.REFERENCE_CASE)) {
+      try {
+        const caseSuggestion = await this.caseMatcher.generateCaseSuggestion(
+          recentUserMessage,
+          { currentAgent: context.currentAgent, taskType: context.currentTask?.type }
+        );
+        if (caseSuggestion) {
+          suggestions.push(caseSuggestion);
+        }
+      } catch (error) {
+        console.error('[SuggestionEngine] Failed to generate case suggestion:', error);
+      }
+    }
+
+    return suggestions;
+  }
+
+  /**
+   * 触发事件驱动的建议
+   */
+  async triggerSuggestion(
+    event: SuggestionTriggerEvent,
+    data?: any
+  ): Promise<Suggestion[]> {
+    // 触发事件监听器
+    const listeners = this.eventListeners.get(event);
+    if (listeners) {
+      listeners.forEach(listener => {
+        try {
+          listener(data);
+        } catch (error) {
+          console.error('[SuggestionEngine] Event listener error:', error);
+        }
+      });
+    }
+
+    // 根据事件类型生成特定建议
+    const contextSuggestions: Suggestion[] = [];
+
+    switch (event) {
+      case SuggestionTriggerEvent.GENERATION_COMPLETE:
+        // 生成完成后建议变体或衍生
+        if (data?.success) {
+          contextSuggestions.push({
+            id: `sugg-variant-${Date.now()}`,
+            type: SuggestionType.VARIANT_GENERATION,
+            title: '🎨 生成变体版本',
+            description: '基于当前作品生成不同变体',
+            action: {
+              type: 'message',
+              payload: '帮我生成几个变体版本'
+            },
+            priority: 80,
+            reason: '生成完成，可以探索更多可能性',
+            confidence: 0.85,
+            timestamp: Date.now()
+          });
+
+          // 如果是IP形象，建议衍生创作
+          if (data.taskType === 'ip-character') {
+            contextSuggestions.push({
+              id: `sugg-derivative-${Date.now()}`,
+              type: SuggestionType.DERIVATIVE_CREATION,
+              title: '🎁 制作衍生品',
+              description: '基于IP形象制作海报、表情包等',
+              action: {
+                type: 'message',
+                payload: '我想制作一些衍生品'
+              },
+              priority: 75,
+              reason: 'IP形象适合制作多种衍生品',
+              confidence: 0.8,
+              timestamp: Date.now()
+            });
+          }
+        }
+        break;
+
+      case SuggestionTriggerEvent.NEGATIVE_FEEDBACK:
+        // 用户不满意时建议优化
+        contextSuggestions.push({
+          id: `sugg-optimize-${Date.now()}`,
+          type: SuggestionType.ONE_CLICK_OPTIMIZE,
+          title: '🔧 一键优化',
+          description: '自动调整参数重新生成',
+          action: {
+            type: 'message',
+            payload: '帮我优化一下这个结果'
+          },
+          priority: 95,
+          reason: '检测到您不太满意，尝试优化',
+          confidence: 0.9,
+          timestamp: Date.now()
+        });
+        break;
+
+      case SuggestionTriggerEvent.USER_INPUT_IDLE:
+        // 用户停止输入后提供技巧提示
+        if (this.config.enabledTypes.includes(SuggestionType.SKILL_TIP)) {
+          contextSuggestions.push({
+            id: `sugg-skill-${Date.now()}`,
+            type: SuggestionType.SKILL_TIP,
+            title: '💡 小技巧',
+            description: '使用@可以引用您的历史作品',
+            action: {
+              type: 'message',
+              payload: '如何使用引用功能？'
+            },
+            priority: 50,
+            reason: '帮助您更高效地使用功能',
+            confidence: 0.7,
+            timestamp: Date.now()
+          });
+        }
+        break;
+
+      case SuggestionTriggerEvent.ERROR_OCCURRED:
+        // 发生错误时提供帮助
+        contextSuggestions.push({
+          id: `sugg-help-${Date.now()}`,
+          type: SuggestionType.ACTION,
+          title: '🆘 获取帮助',
+          description: '查看常见问题和解决方案',
+          action: {
+            type: 'message',
+            payload: '我遇到了问题，请帮我解决'
+          },
+          priority: 100,
+          reason: '检测到错误，提供协助',
+          confidence: 1,
+          timestamp: Date.now()
+        });
+        break;
+    }
+
+    return contextSuggestions;
+  }
+
+  /**
+   * 订阅建议触发事件
+   */
+  on(event: SuggestionTriggerEvent, listener: Function): void {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, new Set());
+    }
+    this.eventListeners.get(event)!.add(listener);
+  }
+
+  /**
+   * 取消订阅
+   */
+  off(event: SuggestionTriggerEvent, listener: Function): void {
+    const listeners = this.eventListeners.get(event);
+    if (listeners) {
+      listeners.delete(listener);
+    }
   }
 
   /**

@@ -57,6 +57,82 @@ const EXPERIMENTS: Record<string, Partial<Experiment>> = {
     audience: { type: 'all' },
     trafficAllocation: { type: 'percentage', percentage: 100 },
     schedule: { startDate: new Date().toISOString(), endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }
+  },
+  // 智能建议类型实验 - 新增
+  'intelligent-suggestion-types': {
+    id: 'intelligent-suggestion-types',
+    name: '智能建议类型效果',
+    description: '测试不同类型的智能建议（Prompt优化、元素推荐、案例匹配）的点击率',
+    variants: [
+      { 
+        id: 'all-types', 
+        name: '全部类型', 
+        type: 'control', 
+        trafficPercentage: 34, 
+        config: { enabledTypes: ['prompt_optimization', 'element_suggestion', 'reference_case'] } 
+      } as Variant,
+      { 
+        id: 'content-only', 
+        name: '仅内容建议', 
+        type: 'treatment', 
+        trafficPercentage: 33, 
+        config: { enabledTypes: ['prompt_optimization', 'reference_case'] } 
+      } as Variant,
+      { 
+        id: 'action-only', 
+        name: '仅操作建议', 
+        type: 'treatment', 
+        trafficPercentage: 33, 
+        config: { enabledTypes: ['element_suggestion', 'one_click_optimize'] } 
+      } as Variant
+    ],
+    status: 'running',
+    type: 'ab_test',
+    metrics: [
+      { name: 'suggestion_click_rate', type: 'conversion', isPrimary: true, description: '建议点击率' },
+      { name: 'suggestion_execute_rate', type: 'conversion', isPrimary: false, description: '建议执行率' }
+    ],
+    audience: { type: 'all' },
+    trafficAllocation: { type: 'percentage', percentage: 100 },
+    schedule: { startDate: new Date().toISOString(), endDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString() }
+  },
+  // 建议触发时机实验 - 新增
+  'suggestion-trigger-timing': {
+    id: 'suggestion-trigger-timing',
+    name: '建议触发时机',
+    description: '测试不同触发时机（实时vs延迟）对用户体验的影响',
+    variants: [
+      { id: 'realtime', name: '实时触发', type: 'control', trafficPercentage: 50, config: { triggerDelay: 0 } } as Variant,
+      { id: 'delayed', name: '延迟3秒', type: 'treatment', trafficPercentage: 50, config: { triggerDelay: 3000 } } as Variant
+    ],
+    status: 'running',
+    type: 'ab_test',
+    metrics: [
+      { name: 'user_engagement', type: 'conversion', isPrimary: true, description: '用户参与度' },
+      { name: 'suggestion_attention', type: 'conversion', isPrimary: false, description: '建议关注度' }
+    ],
+    audience: { type: 'all' },
+    trafficAllocation: { type: 'percentage', percentage: 100 },
+    schedule: { startDate: new Date().toISOString(), endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }
+  },
+  // 建议展示样式实验 - 新增
+  'suggestion-display-style': {
+    id: 'suggestion-display-style',
+    name: '建议展示样式',
+    description: '测试不同展示样式（卡片vs列表）的效果',
+    variants: [
+      { id: 'card', name: '卡片式', type: 'control', trafficPercentage: 50, config: { displayMode: 'card' } } as Variant,
+      { id: 'compact', name: '紧凑式', type: 'treatment', trafficPercentage: 50, config: { displayMode: 'compact' } } as Variant
+    ],
+    status: 'running',
+    type: 'ab_test',
+    metrics: [
+      { name: 'click_rate', type: 'conversion', isPrimary: true, description: '点击率' },
+      { name: 'dismiss_rate', type: 'conversion', isPrimary: false, description: '关闭率' }
+    ],
+    audience: { type: 'all' },
+    trafficAllocation: { type: 'percentage', percentage: 100 },
+    schedule: { startDate: new Date().toISOString(), endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }
   }
 };
 

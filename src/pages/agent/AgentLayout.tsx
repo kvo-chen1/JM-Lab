@@ -16,10 +16,11 @@ interface AgentLayoutProps {
 
 export default function AgentLayout({ children }: AgentLayoutProps) {
   const { isDark } = useTheme();
-  const { isChatCollapsed, currentAgent, currentTask } = useAgentStore();
+  const { isChatCollapsed, currentAgent, currentTask, messages } = useAgentStore();
   const { currentSessionId, getCurrentSession, createSession } = useConversationStore();
   const [isConversationSidebarOpen, setIsConversationSidebarOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // 当反馈弹窗打开时，自动收起会话侧边栏
   useEffect(() => {
@@ -28,25 +29,36 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
     }
   }, [isFeedbackOpen]);
 
-  // 初始化时恢复会话
+  // 初始化时恢复会话（确保 agentStore 状态已恢复后再执行）
   useEffect(() => {
-    console.log('[AgentLayout] 初始化会话，currentSessionId:', currentSessionId);
+    // 使用 setTimeout 确保在首次渲染完成后执行
+    // 此时 zustand persist 应该已经完成状态恢复
+    const timer = setTimeout(() => {
+      if (isInitialized) return;
 
-    // 优先使用 initializeSession 恢复会话
-    const restoredSessionId = initializeSession();
-    console.log('[AgentLayout] 会话恢复结果:', restoredSessionId);
+      console.log('[AgentLayout] 初始化会话，currentSessionId:', currentSessionId);
 
-    // 如果没有恢复成功且没有当前会话，检查是否需要创建新会话
-    if (!restoredSessionId && !currentSessionId) {
-      const agentStore = useAgentStore.getState();
-      // 如果有现有对话内容（多条消息或已有任务），保存为会话
-      if (agentStore.messages.length > 1 || agentStore.currentTask) {
-        const title = agentStore.currentTask?.title || '未命名会话';
-        console.log('[AgentLayout] 创建新会话:', title);
-        createSession(title);
+      // 优先使用 initializeSession 恢复会话
+      const restoredSessionId = initializeSession();
+      console.log('[AgentLayout] 会话恢复结果:', restoredSessionId);
+
+      // 如果没有恢复成功且没有当前会话，检查是否需要创建新会话
+      if (!restoredSessionId && !currentSessionId) {
+        // 使用 getState 获取最新的消息数量（避免闭包问题）
+        const agentStore = useAgentStore.getState();
+        // 如果有现有对话内容（多条消息或已有任务），保存为会话
+        if (agentStore.messages.length > 1 || agentStore.currentTask) {
+          const title = agentStore.currentTask?.title || '未命名会话';
+          console.log('[AgentLayout] 创建新会话:', title);
+          createSession(title);
+        }
       }
-    }
-  }, []);
+
+      setIsInitialized(true);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [isInitialized, currentSessionId]);
 
   const currentSession = getCurrentSession();
 

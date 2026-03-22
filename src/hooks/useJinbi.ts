@@ -79,6 +79,12 @@ interface UseJinbiReturn {
     }
   ) => Promise<ConsumeResult>;
 
+  refundJinbi: (
+    amount: number,
+    originalRecordId: string,
+    reason?: string
+  ) => Promise<{ success: boolean; error?: string; recordId?: string }>;
+
   checkBalance: (requiredAmount: number) => Promise<{ sufficient: boolean; balance?: number; error?: string }>;
 
   // 工具方法
@@ -351,6 +357,36 @@ export function useJinbi(): UseJinbiReturn {
     [userId]
   );
 
+  const refundJinbi = useCallback(
+    async (
+      amount: number,
+      originalRecordId: string,
+      reason?: string
+    ): Promise<{ success: boolean; error?: string; recordId?: string }> => {
+      if (!userId) {
+        return { success: false, error: '用户未登录' };
+      }
+
+      try {
+        const result = await jinbiService.refundJinbi(
+          userId,
+          amount,
+          originalRecordId,
+          reason
+        );
+
+        if (result.success) {
+          await Promise.all([refreshBalance(), refreshRecords(), refreshMonthlyStats()]);
+        }
+
+        return result;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
+    [userId, refreshBalance, refreshRecords, refreshMonthlyStats]
+  );
+
   // ==================== 工具方法 ====================
 
   const getServiceCost = useCallback(
@@ -439,6 +475,7 @@ export function useJinbi(): UseJinbiReturn {
 
     // 消费操作
     consumeJinbi,
+    refundJinbi,
     checkBalance,
 
     // 工具方法

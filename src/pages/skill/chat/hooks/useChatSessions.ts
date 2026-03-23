@@ -143,31 +143,27 @@ const formatTime = (timestamp: number): string => {
 export const useChatSessions = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const initializedRef = useRef(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // 初始化：从 localStorage 加载
   useEffect(() => {
-    if (!initializedRef.current) {
-      const loadedSessions = loadSessionsFromStorage();
-      setSessions(loadedSessions);
-      
-      // 如果有会话，选中最后一个；否则创建新会话
-      if (loadedSessions.length > 0) {
-        setCurrentSessionId(loadedSessions[0].id);
-      } else {
-        createSession();
-      }
-      
-      initializedRef.current = true;
+    const loadedSessions = loadSessionsFromStorage();
+    setSessions(loadedSessions);
+    
+    // 如果有会话，选中最后一个
+    if (loadedSessions.length > 0) {
+      setCurrentSessionId(loadedSessions[0].id);
     }
+    
+    setIsInitialized(true);
   }, []);
 
   // 自动保存到 localStorage
   useEffect(() => {
-    if (initializedRef.current) {
+    if (isInitialized) {
       saveSessionsToStorage(sessions);
     }
-  }, [sessions]);
+  }, [sessions, isInitialized]);
 
   // 获取当前会话
   const currentSession = sessions.find(s => s.id === currentSessionId) || null;
@@ -198,6 +194,13 @@ export const useChatSessions = () => {
     
     return newSession;
   }, []);
+
+  // 初始化完成后，如果没有会话则创建一个新会话
+  useEffect(() => {
+    if (isInitialized && sessions.length === 0 && !currentSessionId) {
+      createSession();
+    }
+  }, [isInitialized, sessions.length, currentSessionId, createSession]);
 
   // 切换会话
   const switchSession = useCallback((sessionId: string) => {

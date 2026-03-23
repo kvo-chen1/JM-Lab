@@ -475,7 +475,14 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
       }`}>
         <div className="flex items-center gap-2">
           <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            {currentTask ? currentTask.title : '画布'}
+            {(() => {
+              // 优先显示最新作品的 prompt（用户原始输入）
+              if (generatedOutputs.length > 0) {
+                const latestOutput = generatedOutputs[generatedOutputs.length - 1];
+                return latestOutput.prompt || latestOutput.title || '画布';
+              }
+              return currentTask ? currentTask.title : '画布';
+            })()}
           </span>
           {generatedOutputs.length > 0 && (
             <span className={`text-xs px-2 py-0.5 rounded-full ${

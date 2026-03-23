@@ -10,6 +10,9 @@ export type IntentType =
   | 'social-copy'
   | 'color-scheme'
   | 'creative-idea'
+  | 'image-beautification'  // 新增：图片美化
+  | 'image-style-transfer'  // 新增：风格转换
+  | 'image-recognition'     // 新增：图片识别
   | 'general'
   | 'greeting'
   | 'help';
@@ -26,7 +29,7 @@ const INTENT_RECOGNITION_PROMPT = `你是一个意图识别专家。请分析用
 
 可选的意图类型：
 - image-generation: 图片生成（生成图片、画图、设计图片等）
-- logo-design: Logo设计（设计Logo、品牌标识等）
+- logo-design: Logo 设计（设计 Logo、品牌标识等）
 - poster-design: 海报设计（设计海报、宣传图等）
 - text-generation: 文案生成（写文案、写文章等）
 - brand-copy: 品牌文案（品牌宣传、品牌故事等）
@@ -34,6 +37,9 @@ const INTENT_RECOGNITION_PROMPT = `你是一个意图识别专家。请分析用
 - social-copy: 社交媒体文案（朋友圈、微博、小红书等）
 - color-scheme: 配色方案（推荐颜色、配色建议等）
 - creative-idea: 创意点子（营销创意、活动方案等）
+- image-beautification: 图片美化（美化图片、优化图片、让图片更好看等）
+- image-style-transfer: 风格转换（将图片转换成某种风格，如水彩、油画、卡通等）
+- image-recognition: 图片识别（识别图片内容、分析图片、描述图片等）
 - greeting: 问候（打招呼、寒暄等）
 - help: 帮助（询问功能、如何使用等）
 - general: 一般对话（其他类型的对话）
@@ -52,7 +58,9 @@ const INTENT_RECOGNITION_PROMPT = `你是一个意图识别专家。请分析用
 注意：
 1. confidence 是 0-1 之间的置信度
 2. params 是提取的关键参数，如风格、主题、用途等
-3. 只返回 JSON，不要包含其他内容`;
+3. 只返回 JSON，不要包含其他内容
+
+重要：如果用户提到"美化"、"优化"、"转换风格"、"变成 X 风格"等词汇，应该识别为 image-beautification 或 image-style-transfer，而不是一般对话。`;
 
 // 置信度阈值
 const CONFIDENCE_THRESHOLD = 0.6;
@@ -143,6 +151,36 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
       confidence: 0.8,
       params: extractParams(lowerMessage),
       reasoning: '关键词匹配：图/画/生成',
+    };
+  }
+
+  // 图片美化相关（优先级高于一般图片生成）
+  if (lowerMessage.includes('美化') || lowerMessage.includes('优化') || lowerMessage.includes('改善') || lowerMessage.includes('调整') || lowerMessage.includes('beautify') || lowerMessage.includes('enhance') || lowerMessage.includes('improve')) {
+    return {
+      intent: 'image-beautification',
+      confidence: 0.9,
+      params: extractParams(lowerMessage),
+      reasoning: '关键词匹配：美化/优化',
+    };
+  }
+
+  // 风格转换相关
+  if (lowerMessage.includes('转换') || lowerMessage.includes('风格') || lowerMessage.includes('变成') || lowerMessage.includes('改成') || lowerMessage.includes('水彩') || lowerMessage.includes('油画') || lowerMessage.includes('卡通') || lowerMessage.includes('素描') || lowerMessage.includes('style') || lowerMessage.includes('transfer')) {
+    return {
+      intent: 'image-style-transfer',
+      confidence: 0.9,
+      params: extractParams(lowerMessage),
+      reasoning: '关键词匹配：转换/风格',
+    };
+  }
+
+  // 图片识别相关
+  if (lowerMessage.includes('识别') || lowerMessage.includes('分析') || lowerMessage.includes('描述') || lowerMessage.includes('这是什么') || lowerMessage.includes('recognize') || lowerMessage.includes('analyze') || lowerMessage.includes('describe')) {
+    return {
+      intent: 'image-recognition',
+      confidence: 0.9,
+      params: extractParams(lowerMessage),
+      reasoning: '关键词匹配：识别/分析/描述',
     };
   }
 
@@ -272,7 +310,7 @@ const extractParams = (message: string): Record<string, string> => {
 export const getIntentDisplayName = (intent: IntentType): string => {
   const displayNames: Record<IntentType, string> = {
     'image-generation': '图片生成',
-    'logo-design': 'Logo设计',
+    'logo-design': 'Logo 设计',
     'poster-design': '海报设计',
     'text-generation': '文案生成',
     'brand-copy': '品牌文案',
@@ -280,6 +318,9 @@ export const getIntentDisplayName = (intent: IntentType): string => {
     'social-copy': '社媒文案',
     'color-scheme': '配色方案',
     'creative-idea': '创意点子',
+    'image-beautification': '图片美化',
+    'image-style-transfer': '风格转换',
+    'image-recognition': '图片识别',
     'general': '一般对话',
     'greeting': '问候',
     'help': '帮助',
@@ -300,6 +341,9 @@ export const getIntentColor = (intent: IntentType): string => {
     'social-copy': 'from-cyan-500 to-blue-500',
     'color-scheme': 'from-yellow-500 to-orange-500',
     'creative-idea': 'from-red-500 to-pink-500',
+    'image-beautification': 'from-pink-500 to-rose-500',
+    'image-style-transfer': 'from-purple-500 to-indigo-500',
+    'image-recognition': 'from-blue-500 to-cyan-500',
     'general': 'from-gray-500 to-gray-600',
     'greeting': 'from-green-500 to-teal-500',
     'help': 'from-blue-500 to-indigo-500',

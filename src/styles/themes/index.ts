@@ -13,9 +13,12 @@ import './poizon.css';
 import './delta-force.css';
 import './cyber-brutalist.css';
 import './pink-brutalist.css';
+import './retro-pixel.css';
+import './kawaii.css';
+import './chiikawa.css';
 
 // 导出主题类型
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force' | 'cyber-brutalist' | 'pink-brutalist';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force' | 'cyber-brutalist' | 'pink-brutalist' | 'retro-pixel' | 'kawaii' | 'chiikawa';
 
 // 导出主题配置接口
 export interface ThemeConfig {
@@ -40,8 +43,10 @@ export const themeConfigs: ThemeConfig[] = [
   { value: 'guifaxiang', label: '桂发祥金', icon: 'fas fa-crown', description: '传统美食主题，尊贵金色调，用于VIP标识和会员等级' },
   { value: 'goubuli', label: '狗不理棕', icon: 'fas fa-bread-slice', description: '传统美食主题，温暖棕色调，用于暖色调装饰' },
   { value: 'tianjin-enhanced', label: '津门雅韵·深', icon: 'fas fa-city', description: '天津文化主题深化版，融合海河波纹、传统纹样、老字号元素' },
-  { value: 'poizon', label: '得物潮流', icon: 'fas fa-bolt', description: '得物App风格主题，极光蓝品牌色+黑白极简基底' }
+  { value: 'poizon', label: '得物潮流', icon: 'fas fa-bolt', description: '得物App风格主题，极光蓝品牌色+黑白极简基底' },
+  { value: 'kawaii', label: '日系萌系', icon: 'fas fa-heart', description: '日系萌系治愈风，马卡龙粉+柠檬黄+天蓝色调，温暖治愈的数字乌托邦' },
+  { value: 'chiikawa', label: 'Chiikawa世界', icon: 'fas fa-heart', description: 'Chiikawa治愈风，马卡龙粉+柠檬黄+Baby蓝渐变，Chiikawa角色元素与柔和波浪边框' }
 ];
 
 // 导出主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'delta-force', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'delta-force', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'kawaii', 'chiikawa'];

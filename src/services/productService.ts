@@ -39,7 +39,7 @@ export interface Product {
   images: string[];
   cover_image?: string;
   specifications?: ProductSpecification[];
-  status: 'pending' | 'approved' | 'on_sale' | 'off_shelf' | 'sold_out';
+  status: 'pending' | 'approved' | 'on_sale' | 'off_shelf' | 'sold_out' | 'active' | 'inactive';
   is_featured: boolean;
   is_hot: boolean;
   is_new: boolean;
@@ -168,7 +168,7 @@ export async function getProducts(
   } = {}
 ): Promise<{ data?: Product[]; count?: number; error?: string }> {
   try {
-    console.log('[getMerchantProducts] 开始查询，参数:', options);
+    console.log('[getProducts] 开始查询，参数:', options);
     let query = supabase.from('products').select('*', { count: 'exact' });
 
     if (options.categoryId) {
@@ -204,7 +204,12 @@ export async function getProducts(
     }
 
     if (options.searchQuery) {
-      query = query.or(`name.ilike.%${options.searchQuery}%,description.ilike.%${options.searchQuery}%`);
+      // 转义特殊字符，防止 SQL 注入或查询错误
+      const escapedQuery = options.searchQuery
+        .replace(/%/g, '\\%')
+        .replace(/_/g, '\\_');
+      console.log('[getProducts] 搜索查询:', escapedQuery);
+      query = query.or(`name.ilike.%${escapedQuery}%,description.ilike.%${escapedQuery}%`);
     }
 
     // 排序
@@ -301,7 +306,12 @@ export async function getMerchantProducts(
     }
 
     if (options.searchQuery) {
-      query = query.or(`name.ilike.%${options.searchQuery}%,description.ilike.%${options.searchQuery}%`);
+      // 转义特殊字符，防止 SQL 注入或查询错误
+      const escapedQuery = options.searchQuery
+        .replace(/%/g, '\\%')
+        .replace(/_/g, '\\_');
+      console.log('[getMerchantProducts] 搜索查询:', escapedQuery);
+      query = query.or(`name.ilike.%${escapedQuery}%,description.ilike.%${escapedQuery}%`);
     }
 
     // 排序
@@ -337,7 +347,7 @@ export async function getMerchantProducts(
 
     const { data, error, count } = await query;
 
-    console.log('[getMerchantProducts] 查询结果:', { data, error, count });
+    console.log('[getMerchantProducts] 查询结果:', { dataLength: data?.length, error, count });
     
     // 调试输出每个商品的图片信息
     if (data && data.length > 0) {

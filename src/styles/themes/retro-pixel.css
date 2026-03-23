@@ -1,0 +1,957 @@
+/* ============================================
+   新粗野主义 × 复古像素艺术主题
+   Neo-Brutalist Retro Pixel Art Theme
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap');
+
+.retro-pixel {
+  /* ============================================
+     核心色彩系统 - Retro Arcade Palette
+     ============================================ */
+
+  /* 主色调 - 复古红 */
+  --color-primary: #E60023;
+  --color-primary-hover: #FF1A1A;
+  --color-primary-light: #FF4D4D;
+  --color-primary-dark: #C2001F;
+  --color-primary-rgb: 230, 0, 35;
+
+  /* 辅助色 - 复古黄 */
+  --color-secondary: #FFCC00;
+  --color-secondary-hover: #FFD633;
+  --color-secondary-light: #FFE066;
+  --color-secondary-dark: #E6B800;
+  --color-secondary-rgb: 255, 204, 0;
+
+  /* 强调色 - 深红 */
+  --color-accent: #B3001F;
+  --color-accent-hover: #CC0022;
+  --color-accent-light: #E6003A;
+  --color-accent-dark: #8C0019;
+  --color-accent-rgb: 179, 0, 31;
+
+  /* 功能色 */
+  --color-success: #2ECC40;
+  --color-success-light: #5FD95F;
+  --color-success-dark: #27AE30;
+  --color-success-rgb: 46, 204, 64;
+
+  --color-warning: #FF851B;
+  --color-warning-light: #FFA94D;
+  --color-warning-dark: #E67E22;
+  --color-warning-rgb: 255, 133, 27;
+
+  --color-error: #E60023;
+  --color-error-light: #FF4D4D;
+  --color-error-dark: #C2001F;
+  --color-error-rgb: 230, 0, 35;
+
+  --color-info: #0074D9;
+  --color-info-light: #3399FF;
+  --color-info-dark: #0056B3;
+  --color-info-rgb: 0, 116, 217;
+
+  /* ============================================
+     背景层级系统 - Paper Texture Backgrounds
+     ============================================ */
+
+  --bg-primary: #FFFDF5;
+  --bg-primary-rgb: 255, 253, 245;
+
+  --bg-secondary: #FFF9E6;
+  --bg-secondary-rgb: 255, 249, 230;
+
+  --bg-tertiary: #FFF2CC;
+  --bg-tertiary-rgb: 255, 242, 204;
+
+  --bg-active: #FFEB99;
+  --bg-active-rgb: 255, 235, 153;
+
+  --bg-hover: #FFE066;
+  --bg-hover-rgb: 255, 224, 102;
+
+  --bg-overlay: rgba(255, 253, 245, 0.95);
+  --bg-overlay-light: rgba(255, 253, 245, 0.8);
+
+  --bg-highlight: rgba(255, 204, 0, 0.15);
+
+  /* ============================================
+     文本层级系统 - Text Hierarchy
+     ============================================ */
+
+  --text-primary: #1A1A1A;
+  --text-primary-rgb: 26, 26, 26;
+
+  --text-secondary: #4A4A4A;
+  --text-secondary-rgb: 74, 74, 74;
+
+  --text-tertiary: #8A8A8A;
+  --text-tertiary-rgb: 138, 138, 138;
+
+  --text-muted: #AAAAAA;
+  --text-muted-rgb: 170, 170, 170;
+
+  --text-disabled: #CCCCCC;
+  --text-disabled-rgb: 204, 204, 204;
+
+  --text-inverse: #FFFDF5;
+  --text-inverse-rgb: 255, 253, 245;
+
+  --text-link: #E60023;
+  --text-link-hover: #FF1A1A;
+
+  /* ============================================
+     边框系统 - Brutalist Borders (2px Solid Black)
+     ============================================ */
+
+  --border-primary: #000000;
+  --border-primary-rgb: 0, 0, 0;
+
+  --border-secondary: #1A1A1A;
+  --border-secondary-rgb: 26, 26, 26;
+
+  --border-tertiary: #4A4A4A;
+  --border-tertiary-rgb: 74, 74, 74;
+
+  --border-accent: #E60023;
+  --border-accent-rgb: 230, 0, 35;
+
+  --border-focus: rgba(230, 0, 35, 0.6);
+
+  /* ============================================
+     阴影系统 - Pixel Offset Shadows
+     ============================================ */
+
+  --shadow-xs: 2px 2px 0px 0px #000000;
+  --shadow-sm: 3px 3px 0px 0px #000000;
+  --shadow-md: 4px 4px 0px 0px #000000;
+  --shadow-lg: 6px 6px 0px 0px #000000;
+  --shadow-xl: 8px 8px 0px 0px #000000;
+
+  --shadow-inner: inset 2px 2px 0px rgba(0, 0, 0, 0.15);
+  --shadow-inner-dark: inset 2px 2px 0px rgba(0, 0, 0, 0.3);
+
+  /* ============================================
+     复古霓虹发光效果
+     ============================================ */
+
+  --glow-primary: 0 0 8px #E60023, 0 0 16px rgba(230, 0, 35, 0.4);
+  --glow-primary-sm: 0 0 4px #E60023, 0 0 8px rgba(230, 0, 35, 0.3);
+  --glow-primary-lg: 0 0 12px #E60023, 0 0 24px rgba(230, 0, 35, 0.5);
+
+  --glow-secondary: 0 0 8px #FFCC00, 0 0 16px rgba(255, 204, 0, 0.4);
+  --glow-accent: 0 0 8px #FFCC00, 0 0 16px rgba(255, 204, 0, 0.4);
+
+  --glow-success: 0 0 8px #2ECC40, 0 0 16px rgba(46, 204, 64, 0.4);
+  --glow-warning: 0 0 8px #FF851B, 0 0 16px rgba(255, 133, 27, 0.4);
+  --glow-error: 0 0 8px #E60023, 0 0 16px rgba(230, 0, 35, 0.4);
+  --glow-info: 0 0 8px #0074D9, 0 0 16px rgba(0, 116, 217, 0.4);
+
+  --focus-ring: 0 0 0 3px rgba(230, 0, 35, 0.25);
+  --focus-ring-error: 0 0 0 3px rgba(230, 0, 35, 0.25);
+
+  /* ============================================
+     渐变效果 - Retro Gradients
+     ============================================ */
+
+  --gradient-primary: linear-gradient(135deg, #E60023 0%, #FFCC00 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #FF1A1A 0%, #FFD633 100%);
+
+  --gradient-secondary: linear-gradient(135deg, #FFCC00 0%, #E60023 100%);
+  --gradient-accent: linear-gradient(135deg, #E60023 0%, #B3001F 100%);
+
+  --gradient-bg-subtle: linear-gradient(180deg, #FFFDF5 0%, #FFF9E6 100%);
+  --gradient-bg-card: linear-gradient(145deg, #FFFDF5 0%, #FFF2CC 100%);
+  --gradient-bg-elevated: linear-gradient(145deg, #FFF9E6 0%, #FFE066 100%);
+
+  /* ============================================
+     圆角系统 - Zero Radius (Brutalist)
+     ============================================ */
+
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-full: 0px;
+
+  /* ============================================
+     过渡动画 - Pixel Stepped Transitions
+     ============================================ */
+
+  --transition-fast: 100ms steps(2);
+  --transition-normal: 180ms steps(3);
+  --transition-slow: 280ms steps(4);
+
+  /* ============================================
+     字体系统 - Pixelify Sans
+     ============================================ */
+
+  --font-pixel: 'Pixelify Sans', 'Courier New', monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+
+  --font-weight-light: 400;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ============================================
+     新粗野主义特色变量
+     ============================================ */
+
+  --grid-size: 20px;
+  --grid-color: rgba(230, 0, 35, 0.03);
+  --scanline-height: 2px;
+  --scanline-opacity: 0.03;
+}
+
+/* ============================================
+   新粗野主义特效 - Neo-Brutalist Effects
+   ============================================ */
+
+/* 1. 扫描线效果 (Scanlines) - 微妙复古感 */
+.retro-pixel::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 50%,
+    rgba(0, 0, 0, 0.03) 50%
+  );
+  background-size: 100% var(--scanline-height);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: var(--scanline-opacity);
+}
+
+/* 2. 纸张纹理背景 (Paper Texture) */
+.retro-pixel::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.6;
+}
+
+/* ============================================
+   全局样式覆盖 - Global Overrides
+   ============================================ */
+
+/* 强制所有元素方形圆角 */
+.retro-pixel * {
+  border-radius: 0 !important;
+  letter-spacing: 0.3px;
+}
+
+/* 强制像素字体 */
+.retro-pixel *:not(i):not([class*="fa-"]):not([class*="fas"]):not([class*="far"]):not([class*="fab"]):not(svg) {
+  font-family: var(--font-pixel), monospace !important;
+}
+
+/* 标题样式 - 粗重无衬线风格 + 像素阴影 */
+.retro-pixel h1,
+.retro-pixel h2,
+.retro-pixel h3,
+.retro-pixel h4 {
+  text-transform: uppercase;
+  font-style: italic;
+  letter-spacing: 2px;
+  text-shadow: 3px 3px 0px #FFCC00;
+  color: #1A1A1A !important;
+}
+
+.retro-pixel h1:hover,
+.retro-pixel h2:hover,
+.retro-pixel h3:hover,
+.retro-pixel h4:hover {
+  text-shadow: 3px 3px 0px #FFCC00, 0 0 8px #FFCC00;
+}
+
+/* 文本选中效果 */
+.retro-pixel ::selection {
+  background: rgba(230, 0, 35, 0.3);
+  color: #1A1A1A;
+}
+
+/* 滚动条样式 - 方形复古风格 */
+.retro-pixel ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+  background: var(--bg-secondary);
+}
+
+.retro-pixel ::-webkit-scrollbar-track {
+  background: #E8E8E0;
+  border: 2px solid var(--border-primary);
+}
+
+.retro-pixel ::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border: 2px solid #000;
+}
+
+.retro-pixel ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-light);
+  box-shadow: var(--glow-primary-sm);
+}
+
+.retro-pixel ::-webkit-scrollbar-corner {
+  background: var(--bg-secondary);
+}
+
+.retro-pixel * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-primary) var(--bg-secondary);
+}
+
+/* ============================================
+   组件样式覆盖 - Component Overrides
+   ============================================ */
+
+/* 主按钮 - 厚黑边框 + 偏移阴影 + 复古红 */
+.retro-pixel button[class*="bg-primary"],
+.retro-pixel button.bg-primary {
+  background: var(--color-primary) !important;
+  color: #FFFDF5 !important;
+  border: 3px solid #000 !important;
+  box-shadow: var(--shadow-md);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.retro-pixel button[class*="bg-primary"]:hover,
+.retro-pixel button.bg-primary:hover {
+  background: var(--color-primary-hover) !important;
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  animation: retro-flash 0.6s steps(2) infinite;
+}
+
+.retro-pixel button[class*="bg-primary"]:active,
+.retro-pixel button.bg-primary:active {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-xs);
+  background: var(--color-primary-dark) !important;
+}
+
+@keyframes retro-flash {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
+  100% { filter: brightness(1); }
+}
+
+/* 次要按钮 - 复古黄 */
+.retro-pixel button[class*="bg-secondary"],
+.retro-pixel button.bg-secondary {
+  background: var(--color-secondary) !important;
+  color: #1A1A1A !important;
+  border: 2px solid #000 !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.retro-pixel button[class*="bg-secondary"]:hover,
+.retro-pixel button.bg-secondary:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  background: var(--color-secondary-hover) !important;
+}
+
+.retro-pixel button[class*="bg-secondary"]:active {
+  transform: translateY(1px);
+  box-shadow: var(--shadow-xs);
+}
+
+/* 危险按钮 */
+.retro-pixel button[class*="bg-red"],
+.retro-pixel button.bg-red-500,
+.retro-pixel button.bg-red-600 {
+  background: var(--color-error) !important;
+  color: #FFFDF5 !important;
+  border: 2px solid #000 !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.retro-pixel button[class*="bg-red"]:hover,
+.retro-pixel button.bg-red-500:hover,
+.retro-pixel button.bg-red-600:hover {
+  background: var(--color-error-light) !important;
+  box-shadow: var(--shadow-md);
+}
+
+/* 轮廓按钮 */
+.retro-pixel button[class*="border"],
+.retro-pixel button.border-primary {
+  background: transparent !important;
+  color: var(--color-primary) !important;
+  border: 2px solid var(--color-primary) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.retro-pixel button[class*="border"]:hover,
+.retro-pixel button.border-primary:hover {
+  background: rgba(230, 0, 35, 0.1) !important;
+  box-shadow: var(--shadow-md), var(--glow-primary-sm);
+}
+
+/* 通用按钮 */
+.retro-pixel button {
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.retro-pixel button:hover {
+  border-color: var(--color-primary) !important;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.retro-pixel button:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* 输入框 - 终端风格 */
+.retro-pixel input,
+.retro-pixel textarea,
+.retro-pixel select {
+  font-family: 'Courier New', monospace !important;
+  background-color: #FFFDF5 !important;
+  border: 2px solid var(--border-primary) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-inner) !important;
+}
+
+.retro-pixel input:focus,
+.retro-pixel textarea:focus,
+.retro-pixel select:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--shadow-inner), 0 0 8px var(--color-primary) !important;
+  outline: none;
+}
+
+.retro-pixel input::placeholder,
+.retro-pixel textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* 卡片 - 立体堆叠感 */
+.retro-pixel .card,
+.retro-pixel [class*="rounded-lg"][class*="bg-white"],
+.retro-pixel [class*="rounded-xl"][class*="bg-white"] {
+  background: var(--gradient-bg-card) !important;
+  border: 3px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+}
+
+.retro-pixel .card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-shadow: inset 2px 2px 0px rgba(255, 255, 255, 0.5), inset -2px -2px 0px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+
+.retro-pixel .card:hover,
+.retro-pixel [class*="rounded-lg"][class*="bg-white"]:hover {
+  box-shadow: var(--shadow-xl);
+  transform: translateY(-4px);
+}
+
+/* 侧边栏 */
+.retro-pixel aside,
+.retro-pixel [class*="sidebar"] {
+  background: var(--gradient-bg-subtle) !important;
+  border-right: 3px solid var(--border-primary) !important;
+  box-shadow: 4px 0 0 var(--border-primary) !important;
+}
+
+.retro-pixel aside [class*="active"],
+.retro-pixel [class*="sidebar"] [class*="active"] {
+  background: rgba(230, 0, 35, 0.15) !important;
+  color: var(--color-primary) !important;
+  border-left: 4px solid var(--color-primary) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.retro-pixel aside [class*="nav-item"]:hover,
+.retro-pixel [class*="sidebar"] [class*="nav-item"]:hover {
+  background: rgba(255, 204, 0, 0.2) !important;
+  color: var(--text-primary) !important;
+}
+
+/* 导航栏 */
+.retro-pixel nav,
+.retro-pixel header {
+  background: var(--gradient-bg-card) !important;
+  border-bottom: 3px solid var(--border-primary) !important;
+  box-shadow: 0 4px 0 var(--border-primary);
+}
+
+/* 下拉菜单 */
+.retro-pixel [role="menu"],
+.retro-pixel [role="listbox"],
+.retro-pixel .dropdown-menu {
+  background: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.retro-pixel [role="menuitem"],
+.retro-pixel [role="option"] {
+  border-bottom: 1px solid var(--border-primary);
+  transition: all var(--transition-fast);
+}
+
+.retro-pixel [role="menuitem"]:hover,
+.retro-pixel [role="option"]:hover {
+  background: rgba(255, 204, 0, 0.2) !important;
+  padding-left: 16px !important;
+}
+
+.retro-pixel [role="menuitem"][aria-selected="true"],
+.retro-pixel [role="option"][aria-selected="true"] {
+  background: rgba(230, 0, 35, 0.15) !important;
+  color: var(--color-primary) !important;
+}
+
+/* 模态框 */
+.retro-pixel [role="dialog"],
+.retro-pixel .modal,
+.retro-pixel [class*="modal"] {
+  background: var(--bg-secondary) !important;
+  border: 3px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-xl) !important;
+}
+
+.retro-pixel [class*="modal-overlay"],
+.retro-pixel [class*="backdrop"] {
+  background-color: var(--bg-overlay) !important;
+}
+
+/* Switch 开关 - 强制方形 */
+.retro-pixel [role="switch"] {
+  border-radius: 0 !important;
+  background: #FFFDF5 !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+.retro-pixel [role="switch"][aria-checked="true"] {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--glow-primary-sm);
+}
+
+.retro-pixel [role="switch"] span {
+  border-radius: 0 !important;
+  background: #FFFDF5 !important;
+  border: 2px solid #000 !important;
+  box-shadow: var(--shadow-xs);
+}
+
+/* 进度条 - 条纹复古风格 */
+.retro-pixel progress,
+.retro-pixel [class*="progress"] {
+  background: #FFFDF5 !important;
+  border: 2px solid var(--border-primary);
+  border-radius: 0 !important;
+}
+
+.retro-pixel progress::-webkit-progress-bar {
+  background: #FFFDF5 !important;
+}
+
+.retro-pixel progress::-webkit-progress-value {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-primary),
+    var(--color-primary) 10px,
+    var(--color-secondary) 10px,
+    var(--color-secondary) 20px
+  ) !important;
+  box-shadow: var(--glow-primary-sm);
+}
+
+/* Toast 通知 */
+.retro-pixel [data-sonner-toast] {
+  background: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-lg) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-pixel), monospace !important;
+}
+
+.retro-pixel [data-sonner-toast][data-type="success"] {
+  border-color: var(--color-success) !important;
+  box-shadow: var(--shadow-md), var(--glow-success) !important;
+}
+
+.retro-pixel [data-sonner-toast][data-type="error"] {
+  border-color: var(--color-error) !important;
+  box-shadow: var(--shadow-md), var(--glow-error) !important;
+}
+
+.retro-pixel [data-sonner-toast][data-type="warning"] {
+  border-color: var(--color-warning) !important;
+  box-shadow: var(--shadow-md), var(--glow-warning) !important;
+}
+
+.retro-pixel [data-sonner-toast][data-type="info"] {
+  border-color: var(--color-info) !important;
+  box-shadow: var(--shadow-md), var(--glow-info) !important;
+}
+
+/* 标签/徽章 */
+.retro-pixel [class*="badge"],
+.retro-pixel .tag {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-pixel), monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.retro-pixel [class*="badge-primary"],
+.retro-pixel .tag-primary {
+  background: rgba(230, 0, 35, 0.15) !important;
+  color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--shadow-xs);
+}
+
+/* 链接 */
+.retro-pixel a:not([class*="button"]):not([class*="nav"]):not(nav a) {
+  color: var(--color-primary);
+  text-decoration: none;
+  border-bottom: 2px dashed var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.retro-pixel a:not([class*="button"]):not([class*="nav"]):not(nav a):hover {
+  color: var(--color-primary-hover);
+  border-bottom-style: solid;
+  text-shadow: var(--glow-primary-sm);
+}
+
+/* 分割线 */
+.retro-pixel hr,
+.retro-pixel [class*="divider"] {
+  border-color: var(--border-primary) !important;
+  border-width: 2px !important;
+}
+
+/* 表格 */
+.retro-pixel table {
+  background: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary);
+}
+
+.retro-pixel th {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.retro-pixel td {
+  border: 2px solid var(--border-primary) !important;
+  color: var(--text-secondary) !important;
+}
+
+.retro-pixel tr:hover td {
+  background: var(--bg-hover) !important;
+}
+
+/* 代码块 */
+.retro-pixel pre,
+.retro-pixel code {
+  background: var(--bg-tertiary) !important;
+  color: var(--color-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+  font-family: 'Courier New', monospace !important;
+  border-radius: 0 !important;
+}
+
+.retro-pixel pre {
+  padding: 1rem;
+}
+
+.retro-pixel code {
+  padding: 0.125rem 0.375rem;
+}
+
+/* 引用块 */
+.retro-pixel blockquote {
+  border-left: 4px solid var(--color-primary) !important;
+  background: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  border-radius: 0 !important;
+  padding: 1rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 工具提示 */
+.retro-pixel [role="tooltip"],
+.retro-pixel .tooltip {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 2px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-md) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-pixel), monospace !important;
+}
+
+/* 滑块 */
+.retro-pixel input[type="range"] {
+  background: var(--bg-tertiary) !important;
+  border: 2px solid var(--border-primary) !important;
+  border-radius: 0 !important;
+}
+
+.retro-pixel input[type="range"]::-webkit-slider-thumb {
+  background: var(--color-primary) !important;
+  border: 2px solid #000 !important;
+  box-shadow: var(--shadow-sm) !important;
+  border-radius: 0 !important;
+}
+
+.retro-pixel input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: var(--shadow-md), var(--glow-primary) !important;
+}
+
+/* ============================================
+   特定组件覆盖 - Specific Component Overrides
+   ============================================ */
+
+/* 修复白色背景元素 */
+.retro-pixel [class*="bg-white"] {
+  background-color: var(--bg-secondary) !important;
+}
+
+.retro-pixel [class*="bg-gray-50"],
+.retro-pixel [class*="bg-gray-100"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* 修复文本颜色 */
+.retro-pixel [class*="text-gray-900"],
+.retro-pixel [class*="text-gray-800"] {
+  color: var(--text-primary) !important;
+}
+
+.retro-pixel [class*="text-gray-700"],
+.retro-pixel [class*="text-gray-600"] {
+  color: var(--text-secondary) !important;
+}
+
+.retro-pixel [class*="text-gray-500"],
+.retro-pixel [class*="text-gray-400"],
+.retro-pixel [class*="text-gray-300"] {
+  color: var(--text-tertiary) !important;
+}
+
+.retro-pixel [class*="text-gray-200"],
+.retro-pixel [class*="text-gray-100"] {
+  color: var(--text-muted) !important;
+}
+
+/* 修复边框 */
+.retro-pixel [class*="border-gray-200"],
+.retro-pixel [class*="border-gray-300"] {
+  border-color: var(--border-primary) !important;
+}
+
+/* 修复阴影 */
+.retro-pixel [class*="shadow-sm"] {
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.retro-pixel [class*="shadow-md"] {
+  box-shadow: var(--shadow-md) !important;
+}
+
+.retro-pixel [class*="shadow-lg"] {
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.retro-pixel [class*="shadow-xl"] {
+  box-shadow: var(--shadow-xl) !important;
+}
+
+/* 焦点样式 */
+.retro-pixel :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* 头像 - 强制方形 */
+.retro-pixel .rounded-full {
+  border-radius: 0 !important;
+  border: 2px solid var(--border-primary) !important;
+}
+
+/* 弹窗/浮层 */
+.retro-pixel .rounded-xl,
+.retro-pixel .rounded-lg,
+.retro-pixel .rounded-md,
+.retro-pixel .rounded {
+  border-radius: 0 !important;
+}
+
+/* ============================================
+   特殊效果 - Special Effects
+   ============================================ */
+
+/* 霓虹边框 */
+.retro-pixel .neon-border {
+  position: relative;
+  border: 2px solid var(--color-primary) !important;
+}
+
+.retro-pixel .neon-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--color-primary);
+  box-shadow: var(--glow-primary);
+  pointer-events: none;
+  animation: neon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes neon-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* 复古闪光效果 */
+.retro-pixel .retro-flash {
+  animation: retro-flash 0.6s steps(2) infinite;
+}
+
+/* 脉冲发光 */
+.retro-pixel .pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: var(--glow-primary-sm); }
+  50% { box-shadow: var(--glow-primary); }
+}
+
+/* ============================================
+   加载骨架屏 - Skeleton Loading
+   ============================================ */
+
+.retro-pixel [class*="skeleton"],
+.retro-pixel .skeleton {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--bg-tertiary) 0px,
+    var(--bg-active) 20px,
+    var(--bg-tertiary) 40px
+  ) !important;
+  background-size: 200% 100% !important;
+  animation: skeleton-scan 1.5s steps(4) infinite !important;
+  border: 1px solid var(--border-primary) !important;
+}
+
+@keyframes skeleton-scan {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+/* ============================================
+   复古街机风格徽章
+   ============================================ */
+
+.retro-pixel .arcade-badge {
+  background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  color: #FFFDF5;
+  border: 3px solid #000;
+  box-shadow: var(--shadow-md);
+  padding: 0.25rem 0.75rem;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.retro-pixel .arcade-badge::before {
+  content: '>';
+  margin-right: 0.5rem;
+  animation: blink 1s steps(2) infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ============================================
+   复古像素风按钮特效
+   ============================================ */
+
+.retro-pixel .pixel-btn {
+  position: relative;
+  background: var(--color-primary);
+  color: #FFFDF5;
+  border: 3px solid #000;
+  box-shadow: var(--shadow-md);
+  padding: 0.75rem 1.5rem;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.retro-pixel .pixel-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  background: var(--color-primary-hover);
+}
+
+.retro-pixel .pixel-btn:active {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-xs);
+}
+
+.retro-pixel .pixel-btn-secondary {
+  background: var(--color-secondary);
+  color: #1A1A1A;
+}
+
+.retro-pixel .pixel-btn-secondary:hover {
+  background: var(--color-secondary-hover);
+}

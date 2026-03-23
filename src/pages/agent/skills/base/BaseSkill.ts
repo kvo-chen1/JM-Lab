@@ -93,20 +93,32 @@ export abstract class BaseSkill implements ISkill {
 
   /**
    * 验证输入参数
+   * 检查是否至少有一个 capability 的所有必填参数都满足
    */
   validateInput(input: Record<string, any>): boolean {
-    // 基础验证：检查必填参数
+    // 检查是否有至少一个 capability 的参数全部满足
     for (const capability of this.capabilities) {
-      if (capability.parameters) {
-        for (const param of capability.parameters) {
-          if (param.required && input[param.name] === undefined) {
-            console.warn(`[BaseSkill] Missing required parameter: ${param.name}`);
-            return false;
-          }
+      if (!capability.parameters) {
+        continue;
+      }
+      
+      let allParamsSatisfied = true;
+      for (const param of capability.parameters) {
+        if (param.required && input[param.name] === undefined) {
+          allParamsSatisfied = false;
+          break;
         }
       }
+      
+      // 如果有一个 capability 的参数全部满足，则验证通过
+      if (allParamsSatisfied) {
+        return true;
+      }
     }
-    return true;
+    
+    // 所有 capability 都有缺失的必填参数
+    console.warn(`[BaseSkill] Missing required parameters for all capabilities`);
+    return false;
   }
 
   // ==================== 核心执行逻辑 ====================

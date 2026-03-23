@@ -1,0 +1,499 @@
+/* ============================================
+   日系萌系治愈风主题 - Kawaii Iyashikei Theme
+   设计灵感：马卡龙色系 + 极简卡片UI + 柔软圆润
+   更新时间：2026-03-23
+   ============================================ */
+
+.kawaii {
+  /* ============================================
+     核心色彩系统 - Core Color System
+     马卡龙色系：低饱和、高亮度、柔和梦幻
+     ============================================ */
+
+  /* 主色调 - 棉花糖粉 */
+  --color-primary: #FFB5C5;
+  --color-primary-hover: #FFADD2;
+  --color-primary-light: #FFE4EC;
+  --color-primary-dark: #FF9BB3;
+  --color-primary-rgb: 255, 181, 197;
+
+  /* 辅助色 - 樱花粉 */
+  --color-secondary: #FFADD2;
+  --color-secondary-hover: #FF9EC4;
+  --color-secondary-light: #FFECF3;
+
+  /* 强调色 - 柠檬黄 + 薄荷绿 */
+  --color-accent: #FFF5BA;
+  --color-accent-hover: #FFE566;
+  --color-accent-light: #FFFAE6;
+  --color-accent-alt: #B8F0E8;
+  --color-accent-alt-hover: #A0E8DB;
+
+  /* 功能色 - 柔和版本 */
+  --color-success: #A8E6CF;
+  --color-success-light: #DCEDC8;
+  --color-success-dark: #88D4AB;
+
+  --color-warning: #FFE066;
+  --color-warning-light: #FFF3BF;
+  --color-warning-dark: #FFD43B;
+
+  --color-error: #FFADD2;
+  --color-error-light: #FFD6E7;
+  --color-error-dark: #FF8CB8;
+
+  --color-info: #B5E8FF;
+  --color-info-light: #E0F4FF;
+  --color-info-dark: #8DD6F5;
+
+  /* ============================================
+     背景层级系统 - Background Hierarchy
+     柔光米白 + 淡粉渐变
+     ============================================ */
+
+  --bg-primary: #FFF9FA;
+  --bg-primary-rgb: 255, 249, 250;
+
+  --bg-secondary: #FFFFFF;
+  --bg-secondary-rgb: 255, 255, 255;
+
+  --bg-tertiary: #FFF5F7;
+  --bg-tertiary-rgb: 255, 245, 247;
+
+  --bg-active: #FFECF3;
+  --bg-active-rgb: 255, 236, 243;
+
+  --bg-hover: #FFF0F5;
+  --bg-hover-rgb: 255, 240, 245;
+
+  --bg-overlay: rgba(255, 249, 250, 0.95);
+  --bg-overlay-light: rgba(255, 249, 250, 0.8);
+
+  /* 渐变背景 */
+  --bg-gradient-start: #FFF9FA;
+  --bg-gradient-end: #FFF0F5;
+  --bg-gradient: linear-gradient(180deg, #FFF9FA 0%, #FFF5F7 50%, #FFECF3 100%);
+
+  /* ============================================
+     文本层级系统 - Text Hierarchy
+     暖灰色系，温和不刺眼
+     ============================================ */
+
+  --text-primary: #5A5A5A;
+  --text-primary-rgb: 90, 90, 90;
+
+  --text-secondary: #7A7A7A;
+  --text-secondary-rgb: 122, 122, 122;
+
+  --text-tertiary: #9A9A9A;
+  --text-tertiary-rgb: 154, 154, 154;
+
+  --text-muted: #B8B8B8;
+  --text-muted-rgb: 184, 184, 184;
+
+  --text-disabled: #D0D0D0;
+  --text-disabled-rgb: 208, 208, 208;
+
+  --text-inverse: #FFFFFF;
+  --text-inverse-rgb: 255, 255, 255;
+
+  /* ============================================
+     边框系统 - Border System
+     柔和浅粉色边框
+     ============================================ */
+
+  --border-primary: #FFE4E8;
+  --border-primary-rgb: 255, 228, 232;
+
+  --border-secondary: #FFD6E0;
+  --border-secondary-rgb: 255, 214, 224;
+
+  --border-tertiary: #FFC8D4;
+  --border-tertiary-rgb: 255, 200, 212;
+
+  --border-accent: #FFADD2;
+  --border-accent-rgb: 255, 173, 210;
+
+  --border-focus: rgba(255, 181, 197, 0.6);
+
+  /* ============================================
+     阴影系统 - Shadow System
+     柔和模糊阴影，营造漂浮感
+     ============================================ */
+
+  --shadow-xs: 0 1px 2px 0 rgba(255, 181, 197, 0.1);
+  --shadow-sm: 0 2px 4px 0 rgba(255, 181, 197, 0.15);
+  --shadow-md: 0 4px 12px -1px rgba(255, 181, 197, 0.2), 0 2px 4px -1px rgba(255, 181, 197, 0.1);
+  --shadow-lg: 0 10px 20px -3px rgba(255, 181, 197, 0.25), 0 4px 6px -2px rgba(255, 181, 197, 0.15);
+  --shadow-xl: 0 20px 30px -5px rgba(255, 181, 197, 0.3), 0 8px 10px -3px rgba(255, 181, 197, 0.2);
+  --shadow-2xl: 0 25px 50px -12px rgba(255, 181, 197, 0.35);
+
+  /* 柔和发光阴影 */
+  --shadow-soft-pink: 0 0 20px rgba(255, 181, 197, 0.3);
+  --shadow-soft-yellow: 0 0 20px rgba(255, 245, 186, 0.3);
+  --shadow-soft-blue: 0 0 20px rgba(181, 232, 255, 0.3);
+
+  /* ============================================
+     发光效果 - Glow Effects
+     ============================================ */
+
+  --glow-primary: 0 0 20px rgba(255, 181, 197, 0.5);
+  --glow-primary-sm: 0 0 10px rgba(255, 181, 197, 0.4);
+  --glow-primary-lg: 0 0 35px rgba(255, 181, 197, 0.6);
+
+  --glow-success: 0 0 20px rgba(168, 230, 207, 0.5);
+  --glow-warning: 0 0 20px rgba(255, 224, 102, 0.5);
+  --glow-error: 0 0 20px rgba(255, 173, 210, 0.5);
+  --glow-info: 0 0 20px rgba(181, 232, 255, 0.5);
+
+  --focus-ring: 0 0 0 3px rgba(255, 181, 197, 0.3);
+  --focus-ring-error: 0 0 0 3px rgba(255, 173, 210, 0.3);
+
+  /* ============================================
+     渐变效果 - Gradients
+     ============================================ */
+
+  --gradient-primary: linear-gradient(135deg, #FFB5C5 0%, #FFADD2 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #FFADD2 0%, #FFB5C5 100%);
+  --gradient-secondary: linear-gradient(135deg, #FFF5BA 0%, #FFE066 100%);
+  --gradient-accent: linear-gradient(135deg, #B8F0E8 0%, #A0E8DB 100%);
+  --gradient-bg: linear-gradient(180deg, #FFF9FA 0%, #FFF5F7 100%);
+
+  /* 柔和渐变叠层 */
+  --gradient-soft-pink: linear-gradient(135deg, rgba(255, 181, 197, 0.2) 0%, rgba(255, 173, 210, 0.2) 100%);
+  --gradient-soft-yellow: linear-gradient(135deg, rgba(255, 245, 186, 0.3) 0%, rgba(255, 224, 102, 0.2) 100%);
+  --gradient-soft-blue: linear-gradient(135deg, rgba(181, 232, 255, 0.3) 0%, rgba(160, 232, 219, 0.2) 100%);
+
+  /* ============================================
+     圆角系统 - Border Radius
+     超大圆角，营造柔和感
+     ============================================ */
+
+  --radius-none: 0;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+  --radius-full: 9999px;
+
+  /* ============================================
+     间距系统 - Spacing
+     大量留白，呼吸感
+     ============================================ */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ============================================
+     动画系统 - Animation
+     柔和缓动，呼吸感
+     ============================================ */
+
+  --transition-fast: 150ms ease;
+  --transition-base: 300ms ease;
+  --transition-slow: 500ms ease;
+
+  /* ============================================
+     特殊效果 - Special Effects
+     ============================================ */
+
+  /* 波浪边框效果（底部） */
+  --wave-border: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 100'%3E%3Cpath fill='%23FFB5C5' fill-opacity='0.3' d='M0,50 C360,100 720,0 1080,50 C1260,75 1350,75 1440,50 L1440,100 L0,100 Z'/%3E%3C/svg%3E");
+
+  /* 心形装饰 */
+  --heart-decor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23FFADD2' width='16' height='16'%3E%3Cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E");
+
+  /* 气泡装饰 */
+  --bubble-decor: radial-gradient(circle at 30% 30%, rgba(255, 181, 197, 0.4), transparent 60%),
+                  radial-gradient(circle at 70% 70%, rgba(181, 232, 255, 0.4), transparent 60%);
+}
+
+/* ============================================
+   日系萌系治愈风 - 全局样式增强
+   ============================================ */
+
+.kawaii {
+  /* 全局背景渐变 */
+  background: var(--bg-gradient) !important;
+  background-attachment: fixed !important;
+}
+
+.kawaii body {
+  background: transparent !important;
+}
+
+/* 卡片容器 - 极简留白风格 */
+.kawaii .card,
+.kawaii [class*="card"] {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-primary) !important;
+  border-radius: var(--radius-2xl) !important;
+  padding: var(--space-6) !important;
+  box-shadow: var(--shadow-md) !important;
+  transition: all var(--transition-base) !important;
+}
+
+.kawaii .card:hover,
+.kawaii [class*="card"]:hover {
+  border-color: var(--border-accent) !important;
+  box-shadow: var(--shadow-lg), var(--shadow-soft-pink) !important;
+  transform: translateY(-2px);
+}
+
+/* 按钮 - 圆润柔和 */
+.kawaii .btn,
+.kawaii button,
+.kawaii [class*="button"] {
+  border-radius: var(--radius-xl) !important;
+  padding: var(--space-3) var(--space-6) !important;
+  font-weight: 500 !important;
+  transition: all var(--transition-base) !important;
+  border: none !important;
+}
+
+.kawaii .btn-primary,
+.kawaii button[type="submit"],
+.kawaii [class*="btn-primary"] {
+  background: var(--gradient-primary) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-sm), var(--glow-primary-sm) !important;
+}
+
+.kawaii .btn-primary:hover,
+.kawaii button[type="submit"]:hover,
+.kawaii [class*="btn-primary"]:hover {
+  background: var(--gradient-primary-hover) !important;
+  box-shadow: var(--shadow-md), var(--glow-primary) !important;
+  transform: translateY(-1px);
+}
+
+/* 输入框 - 柔和圆角 */
+.kawaii input,
+.kawaii textarea,
+.kawaii select,
+.kawaii [class*="input"] {
+  background: var(--bg-secondary) !important;
+  border: 2px solid var(--border-primary) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  color: var(--text-primary) !important;
+  transition: all var(--transition-base) !important;
+}
+
+.kawaii input:focus,
+.kawaii textarea:focus,
+.kawaii select:focus,
+.kawaii [class*="input"]:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--focus-ring) !important;
+  outline: none !important;
+}
+
+/* 导航栏 - 柔光效果 */
+.kawaii nav,
+.kawaii [class*="navbar"],
+.kawaii [class*="nav"] {
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(10px) !important;
+  border-bottom: 1px solid var(--border-primary) !important;
+}
+
+/* 侧边栏 - 淡粉背景 */
+.kawaii aside,
+.kawaii [class*="sidebar"] {
+  background: var(--bg-secondary) !important;
+  border-right: 1px solid var(--border-primary) !important;
+}
+
+/* 模态框 - 柔和浮层 */
+.kawaii .modal,
+.kawaii [class*="modal"],
+.kawaii .dialog {
+  background: var(--bg-secondary) !important;
+  border-radius: var(--radius-3xl) !important;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid var(--border-secondary) !important;
+}
+
+/* 下拉菜单 - 柔和阴影 */
+.kawaii .dropdown,
+.kawaii [class*="dropdown"],
+.kawaii .menu {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-primary) !important;
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow-lg) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+/* 标签页 - 圆润胶囊 */
+.kawaii .tab,
+.kawaii [class*="tab"] {
+  border-radius: var(--radius-full) !important;
+  padding: var(--space-2) var(--space-5) !important;
+}
+
+.kawaii .tab.active,
+.kawaii [class*="tab"].active {
+  background: var(--gradient-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* 徽章 - 柔和色块 */
+.kawaii .badge,
+.kawaii [class*="badge"] {
+  background: var(--gradient-soft-pink) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-full) !important;
+  padding: var(--space-1) var(--space-3) !important;
+  font-weight: 500 !important;
+}
+
+/* 头像 - 大圆角 */
+.kawaii .avatar,
+.kawaii [class*="avatar"] {
+  border-radius: var(--radius-2xl) !important;
+  border: 3px solid var(--border-primary) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* 进度条 - 柔和渐变 */
+.kawaii .progress,
+.kawaii [class*="progress"] {
+  background: var(--bg-tertiary) !important;
+  border-radius: var(--radius-full) !important;
+  height: 8px !important;
+}
+
+.kawaii .progress-bar,
+.kawaii [class*="progress-bar"] {
+  background: var(--gradient-primary) !important;
+  border-radius: var(--radius-full) !important;
+}
+
+/* 分割线 - 柔和粉色 */
+.kawaii hr,
+.kawaii [class*="divider"] {
+  border-color: var(--border-primary) !important;
+}
+
+/* 滚动条 - 柔和粉色 */
+.kawaii::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.kawaii::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+}
+
+.kawaii::-webkit-scrollbar-thumb {
+  background: var(--border-secondary);
+  border-radius: var(--radius-full);
+}
+
+.kawaii::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+/* 浮动元素动画 - 呼吸感 */
+@keyframes kawaii-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.kawaii [class*="floating"] {
+  animation: kawaii-float 3s ease-in-out infinite;
+}
+
+/* 柔和脉冲动画 */
+@keyframes kawaii-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.kawaii [class*="pulse"] {
+  animation: kawaii-pulse 2s ease-in-out infinite;
+}
+
+/* 渐入动画 */
+@keyframes kawaii-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kawaii [class*="fade-in"] {
+  animation: kawaii-fade-in 0.5s ease-out forwards;
+}
+
+/* 选中状态 - 柔和高亮 */
+.kawaii ::selection {
+  background: rgba(255, 181, 197, 0.4);
+  color: var(--text-primary);
+}
+
+/* 链接 - 柔和粉色下划线 */
+.kawaii a {
+  color: var(--color-primary-dark);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.kawaii a:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* 表格 - 柔和交替行 */
+.kawaii table {
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.kawaii table th {
+  background: var(--gradient-soft-pink) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+}
+
+.kawaii table tr:nth-child(even) {
+  background: var(--bg-tertiary) !important;
+}
+
+.kawaii table tr:hover {
+  background: var(--bg-hover) !important;
+}
+
+/* 工具提示 - 柔和圆角 */
+.kawaii [class*="tooltip"] {
+  background: var(--text-primary) !important;
+  color: var(--text-inverse) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: var(--space-2) var(--space-4) !important;
+  font-size: 13px !important;
+  box-shadow: var(--shadow-md) !important;
+}

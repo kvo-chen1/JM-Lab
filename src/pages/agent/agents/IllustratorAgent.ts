@@ -31,10 +31,41 @@ export class IllustratorAgent extends BaseAgent {
    */
   async handleMessage(message: string, context: ExecutionContext): Promise<AgentResponse> {
     try {
-      // 1. 识别意图
+      // 1. 检查是否是引用上下文的语句
+      if (this.isContextReference(message)) {
+        console.log('[IllustratorAgent] 检测到上下文引用:', message);
+
+        // 从历史中提取上下文
+        const previousContext = this.extractContextFromHistory(context.history || []);
+
+        if (previousContext) {
+          console.log('[IllustratorAgent] 提取到上下文:', previousContext);
+
+          // 如果之前的请求是快速生成请求，继续执行
+          if (this.isQuickGenerationRequest(previousContext)) {
+            return this.handleQuickGeneration(previousContext, context);
+          }
+
+          // 否则，使用之前的上下文继续对话
+          return this.createTextResponse(
+            `好的，我们继续处理"${previousContext}"。请稍等，我正在为您创作...`,
+            {
+              continuedFrom: previousContext,
+              isContextContinuation: true
+            }
+          );
+        }
+      }
+
+      // 2. 检查是否是快速生成请求
+      if (this.isQuickGenerationRequest(message)) {
+        return this.handleQuickGeneration(message, context);
+      }
+
+      // 3. 识别意图
       const intent = await this.recognizeIntent(message);
 
-      // 2. 处理不同类型的意图
+      // 4. 处理不同类型的意图
       switch (intent.type) {
         case 'character-design':
         case 'ip-character':
@@ -55,6 +86,61 @@ export class IllustratorAgent extends BaseAgent {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '处理失败';
       return this.createErrorResponse(errorMessage);
+    }
+  }
+
+  /**
+   * 快速生成处理
+   */
+  private async handleQuickGeneration(
+    message: string,
+    context: ExecutionContext
+  ): Promise<AgentResponse> {
+    console.log('[IllustratorAgent] 快速生成模式:', message);
+
+    try {
+      // 直接获取图像生成Skill
+      const imageSkill = this.getSkills().find(s => s.id === 'image-generation');
+
+      if (!imageSkill) {
+        return this.createErrorResponse('图像生成服务暂时不可用');
+      }
+
+      // 构建Skill执行上下文
+      const skillContext: ExecutionContext = {
+        ...context,
+        message,
+        parameters: {
+          prompt: message,
+          fastMode: true
+        }
+      };
+
+      // 执行Skill
+      const result = await this.executeSkill(imageSkill, skillContext);
+
+      if (!result.success) {
+        return this.createErrorResponse(result.error?.message || '图像生成失败');
+      }
+
+      // 快速包装响应
+      return {
+        content: `✨ 已为您完成插画创作！\n\n您看怎么样？如果需要调整，可以告诉我：\n• 修改风格、色调\n• 调整细节、构图\n• 重新创作`,
+        type: result.type as any,
+        metadata: {
+          ...result.metadata,
+          quickGeneration: true,
+          showThinking: true,
+          thinking: result.metadata?.thinking,
+          generatedAt: Date.now()
+        }
+      };
+    } catch (error) {
+      console.error('[IllustratorAgent] 快速生成失败:', error);
+      return this.createTextResponse(
+        '我来为您创作这个作品，请稍等...',
+        { fallback: true }
+      );
     }
   }
 

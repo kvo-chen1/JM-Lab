@@ -74,6 +74,13 @@ export interface Attachment {
   content?: string;
   title?: string;
   status?: 'completed' | 'error' | 'generating';
+  metadata?: {
+    width?: number;
+    height?: number;
+    size?: number;
+    format?: string;
+    [key: string]: any;
+  };
 }
 
 export interface ChatState {

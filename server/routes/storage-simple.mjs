@@ -48,7 +48,7 @@ function ensureUploadsDir() {
   }
   
   // 创建子目录
-  const subdirs = ['works', 'avatars', 'drafts', 'temp', 'patterns', 'knowledge']
+  const subdirs = ['works', 'avatars', 'drafts', 'temp', 'patterns', 'knowledge', 'skills']
   subdirs.forEach(dir => {
     const dirPath = pathModule.join(config.localPath, dir)
     if (!fs.existsSync(dirPath)) {

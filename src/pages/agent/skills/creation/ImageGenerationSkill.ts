@@ -81,9 +81,23 @@ export class ImageGenerationSkill extends CreationSkill {
   protected async doExecute(context: ExecutionContext): Promise<SkillResult> {
     const { parameters, message } = context;
 
+    console.log('[ImageGenerationSkill] doExecute called with:', {
+      parameters,
+      message: message?.substring(0, 50)
+    });
+
     // 判断是生成新图像还是修改现有图像
     if (parameters?.imageUrl) {
+      // 修改模式：验证必填参数
+      if (!parameters.modification) {
+        return this.createErrorResult('修改模式需要提供 modification 参数', false);
+      }
       return this.modifyImage(parameters);
+    }
+
+    // 生成模式：验证 prompt 或 message
+    if (!parameters?.prompt && !message) {
+      return this.createErrorResult('生成模式需要提供 prompt 或 message 参数', false);
     }
 
     return this.generateImage(parameters || {}, message);
@@ -97,10 +111,29 @@ export class ImageGenerationSkill extends CreationSkill {
     userMessage: string
   ): Promise<SkillResult> {
     try {
-      // 构建提示词
-      const prompt = this.buildPrompt(params, userMessage);
+      // 确保 params 不为 null/undefined
+      const safeParams = params || {};
+      const safeUserMessage = userMessage || '';
 
-      console.log('[ImageGenerationSkill] Generating image with prompt:', prompt.substring(0, 100) + '...');
+      console.log('[ImageGenerationSkill] generateImage called with params:', safeParams);
+      console.log('[ImageGenerationSkill] userMessage:', safeUserMessage?.substring(0, 50));
+
+      // 构建提示词
+      const prompt = this.buildPrompt(safeParams, safeUserMessage);
+
+      if (!prompt || prompt.trim().length === 0) {
+        return {
+          success: false,
+          content: '无法生成图像：提示词为空',
+          type: 'text',
+          error: {
+            code: 'EMPTY_PROMPT',
+            message: '提示词不能为空'
+          }
+        };
+      }
+
+      console.log('[ImageGenerationSkill] Generated prompt:', prompt.substring(0, 100) + '...');
 
       // 调用图像生成API
       const result = await llmService.generateImage({
@@ -126,11 +159,27 @@ export class ImageGenerationSkill extends CreationSkill {
         throw new Error('无法获取生成的图像URL');
       }
 
+      // 构建思考过程数据
+      const thinking = {
+        userRequirement: `用户想要生成图片：${userMessage || params.prompt || '未指定'}`,
+        modelSelection: {
+          model: this.imageConfig.defaultModel,
+          reason: '通义万相在处理图像细节和艺术美感方面表现出色，能够通过细腻的光影和构图表现出丰富的视觉效果，非常适合生成高质量的图片。'
+        },
+        promptDesign: {
+          strategy: `为了生成符合用户需求的图片，提示词聚焦于：${prompt.substring(0, 50)}...`,
+          finalPrompt: prompt
+        }
+      };
+
       return this.createSuccessResult(
-        imageUrl,
+        '图像生成成功',
         'image',
         {
+          imageUrl,  // 确保包含 imageUrl
+          url: imageUrl,  // 兼容性：同时提供 url
           prompt,
+          thinking,  // 添加思考过程
           style: params.style,
           size: params.size || this.imageConfig.defaultSize,
           generatedAt: Date.now()
@@ -205,8 +254,10 @@ export class ImageGenerationSkill extends CreationSkill {
     }
 
     // 添加主要描述
-    const description = params.prompt || userMessage;
-    parts.push(this.cleanDescription(description));
+    const description = params.prompt || userMessage || '';
+    if (description) {
+      parts.push(this.cleanDescription(description));
+    }
 
     // 添加风格
     if (params.style) {

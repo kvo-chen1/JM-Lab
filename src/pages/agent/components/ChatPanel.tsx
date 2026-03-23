@@ -33,6 +33,7 @@ import type { Brand } from '@/lib/brands';
 import type { Work } from '@/services/workService';
 import { createDraftService, CreateDraft } from '@/services/createDraftService';
 import { ipPosterService } from '@/services/ipPosterService';
+import { uploadPastedImages } from '@/pages/skill/chat/services/imageUploadService';
 import {
   processWithOrchestrator,
   ConversationContext
@@ -872,7 +873,8 @@ export default function ChatPanel() {
     }
 
     // 处理风格选项
-    if (response.aiResponse?.type === 'style-options') {
+    if (response.type === 'style-options' || response.aiResponse?.type === 'style-options' || response.metadata?.showStyleSelector) {
+      console.log('[ChatPanel] 显示风格选择器');
       setShowStyleSelector(true);
     }
 
@@ -1085,13 +1087,17 @@ export default function ChatPanel() {
 
   // 处理发送消息
   const handleSend = async () => {
-    if (!inputValue.trim() || isTyping) return;
+    // 允许只有图片、只有文字、或两者都有
+    const hasText = inputValue.trim().length > 0;
+    const hasImages = pastedImages.length > 0;
+
+    if ((!hasText && !hasImages) || isTyping) return;
 
     // 解析@提及
     const { cleanInput, brands, styles, works, layouts } = parseMentions(inputValue);
 
-    // 如果没有实际内容（只有@提及），不发送
-    if (!cleanInput && (brands.length > 0 || styles.length > 0 || works.length > 0 || layouts.length > 0)) {
+    // 如果没有实际内容（只有@提及）且没有图片，不发送
+    if (!cleanInput && !hasImages && (brands.length > 0 || styles.length > 0 || works.length > 0 || layouts.length > 0)) {
       toast.warning('请选择品牌/风格/作品后输入您的需求');
       return;
     }
@@ -1172,33 +1178,64 @@ export default function ChatPanel() {
       console.log('[ChatPanel] 找到排版:', mentionedLayout?.name);
     }
 
+    // 上传粘贴的图片
+    let uploadedImages: Array<{ url: string; thumbnail?: string; name: string; size: number }> = [];
+    if (pastedImages.length > 0 && userId) {
+      try {
+        console.log('[ChatPanel] 开始上传粘贴的图片:', pastedImages.length, '张');
+        // 转换 pastedImages 格式以匹配 uploadPastedImages 期望的格式
+        const imagesToUpload = pastedImages.map(img => ({
+          id: img.id,
+          file: img.file,
+          preview: img.preview,
+          name: img.file.name || `image_${img.id}.png`,
+          size: img.file.size
+        }));
+
+        const attachments = await uploadPastedImages(imagesToUpload, userId);
+        uploadedImages = attachments.map(att => ({
+          url: att.url,
+          thumbnail: att.thumbnailUrl,
+          name: att.title,
+          size: att.metadata?.size || 0
+        }));
+        console.log('[ChatPanel] 图片上传成功:', uploadedImages);
+      } catch (error) {
+        console.error('[ChatPanel] 图片上传失败:', error);
+        toast.error('图片上传失败，将继续发送文字消息');
+      }
+    }
+
     setInputValue('');
+    setPastedImages([]); // 清空已粘贴的图片
 
     // 添加用户消息到 store - 使用原始输入值（包含@提及）
     const userMessageObj: AgentMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: inputValue.trim(), // 使用原始输入，包含@提及
+      content: inputValue.trim() || (uploadedImages.length > 0 ? '[图片]' : ''), // 使用原始输入，包含@提及
       timestamp: Date.now(),
-      type: 'text',
+      type: uploadedImages.length > 0 ? 'image' : 'text',
       metadata: {
         brands, // 附加品牌信息
         styles, // 附加风格信息
         works,  // 附加作品名称列表（向后兼容）
         mentionedWorks, // 附加作品详细信息
-        mentionedLayout // 附加排版信息
+        mentionedLayout, // 附加排版信息
+        images: uploadedImages // 附加上传的图片
       }
     };
     addMessage({
       role: 'user',
-      content: inputValue.trim(), // 显示原始输入，包含@提及
-      type: 'text',
+      content: inputValue.trim() || (uploadedImages.length > 0 ? '[图片]' : ''), // 显示原始输入，包含@提及
+      type: uploadedImages.length > 0 ? 'image' : 'text',
       metadata: {
         brands,
         styles,
         works,
         mentionedWorks,
-        mentionedLayout
+        mentionedLayout,
+        images: uploadedImages
       }
     });
 
@@ -1319,6 +1356,7 @@ export default function ChatPanel() {
         selectedStyle: styles.length > 0 ? styles[0] : selectedStyle, // 使用@提及的风格优先
         selectedBrand: brands.length > 0 ? brands[0] : undefined, // 传递第一个提到的品牌
         mentionedWorks: mentionedWorks.length > 0 ? mentionedWorks : undefined, // 传递引用的作品信息
+        images: uploadedImages.length > 0 ? uploadedImages : undefined, // 传递上传的图片
         currentTask: currentTask ? {
           type: currentTask.type,
           requirements: currentTask.requirements

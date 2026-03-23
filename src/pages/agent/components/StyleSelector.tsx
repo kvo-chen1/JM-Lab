@@ -128,15 +128,19 @@ export default function StyleSelector({ onOpenStyleLibrary, onCloseStyleLibrary,
     : null;
 
   const handleStyleSelect = (styleId: string) => {
+    console.log('[StyleSelector] 点击风格:', styleId);
     selectStyle(styleId);
     const style = PRESET_STYLES.find(s => s.id === styleId);
+    console.log('[StyleSelector] 找到风格:', style?.name);
     if (style) {
       toast.success(`已选择风格：${style.name}`);
 
       // 关闭风格选择器
+      console.log('[StyleSelector] 关闭风格选择器');
       setShowStyleSelector(false);
 
       // 添加：自动触发确认提示消息（使用当前Agent，避免切换）
+      console.log('[StyleSelector] 添加确认消息');
       addMessage({
         role: currentAgent,
         content: `已选择「${style.name}」风格，是否立即开始生成？`,
@@ -410,8 +414,8 @@ export default function StyleSelector({ onOpenStyleLibrary, onCloseStyleLibrary,
                   }
                 }}
               />
-              {/* Overlay */}
-              <div className={`absolute inset-0 transition-opacity ${
+              {/* Overlay - 添加 pointer-events-none 允许点击穿透 */}
+              <div className={`absolute inset-0 transition-opacity pointer-events-none ${
                 selectedStyle === style.id
                   ? 'bg-[#C02C38]/20'
                   : 'bg-black/0 group-hover:bg-black/10'

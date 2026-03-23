@@ -13,6 +13,7 @@ import ChainTaskProgress from './ChainTaskProgress';
 import FeedbackButtons from './FeedbackButtons';
 import DelegationIndicator from './DelegationIndicator';
 import ThinkingProcessCard from './ThinkingProcessCard';
+import ImageLightbox from './ImageLightbox';
 import { generateVideo } from '../services/agentService';
 import { AgentError } from '../types/errors';
 import { ChevronDown, ChevronUp, Lightbulb, Wand2, Users, Loader2 } from 'lucide-react';
@@ -237,6 +238,18 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
   const { user } = useContext(AuthContext);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+
+  // Lightbox 状态
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImageUrl, setLightboxImageUrl] = useState('');
+  const [lightboxImageName, setLightboxImageName] = useState('');
+
+  // 打开 Lightbox
+  const handleImageClick = (imageUrl: string, imageName: string) => {
+    setLightboxImageUrl(imageUrl);
+    setLightboxImageName(imageName);
+    setLightboxOpen(true);
+  };
 
   // 处理满意度检查 - 满意
   const handleSatisfied = () => {
@@ -862,21 +875,31 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
             <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
             {Array.isArray(message.metadata?.images) && (
               <div className="grid grid-cols-2 gap-2">
-                {message.metadata.images.map((image, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="rounded-lg overflow-hidden border-2 border-transparent hover:border-[#C02C38] transition-colors cursor-pointer"
-                  >
-                    <img
-                      src={image}
-                      alt={`Generated ${index + 1}`}
-                      className="w-full h-32 object-cover"
-                    />
-                  </motion.div>
-                ))}
+                {message.metadata.images.map((image, index) => {
+                  // 支持两种格式：字符串 URL 或对象 { url, thumbnail, name, size }
+                  const imageUrl = typeof image === 'string' ? image : image.url;
+                  const imageName = typeof image === 'string' ? `Generated ${index + 1}` : (image.name || `Generated ${index + 1}`);
+                  return (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="rounded-lg overflow-hidden border-2 border-transparent hover:border-[#C02C38] transition-colors cursor-pointer"
+                      onClick={() => handleImageClick(imageUrl, imageName)}
+                    >
+                      <img
+                        src={imageUrl}
+                        alt={imageName}
+                        className="w-full h-32 object-cover"
+                        onError={(e) => {
+                          console.error('[ChatMessage] 图片加载失败:', imageUrl);
+                          e.currentTarget.src = '/fallback-image.png';
+                        }}
+                      />
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1266,64 +1289,74 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
   const agentInfo = getAgentInfo(agentRole);
 
   return (
-    <motion.div
-      variants={messageVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
-    >
-      {/* Avatar */}
-      <div className="flex-shrink-0">
-        <AgentAvatar role={agentRole} size="md" userAvatarUrl={user?.avatar_url || user?.avatar} />
-      </div>
-
-      {/* Message Content */}
-      <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
-        {/* Agent Name */}
-        {!isUser && (
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`text-xs font-medium ${agentInfo.color}`}>
-              {agentInfo.name}
-            </span>
-            {message.metadata?.thinking && (
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-colors ${
-                  isDark
-                    ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
-              >
-                <Lightbulb className="w-3 h-3" />
-                思考过程
-                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Bubble */}
-        <div className={`px-4 py-3 shadow-sm ${getBubbleStyle()}`}>
-          {renderContent()}
+    <>
+      <motion.div
+        variants={messageVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+      >
+        {/* Avatar */}
+        <div className="flex-shrink-0">
+          <AgentAvatar role={agentRole} size="md" userAvatarUrl={user?.avatar_url || user?.avatar} />
         </div>
 
-        {/* Timestamp */}
-        <span className={`text-xs mt-1 px-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          {formatTime(message.timestamp)}
-        </span>
+        {/* Message Content */}
+        <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
+          {/* Agent Name */}
+          {!isUser && (
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`text-xs font-medium ${agentInfo.color}`}>
+                {agentInfo.name}
+              </span>
+              {message.metadata?.thinking && (
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-colors ${
+                    isDark
+                      ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  <Lightbulb className="w-3 h-3" />
+                  思考过程
+                  {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+              )}
+            </div>
+          )}
 
-        {/* Feedback Buttons - only for AI messages */}
-        {!isUser && isLast && (
-          <div className="mt-2">
-            <FeedbackButtons
-              messageId={message.id}
-              messageContent={message.content}
-              agentType={agentRole}
-            />
+          {/* Bubble */}
+          <div className={`px-4 py-3 shadow-sm ${getBubbleStyle()}`}>
+            {renderContent()}
           </div>
-        )}
-      </div>
-    </motion.div>
+
+          {/* Timestamp */}
+          <span className={`text-xs mt-1 px-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            {formatTime(message.timestamp)}
+          </span>
+
+          {/* Feedback Buttons - only for AI messages */}
+          {!isUser && isLast && (
+            <div className="mt-2">
+              <FeedbackButtons
+                messageId={message.id}
+                messageContent={message.content}
+                agentType={agentRole}
+              />
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* 图片 Lightbox */}
+      <ImageLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        imageUrl={lightboxImageUrl}
+        title={lightboxImageName}
+      />
+    </>
   );
 }

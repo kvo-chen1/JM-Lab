@@ -459,8 +459,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
           />
         )}
         
-        {/* Attachments */}
-        {!isUser && message.attachments && message.attachments.length > 0 && (
+        {/* Attachments - 支持用户和 agent 消息 */}
+        {message.attachments && message.attachments.length > 0 && (
           <div className="mt-3 space-y-3">
             {message.attachments.map((attachment, index) => (
               <div key={index}>
@@ -479,7 +479,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
                     )}
                     <img 
                       src={attachment.url} 
-                      alt={attachment.title || 'Generated image'}
+                      alt={attachment.title || 'Image'}
                       className={`max-w-full h-auto transition-opacity duration-300 ${
                         imageLoaded[index] ? 'opacity-100' : 'opacity-0'
                       }`}
@@ -493,6 +493,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
                           : 'bg-gray-50 border-gray-200 text-gray-500'
                       }`}>
                         {attachment.title}
+                      </div>
+                    )}
+                    {/* 图片元数据 */}
+                    {attachment.metadata && (
+                      <div className={`px-3 py-2 text-xs border-t ${
+                        isDark 
+                          ? 'bg-gray-800 border-gray-700 text-gray-500' 
+                          : 'bg-gray-50 border-gray-200 text-gray-400'
+                      }`}>
+                        {attachment.metadata.width && attachment.metadata.height && (
+                          <span>{attachment.metadata.width}×{attachment.metadata.height}</span>
+                        )}
+                        {attachment.metadata.size && (
+                          <span className="ml-2">{(attachment.metadata.size / 1024 / 1024).toFixed(2)} MB</span>
+                        )}
+                        {attachment.metadata.format && (
+                          <span className="ml-2 uppercase">{attachment.metadata.format}</span>
+                        )}
                       </div>
                     )}
                   </div>

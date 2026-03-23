@@ -169,3 +169,10 @@ export * from './promptBuilder';
 
 // 调度器（兼容层）
 export * from './agentScheduler';
+
+// Skill Agent 适配器
+export {
+  isQuickGenerationRequest,
+  processWithAgentSkill,
+  smartProcessMessage
+} from './skillAgentAdapter';

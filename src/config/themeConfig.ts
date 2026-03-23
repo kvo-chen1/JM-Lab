@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force' | 'cyber-brutalist' | 'pink-brutalist';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force' | 'cyber-brutalist' | 'pink-brutalist' | 'retro-pixel' | 'kawaii' | 'chiikawa';
 
 // 自定义主题接口
 export interface CustomTheme {
@@ -60,7 +60,10 @@ export const themeConfig: ThemeConfig[] = [
   { value: 'poizon', label: '得物潮流', icon: 'fas fa-bolt', description: '得物App风格主题，极光蓝(#00C6FF)品牌色+黑白极简基底，高对比干净高级，潮流轻奢感' },
   { value: 'delta-force', label: '三角洲行动', icon: 'fas fa-crosshairs', description: '三角洲行动战术风格主题,军事硬核体验,霓虹科技色调' },
   { value: 'cyber-brutalist', label: '赛博粗犷', icon: 'fas fa-cubes', description: '赛博粗犷主义像素风，硬朗边框与霓虹强调色的未来感融合，致敬8-bit时代的同时保持现代布局逻辑' },
-  { value: 'pink-brutalist', label: '粉色赛博', icon: 'fas fa-heart', description: '粉色赛博粗犷主义像素风，硬朗边框与霓虹粉色调的甜美融合，赛博甜心风格' }
+  { value: 'pink-brutalist', label: '粉色赛博', icon: 'fas fa-heart', description: '粉色赛博粗犷主义像素风，硬朗边框与霓虹粉色调的甜美融合，赛博甜心风格' },
+  { value: 'retro-pixel', label: '复古像素', icon: 'fas fa-gamepad', description: '新粗野主义×复古像素艺术风，2px粗黑边框、零圆角、硬边偏移阴影，致敬80年代街机游戏与霓虹灯箱的怀旧氛围' },
+  { value: 'kawaii', label: '日系萌系', icon: 'fas fa-heart', description: '日系萌系治愈风，马卡龙粉+柠檬黄+天蓝色调，超大圆角卡片与柔和阴影，营造温暖治愈的数字乌托邦' },
+  { value: 'chiikawa', label: 'Chiikawa世界', icon: 'fas fa-heart', description: 'Chiikawa治愈风，马卡龙粉+柠檬黄+Baby蓝渐变，Chiikawa角色元素与柔和波浪边框' }
 ];
 
 
@@ -83,7 +86,10 @@ export const themeEnhancements = {
     'poizon': 1.25,
     'delta-force': 1.25,
     'cyber-brutalist': 1.35,
-    'pink-brutalist': 1.32
+    'pink-brutalist': 1.32,
+    'retro-pixel': 1.28,
+    'kawaii': 1.08,
+    'chiikawa': 1.05
   },
   // 色彩饱和度优化
   saturation: {
@@ -102,7 +108,10 @@ export const themeEnhancements = {
     'poizon': 1.15,
     'delta-force': 1.2,
     'cyber-brutalist': 1.25,
-    'pink-brutalist': 1.22
+    'pink-brutalist': 1.32,
+    'retro-pixel': 1.28,
+    'kawaii': 1.15,
+    'chiikawa': 1.12
   },
   // 亮度调整
   brightness: {
@@ -121,7 +130,9 @@ export const themeEnhancements = {
     'poizon': 1.05,
     'delta-force': 0.95,
     'cyber-brutalist': 0.88,
-    'pink-brutalist': 0.9
+    'pink-brutalist': 0.9,
+    'retro-pixel': 1.02,
+    'kawaii': 1.08
   },
   // 主题过渡动画
   transition: {
@@ -228,6 +239,40 @@ export const themeEnhancements = {
       tacticalGrid: true,
       brutalistBorders: true,
       offsetShadows: true
+    },
+    'retro-pixel': {
+      glow: true,
+      intensity: 'high',
+      color: '#E60023',
+      pixelStyle: true,
+      scanlines: true,
+      paperTexture: true,
+      brutalistBorders: true,
+      offsetShadows: true,
+      arcadeStyle: true
+    },
+    'kawaii': {
+      glow: true,
+      intensity: 'soft',
+      color: '#FFB5C5',
+      softGlow: true,
+      waveBorder: true,
+      heartElements: true,
+      pastelGradient: true,
+      largeRadius: true,
+      breathingAnimation: true
+    },
+    'chiikawa': {
+      glow: true,
+      intensity: 'soft',
+      color: '#FFB5C5',
+      softGlow: true,
+      waveBorder: true,
+      heartElements: true,
+      pastelGradient: true,
+      largeRadius: true,
+      breathingAnimation: true,
+      chiikawaElements: true
     }
   }
 };
@@ -256,7 +301,7 @@ export const autoThemeConfig = {
 // 主题预设配置
 export const themePresets = {
   // 推荐主题组合
-  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist'] as Theme[],
+  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'kawaii', 'chiikawa'] as Theme[],
   // 季节适配
   seasonal: {
     spring: 'green',
@@ -281,10 +326,10 @@ export const themePresets = {
 export const defaultTheme: Theme = 'pixel';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'kawaii', 'chiikawa'];
 
 // 有效的主题列表（用于验证）
-export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist'];
+export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'kawaii', 'chiikawa'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {
@@ -333,6 +378,9 @@ export const getAppliedTheme = (theme: Theme): Theme => {
     case 'delta-force':
     case 'cyber-brutalist':
     case 'pink-brutalist':
+    case 'retro-pixel':
+    case 'kawaii':
+    case 'chiikawa':
       return theme;
     default:
       return defaultTheme;

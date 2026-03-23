@@ -10,6 +10,7 @@ import { useChatSessions } from './hooks/useChatSessions';
 import { useCanvasStore, WorkItem } from './hooks/useCanvasStore';
 import { useTheme } from '@/hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
+import { initializeSkills } from '../skills';
 
 const SkillAgentChatPage: React.FC = () => {
   const { isDark } = useTheme();
@@ -41,6 +42,16 @@ const SkillAgentChatPage: React.FC = () => {
   
   // 记录已处理的附件 ID，防止重复处理
   const processedAttachmentsRef = useRef<Set<string>>(new Set());
+
+  // 初始化 Skills（只在组件挂载时执行一次）
+  useEffect(() => {
+    try {
+      initializeSkills();
+      console.log('[SkillAgentChatPage] Skills initialized');
+    } catch (error) {
+      console.error('[SkillAgentChatPage] Failed to initialize skills:', error);
+    }
+  }, []);
 
   // 同步消息中的附件到画布
   const syncAttachmentsToCanvas = useCallback((msgs: ChatMessage[]) => {
@@ -123,23 +134,21 @@ const SkillAgentChatPage: React.FC = () => {
     }
   }, [messages, currentSessionId, updateSessionMessages]);
 
-  // 页面初始化时加载当前会话的消息（只执行一次）
+  // 页面初始化时加载当前会话的消息（只在组件挂载时执行一次）
+  const hasInitializedRef = useRef(false);
   useEffect(() => {
+    if (hasInitializedRef.current) return;
     if (currentSessionId && sessions.length > 0) {
       const session = sessions.find(s => s.id === currentSessionId);
       if (session && session.messages.length > 0) {
-        // 清空画布和已处理记录，避免旧数据干扰
         clearWorks();
         processedAttachmentsRef.current.clear();
-        // 加载消息
         loadMessages(session.messages);
-        // 同步附件到画布
         syncAttachmentsToCanvas(session.messages);
       }
+      hasInitializedRef.current = true;
     }
-    // 只在 sessions 从空变为有数据时执行一次
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions.length > 0, syncAttachmentsToCanvas]);
+  }, [currentSessionId, sessions.length, sessions, loadMessages, syncAttachmentsToCanvas, clearWorks]);
 
   // 切换会话时加载对应的消息
   const handleSwitchSession = useCallback((sessionId: string) => {
@@ -180,8 +189,8 @@ const SkillAgentChatPage: React.FC = () => {
     }
   }, [messages, syncAttachmentsToCanvas]);
 
-  const handleSendMessage = (content: string) => {
-    sendMessage(content);
+  const handleSendMessage = (content: string, images?: any[]) => {
+    sendMessage(content, images);
   };
 
   const handleClearAll = () => {

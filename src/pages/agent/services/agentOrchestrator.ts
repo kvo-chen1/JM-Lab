@@ -53,6 +53,7 @@ export interface ConversationContext {
   sessionId?: string; // 会话 ID（用于增强功能）
   userId?: string; // 用户 ID（用于增强功能）
   mentionedWorks?: { id: string; name: string; title?: string; imageUrl?: string; description?: string; prompt?: string; style?: string; type?: 'image' | 'video' | 'text' }[]; // 引用的作品信息
+  images?: { url: string; thumbnail?: string; name: string; size: number }[]; // 用户上传的图片
   currentTask?: {
     type: string;
     requirements: {
@@ -182,6 +183,25 @@ export class AgentOrchestrator {
 
     console.log('[Orchestrator] Processing user input:', userMessage);
     console.log('[Orchestrator] Current agent:', context.currentAgent);
+    console.log('[Orchestrator] Images:', context.images);
+
+    // 如果用户上传了图片，先处理图片分析
+    // 但如果用户在询问风格选择器，优先处理风格选择器的显示
+    if (this.isAskingForStyleSelector(userMessage) && !context.selectedStyle) {
+      console.log('[Orchestrator] 用户询问风格选择器，优先显示选择器');
+      return {
+        type: 'style-options',
+        agent: context.currentAgent,
+        content: '风格选择器在下方显示。请从下方选择一个你喜欢的风格，或者告诉我你想要的风格名称。',
+        metadata: {
+          showStyleSelector: true
+        }
+      };
+    }
+
+    if (context.images && context.images.length > 0) {
+      return this.processImageMessage(userMessage, context);
+    }
 
     // 如果是总监Agent，使用智能需求收集流程
     if (context.currentAgent === 'director' && context.requirementCollection) {
@@ -212,6 +232,56 @@ export class AgentOrchestrator {
       default:
         // 默认直接响应
         return this.executeRespond(userMessage, context);
+    }
+  }
+
+  /**
+   * 处理包含图片的消息
+   * 使用箭头函数确保 this 绑定正确
+   */
+  private processImageMessage = async (
+    userMessage: string,
+    context: ConversationContext
+  ): Promise<OrchestratorResponse> => {
+    const images = context.images!;
+    const currentAgent = context.currentAgent;
+
+    console.log('[Orchestrator] Processing image message:', images.length, 'images');
+
+    // 构建图片分析提示词
+    const imageDescriptions = images.map((img, idx) =>
+      `[图片 ${idx + 1}]: ${img.name} (${(img.size / 1024).toFixed(1)}KB)`
+    ).join('\n');
+
+    // 根据当前 Agent 类型返回不同的响应
+    switch (currentAgent) {
+      case 'director':
+        return {
+          type: 'response',
+          agent: 'director',
+          content: `我收到了你上传的 ${images.length} 张图片：\n\n${imageDescriptions}\n\n请告诉我你想对这些图片做什么？例如：\n- 分析图片内容\n- 基于图片进行设计\n- 提取图片中的元素\n- 参考图片风格进行创作`
+        };
+
+      case 'illustrator':
+        return {
+          type: 'response',
+          agent: 'illustrator',
+          content: `我看到了你上传的参考图片。${userMessage ? '结合你的描述："' + userMessage + '"' : ''}\n\n${imageDescriptions}\n\n我会参考这些图片的风格和元素来进行插画设计。请告诉我更多关于你想要的设计细节。`
+        };
+
+      case 'designer':
+        return {
+          type: 'response',
+          agent: 'designer',
+          content: `收到图片参考！${userMessage ? '你的需求："' + userMessage + '"' : ''}\n\n${imageDescriptions}\n\n我会基于这些图片进行分析，并结合你的需求进行设计。有什么特别想要强调的元素吗？`
+        };
+
+      default:
+        return {
+          type: 'response',
+          agent: currentAgent,
+          content: `已收到 ${images.length} 张图片。\n\n${imageDescriptions}\n\n${userMessage ? '你的描述：' + userMessage : '请告诉我你想如何处理这些图片？'}`
+        };
     }
   }
 
@@ -1242,7 +1312,7 @@ ${infoLines}
     if (!selectedStyle) {
       console.log('[Orchestrator] 未选择风格，提示用户选择');
       return {
-        type: 'text',
+        type: 'style-options',
         agent: context.currentAgent,
         content: '在开始生成之前，请先选择一个你喜欢的风格。你可以从下方选择，或者告诉我你想要的风格。',
         metadata: {
@@ -1449,13 +1519,40 @@ ${infoLines}
   }
 
   /**
+   * 检测用户是否在询问风格选择器
+   */
+  private isAskingForStyleSelector(userMessage: string): boolean {
+    const lowerMsg = userMessage.toLowerCase();
+    const styleSelectorKeywords = [
+      '点击哪里', '点哪里', '选择器', '风格选择', '风格在哪', '选择风格',
+      '怎么选择', '怎么选', '在哪里选', '没有按钮', '没有选项', '界面在哪',
+      '怎么点击', '点什么', '怎么选风格', '风格怎么选'
+    ];
+    return styleSelectorKeywords.some(keyword => lowerMsg.includes(keyword));
+  }
+
+  /**
    * 执行直接响应
    */
   private async executeRespond(
     userMessage: string,
     context: ConversationContext
   ): Promise<OrchestratorResponse> {
-    // 首先检测是否应该生成图像
+    // 首先检测用户是否在询问风格选择器（且当前没有选风格）
+    // 这个检测要放在 shouldGenerateImage 之前，避免关键词误触发
+    if (this.isAskingForStyleSelector(userMessage) && !context.selectedStyle) {
+      console.log('[Orchestrator] 用户询问风格选择器，重新显示选择器');
+      return {
+        type: 'style-options',
+        agent: context.currentAgent,
+        content: '风格选择器在下方显示。请从下方选择一个你喜欢的风格，或者告诉我你想要的风格名称。',
+        metadata: {
+          showStyleSelector: true
+        }
+      };
+    }
+
+    // 检测是否应该生成图像
     if (this.shouldGenerateImage(userMessage, context)) {
       console.log('[Orchestrator] 检测到图像生成意图，执行图像生成');
       return this.executeImageGeneration(userMessage, context);
@@ -1795,5 +1892,15 @@ export async function processWithOrchestrator(
   userMessage: string,
   context: ConversationContext
 ): Promise<OrchestratorResponse> {
+  // 先尝试 Skill 快速模式
+  const { smartProcessMessage } = await import('./skillAgentAdapter');
+  const skillResult = await smartProcessMessage(userMessage, context);
+  
+  if (skillResult) {
+    console.log('[Orchestrator] 使用 Skill 快速模式');
+    return skillResult;
+  }
+  
+  // 使用普通流程
   return agentOrchestrator.processUserInput(userMessage, context);
 }

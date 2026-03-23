@@ -101,9 +101,10 @@ export const uploadImage = async (
   // 验证文件类型
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
   if (!allowedTypes.includes(file.type)) {
-    throw new Error(`不支持的图片类型: ${file.type}`);
+    throw new Error(`不支持的图片类型：${file.type}`);
   }
   
+  console.log('[StorageService] 开始上传图片:', file.name, folder);
   return uploadFile(file, folder, onProgress);
 };
 

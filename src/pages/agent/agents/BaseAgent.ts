@@ -305,6 +305,77 @@ export abstract class BaseAgent {
     return keywords.some(kw => lowerText.includes(kw.toLowerCase()));
   }
 
+  // ==================== 上下文理解方法 ====================
+
+  /**
+   * 检查是否是引用上下文的语句
+   * 如"上面的继续"、"刚才的"、"之前的"等
+   */
+  protected isContextReference(message: string): boolean {
+    const contextKeywords = [
+      '上面的', '上面的继续', '继续上面',
+      '刚才', '刚才的', '之前的', '前面',
+      '继续', '接着', '刚才说的',
+      '上面那个', '之前那个', '刚才那个',
+      '咋可能', '怎么可能'
+    ];
+
+    const lowerMsg = message.toLowerCase();
+    return contextKeywords.some(kw => lowerMsg.includes(kw));
+  }
+
+  /**
+   * 从历史对话中提取上下文
+   */
+  protected extractContextFromHistory(history: any[]): string {
+    if (!history || history.length === 0) {
+      return '';
+    }
+
+    // 获取最近的几条对话
+    const recentMessages = history.slice(-6);
+
+    // 提取用户的请求
+    const userRequests = recentMessages
+      .filter((msg: any) => msg.role === 'user')
+      .map((msg: any) => msg.content)
+      .filter((content: string) => {
+        // 过滤掉引用上下文的语句
+        const lowerContent = content.toLowerCase();
+        return !this.isContextReference(lowerContent);
+      });
+
+    // 返回最近的有效请求
+    return userRequests[userRequests.length - 1] || '';
+  }
+
+  /**
+   * 检查是否是快速生成请求
+   * 特征：包含明确的生成指令 + 具体描述
+   */
+  protected isQuickGenerationRequest(message: string): boolean {
+    const lowerMsg = message.toLowerCase();
+
+    // 快速生成关键词
+    const quickKeywords = [
+      '生成', '画', '画一个', '画个', '画一张', '画幅',
+      '做', '做个', '做一个', '来', '来张', '来个',
+      '给我画', '帮我画', '给我生成', '帮我生成'
+    ];
+
+    // 检查是否包含快速生成关键词
+    const hasQuickKeyword = quickKeywords.some(kw => lowerMsg.includes(kw));
+
+    // 检查是否包含具体描述（至少4个字符）
+    const hasSpecificDescription = message.length >= 4;
+
+    // 检查是否不包含复杂需求指示词
+    const complexIndicators = ['需求', '方案', '流程', '策略', '规划', '详细', '完整'];
+    const hasComplexIndicator = complexIndicators.some(ind => lowerMsg.includes(ind));
+
+    return hasQuickKeyword && hasSpecificDescription && !hasComplexIndicator;
+  }
+
   // ==================== Getter ====================
 
   get agentType(): AgentType {

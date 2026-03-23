@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
-import type { ChatMessage, SkillCallInfo, RequirementPhase } from '../types';
+import type { ChatMessage, SkillCallInfo, RequirementPhase, Attachment } from '../types';
+import { PastedImage } from '@/components/ImagePasteInput';
 import { 
   createChatContext, 
   sendMessageStream, 
@@ -7,6 +8,7 @@ import {
 } from '../services/chatService';
 import { recognizeIntent, getIntentDisplayName, IntentType } from '../services/intentService';
 import { analyzeRequirements, isRequirementsComplete, RequirementField, MerchandiseCategory } from '../services/requirementService';
+import { uploadPastedImages } from '../services/imageUploadService';
 import { toast } from 'sonner';
 
 // 多轮对话状态
@@ -41,11 +43,30 @@ export const useSkillChat = () => {
 
   const updateLastMessage = useCallback((updates: Partial<ChatMessage>) => {
     setMessages((prev) => {
-      if (prev.length === 0) return prev;
+      if (prev.length === 0) {
+        console.warn('[updateLastMessage] 消息列表为空，无法更新');
+        return prev;
+      }
       const lastIndex = prev.length - 1;
+      const lastMessage = prev[lastIndex];
+      
+      // 只允许更新 agent 角色的消息
+      if (lastMessage.role !== 'agent') {
+        console.warn('[updateLastMessage] 最后一条消息不是 agent 消息，角色:', lastMessage.role);
+        // 如果不是 agent 消息，添加一条新的 agent 消息
+        const newAgentMessage: ChatMessage = {
+          role: 'agent',
+          content: '',
+          timestamp: Date.now(),
+          id: generateMessageId(),
+          ...updates,
+        };
+        return [...prev, newAgentMessage];
+      }
+      
       return [
         ...prev.slice(0, lastIndex),
-        { ...prev[lastIndex], ...updates },
+        { ...lastMessage, ...updates },
       ];
     });
   }, []);
@@ -287,11 +308,13 @@ export const useSkillChat = () => {
   };
 
   const sendMessage = useCallback(
-    async (content: string) => {
-      // 空消息校验
+    async (content: string, images?: PastedImage[]) => {
+      // 空消息校验（允许只发送图片）
       const trimmedContent = content.trim();
-      if (!trimmedContent) {
-        toast.warning('请输入内容');
+      const hasImages = images && images.length > 0;
+      
+      if (!trimmedContent && !hasImages) {
+        toast.warning('请输入内容或粘贴图片');
         return;
       }
 
@@ -374,13 +397,32 @@ export const useSkillChat = () => {
       }
       abortControllerRef.current = new AbortController();
 
-      // 添加用户消息
-      addMessage({
-        role: 'user',
-        content,
-      });
-
       setIsProcessing(true);
+
+      // 处理图片上传
+      let attachments: Attachment[] = [];
+      if (hasImages) {
+        console.log('[sendMessage] 开始上传图片，数量:', images.length);
+        try {
+          const userId = 'anonymous'; // TODO: 从用户认证中获取
+          attachments = await uploadPastedImages(images, userId);
+          console.log('[sendMessage] 图片上传完成，成功数量:', attachments.length);
+        } catch (error) {
+          console.error('[sendMessage] 上传图片失败:', error);
+          toast.error('图片上传失败，请重试');
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // 添加用户消息（包含附件）
+      const userMessage = {
+        role: 'user' as const,
+        content: trimmedContent,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      };
+      console.log('[sendMessage] 添加用户消息:', userMessage);
+      addMessage(userMessage);
 
       try {
         // 检查是否处于信息收集阶段
@@ -545,6 +587,161 @@ export const useSkillChat = () => {
 
         // 短暂延迟让用户看到识别结果
         await new Promise((resolve) => setTimeout(resolve, 600));
+
+        // 如果有图片附件，根据意图自动处理
+        if (attachments && attachments.length > 0) {
+          const firstImage = attachments.find(att => att.type === 'image');
+          if (firstImage && firstImage.url) {
+            console.log('[sendMessage] 检测到图片，当前意图:', intentResult.intent);
+            
+            // 根据意图类型自动执行对应的操作
+            if (intentResult.intent === 'image-beautification' || intentResult.intent === 'image-style-transfer') {
+              // 需要执行美化或风格转换
+              console.log('[sendMessage] 自动执行图片美化/风格转换');
+              
+              // 显示执行中的消息
+              addMessage({
+                role: 'agent',
+                content: '✨ **正在为您美化图片**\n\n请稍候...',
+                skillCall: {
+                  ...recognizingSkillCall,
+                  status: 'executing',
+                  phase: 'executing',
+                },
+              });
+              
+              try {
+                // 首先识别原图内容
+                const recognitionPrompt = `请简要描述这张图片的内容，包括主要物体、风格、颜色等。图片 URL: ${firstImage.url}`;
+                const context = createChatContext(messages);
+                let imageDescription = '';
+                
+                await sendMessageStream(
+                  recognitionPrompt,
+                  context,
+                  (delta) => {
+                    imageDescription = delta;
+                  },
+                  abortControllerRef.current?.signal
+                );
+                
+                // 构建图片生成提示词
+                const isBeautify = intentResult.intent === 'image-beautification' || content.includes('美化');
+                const generationPrompt = isBeautify 
+                  ? `基于以下图片描述，生成一张美化优化后的高质量版本，提升画质、色彩和细节：${imageDescription}。用户要求：${content}`
+                  : `基于以下图片描述，将图片转换为指定风格：${imageDescription}。用户要求：${content}`;
+                
+                console.log('[sendMessage] 调用图片生成 API，提示词:', generationPrompt);
+                
+                // 调用真实的图片生成 API
+                const imageUrl = await generateImage(generationPrompt, {
+                  size: '1024x1024',
+                  quality: 'hd',
+                });
+                
+                console.log('[sendMessage] 图片生成完成，URL:', imageUrl);
+                
+                // 显示生成的图片
+                addMessage({
+                  role: 'agent',
+                  content: isBeautify ? '✅ **美化完成！**' : '✅ **风格转换完成！**',
+                  attachments: [
+                    {
+                      type: 'image',
+                      url: imageUrl,
+                      status: 'completed',
+                      title: isBeautify ? '美化后的图片' : '转换风格后的图片',
+                    },
+                  ],
+                  skillCall: {
+                    ...recognizingSkillCall,
+                    status: 'completed',
+                    phase: 'completed',
+                  },
+                });
+                
+                toast.success('图片处理完成');
+              } catch (error) {
+                console.error('[sendMessage] 图片处理失败:', error);
+                toast.error('图片处理失败，请稍后重试');
+                updateLastMessage({
+                  content: '❌ **图片处理失败**\n\n抱歉，处理图片时遇到了问题，请稍后重试。',
+                  skillCall: {
+                    ...recognizingSkillCall,
+                    status: 'error',
+                    phase: 'error',
+                  },
+                });
+              }
+            } else if (intentResult.intent === 'image-recognition' || content.includes('识别') || content.includes('分析') || content.includes('描述')) {
+              // 执行图片识别
+              console.log('[sendMessage] 自动触发图片识别');
+              
+              // 发送图片识别的提示
+              addMessage({
+                role: 'agent',
+                content: '🖼️ **检测到图片**\n\n我正在分析这张图片...',
+              });
+              
+              try {
+                // 调用图片识别服务
+                const recognitionPrompt = `请详细描述这张图片的内容，包括：\n1. 主要物体和元素\n2. 场景和环境\n3. 颜色和风格\n4. 可能的用途或主题\n\n图片 URL: ${firstImage.url}`;
+                
+                const context = createChatContext(messages);
+                let recognitionResult = '';
+                
+                await sendMessageStream(
+                  recognitionPrompt,
+                  context,
+                  (delta) => {
+                    recognitionResult = delta;
+                    updateLastMessage({
+                      content: `🖼️ **图片识别结果**\n\n${recognitionResult}`,
+                    });
+                  },
+                  abortControllerRef.current?.signal
+                );
+                
+                toast.success('图片识别完成');
+              } catch (error) {
+                console.error('[sendMessage] 图片识别失败:', error);
+                toast.error('图片识别失败，请稍后重试');
+              }
+            } else {
+              // 默认行为：只识别不执行其他操作
+              console.log('[sendMessage] 默认图片识别');
+              
+              addMessage({
+                role: 'agent',
+                content: '🖼️ **检测到图片**\n\n我正在分析这张图片...',
+              });
+              
+              try {
+                const recognitionPrompt = `请详细描述这张图片的内容。\n\n图片 URL: ${firstImage.url}`;
+                
+                const context = createChatContext(messages);
+                let recognitionResult = '';
+                
+                await sendMessageStream(
+                  recognitionPrompt,
+                  context,
+                  (delta) => {
+                    recognitionResult = delta;
+                    updateLastMessage({
+                      content: `🖼️ **图片识别结果**\n\n${recognitionResult}`,
+                    });
+                  },
+                  abortControllerRef.current?.signal
+                );
+                
+                toast.success('图片识别完成');
+              } catch (error) {
+                console.error('[sendMessage] 图片识别失败:', error);
+                toast.error('图片识别失败，请稍后重试');
+              }
+            }
+          }
+        }
 
         // 如果是问候或帮助，直接回复
         if (intentResult.intent === 'greeting' || intentResult.intent === 'help') {

@@ -273,7 +273,7 @@ class SearchService {
         workService.getWorks(),
         eventService.getAllPublicEvents(),
         communityService.getCommunities(),
-        getMerchantProducts({ searchQuery: query, status: 'on_sale', limit: 50 })
+        getMerchantProducts({ searchQuery: query, status: 'active', limit: 50 })
       ]);
 
       // 从数据库搜索品牌 (使用 brand_partnerships 表)
@@ -356,7 +356,11 @@ class SearchService {
       const brands = brandsData || [];
 
       // 商品数据
+      if (productsData.error) {
+        console.error('商品搜索失败:', productsData.error);
+      }
       const products = productsData.data || [];
+      console.log('商品搜索结果:', { query, count: products.length, error: productsData.error });
 
       // 搜索游戏数据（从 games 表）
       const { data: gamesData, error: gamesError } = await supabase

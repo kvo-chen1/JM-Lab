@@ -28,13 +28,45 @@ export class DirectorAgent extends BaseAgent {
 
   /**
    * 处理用户消息
+   * 支持快速模式：简单请求直接执行Skill，复杂请求走完整LLM流程
    */
   async handleMessage(message: string, context: ExecutionContext): Promise<AgentResponse> {
     try {
-      // 1. 识别意图
+      // 1. 检查是否是引用上下文的语句
+      if (this.isContextReference(message)) {
+        console.log('[DirectorAgent] 检测到上下文引用:', message);
+        
+        // 从历史中提取上下文
+        const previousContext = this.extractContextFromHistory(context.history || []);
+        
+        if (previousContext) {
+          console.log('[DirectorAgent] 提取到上下文:', previousContext);
+          
+          // 如果之前的请求是快速生成请求，继续执行
+          if (this.isQuickGenerationRequest(previousContext)) {
+            return this.handleQuickGeneration(previousContext, context);
+          }
+          
+          // 否则，使用之前的上下文继续对话
+          return this.createTextResponse(
+            `好的，我们继续处理"${previousContext}"。请稍等，我正在为您生成...`,
+            { 
+              continuedFrom: previousContext,
+              isContextContinuation: true 
+            }
+          );
+        }
+      }
+
+      // 2. 检查是否是快速生成请求（直接生成图像）
+      if (this.isQuickGenerationRequest(message)) {
+        return this.handleQuickGeneration(message, context);
+      }
+
+      // 3. 识别意图
       const intent = await this.recognizeIntent(message);
 
-      // 2. 处理不同类型的意图
+      // 3. 处理不同类型的意图
       switch (intent.type) {
         case 'greeting':
           return this.handleGreeting();
@@ -58,6 +90,63 @@ export class DirectorAgent extends BaseAgent {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '处理失败';
       return this.createErrorResponse(errorMessage);
+    }
+  }
+
+  /**
+   * 快速生成处理
+   * 直接执行图像生成Skill，跳过需求收集流程
+   */
+  private async handleQuickGeneration(
+    message: string,
+    context: ExecutionContext
+  ): Promise<AgentResponse> {
+    console.log('[DirectorAgent] 快速生成模式:', message);
+
+    try {
+      // 直接获取图像生成Skill
+      const imageSkill = this.getSkills().find(s => s.id === 'image-generation');
+
+      if (!imageSkill) {
+        return this.createErrorResponse('图像生成服务暂时不可用');
+      }
+
+      // 构建Skill执行上下文
+      const skillContext: ExecutionContext = {
+        ...context,
+        message,
+        parameters: {
+          prompt: message,
+          fastMode: true
+        }
+      };
+
+      // 执行Skill
+      const result = await this.executeSkill(imageSkill, skillContext);
+
+      if (!result.success) {
+        return this.createErrorResponse(result.error?.message || '图像生成失败');
+      }
+
+      // 快速包装响应
+      return {
+        content: `✨ 已为您生成设计作品！\n\n您看怎么样？如果需要调整，可以告诉我：\n• 修改颜色、风格\n• 调整构图、元素\n• 重新生成`,
+        type: result.type as any,
+        metadata: {
+          ...result.metadata,
+          quickGeneration: true,
+          showThinking: true,  // 标记需要显示思考过程
+          thinking: result.metadata?.thinking,  // 传递思考过程数据
+          generatedAt: Date.now()
+        }
+      };
+    } catch (error) {
+      console.error('[DirectorAgent] 快速生成失败:', error);
+      // 快速模式失败，降级到普通处理
+      return this.createTextResponse(
+        '我来为您设计这个作品，请稍等...',
+        { fallback: true }
+      );
     }
   }
 

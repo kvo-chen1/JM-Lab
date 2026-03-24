@@ -7,9 +7,11 @@
 
 // Skill 类型和基类
 export {
-  // 类型
   SkillCategory,
   SkillCategoryNames,
+} from '../types/skill';
+
+export type {
   UserIntent,
   ExecutionContext,
   SkillResult,
@@ -52,7 +54,6 @@ export {
 // Skill 基类
 export {
   BaseSkill,
-  BaseSkillConfig,
   CreationSkill,
   AnalysisSkill,
   CognitionSkill,
@@ -60,13 +61,22 @@ export {
   EnhancementSkill
 } from '../skills/base/BaseSkill';
 
+export type { BaseSkillConfig } from '../skills/base/BaseSkill';
+
 // 创作类 Skill
-export { ImageGenerationSkill, ImageGenerationConfig } from '../skills/creation/ImageGenerationSkill';
-export { VideoGenerationSkill, VideoGenerationConfig } from '../skills/creation/VideoGenerationSkill';
-export { TextGenerationSkill, TextGenerationConfig } from '../skills/creation/TextGenerationSkill';
+export { ImageGenerationSkill } from '../skills/creation/ImageGenerationSkill';
+export type { ImageGenerationConfig } from '../skills/creation/ImageGenerationSkill';
+
+export { VideoGenerationSkill } from '../skills/creation/VideoGenerationSkill';
+export type { VideoGenerationConfig } from '../skills/creation/VideoGenerationSkill';
+
+export { TextGenerationSkill } from '../skills/creation/TextGenerationSkill';
+export type { TextGenerationConfig } from '../skills/creation/TextGenerationSkill';
 
 // 分析类 Skill
-export { IntentRecognitionSkill, IntentRecognitionConfig } from '../skills/analysis/IntentRecognitionSkill';
+export { IntentRecognitionSkill } from '../skills/analysis/IntentRecognitionSkill';
+export type { IntentRecognitionConfig } from '../skills/analysis/IntentRecognitionSkill';
+
 export { RequirementAnalysisSkill } from '../skills/analysis/RequirementAnalysisSkill';
 
 // Agent - 类型和函数
@@ -81,7 +91,12 @@ export {
 } from '../agents';
 
 // ==================== 模型调用服务 ====================
-export { callCurrentModel, getCurrentModel, setCurrentModel } from './modelCaller';
+export {
+  callCurrentModel,
+  getCurrentModelId as getCurrentModel,
+  getCurrentModelFromStorage,
+  setCurrentModelInStorage as setCurrentModel
+} from './modelCaller';
 
 // ==================== 保留的核心服务（向后兼容）====================
 
@@ -89,18 +104,17 @@ export { callCurrentModel, getCurrentModel, setCurrentModel } from './modelCalle
 export {
   RAGService,
   getRAGService,
-  resetRAGService,
-  DesignCase
+  resetRAGService
 } from './ragService';
+export type { DesignCase } from './ragService';
 
 // 向量存储
 export {
   VectorStore,
   getVectorStore,
-  resetVectorStore,
-  VectorItem,
-  SearchResult
+  resetVectorStore
 } from './vectorStore';
+export type { VectorItem, SearchResult } from './vectorStore';
 
 // 嵌入服务
 export {
@@ -113,39 +127,43 @@ export {
 export {
   WorkflowEngine,
   getWorkflowEngine,
-  resetWorkflowEngine,
-  WorkflowTemplate,
-  WorkflowNode,
-  Workflow
+  resetWorkflowEngine
 } from './workflowEngine';
+export type { WorkflowTemplate, WorkflowNode, Workflow } from './workflowEngine';
 
 // 建议引擎
 export {
   SuggestionEngine,
   getSuggestionEngine,
-  resetSuggestionEngine,
-  Suggestion
+  resetSuggestionEngine
 } from './suggestionEngine';
+export type { Suggestion } from './suggestionEngine';
 
 // 图像理解
 export {
-  ImageUnderstanding,
-  getImageUnderstanding,
-  resetImageUnderstanding,
-  ImageAnalysisResult
+  ImageUnderstandingService as ImageUnderstanding,
+  getImageUnderstandingService as getImageUnderstanding,
+  resetImageUnderstandingService as resetImageUnderstanding
 } from './imageUnderstanding';
+export type { ImageAnalysisResult } from './imageUnderstanding';
 
 // 错误处理
 export {
   ErrorHandler,
-  getErrorHandler,
-  resetErrorHandler,
-  ErrorContext,
-  RecoveryStrategy
+  errorHandler,
+  handleErrors,
+  safeExecute,
+  createErrorBoundary
 } from './errorHandler';
+export type { ErrorContext, RecoveryStrategy, ErrorHandlerCallback, ErrorHandleResult } from './errorHandler';
 
 // 上传服务
-export { uploadService } from './uploadService';
+export {
+  uploadImage,
+  uploadImages,
+  deleteUpload
+} from './uploadService';
+export type { UploadResult, UploadProgressCallback } from './uploadService';
 
 // ==================== 兼容层（旧服务）====================
 

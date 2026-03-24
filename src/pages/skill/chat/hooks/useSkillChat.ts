@@ -7,7 +7,7 @@ import {
   generateImage
 } from '../services/chatService';
 import { recognizeIntent, getIntentDisplayName, IntentType } from '../services/intentService';
-import { analyzeRequirements, isRequirementsComplete, RequirementField, MerchandiseCategory } from '../services/requirementService';
+import { analyzeRequirements, isRequirementsComplete, detectIntentSwitch, filterVisibleFields, RequirementField, MerchandiseCategory, IntentSwitchInfo } from '../services/requirementService';
 import { uploadPastedImages } from '../services/imageUploadService';
 import { toast } from 'sonner';
 
@@ -17,15 +17,107 @@ interface ConversationState {
   collectedInfo: Record<string, string>;
   missingFields: RequirementField[];
   phase: RequirementPhase;
+  pendingIntent?: IntentType;
+  intentSwitch?: IntentSwitchInfo;
 }
 
+// 进度预估
+interface ProgressEstimate {
+  currentStep: number;
+  totalSteps: number;
+  estimatedTime: number;
+  isBlocked: boolean;
+  blockReason?: string;
+}
+
+// 草稿保存键名
+const DRAFT_STORAGE_KEY = 'skill-chat-draft';
+
+// 保存草稿到 localStorage
+const saveDraft = (state: ConversationState, messages: ChatMessage[]) => {
+  try {
+    const draft = {
+      state,
+      messages: messages.slice(-20),
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  } catch (error) {
+    console.warn('[useSkillChat] 保存草稿失败:', error);
+  }
+};
+
+// 从 localStorage 恢复草稿
+const restoreDraft = (): { state: ConversationState; messages: ChatMessage[] } | null => {
+  try {
+    const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (saved) {
+      const draft = JSON.parse(saved);
+      const state: ConversationState = {
+        ...draft.state,
+        phase: draft.state.phase || 'collecting',
+      };
+      return { state, messages: draft.messages };
+    }
+  } catch (error) {
+    console.warn('[useSkillChat] 恢复草稿失败:', error);
+  }
+  return null;
+};
+
+// 清除草稿
+const clearDraft = () => {
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch (error) {
+    console.warn('[useSkillChat] 清除草稿失败:', error);
+  }
+};
+
+// 计算进度预估
+const calculateProgressEstimate = (
+  intent: IntentType,
+  collectedInfo: Record<string, string>,
+  missingFields: RequirementField[]
+): ProgressEstimate => {
+  const requirements = filterVisibleFields(
+    missingFields.concat(Object.keys(collectedInfo).map(key => ({ key, required: true } as RequirementField))),
+    collectedInfo
+  );
+
+  const visibleRequired = requirements.filter(r => r.required);
+  const currentStep = Object.keys(collectedInfo).filter(key =>
+    visibleRequired.some(r => r.key === key) && collectedInfo[key]?.trim()
+  ).length;
+  const totalSteps = visibleRequired.length;
+  const estimatedTime = (totalSteps - currentStep) * 15;
+  const lastField = missingFields[0];
+  const isBlocked = currentStep === 0 && totalSteps > 0 && !lastField;
+  const blockReason = isBlocked ? '需要更多信息才能继续' : undefined;
+
+  return {
+    currentStep,
+    totalSteps,
+    estimatedTime,
+    isBlocked,
+    blockReason,
+  };
+};
+
 export const useSkillChat = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const draft = restoreDraft();
+    if (draft) {
+      console.log('[useSkillChat] 已恢复草稿');
+      return draft.messages;
+    }
+    return [];
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentSkillCall, setCurrentSkillCall] = useState<SkillCallInfo | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const messageIdRef = useRef(0);
-  
+
   // 多轮对话状态
   const conversationStateRef = useRef<ConversationState | null>(null);
 
@@ -177,8 +269,35 @@ export const useSkillChat = () => {
       }
 
       case 'help': {
+        // 检查用户是否需要实际的帮助操作（如查资料）
+        const isQueryRequest = userMessage.includes('查') || userMessage.includes('搜索') || 
+                               userMessage.includes('找') || userMessage.includes('资料') ||
+                               userMessage.includes('信息') || userMessage.includes('数据');
+        
+        if (isQueryRequest) {
+          // 执行实际的帮助操作（使用流式输出）
+          let responseContent = '';
+          const helpPrompt = `用户请求帮助："${userMessage}"
+
+请根据用户的需求提供详细的帮助。如果用户要求查资料，请提供相关的信息和建议。
+请用中文回答，保持友好和专业的语气。`;
+          
+          await sendMessageStream(
+            helpPrompt,
+            context,
+            (delta) => {
+              responseContent += delta;
+              onDelta(responseContent);
+            },
+            abortControllerRef.current?.signal
+          );
+          
+          return { content: responseContent };
+        }
+        
+        // 否则显示帮助指南
         return {
-          content: '**津小脉 Skill Agent 使用指南**\n\n🎯 **如何使用**\n直接在对话框中描述你的需求，例如：\n- "帮我设计一个科技公司的Logo"\n- "写一段品牌宣传文案"\n- "推荐一套适合电商的配色方案"\n\n🛠️ **支持的技能**\n- 图片生成（Logo、海报、创意图）\n- 文案创作（品牌、营销、社媒）\n- 配色方案推荐\n- 创意点子生成\n\n💡 **小贴士**\n- 描述越详细，生成效果越好\n- 可以多次调整直到满意\n- 生成的作品会显示在左侧画布中\n\n有什么我可以帮你的吗？',
+          content: '**津小脉 Skill Agent 使用指南**\n\n🎯 **如何使用**\n直接在对话框中描述你的需求，例如：\n- "帮我设计一个科技公司的Logo"\n- "写一段品牌宣传文案"\n- "推荐一套适合电商的配色方案"\n- "帮我查一下某品牌的资料"\n\n🛠️ **支持的技能**\n- 图片生成（Logo、海报、创意图）\n- 文案创作（品牌、营销、社媒）\n- 配色方案推荐\n- 创意点子生成\n- 信息查询和资料搜索\n\n💡 **小贴士**\n- 描述越详细，生成效果越好\n- 可以多次调整直到满意\n- 生成的作品会显示在左侧画布中\n\n有什么我可以帮你的吗？',
         };
       }
 
@@ -201,28 +320,121 @@ export const useSkillChat = () => {
     }
   };
 
+  // 执行图片处理（美化或风格转换）
+  const executeImageProcessing = async (
+    imageUrl: string,
+    content: string,
+    skillCall: SkillCallInfo,
+    isStyleTransfer: boolean
+  ) => {
+    console.log(`[sendMessage] 自动执行图片${isStyleTransfer ? '风格转换' : '美化'}`);
+
+    // 显示执行中的消息
+    addMessage({
+      role: 'agent',
+      content: isStyleTransfer ? '✨ **正在为您转换图片风格**\n\n请稍候...' : '✨ **正在为您美化图片**\n\n请稍候...',
+      skillCall: {
+        ...skillCall,
+        status: 'executing',
+        phase: 'executing',
+      },
+    });
+
+    try {
+      // 首先识别原图内容
+      const recognitionPrompt = `请简要描述这张图片的内容，包括主要物体、风格、颜色等。图片 URL: ${imageUrl}`;
+      const context = createChatContext(messages);
+      let imageDescription = '';
+
+      await sendMessageStream(
+        recognitionPrompt,
+        context,
+        (delta) => {
+          imageDescription = delta;
+        },
+        abortControllerRef.current?.signal
+      );
+
+      // 构建图片生成提示词
+      const generationPrompt = isStyleTransfer
+        ? `基于以下图片描述，将图片转换为指定风格：${imageDescription}。用户要求：${content}`
+        : `基于以下图片描述，生成一张美化优化后的高质量版本，提升画质、色彩和细节：${imageDescription}。用户要求：${content}`;
+
+      console.log('[sendMessage] 调用图片生成 API，提示词:', generationPrompt);
+
+      // 调用真实的图片生成 API
+      const generatedImageUrl = await generateImage(generationPrompt, {
+        size: '1024x1024',
+        quality: 'hd',
+      });
+
+      console.log('[sendMessage] 图片生成完成，URL:', generatedImageUrl);
+
+      // 显示生成的图片
+      addMessage({
+        role: 'agent',
+        content: isStyleTransfer ? '✅ **风格转换完成！**' : '✅ **美化完成！**',
+        attachments: [
+          {
+            type: 'image',
+            url: generatedImageUrl,
+            status: 'completed',
+            title: isStyleTransfer ? '转换风格后的图片' : '美化后的图片',
+          },
+        ],
+        skillCall: {
+          ...skillCall,
+          status: 'completed',
+          phase: 'completed',
+        },
+      });
+
+      toast.success('图片处理完成');
+    } catch (error) {
+      console.error('[sendMessage] 图片处理失败:', error);
+      toast.error('图片处理失败，请稍后重试');
+      updateLastMessage({
+        content: '❌ **图片处理失败**\n\n抱歉，处理图片时遇到了问题，请稍后重试。',
+        skillCall: {
+          ...skillCall,
+          status: 'error',
+          phase: 'error',
+        },
+      });
+    }
+  };
+
   // 收集信息阶段
   const collectRequirements = async (
     intent: IntentType,
-    userMessage: string
+    userMessage: string,
+    preCollectedInfo?: Record<string, string>
   ): Promise<{
     ready: boolean;
     collectedInfo: Record<string, string>;
     skillCall: SkillCallInfo;
   }> => {
+    // 获取当前对话状态
+    const currentState = conversationStateRef.current;
+
     // 检查是否是确认词（如"好的"、"是的"、"没错"等）
+    // 注意：只有在已经处于收集阶段时才检查确认词，避免第一条消息被误判
     const confirmationPatterns = [
       /^好的?$/i, /^是的?$/i, /^没错?$/i, /^正确?$/i,
       /^ok$/i, /^okay$/i, /^yep$/i, /^yeah$/i, /^yes$/i,
       /^好$/i, /^行$/i, /^可以$/i, /^同意$/i,
     ];
-    const isConfirmation = confirmationPatterns.some(p => p.test(userMessage.trim()));
+
+    // 只有在已经处于收集阶段且用户发送的是简短确认词时才认为是确认
+    const isConfirmation = currentState?.phase === 'collecting' &&
+                           confirmationPatterns.some(p => p.test(userMessage.trim()));
 
     // 如果是确认词，检查之前是否有已推断的信息
     let analysis;
-    if (isConfirmation && conversationStateRef.current?.collectedInfo) {
+    if (isConfirmation && currentState?.collectedInfo &&
+        Object.keys(currentState.collectedInfo).length > 0) {
       // 用户确认了之前的推断，使用之前的状态继续收集
-      const previousCollectedInfo = conversationStateRef.current.collectedInfo;
+      const previousCollectedInfo = currentState.collectedInfo;
 
       // 重新分析，传入历史信息以便继续收集缺失字段
       analysis = await analyzeRequirements(
@@ -244,12 +456,22 @@ export const useSkillChat = () => {
       );
     }
 
+    // 合并预收集的信息（如果有）
+    if (preCollectedInfo && Object.keys(preCollectedInfo).length > 0) {
+      analysis.collectedInfo = { ...analysis.collectedInfo, ...preCollectedInfo };
+      console.log('[collectRequirements] 合并预收集信息:', preCollectedInfo);
+    }
+
+    // 使用 isRequirementsComplete 进行二次验证，确保所有必填字段都已收集
+    const actuallyReady = isRequirementsComplete(intent, analysis.collectedInfo);
+    const finalReady = analysis.ready && actuallyReady;
+
     // 更新对话状态
     conversationStateRef.current = {
       intent,
       collectedInfo: analysis.collectedInfo,
       missingFields: analysis.missingFields,
-      phase: analysis.ready ? 'confirming' : 'collecting',
+      phase: finalReady ? 'confirming' : 'collecting',
     };
 
     const progress = {
@@ -274,7 +496,7 @@ export const useSkillChat = () => {
       intent,
       confidence: 0.9,
       status: 'calling',
-      phase: analysis.ready ? 'confirming' : 'collecting',
+      phase: finalReady ? 'confirming' : 'collecting',
       collectedInfo: analysis.collectedInfo,
       missingFields: analysis.missingFields,
       currentQuestion: analysis.nextQuestion,
@@ -285,7 +507,7 @@ export const useSkillChat = () => {
     };
 
     return {
-      ready: analysis.ready,
+      ready: finalReady,
       collectedInfo: analysis.collectedInfo,
       skillCall,
     };
@@ -429,10 +651,22 @@ export const useSkillChat = () => {
         const currentState = conversationStateRef.current;
         
         if (currentState && currentState.phase === 'collecting' && currentState.intent) {
+          // 特殊处理：如果是风格转换意图，且用户发送的是风格关键词，直接收集
+          let preCollectedInfo = { ...currentState.collectedInfo };
+          if (currentState.intent === 'image-style-transfer') {
+            const styleKeywords = ['油画', '水彩', '素描', '卡通', '赛博朋克', '国风'];
+            const matchedStyle = styleKeywords.find(style => content.includes(style));
+            if (matchedStyle) {
+              preCollectedInfo['targetStyle'] = matchedStyle;
+              console.log('[sendMessage] 从用户消息中提取到目标风格:', matchedStyle);
+            }
+          }
+          
           // 继续收集信息
           const { ready, collectedInfo, skillCall } = await collectRequirements(
             currentState.intent,
-            content
+            content,
+            preCollectedInfo
           );
 
           if (ready) {
@@ -443,9 +677,21 @@ export const useSkillChat = () => {
               phase: 'confirming',
             };
 
+            // 构建需求确认消息
+            const collectedEntries = Object.entries(collectedInfo);
+            let confirmMessage: string;
+            
+            if (collectedEntries.length === 0) {
+              // 如果没有收集到具体信息（如一般对话），显示简化消息
+              confirmMessage = `📋 **信息收集完成**\n\n我将为您进行${getIntentDisplayName(currentState.intent)}。\n\n请问有什么我可以帮您的吗？`;
+            } else {
+              // 有收集到信息，显示详细信息
+              confirmMessage = `📋 **信息收集完成**\n\n我已了解您的需求：\n\n${collectedEntries.map(([k, v]) => `• ${k}: ${v}`).join('\n')}\n\n请确认以上信息是否正确，如果没问题我将开始为您${getIntentDisplayName(currentState.intent)}。`;
+            }
+
             addMessage({
               role: 'agent',
-              content: `📋 **信息收集完成**\n\n我已了解您的需求：\n\n${Object.entries(collectedInfo).map(([k, v]) => `• ${k}: ${v}`).join('\n')}\n\n请确认以上信息是否正确，如果没问题我将开始为您${getIntentDisplayName(currentState.intent)}。`,
+              content: confirmMessage,
               skillCall: {
                 ...skillCall,
                 phase: 'confirming',
@@ -568,7 +814,42 @@ export const useSkillChat = () => {
 
         // 识别意图
         const intentResult = await recognizeIntent(content, abortControllerRef.current.signal);
-        
+
+        // 检测意图切换
+        const previousState = conversationStateRef.current;
+        if (previousState && previousState.intent && previousState.intent !== intentResult.intent) {
+          const intentSwitch = detectIntentSwitch(
+            previousState.intent,
+            intentResult.intent,
+            content,
+            messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
+          );
+
+          if (intentSwitch && intentSwitch.needsConfirmation) {
+            // 需要确认意图切换
+            updateLastMessage({
+              content: `🔄 **检测到意图切换**\n\n您似乎想从「${getIntentDisplayName(previousState.intent)}」切换到「${getIntentDisplayName(intentResult.intent as IntentType)}」。\n\n是否确认切换到新任务？\n\n• **继续新任务**：请说"好的"或"确认"\n• **继续当前任务**：请继续提供当前任务所需的信息`,
+              skillCall: {
+                ...skillCallInfo,
+                intent: intentResult.intent,
+                confidence: intentResult.confidence,
+                status: 'waiting',
+                phase: 'analyzing',
+              },
+            });
+
+            // 保存新意图，等待用户确认
+            conversationStateRef.current = {
+              ...previousState,
+              pendingIntent: intentResult.intent as IntentType,
+              intentSwitch,
+            };
+
+            setIsProcessing(false);
+            return;
+          }
+        }
+
         // 更新意图识别状态
         const recognizingSkillCall: SkillCallInfo = {
           ...skillCallInfo,
@@ -579,7 +860,7 @@ export const useSkillChat = () => {
           params: intentResult.params,
         };
         setCurrentSkillCall(recognizingSkillCall);
-        
+
         updateLastMessage({
           content: `🔍 **意图识别**\n\n识别到意图：**${getIntentDisplayName(intentResult.intent as IntentType)}**\n置信度：**${Math.round(intentResult.confidence * 100)}%**`,
           skillCall: recognizingSkillCall,
@@ -596,82 +877,24 @@ export const useSkillChat = () => {
             
             // 根据意图类型自动执行对应的操作
             if (intentResult.intent === 'image-beautification' || intentResult.intent === 'image-style-transfer') {
-              // 需要执行美化或风格转换
-              console.log('[sendMessage] 自动执行图片美化/风格转换');
-              
-              // 显示执行中的消息
-              addMessage({
-                role: 'agent',
-                content: '✨ **正在为您美化图片**\n\n请稍候...',
-                skillCall: {
-                  ...recognizingSkillCall,
-                  status: 'executing',
-                  phase: 'executing',
-                },
-              });
-              
-              try {
-                // 首先识别原图内容
-                const recognitionPrompt = `请简要描述这张图片的内容，包括主要物体、风格、颜色等。图片 URL: ${firstImage.url}`;
-                const context = createChatContext(messages);
-                let imageDescription = '';
+              // 对于风格转换，检查是否指定了具体风格
+              if (intentResult.intent === 'image-style-transfer') {
+                const styleKeywords = ['油画', '水彩', '素描', '卡通', '赛博朋克', '国风'];
+                const hasSpecifiedStyle = styleKeywords.some(style => content.includes(style));
                 
-                await sendMessageStream(
-                  recognitionPrompt,
-                  context,
-                  (delta) => {
-                    imageDescription = delta;
-                  },
-                  abortControllerRef.current?.signal
-                );
-                
-                // 构建图片生成提示词
-                const isBeautify = intentResult.intent === 'image-beautification' || content.includes('美化');
-                const generationPrompt = isBeautify 
-                  ? `基于以下图片描述，生成一张美化优化后的高质量版本，提升画质、色彩和细节：${imageDescription}。用户要求：${content}`
-                  : `基于以下图片描述，将图片转换为指定风格：${imageDescription}。用户要求：${content}`;
-                
-                console.log('[sendMessage] 调用图片生成 API，提示词:', generationPrompt);
-                
-                // 调用真实的图片生成 API
-                const imageUrl = await generateImage(generationPrompt, {
-                  size: '1024x1024',
-                  quality: 'hd',
-                });
-                
-                console.log('[sendMessage] 图片生成完成，URL:', imageUrl);
-                
-                // 显示生成的图片
-                addMessage({
-                  role: 'agent',
-                  content: isBeautify ? '✅ **美化完成！**' : '✅ **风格转换完成！**',
-                  attachments: [
-                    {
-                      type: 'image',
-                      url: imageUrl,
-                      status: 'completed',
-                      title: isBeautify ? '美化后的图片' : '转换风格后的图片',
-                    },
-                  ],
-                  skillCall: {
-                    ...recognizingSkillCall,
-                    status: 'completed',
-                    phase: 'completed',
-                  },
-                });
-                
-                toast.success('图片处理完成');
-              } catch (error) {
-                console.error('[sendMessage] 图片处理失败:', error);
-                toast.error('图片处理失败，请稍后重试');
-                updateLastMessage({
-                  content: '❌ **图片处理失败**\n\n抱歉，处理图片时遇到了问题，请稍后重试。',
-                  skillCall: {
-                    ...recognizingSkillCall,
-                    status: 'error',
-                    phase: 'error',
-                  },
-                });
+                if (!hasSpecifiedStyle) {
+                  // 没有指定风格，不自动执行，进入需求收集流程
+                  console.log('[sendMessage] 风格转换但未指定具体风格，进入需求收集');
+                  // 跳过自动处理，让代码继续执行到需求收集逻辑
+                } else {
+                  // 指定了风格，执行自动处理
+                  await executeImageProcessing(firstImage.url, content, recognizingSkillCall, true);
+                  return; // 添加 return，防止继续执行需求收集
+                }
+              } else {
+                // 图片美化可以直接执行
+                await executeImageProcessing(firstImage.url, content, recognizingSkillCall, false);
+                return; // 添加 return
               }
             } else if (intentResult.intent === 'image-recognition' || content.includes('识别') || content.includes('分析') || content.includes('描述')) {
               // 执行图片识别
@@ -743,8 +966,8 @@ export const useSkillChat = () => {
           }
         }
 
-        // 如果是问候或帮助，直接回复
-        if (intentResult.intent === 'greeting' || intentResult.intent === 'help') {
+        // 如果是问候、帮助或一般对话，直接回复，不走需求收集流程
+        if (intentResult.intent === 'greeting' || intentResult.intent === 'help' || intentResult.intent === 'general') {
           const result = await executeSkill(
             intentResult.intent as IntentType,
             content,
@@ -776,7 +999,7 @@ export const useSkillChat = () => {
           return;
         }
 
-        // 开始收集需求（对于 general 意图也尝试分析需求）
+        // 开始收集需求（只对需要收集需求的意图）
         const { ready, collectedInfo, skillCall } = await collectRequirements(
           intentResult.intent as IntentType,
           content
@@ -791,9 +1014,21 @@ export const useSkillChat = () => {
             phase: 'confirming',
           };
 
+          // 构建需求确认消息
+          const collectedEntries = Object.entries(collectedInfo);
+          let confirmMessage: string;
+          
+          if (collectedEntries.length === 0) {
+            // 如果没有收集到具体信息（如一般对话），显示简化消息
+            confirmMessage = `📋 **需求已明确**\n\n我将为您进行${getIntentDisplayName(intentResult.intent as IntentType)}。\n\n请问有什么我可以帮您的吗？`;
+          } else {
+            // 有收集到信息，显示详细信息
+            confirmMessage = `📋 **需求已明确**\n\n我已了解您的需求：\n\n${collectedEntries.map(([k, v]) => `• ${k}: ${v}`).join('\n')}\n\n请确认以上信息是否正确，如果没问题我将开始为您${getIntentDisplayName(intentResult.intent as IntentType)}。`;
+          }
+
           addMessage({
             role: 'agent',
-            content: `📋 **需求已明确**\n\n我已了解您的需求：\n\n${Object.entries(collectedInfo).map(([k, v]) => `• ${k}: ${v}`).join('\n')}\n\n请确认以上信息是否正确，如果没问题我将开始为您${getIntentDisplayName(intentResult.intent as IntentType)}。`,
+            content: confirmMessage,
             skillCall: {
               ...skillCall,
               phase: 'confirming',

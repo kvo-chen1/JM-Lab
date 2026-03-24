@@ -136,6 +136,30 @@ const AgentPage = createLazyComponent(() => import(/* webpackChunkName: "pages-a
   name: 'agent'
 });
 
+// Skill 架构测试页面
+const SkillTestPage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent-skill-test" */ "@/pages/agent/skill-test"), {
+  priority: ROUTE_PRIORITIES.LOW,
+  name: 'skill-test'
+});
+
+// Agent案例展示页面
+const AgentCasesPage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent-cases" */ "@/pages/agent-cases"), {
+  priority: ROUTE_PRIORITIES.HIGH,
+  name: 'agent-cases'
+});
+const CaseDetailPage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent-cases" */ "@/pages/agent-cases/CaseDetail"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'case-detail'
+});
+const CreateSimilarPage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent-cases" */ "@/pages/agent-cases/CreateSimilar"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'create-similar'
+});
+const PublishCasePage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent-cases" */ "@/pages/agent-cases/PublishCase"), {
+  priority: ROUTE_PRIORITIES.MEDIUM,
+  name: 'create-similar'
+});
+
 // 其他次要页面保持懒加载
 const About = createLazyComponent(() => import(/* webpackChunkName: "pages-other" */ "@/pages/About"), {
   priority: ROUTE_PRIORITIES.LOW,
@@ -1445,6 +1469,14 @@ export default function App() {
           <Route path="/create/*" element={<LazyComponent><DesignPlatformGuard><Create /></DesignPlatformGuard></LazyComponent>} />
           {/* Agent 路由 - 独立于 create */}
           <Route path="/agent/*" element={<LazyComponent><DesignPlatformGuard><AgentPage /></DesignPlatformGuard></LazyComponent>} />
+          {/* Skill 架构测试页面 */}
+          <Route path="/agent-test" element={<LazyComponent><SkillTestPage /></LazyComponent>} />
+          
+          {/* Agent案例展示页面 */}
+          <Route path="/agent-cases" element={<LazyComponent><AgentCasesPage /></LazyComponent>} />
+          <Route path="/agent-cases/:id" element={<LazyComponent><CaseDetailPage /></LazyComponent>} />
+          <Route path="/agent-cases/create-similar/:id" element={<LazyComponent><CreateSimilarPage /></LazyComponent>} />
+          <Route path="/agent-cases/publish" element={<LazyComponent><PublishCasePage /></LazyComponent>} />
           <Route path="/skill/chat" element={<LazyComponent><SkillAgentChatPage /></LazyComponent>} />
           <Route path="/create-activity" element={<Navigate to="/organizer" replace />} />
           <Route path="/creates" element={<Navigate to="/create" replace />} />

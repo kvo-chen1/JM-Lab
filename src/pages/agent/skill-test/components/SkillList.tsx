@@ -16,15 +16,6 @@ interface SkillListProps {
   skillStats: Map<string, { totalExecutions: number; successfulExecutions: number }>;
 }
 
-const categories: Array<{ value: SkillCategory | 'all'; label: string }> = [
-  { value: 'all', label: '全部' },
-  { value: SkillCategory.CREATION, label: '创作' },
-  { value: SkillCategory.ANALYSIS, label: '分析' },
-  { value: SkillCategory.COGNITION, label: '认知' },
-  { value: SkillCategory.ORCHESTRATION, label: '编排' },
-  { value: SkillCategory.ENHANCEMENT, label: '增强' },
-];
-
 export const SkillList: React.FC<SkillListProps> = ({
   skills,
   selectedSkill,
@@ -33,6 +24,16 @@ export const SkillList: React.FC<SkillListProps> = ({
   onSelectCategory,
   skillStats,
 }) => {
+  // 在组件内部定义 categories，避免模块级别的循环依赖
+  const categories: Array<{ value: SkillCategory | 'all'; label: string }> = [
+    { value: 'all', label: '全部' },
+    { value: SkillCategory.CREATION, label: '创作' },
+    { value: SkillCategory.ANALYSIS, label: '分析' },
+    { value: SkillCategory.COGNITION, label: '认知' },
+    { value: SkillCategory.ORCHESTRATION, label: '编排' },
+    { value: SkillCategory.ENHANCEMENT, label: '增强' },
+  ];
+
   const filteredSkills = selectedCategory === 'all'
     ? skills
     : skills.filter(skill => skill.category === selectedCategory);

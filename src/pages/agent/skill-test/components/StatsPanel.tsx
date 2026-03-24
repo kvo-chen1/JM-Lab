@@ -26,6 +26,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
     ? (successfulExecutions / totalExecutions * 100).toFixed(1)
     : '0.0';
 
+  // 在组件内部定义，避免模块级别的循环依赖
   const getCategoryColor = (category: SkillCategory) => {
     const colors: Record<SkillCategory, string> = {
       [SkillCategory.CREATION]: '#4A90E2',

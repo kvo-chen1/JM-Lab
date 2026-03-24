@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface CardPosition {
   x: number;
@@ -42,6 +43,13 @@ interface CanvasState {
   // 拖拽状态
   isDragging: boolean;
   isSpacePressed: boolean;
+
+  // 编辑状态
+  editingWorkId: string | null;
+  
+  // 持久化状态
+  _hasHydrated: boolean;
+  setHasHydrated: (state: boolean) => void;
   
   // Actions
   setCanvasPosition: (position: { x: number; y: number }) => void;
@@ -63,6 +71,8 @@ interface CanvasState {
   
   setIsDragging: (dragging: boolean) => void;
   setIsSpacePressed: (pressed: boolean) => void;
+  
+  setEditingWorkId: (id: string | null) => void;
 }
 
 const DEFAULT_ZOOM = 100;
@@ -89,17 +99,21 @@ const generateDefaultPosition = (index: number, viewMode: ViewMode): CardPositio
   };
 };
 
-export const useCanvasStore = create<CanvasState>((set, get) => ({
-  // 初始状态
-  canvasPosition: { x: 0, y: 0 },
-  canvasZoom: DEFAULT_ZOOM,
-  selectedTool: 'select',
-  showGrid: false,
-  viewMode: 'gallery',
-  works: [],
-  selectedWorkId: null,
-  isDragging: false,
+export const useCanvasStore = create<CanvasState>()(
+  persist(
+    (set, get) => ({
+      // 初始状态
+      canvasPosition: { x: 0, y: 0 },
+      canvasZoom: DEFAULT_ZOOM,
+      selectedTool: 'select',
+      showGrid: false,
+      viewMode: 'gallery',
+      works: [],
+      selectedWorkId: null,
+      isDragging: false,
   isSpacePressed: false,
+  editingWorkId: null,
+  _hasHydrated: false,
   
   // 画布位置操作
   setCanvasPosition: (position) => set({ canvasPosition: position }),
@@ -167,6 +181,27 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // 拖拽状态
   setIsDragging: (dragging) => set({ isDragging: dragging }),
   setIsSpacePressed: (pressed) => set({ isSpacePressed: pressed }),
-}));
+
+  // 编辑状态
+  setEditingWorkId: (id) => set({ editingWorkId: id }),
+  
+  // 持久化状态
+  setHasHydrated: (state) => set({ _hasHydrated: state }),
+    }),
+    {
+      name: 'skill-chat-canvas-storage', // localStorage 的 key
+      partialize: (state) => ({ 
+        // 只持久化作品数据，不持久化 UI 状态
+        works: state.works,
+      }),
+      onRehydrateStorage: (state) => {
+        console.log('[CanvasStore] 存储恢复完成, 作品数量:', state?.works?.length || 0);
+        // 注意：这里不能直接调用 useCanvasStore，因为此时 store 还未创建完成
+        // hydration 状态会在组件中通过 useEffect 设置
+      },
+      skipHydration: false,
+    }
+  )
+);
 
 export default useCanvasStore;

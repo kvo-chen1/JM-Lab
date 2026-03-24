@@ -655,12 +655,19 @@ export const recommendMerchandiseTypes = (brandConcept: string): string[] => {
     '金融': ['商务文具', '生活用品', '环境应用'],
   };
   
-  const keywords = extractKeywords(brandConcept);
+  const keywordResult = extractKeywords(brandConcept);
+  
+  // 将所有关键词合并为一个数组
+  const allKeywords = [
+    ...keywordResult.industries,
+    ...keywordResult.styles,
+    ...keywordResult.emotions
+  ];
   
   // 匹配推荐规则
   for (const [industry, types] of Object.entries(MERCHANDISE_RECOMMENDATIONS)) {
     const industryKeywords = INDUSTRY_KEYWORDS.find(r => r.industry === industry)?.keywords || [];
-    if (keywords.some(keyword => industryKeywords.includes(keyword))) {
+    if (allKeywords.some(keyword => industryKeywords.includes(keyword))) {
       return types;
     }
   }

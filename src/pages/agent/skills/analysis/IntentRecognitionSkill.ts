@@ -174,7 +174,7 @@ export class IntentRecognitionSkill extends AnalysisSkill {
   readonly description = '分析用户输入，识别用户意图和提取关键实体';
   readonly version = '1.0.0';
 
-  protected supportedAgents: AgentType[] = ['director', 'designer', 'system'];
+  protected supportedAgents: AgentType[] = ['director', 'designer', 'illustrator', 'copywriter', 'animator', 'researcher', 'system'];
 
   readonly capabilities: Capability[] = [
     {
@@ -315,8 +315,9 @@ export class IntentRecognitionSkill extends AnalysisSkill {
 
   /**
    * 提取关键词
+   * 重写父类方法以提供特定实现
    */
-  private extractKeywords(text: string): string[] {
+  protected extractKeywords(text: string): string[] {
     // 简单的中文分词
     const words = text.match(/[\u4e00-\u9fa5]+|[a-zA-Z]+/g) || [];
     return words.map(w => w.toLowerCase());

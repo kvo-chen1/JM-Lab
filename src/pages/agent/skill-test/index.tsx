@@ -1,33 +1,64 @@
 /**
  * SkillTestPage - Skill 架构测试页面
  * 用于测试和验证 Skill 架构的各项功能
+ * 增强版：支持 Agent 选择和调试
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useSkill } from '../hooks/useSkill';
 import type { ISkill, SkillCategory, SkillResult } from '../types/skill';
+import type { AgentType } from '../types/agent';
 import { SkillList } from './components/SkillList';
 import { TestPanel } from './components/TestPanel';
 import { ResultView } from './components/ResultView';
 import { LogPanel, LogEntry } from './components/LogPanel';
 import { StatsPanel } from './components/StatsPanel';
+import { SkillDebugger } from '../components/SkillDebugger';
+import { AGENT_CAPABILITY_DESCRIPTIONS } from '../config/agentSkillConfig';
+import { 
+  User, 
+  Sparkles, 
+  Palette, 
+  PenTool, 
+  Type, 
+  Video, 
+  Search,
+  ChevronDown
+} from 'lucide-react';
 
 // 生成唯一 ID
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
+// Agent 图标映射
+const agentIconMap: Record<Exclude<AgentType, 'system' | 'user'>, React.ReactNode> = {
+  director: <Sparkles className="w-4 h-4" />,
+  designer: <Palette className="w-4 h-4" />,
+  illustrator: <PenTool className="w-4 h-4" />,
+  copywriter: <Type className="w-4 h-4" />,
+  animator: <Video className="w-4 h-4" />,
+  researcher: <Search className="w-4 h-4" />
+};
+
 export const SkillTestPage: React.FC = () => {
-  // 使用 useSkill Hook
+  // Agent 选择状态
+  const [selectedAgent, setSelectedAgent] = useState<Exclude<AgentType, 'system' | 'user'>>('designer');
+  const [showAgentSelector, setShowAgentSelector] = useState(false);
+
+  // 使用 useSkill Hook，传入当前 Agent
   const {
     processMessage,
     executeSkill,
     getAvailableSkills,
+    getAgentAvailableSkills,
     getSkillStats,
     isProcessing,
     error,
     clearError,
     registry,
+    matcher,
   } = useSkill({
     userId: 'skill-test-user',
+    currentAgent: selectedAgent,
     autoRegisterDefaultSkills: true,
   });
 
@@ -47,29 +78,30 @@ export const SkillTestPage: React.FC = () => {
     failedExecutions: 0,
     totalExecutionTime: 0,
     categoryStats: {
-      [SkillCategory.CREATION]: 0,
-      [SkillCategory.ANALYSIS]: 0,
-      [SkillCategory.COGNITION]: 0,
-      [SkillCategory.ORCHESTRATION]: 0,
-      [SkillCategory.ENHANCEMENT]: 0,
+      ['creation' as SkillCategory]: 0,
+      ['analysis' as SkillCategory]: 0,
+      ['cognition' as SkillCategory]: 0,
+      ['orchestration' as SkillCategory]: 0,
+      ['enhancement' as SkillCategory]: 0,
     },
   });
 
   // 刷新 Skill 列表
   const refreshSkills = useCallback(() => {
-    const allSkills = getAvailableSkills();
-    setSkills(allSkills);
+    // 获取当前 Agent 可用的 Skill
+    const agentSkills = getAgentAvailableSkills();
+    setSkills(agentSkills);
 
     // 更新统计
     const newStats = new Map<string, { totalExecutions: number; successfulExecutions: number }>();
-    allSkills.forEach(skill => {
+    agentSkills.forEach(skill => {
       const stat = getSkillStats(skill.id);
       if (stat) {
         newStats.set(skill.id, stat);
       }
     });
     setSkillStats(newStats);
-  }, [getAvailableSkills, getSkillStats]);
+  }, [getAgentAvailableSkills, getSkillStats]);
 
   // 初始加载
   useEffect(() => {
@@ -104,22 +136,40 @@ export const SkillTestPage: React.FC = () => {
     const startTime = Date.now();
 
     try {
-      addLog('info', `开始执行测试: ${message.substring(0, 50)}...`, { mode, parameters });
+      addLog('info', `开始执行测试: ${message.substring(0, 50)}...`, { 
+        mode, 
+        parameters, 
+        agent: selectedAgent 
+      });
 
       let testResult: SkillResult;
 
       if (mode === 'auto') {
-        addLog('info', '使用自动模式，准备识别意图...');
-        testResult = await processMessage(message, { parameters });
-        addLog('success', '自动执行完成', { type: testResult.type, success: testResult.success });
+        addLog('info', `使用自动模式 (Agent: ${selectedAgent})，准备识别意图...`);
+        testResult = await processMessage(message, { 
+          parameters,
+          currentAgent: selectedAgent
+        });
+        addLog('success', '自动执行完成', { 
+          type: testResult.type, 
+          success: testResult.success,
+          agent: selectedAgent
+        });
       } else {
         if (!selectedSkill) {
           addLog('error', '手动模式需要选择 Skill');
           return;
         }
-        addLog('info', `手动执行 Skill: ${selectedSkill.name}`);
-        testResult = await executeSkill(selectedSkill.id, { message, parameters });
-        addLog('success', `Skill ${selectedSkill.name} 执行完成`, { success: testResult.success });
+        addLog('info', `手动执行 Skill: ${selectedSkill.name} (Agent: ${selectedAgent})`);
+        testResult = await executeSkill(selectedSkill.id, { 
+          message, 
+          parameters,
+          currentAgent: selectedAgent
+        });
+        addLog('success', `Skill ${selectedSkill.name} 执行完成`, { 
+          success: testResult.success,
+          agent: selectedAgent
+        });
       }
 
       const time = Date.now() - startTime;
@@ -130,7 +180,7 @@ export const SkillTestPage: React.FC = () => {
       setStats(prev => {
         const category = mode === 'manual' && selectedSkill
           ? selectedSkill.category
-          : SkillCategory.ANALYSIS; // 自动模式默认分析类
+          : 'analysis' as SkillCategory; // 自动模式默认分析类
 
         return {
           totalExecutions: prev.totalExecutions + 1,
@@ -168,10 +218,64 @@ export const SkillTestPage: React.FC = () => {
             <div>
               <h1 className="text-2xl font-bold">Skill 架构测试中心</h1>
               <p className="text-sm text-gray-400 mt-1">
-                测试和验证 Skill 架构的各项功能
+                测试和验证 Agent-Skill 融合架构
               </p>
             </div>
             <div className="flex items-center gap-4">
+              {/* Agent 选择器 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowAgentSelector(!showAgentSelector)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
+                >
+                  <span className="text-gray-400">当前 Agent:</span>
+                  <span className="flex items-center gap-1.5">
+                    {agentIconMap[selectedAgent]}
+                    <span className="text-white font-medium">
+                      {AGENT_CAPABILITY_DESCRIPTIONS[selectedAgent]?.title || selectedAgent}
+                    </span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showAgentSelector ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {/* Agent 下拉菜单 */}
+                {showAgentSelector && (
+                  <div className="absolute top-full right-0 mt-2 w-64 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50">
+                    {Object.entries(AGENT_CAPABILITY_DESCRIPTIONS).map(([agent, info]) => (
+                      <button
+                        key={agent}
+                        onClick={() => {
+                          setSelectedAgent(agent as Exclude<AgentType, 'system' | 'user'>);
+                          setShowAgentSelector(false);
+                          addLog('info', `切换到 Agent: ${info.title}`);
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-700 transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                          selectedAgent === agent ? 'bg-gray-700' : ''
+                        }`}
+                      >
+                        <div className={`p-2 rounded-lg ${
+                          selectedAgent === agent 
+                            ? 'bg-blue-500/20 text-blue-400' 
+                            : 'bg-gray-700 text-gray-400'
+                        }`}>
+                          {agentIconMap[agent as Exclude<AgentType, 'system' | 'user'>]}
+                        </div>
+                        <div>
+                          <p className={`text-sm font-medium ${
+                            selectedAgent === agent ? 'text-white' : 'text-gray-300'
+                          }`}>
+                            {info.title}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {info.skills.length} 个 Skill
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={refreshSkills}
                 className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
@@ -253,6 +357,9 @@ export const SkillTestPage: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Skill 调试工具 */}
+      <SkillDebugger />
     </div>
   );
 };

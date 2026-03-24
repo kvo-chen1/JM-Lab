@@ -35,6 +35,7 @@ export const DraggableCanvas: React.FC<DraggableCanvasProps> = ({
     setCanvasZoom,
     selectWork,
     updateWorkPosition,
+    updateWork,
     setIsDragging: setIsCanvasDragging,
     setIsSpacePressed,
     resetCanvas,

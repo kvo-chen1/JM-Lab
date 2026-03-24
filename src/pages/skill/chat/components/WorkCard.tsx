@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { WorkItem, ViewMode } from '../hooks/useCanvasStore';
+import { WorkItem, ViewMode, useCanvasStore } from '../hooks/useCanvasStore';
+import { InlineImageEditor } from './InlineImageEditor';
+import { uploadFile, isStorageConfigured } from '@/services/storageServiceNew';
 import {
   Download,
   Share2,
@@ -14,7 +16,10 @@ import {
   Palette,
   Loader2,
   AlertCircle,
-  Check
+  Check,
+  Pencil,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -44,11 +49,17 @@ export const WorkCard: React.FC<WorkCardProps> = ({
   onDragEnd,
 }) => {
   const { isDark } = useTheme();
+  const { editingWorkId, setEditingWorkId, addWork } = useCanvasStore();
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isFavorite, setIsFavorite] = useState(work.isFavorite || false);
+  
+  // 编辑相关状态
+  const isEditing = editingWorkId === work.id;
+  const [editedImageUrl, setEditedImageUrl] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
 
   const cardRef = React.useRef<HTMLDivElement>(null);
   const dragStartPos = React.useRef({ x: 0, y: 0, mouseX: 0, mouseY: 0 });
@@ -78,6 +89,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({
   // 处理鼠标按下开始拖拽
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (viewMode === 'grid') return; // 网格模式下不允许拖拽
+    if (isEditing) return; // 编辑模式下不允许拖拽
     
     // 如果点击的是操作按钮，不触发拖拽
     if ((e.target as HTMLElement).closest('[data-action-button]')) return;
@@ -102,7 +114,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({
 
     setIsDragging(true);
     onDragStart();
-  }, [viewMode, work.position.x, work.position.y, onDragStart]);
+  }, [viewMode, isEditing, work.position.x, work.position.y, onDragStart]);
 
   // 使用 useEffect 将鼠标事件绑定到 window，提高拖拽灵敏度
   useEffect(() => {
@@ -202,6 +214,135 @@ export const WorkCard: React.FC<WorkCardProps> = ({
     onDelete?.();
   };
 
+  // 处理编辑按钮点击
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isEditing) {
+      // 如果已经在编辑，则关闭编辑
+      setEditingWorkId(null);
+      setEditedImageUrl(null);
+    } else {
+      // 开始编辑
+      setEditingWorkId(work.id);
+      setEditedImageUrl(null);
+    }
+  };
+
+  // 处理编辑变化（实时预览）
+  const handleEditChange = useCallback((editedUrl: string) => {
+    setEditedImageUrl(editedUrl);
+  }, []);
+
+  // 将 base64 data URL 转换为 Blob
+  const dataURLtoBlob = useCallback((dataURL: string): Blob => {
+    const arr = dataURL.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  }, []);
+
+  // 处理保存编辑
+  const handleEditSave = useCallback(async (editedUrl: string) => {
+    try {
+      console.log('[WorkCard] 开始保存编辑图片...');
+      
+      // 检查存储配置
+      if (!isStorageConfigured()) {
+        throw new Error('存储服务未配置，请检查环境变量');
+      }
+      
+      // 验证 editedUrl
+      if (!editedUrl) {
+        throw new Error('无效的图片数据');
+      }
+
+      let blob: Blob;
+      
+      // 如果是 data URL，直接转换
+      if (editedUrl.startsWith('data:image')) {
+        console.log('[WorkCard] 转换 base64 data URL 为 blob...');
+        try {
+          blob = dataURLtoBlob(editedUrl);
+        } catch (convertError: any) {
+          console.error('[WorkCard] base64 转换失败:', convertError);
+          throw new Error('图片数据转换失败: ' + convertError.message);
+        }
+      } else {
+        // 如果是普通 URL，通过 fetch 获取
+        console.log('[WorkCard] 通过 fetch 获取图片...');
+        try {
+          const response = await fetch(editedUrl);
+          if (!response.ok) {
+            throw new Error(`获取图片失败: ${response.status}`);
+          }
+          blob = await response.blob();
+        } catch (fetchError: any) {
+          console.error('[WorkCard] fetch 失败:', fetchError);
+          throw new Error('获取图片失败: ' + fetchError.message);
+        }
+      }
+      
+      console.log('[WorkCard] blob 大小:', blob.size, '类型:', blob.type);
+      
+      if (blob.size === 0) {
+        throw new Error('图片数据为空');
+      }
+
+      const fileName = `${work.title || 'image'}_edited_${Date.now()}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+      console.log('[WorkCard] 创建文件:', fileName, '大小:', file.size);
+
+      // 上传到新位置
+      console.log('[WorkCard] 开始上传到 works 文件夹...');
+      let uploadedUrl: string;
+      try {
+        uploadedUrl = await uploadFile(file, 'works');
+        console.log('[WorkCard] 上传成功:', uploadedUrl);
+      } catch (uploadError: any) {
+        console.error('[WorkCard] 上传失败:', uploadError);
+        throw new Error('上传失败: ' + uploadError.message);
+      }
+
+      // 创建新作品（而不是更新原作品）
+      const newWork = {
+        id: `work_${Date.now()}`,
+        title: `${work.title || '图片'} (编辑版)`,
+        imageUrl: uploadedUrl,
+        thumbnailUrl: uploadedUrl,
+        type: 'image' as const,
+        status: 'completed' as const,
+        position: {
+          x: work.position.x + 50,  // 在原始作品右侧偏移
+          y: work.position.y + 50,  // 在原始作品下方偏移
+        },
+      };
+      
+      addWork(newWork);
+      console.log('[WorkCard] 新作品已创建:', newWork.id);
+
+      toast.success('图片编辑已保存为新作品');
+      
+      // 关闭编辑模式
+      setEditingWorkId(null);
+      setEditedImageUrl(null);
+    } catch (error: any) {
+      console.error('[WorkCard] 保存编辑图片失败:', error);
+      toast.error('保存失败: ' + (error.message || '请重试'));
+      throw error;
+    }
+  }, [work.id, work.title, work.position.x, work.position.y, addWork, setEditingWorkId, dataURLtoBlob]);
+
+  // 处理取消编辑
+  const handleEditCancel = useCallback(() => {
+    setEditingWorkId(null);
+    setEditedImageUrl(null);
+  }, [setEditingWorkId]);
+
   // 卡片尺寸
   const cardWidth = viewMode === 'grid' ? 320 : 448;
   const cardHeight = work.type === 'image' || work.type === 'design' ? 400 : 300;
@@ -238,10 +379,11 @@ export const WorkCard: React.FC<WorkCardProps> = ({
       } ${isDark ? 'bg-[#1a1f1a] border border-gray-800' : 'bg-white border border-gray-200'}`}
       style={{
         width: cardWidth,
-        height: cardHeight,
+        height: isEditing ? 'auto' : cardHeight,
         left: isDragging ? currentDragPos.current.x : work.position.x,
         top: isDragging ? currentDragPos.current.y : work.position.y,
-        cursor: viewMode === 'gallery' ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
+        cursor: viewMode === 'gallery' && !isEditing ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
+        minHeight: cardHeight,
       }}
       onMouseDown={handleMouseDown}
       onMouseLeave={() => setIsHovered(false)}
@@ -250,7 +392,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({
     >
       {/* 图片类型内容 */}
       {(work.type === 'image' || work.type === 'design') && work.imageUrl && (
-        <div className="relative w-full h-full">
+        <div className="relative w-full" style={{ height: cardHeight }}>
           {/* 图片加载状态 */}
           {!imageLoaded && !imageError && (
             <div className={`absolute inset-0 flex items-center justify-center ${
@@ -270,7 +412,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({
             </div>
           )}
           
-          {/* 实际图片 */}
+          {/* 实际图片 - 编辑时显示原始图 */}
           <img
             src={work.imageUrl}
             alt={work.title}
@@ -332,7 +474,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({
 
       {/* 底部信息栏 */}
       <div className={`absolute bottom-0 left-0 right-0 p-3 transition-opacity duration-200 ${
-        isHovered || isSelected ? 'opacity-100' : 'opacity-0'
+        isHovered || isSelected || isEditing ? 'opacity-100' : 'opacity-0'
       }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -343,6 +485,18 @@ export const WorkCard: React.FC<WorkCardProps> = ({
           
           {/* 操作按钮 */}
           <div className="flex items-center gap-1">
+            <button
+              data-action-button
+              onClick={handleEditClick}
+              className={`p-1.5 rounded-lg backdrop-blur-sm transition-colors ${
+                isEditing
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-white/20 text-white hover:bg-purple-500/80'
+              }`}
+              title={isEditing ? '关闭编辑' : '编辑'}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
             <button
               data-action-button
               onClick={handleDownload}
@@ -363,8 +517,8 @@ export const WorkCard: React.FC<WorkCardProps> = ({
               data-action-button
               onClick={handleFavorite}
               className={`p-1.5 rounded-lg backdrop-blur-sm transition-colors ${
-                isFavorite 
-                  ? 'bg-red-500/80 text-white' 
+                isFavorite
+                  ? 'bg-red-500/80 text-white'
                   : 'bg-white/20 text-white hover:bg-white/30'
               }`}
               title={isFavorite ? '取消收藏' : '收藏'}
@@ -389,6 +543,68 @@ export const WorkCard: React.FC<WorkCardProps> = ({
           <Check className="w-4 h-4 text-white" />
         </div>
       )}
+
+      {/* 内联编辑器 - 在图片下方展开 */}
+      <AnimatePresence>
+        {isEditing && work.imageUrl && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 编辑工具栏 */}
+            <div className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <InlineImageEditor
+                imageUrl={work.imageUrl}
+                onChange={handleEditChange}
+                onSave={handleEditSave}
+                onCancel={handleEditCancel}
+              />
+            </div>
+
+            {/* 实时预览区域 */}
+            <AnimatePresence>
+              {editedImageUrl && showPreview && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+                >
+                  {/* 预览头部 */}
+                  <div className={`flex items-center justify-between px-3 py-2 ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                    <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      修改后预览
+                    </span>
+                    <button
+                      onClick={() => setShowPreview(!showPreview)}
+                      className={`p-1 rounded transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+                    >
+                      {showPreview ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                  </div>
+                  
+                  {/* 预览图片 */}
+                  <div 
+                    className="relative w-full" 
+                    style={{ height: cardHeight }}
+                  >
+                    <img
+                      src={editedImageUrl}
+                      alt="编辑预览"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

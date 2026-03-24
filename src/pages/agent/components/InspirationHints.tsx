@@ -204,7 +204,7 @@ export default function InspirationHints({ onHintSelect, onClose }: InspirationH
             </p>
           </div>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {filteredHints.map(hint => (
               <motion.div
                 key={hint.id}

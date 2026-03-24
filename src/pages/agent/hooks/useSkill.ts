@@ -5,13 +5,14 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ISkill, UserIntent, ExecutionContext, SkillResult, SkillCategory, SkillMatchResult } from '../types/skill';
-import type { AgentMessage } from '../types/agent';
+import type { AgentMessage, AgentType } from '../types/agent';
 import {
   getSkillRegistry,
   getSkillMatcher,
   SkillRegistry,
   SkillMatcher
 } from '../skills/registry';
+import { getAgentSkills, isSkillSupportedByAgent } from '../config/agentSkillConfig';
 
 // Hook 返回的状态类型
 interface UseSkillState {
@@ -24,6 +25,7 @@ interface UseSkillState {
 interface UseSkillOptions {
   userId?: string;
   sessionId?: string;
+  currentAgent?: AgentType;  // 当前 Agent 类型，用于 Skill 匹配
   autoRegisterDefaultSkills?: boolean;
 }
 
@@ -32,13 +34,14 @@ interface ExecuteOptions {
   message: string;
   history?: AgentMessage[];
   parameters?: Record<string, any>;
-  currentAgent?: string;
+  currentAgent?: AgentType;
 }
 
 export function useSkill(options: UseSkillOptions = {}) {
   const {
     userId = 'anonymous',
     sessionId = 'default',
+    currentAgent,
     autoRegisterDefaultSkills = true
   } = options;
 
@@ -190,8 +193,17 @@ export function useSkill(options: UseSkillOptions = {}) {
         return clarificationResult;
       }
 
-      // 3. 匹配最佳 Skill
-      const matches = matcherRef.current.match(userIntent);
+      // 3. 匹配最佳 Skill（传入 currentAgent 进行过滤）
+      const executionContextForMatch: ExecutionContext = {
+        userId,
+        sessionId,
+        message,
+        history: processOptions.history || [],
+        currentAgent: processOptions.currentAgent || currentAgent,
+        parameters: processOptions.parameters
+      };
+      
+      const matches = matcherRef.current.match(userIntent, executionContextForMatch);
       
       if (matches.length === 0) {
         throw new Error('未找到匹配的 Skill');
@@ -242,6 +254,23 @@ export function useSkill(options: UseSkillOptions = {}) {
   }, []);
 
   /**
+   * 获取当前 Agent 可用的 Skill
+   */
+  const getAgentAvailableSkills = useCallback((): ISkill[] => {
+    const agent = currentAgent;
+    if (!agent || agent === 'system' || agent === 'user') {
+      return registryRef.current.getAllSkills();
+    }
+    
+    const allSkills = registryRef.current.getAllSkills();
+    return allSkills.filter(skill => {
+      const metadata = skill.getMetadata();
+      return metadata.supportedAgents.includes(agent) ||
+             metadata.supportedAgents.includes('system');
+    });
+  }, [currentAgent]);
+
+  /**
    * 按分类获取 Skill
    */
   const getSkillsByCategory = useCallback((category: SkillCategory): ISkill[] => {
@@ -281,11 +310,13 @@ export function useSkill(options: UseSkillOptions = {}) {
     isProcessing: state.isProcessing,
     error: state.error,
     lastResult: state.lastResult,
+    currentAgent,  // 暴露当前 Agent
 
     // 方法
     executeSkill,
     processMessage,
     getAvailableSkills,
+    getAgentAvailableSkills,  // 获取当前 Agent 可用的 Skill
     getSkillsByCategory,
     matchIntent,
     registerSkill,

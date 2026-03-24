@@ -3,9 +3,10 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore } from './hooks/useAgentStore';
 import { useConversationStore, initializeSession } from './hooks/useConversationStore';
-import { PanelLeft, Sparkles, History } from 'lucide-react';
+import { PanelLeft, Sparkles, History, Share2 } from 'lucide-react';
 import ConversationSidebar from './components/ConversationSidebar';
 import FeedbackModal from '@/components/Feedback/FeedbackModal';
+import PublishCaseModal from './components/PublishCaseModal';
 
 interface AgentLayoutProps {
   children: {
@@ -20,6 +21,7 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
   const { currentSessionId, getCurrentSession, createSession } = useConversationStore();
   const [isConversationSidebarOpen, setIsConversationSidebarOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // 当反馈弹窗打开时，自动收起会话侧边栏
@@ -102,8 +104,27 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
           </div>
         </div>
 
-        {/* 当前 Agent 指示器 */}
+        {/* 右侧操作按钮 */}
         <div className="flex items-center gap-2">
+          {/* 发布案例按钮 */}
+          {messages.length > 0 && (
+            <motion.button
+              onClick={() => setIsPublishModalOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                isDark
+                  ? 'bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white hover:opacity-90'
+                  : 'bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white hover:opacity-90'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="发布当前对话到案例库"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>发布案例</span>
+            </motion.button>
+          )}
+
+          {/* 当前 Agent 指示器 */}
           <span className={`text-xs ${isDark ? 'text-[#a0a0a0]' : 'text-gray-500'}`}>当前 Agent:</span>
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
             currentAgent === 'director'
@@ -151,6 +172,12 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
 
       {/* 反馈弹窗 */}
       <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
+
+      {/* 发布案例弹窗 */}
+      <PublishCaseModal
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+      />
     </div>
   );
 }

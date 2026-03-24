@@ -95,58 +95,87 @@ export class DirectorAgent extends BaseAgent {
 
   /**
    * 快速生成处理
-   * 直接执行图像生成Skill，跳过需求收集流程
+   * 总监不直接生成，而是先收集需求，然后委派给专业 Agent
    */
   private async handleQuickGeneration(
     message: string,
     context: ExecutionContext
   ): Promise<AgentResponse> {
-    console.log('[DirectorAgent] 快速生成模式:', message);
+    console.log('[DirectorAgent] 快速生成请求，转为需求收集:', message);
 
-    try {
-      // 直接获取图像生成Skill
-      const imageSkill = this.getSkills().find(s => s.id === 'image-generation');
+    // 分析设计类型
+    const designType = this.analyzeDesignType(message);
 
-      if (!imageSkill) {
-        return this.createErrorResponse('图像生成服务暂时不可用');
-      }
+    // 根据设计类型确定委派目标
+    const targetAgent = this.selectAgentForDesignType(designType);
 
-      // 构建Skill执行上下文
-      const skillContext: ExecutionContext = {
-        ...context,
-        message,
-        parameters: {
-          prompt: message,
-          fastMode: true
+    // 返回委派响应，让 Orchestrator 处理实际的委派
+    return {
+      content: `收到！您想要做${designType}设计。为了确保设计效果，我需要先了解一些关键信息：\n\n**目标受众是谁？**\n比如：年轻人、儿童、商务人士、家庭用户等\n\n**风格偏好？**\n比如：简约现代、复古传统、可爱活泼、专业稳重等\n\n（如果你希望直接开始，可以说"直接开始"或"你决定"）`,
+      type: 'text',
+      metadata: {
+        delegation: targetAgent,
+        designType,
+        originalRequest: message,
+        showThinkingProcess: true,
+        thinking: {
+          userRequirement: `用户想要生成：${message}`,
+          modelSelection: {
+            model: '需求分析',
+            reason: '作为设计总监，我需要先了解用户的完整需求，然后委派给最适合的专业Agent。'
+          },
+          promptDesign: {
+            strategy: '通过询问目标受众和风格偏好来收集关键信息',
+            finalPrompt: message
+          }
         }
-      };
-
-      // 执行Skill
-      const result = await this.executeSkill(imageSkill, skillContext);
-
-      if (!result.success) {
-        return this.createErrorResponse(result.error?.message || '图像生成失败');
       }
+    };
+  }
 
-      // 快速包装响应
-      return {
-        content: `✨ 已为您生成设计作品！\n\n您看怎么样？如果需要调整，可以告诉我：\n• 修改颜色、风格\n• 调整构图、元素\n• 重新生成`,
-        type: result.type as any,
-        metadata: {
-          ...result.metadata,
-          quickGeneration: true,
-          showThinking: true,  // 标记需要显示思考过程
-          thinking: result.metadata?.thinking,  // 传递思考过程数据
-          generatedAt: Date.now()
-        }
-      };
-    } catch (error) {
-      console.error('[DirectorAgent] 快速生成失败:', error);
-      // 快速模式失败，降级到普通处理
-      return this.createTextResponse(
-        '我来为您设计这个作品，请稍等...',
-        { fallback: true }
-      );
+  /**
+   * 分析设计类型
+   */
+  private analyzeDesignType(message: string): string {
+    const lowerMsg = message.toLowerCase();
+
+    if (lowerMsg.includes('ip') || lowerMsg.includes('形象') || lowerMsg.includes('角色')) {
+      return 'IP形象';
+    }
+    if (lowerMsg.includes('品牌') || lowerMsg.includes('logo') || lowerMsg.includes('vi')) {
+      return '品牌';
+    }
+    if (lowerMsg.includes('包装') || lowerMsg.includes('礼盒')) {
+      return '包装';
+    }
+    if (lowerMsg.includes('海报') || lowerMsg.includes('宣传')) {
+      return '海报';
+    }
+    if (lowerMsg.includes('插画') || lowerMsg.includes('手绘')) {
+      return '插画';
+    }
+    if (lowerMsg.includes('动画') || lowerMsg.includes('视频')) {
+      return '动画视频';
+    }
+
+    return '品牌/IP';
+  }
+
+  /**
+   * 根据设计类型选择 Agent
+   */
+  private selectAgentForDesignType(designType: string): AgentType {
+    switch (designType) {
+      case 'IP形象':
+      case '插画':
+        return 'illustrator';
+      case '动画视频':
+        return 'animator';
+      case '品牌':
+      case '包装':
+      case '海报':
+      default:
+        return 'designer';
     }
   }
 
@@ -221,34 +250,41 @@ ${analysis.missingInfo.map((info: string) => `• ${info}`).join('\n')}
 
   /**
    * 处理图像生成请求
+   * 总监不直接生成，而是委派给专业 Agent
    */
   private async handleImageGeneration(
     message: string,
     intent: UserIntent,
     context: ExecutionContext
   ): Promise<AgentResponse> {
-    // Director 可以直接生成，也可以委派给 Designer
-    const imageSkill = this.getSkills().find(s => s.id === 'image-generation');
+    // 分析设计类型并确定委派目标
+    const designType = this.analyzeDesignType(message);
+    const targetAgent = this.selectAgentForDesignType(designType);
 
-    if (imageSkill) {
-      const result = await this.executeSkill(imageSkill, {
-        ...context,
-        message,
-        parameters: {
-          ...context.parameters,
-          ...intent.entities
+    console.log(`[DirectorAgent] 图像生成请求，委派给 ${targetAgent}`);
+
+    // 返回委派响应
+    return {
+      content: `我来为您安排${targetAgent === 'illustrator' ? '插画师' : targetAgent === 'animator' ? '动画师' : '品牌设计师'}进行创作。\n\n为了确保设计效果，请告诉我：\n\n**目标受众是谁？**\n比如：年轻人、儿童、商务人士等\n\n**风格偏好？**\n比如：简约现代、复古传统、可爱活泼等`,
+      type: 'text',
+      metadata: {
+        delegation: targetAgent,
+        designType,
+        originalRequest: message,
+        showThinkingProcess: true,
+        thinking: {
+          userRequirement: `用户想要生成图像：${message}`,
+          modelSelection: {
+            model: 'Agent委派',
+            reason: `根据设计类型"${designType}"，委派给专业的${targetAgent}处理。`
+          },
+          promptDesign: {
+            strategy: '先收集需求和风格偏好，再委派给专业Agent执行生成',
+            finalPrompt: message
+          }
         }
-      });
-
-      if (result.success) {
-        return this.buildResponse(result);
       }
-    }
-
-    return this.createTextResponse(
-      '我来为您安排设计师进行创作。请稍等...',
-      { delegation: 'designer', intent: intent.type }
-    );
+    };
   }
 
   /**

@@ -26,6 +26,9 @@ import BrandLibrary from './BrandLibrary';
 import WorkLibrary from './WorkLibrary';
 import IPPosterLibrary from './IPPosterLibrary';
 import StyleSelector from './StyleSelector';
+import SkillPanel from './SkillPanel';
+import AgentSelector from './AgentSelector';
+import WorkflowExecutionPanel, { WorkflowStep, StepStatus } from './WorkflowExecutionPanel';
 import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 import { IPMascotVideoLoader } from '@/components/ip-mascot';
 import type { InspirationHint, StyleOption } from '../types/agent';
@@ -290,6 +293,8 @@ export default function ChatPanel() {
   const [showStyleLibrary, setShowStyleLibrary] = useState(false);
   const [showIPPosterLibrary, setShowIPPosterLibrary] = useState(false);
   const [selectedIPPosterLayoutId, setSelectedIPPosterLayoutId] = useState<string | undefined>();
+  // Skill面板状态
+  const [showSkillPanel, setShowSkillPanel] = useState(false);
   // AI生成状态
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -297,6 +302,15 @@ export default function ChatPanel() {
   // 粘贴图片相关状态
   const [pastedImages, setPastedImages] = useState<Array<{ id: string; file: File; preview: string }>>([]);
   const [isProcessingPaste, setIsProcessingPaste] = useState(false);
+  // 工作流执行状态
+  const [activeWorkflow, setActiveWorkflow] = useState<{
+    id: string;
+    name: string;
+    steps: WorkflowStep[];
+    estimatedDuration: string;
+    currentStepIndex: number;
+    isExecuting: boolean;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -387,7 +401,7 @@ export default function ChatPanel() {
   }, [scrollToBottom]);
 
   // 使用 ref 存储 handleAutoImageGeneration 函数，避免循环依赖
-  const handleAutoImageGenerationRef = useRef<(() => void) | null>(null);
+  const handleAutoImageGenerationRef = useRef<((skipMessage?: boolean) => void) | null>(null);
 
   // 页面加载时，检查是否需要显示风格选择器
   useEffect(() => {
@@ -412,6 +426,24 @@ export default function ChatPanel() {
 
     return () => clearTimeout(timer);
   }, [messages, selectedStyle, generatedOutputs, setShowStyleSelector]);
+
+  // 监听 showStyleSelector 状态变化，当为 true 时添加风格选择消息
+  useEffect(() => {
+    if (showStyleSelector && !selectedStyle) {
+      // 检查最后一条消息是否已经是风格选择消息
+      const lastMessage = messages[messages.length - 1];
+      const isLastMessageStyleOptions = lastMessage?.type === 'style-options';
+
+      if (!isLastMessageStyleOptions) {
+        console.log('[ChatPanel] showStyleSelector 为 true，添加风格选择消息');
+        addMessage({
+          role: currentAgent,
+          content: '在开始生成之前，请先选择一个你喜欢的风格。你可以从下方选择，或者告诉我你想要的风格。',
+          type: 'style-options'
+        });
+      }
+    }
+  }, [showStyleSelector, selectedStyle, messages, currentAgent, addMessage]);
 
   // 获取用户信息和会话ID
   useEffect(() => {
@@ -510,7 +542,7 @@ export default function ChatPanel() {
   }, []);
 
   // Agent切换后自动触发图像生成
-  const handleAutoImageGeneration = useCallback(async () => {
+  const handleAutoImageGeneration = useCallback(async (skipMessage = false) => {
     if (!selectedStyle || !currentTask) return;
 
     const style = PRESET_STYLES.find(s => s.id === selectedStyle);
@@ -520,12 +552,14 @@ export default function ChatPanel() {
     const lastOutput = generatedOutputs[generatedOutputs.length - 1];
     const outputId = lastOutput?.id;
 
-    // 添加设计师消息
-    addMessage({
-      role: currentAgent,
-      content: `好的！我将以「${style.name}」风格为你设计。正在调用AI模型生成概念图，请稍候...`,
-      type: 'text'
-    });
+    // 添加设计师消息（如果不需要跳过）
+    if (!skipMessage) {
+      addMessage({
+        role: currentAgent,
+        content: `好的！我将以「${style.name}」风格为你设计。正在调用AI模型生成概念图，请稍候...`,
+        type: 'text'
+      });
+    }
 
     // 开始生成，显示IP形象加载动画
     setIsGenerating(true);
@@ -698,6 +732,37 @@ export default function ChatPanel() {
 
     // 处理不同类型的响应
     switch (response.type) {
+      case 'workflow':
+        // 处理多步骤工作流响应
+        if (response.workflow) {
+          console.log('[ChatPanel] 收到工作流响应:', response.workflow);
+          
+          // 初始化工作流状态
+          const stepsWithStatus: WorkflowStep[] = response.workflow.steps.map((step, index) => ({
+            ...step,
+            status: index === 0 ? 'running' : 'pending'
+          }));
+
+          setActiveWorkflow({
+            id: response.workflow.id,
+            name: response.workflow.name,
+            steps: stepsWithStatus,
+            estimatedDuration: response.workflow.estimatedDuration,
+            currentStepIndex: 0,
+            isExecuting: false // 等待用户确认后开始
+          });
+
+          // 更新消息类型为工作流
+          updateMessage(messageId, {
+            type: 'workflow',
+            metadata: {
+              workflow: response.workflow,
+              thinking: response.aiResponse?.thinking
+            }
+          });
+        }
+        break;
+
       case 'delegation':
         if (response.delegationTask) {
           // 显示 Agent 切换动画，传递切换原因
@@ -878,6 +943,29 @@ export default function ChatPanel() {
       setShowStyleSelector(true);
     }
 
+    // 检测 AI 响应中是否提到风格选择器在下方但未显示 - 修复显示不一致问题
+    const hasStyleSelectorMention = response.content.includes('风格选择器') &&
+      (response.content.includes('下方') || response.content.includes('在下面') || response.content.includes('下方显示'));
+    if (hasStyleSelectorMention && !showStyleSelector && !selectedStyle) {
+      console.log('[ChatPanel] 检测到 AI 提及风格选择器在下方，自动显示');
+      setShowStyleSelector(true);
+    }
+
+    // 检测 AI 说"正在生成中"但实际未生成的情况 - 自动触发生成
+    const isGeneratingMention = response.content.includes('正在生成') ||
+      response.content.includes('正在为你生成') ||
+      response.content.includes('立即开始为你生成');
+    if (isGeneratingMention && selectedStyle && currentTask && generatedOutputs.length === 0 && !isGenerating) {
+      console.log('[ChatPanel] 检测到 AI 提及正在生成，自动触发生成流程');
+      // 立即设置生成状态，让用户看到生成动画
+      setIsGenerating(true);
+      setGenerationMessage('AI正在创作中...');
+      // 延迟一点时间确保消息先显示，然后触发生成（跳过重复消息）
+      setTimeout(() => {
+        handleAutoImageGenerationRef.current?.(true);
+      }, 800);
+    }
+
     // ==================== 风格选择器智能检测逻辑 ====================
 
     // 设计意图关键词
@@ -981,16 +1069,15 @@ export default function ChatPanel() {
 
     if (shouldShowStyleSelector) {
       console.log('[ChatPanel] 触发风格选择器显示');
-      setTimeout(() => {
-        setShowStyleSelector(true);
-        // 添加风格选择提示（使用当前Agent，避免硬编码切换）
-        const styleMessageId = addMessage({
-          role: currentAgent,
-          content: '请选择你喜欢的设计风格：',
-          type: 'style-options'
-        });
-        console.log('[ChatPanel] 已添加风格选择消息:', styleMessageId);
-      }, 500);
+      // 立即显示风格选择器，减少延迟提升用户体验
+      setShowStyleSelector(true);
+      // 添加风格选择提示（使用当前Agent，避免硬编码切换）
+      const styleMessageId = addMessage({
+        role: currentAgent,
+        content: '请选择你喜欢的设计风格：',
+        type: 'style-options'
+      });
+      console.log('[ChatPanel] 已添加风格选择消息:', styleMessageId);
     }
 
     // 智能检测：如果总监询问设计类型，在消息中显示设计类型选项
@@ -1364,6 +1451,39 @@ export default function ChatPanel() {
         userId,
         sessionId
       };
+
+      // 检测是否将要生成图像（有任务、有风格、用户表达了生成意图）
+      const hasGenerationIntent = /(生成|画|设计|创作|绘制|开始|直接|出图)/i.test(cleanInput);
+      const willGenerateImage = currentTask && selectedStyle && hasGenerationIntent;
+
+      let generatingMessageId: string | null = null;
+
+      if (willGenerateImage) {
+        // 先显示"正在生成"的消息
+        generatingMessageId = addMessage({
+          role: currentAgent,
+          content: `⏳ **正在生成中...**
+
+我正在为你创作${selectedStyle ? PRESET_STYLES.find(s => s.id === selectedStyle)?.name || selectedStyle : ''}风格的作品：
+
+**设计需求：** ${currentTask?.requirements.description || cleanInput}
+${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
+
+预计需要 **30-60 秒**，请稍候...
+
+---
+💡 **小贴士：** 生成过程中你可以继续与我对话，我会记住你的需求。`,
+          type: 'text',
+          metadata: {
+            isGenerating: true,
+            startTime: Date.now(),
+            estimatedDuration: '30-60秒'
+          }
+        });
+
+        // 显示 toast 提示
+        toast.info('正在生成图像，预计30-60秒...', { duration: 3000 });
+      }
 
       // 创建临时消息用于流式显示
       const tempMessageId = addMessage({
@@ -1960,13 +2080,129 @@ export default function ChatPanel() {
         serviceName="Agent对话"
       />
 
+      {/* Agent 选择栏 */}
+      <div className={`px-4 py-2 border-b ${isDark ? 'border-gray-800 bg-[#1a1f1a]' : 'border-gray-200 bg-white'}`}>
+        <div className="flex items-center justify-between">
+          <AgentSelector 
+            currentAgent={currentAgent}
+            onAgentChange={(agent) => {
+              setCurrentAgent(agent);
+              toast.success(`已切换到 ${AGENT_CONFIG[agent as keyof typeof AGENT_CONFIG]?.name || agent}`);
+            }}
+          />
+          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            点击切换团队成员
+          </span>
+        </div>
+      </div>
+
       {/* Messages Area */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+        {/* Skill 能力面板 */}
+        <SkillPanel 
+          agentType={currentAgent}
+          isExpanded={showSkillPanel}
+          onToggle={() => setShowSkillPanel(!showSkillPanel)}
+        />
+
         {/* 智能建议面板 */}
         <SuggestionPanel onSuggestionClick={handleSuggestionClick} />
 
         {/* 工作流状态 */}
         <WorkflowStatus />
+
+        {/* 工作流执行面板 */}
+        {activeWorkflow && (
+          <WorkflowExecutionPanel
+            workflowName={activeWorkflow.name}
+            steps={activeWorkflow.steps}
+            currentStepIndex={activeWorkflow.currentStepIndex}
+            estimatedDuration={activeWorkflow.estimatedDuration}
+            isExecuting={activeWorkflow.isExecuting}
+            onStart={() => {
+              setActiveWorkflow(prev => prev ? { ...prev, isExecuting: true } : null);
+              // 开始执行第一步
+              addMessage({
+                role: 'system',
+                content: `开始执行：**${activeWorkflow.steps[0].name}**\n\n正在为您${activeWorkflow.steps[0].description}...`,
+                type: 'text'
+              });
+            }}
+            onPause={() => {
+              setActiveWorkflow(prev => prev ? { ...prev, isExecuting: false } : null);
+            }}
+            onResume={() => {
+              setActiveWorkflow(prev => prev ? { ...prev, isExecuting: true } : null);
+            }}
+            onSkip={() => {
+              // 跳过当前步骤
+              const newSteps = [...activeWorkflow.steps];
+              newSteps[activeWorkflow.currentStepIndex].status = 'skipped';
+              const nextIndex = activeWorkflow.currentStepIndex + 1;
+              
+              if (nextIndex < newSteps.length) {
+                newSteps[nextIndex].status = 'running';
+                setActiveWorkflow(prev => prev ? {
+                  ...prev,
+                  steps: newSteps,
+                  currentStepIndex: nextIndex
+                } : null);
+                
+                addMessage({
+                  role: 'system',
+                  content: `已跳过当前步骤，开始执行：**${newSteps[nextIndex].name}**`,
+                  type: 'text'
+                });
+              } else {
+                // 所有步骤完成
+                setActiveWorkflow(null);
+                addMessage({
+                  role: 'system',
+                  content: '工作流执行完成！所有步骤已处理完毕。',
+                  type: 'text'
+                });
+              }
+            }}
+            onConfirmStep={() => {
+              // 完成当前步骤
+              const newSteps = [...activeWorkflow.steps];
+              newSteps[activeWorkflow.currentStepIndex].status = 'completed';
+              newSteps[activeWorkflow.currentStepIndex].endTime = Date.now();
+              const nextIndex = activeWorkflow.currentStepIndex + 1;
+              
+              if (nextIndex < newSteps.length) {
+                newSteps[nextIndex].status = 'running';
+                setActiveWorkflow(prev => prev ? {
+                  ...prev,
+                  steps: newSteps,
+                  currentStepIndex: nextIndex
+                } : null);
+                
+                addMessage({
+                  role: 'system',
+                  content: `✅ **${newSteps[activeWorkflow.currentStepIndex].name}** 已完成！\n\n继续执行下一步：**${newSteps[nextIndex].name}**`,
+                  type: 'text'
+                });
+              } else {
+                // 所有步骤完成
+                setActiveWorkflow(null);
+                addMessage({
+                  role: 'system',
+                  content: '🎉 **工作流执行完成！**\n\n所有步骤已成功完成。您可以查看右侧画布中的设计成果。',
+                  type: 'text'
+                });
+              }
+            }}
+            onCancel={() => {
+              setActiveWorkflow(null);
+              addMessage({
+                role: 'system',
+                content: '工作流已取消。您可以随时重新开始或提出新的需求。',
+                type: 'text'
+              });
+            }}
+          />
+        )}
 
         <AnimatePresence>
           {Array.isArray(messages) && messages.map((message, index) => (
@@ -1974,6 +2210,9 @@ export default function ChatPanel() {
               key={message.id}
               message={message}
               isLast={index === messages.length - 1}
+              onOpenStyleLibrary={() => setShowStyleLibrary(true)}
+              onCloseStyleLibrary={() => setShowStyleLibrary(false)}
+              showStyleLibrary={showStyleLibrary}
             />
           ))}
         </AnimatePresence>

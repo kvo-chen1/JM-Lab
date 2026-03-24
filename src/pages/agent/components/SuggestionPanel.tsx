@@ -137,6 +137,11 @@ export default function SuggestionPanel({ onSuggestionClick, onSuggestionAction 
       if (content !== lastUserInput) {
         setLastUserInput(content);
         
+        // 用户开始输入时自动收缩面板
+        if (content.length > 0 && isExpanded) {
+          setIsExpanded(false);
+        }
+        
         // 用户停止输入3秒后获取建议
         const timer = setTimeout(() => {
           fetchSuggestions();
@@ -145,7 +150,7 @@ export default function SuggestionPanel({ onSuggestionClick, onSuggestionAction 
         return () => clearTimeout(timer);
       }
     }
-  }, [messages, lastUserInput, fetchSuggestions]);
+  }, [messages, lastUserInput, fetchSuggestions, isExpanded]);
 
   // 初始加载和定期刷新
   useEffect(() => {

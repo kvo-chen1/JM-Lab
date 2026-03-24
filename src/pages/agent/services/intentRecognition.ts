@@ -18,7 +18,25 @@ export enum IntentType {
   FAREWELL = 'FAREWELL',
   THANKS = 'THANKS',
   UNCLEAR = 'UNCLEAR',
-  OTHER = 'OTHER'
+  OTHER = 'OTHER',
+  MULTI_STEP_TASK = 'MULTI_STEP_TASK' // 多步骤任务
+}
+
+// 多步骤任务步骤
+export interface TaskStep {
+  id: string;
+  name: string;
+  description: string;
+  agent: string;
+  dependencies: string[];
+}
+
+// 多步骤任务识别结果
+export interface MultiStepTaskResult {
+  isMultiStep: boolean;
+  steps: TaskStep[];
+  workflowType: string;
+  estimatedDuration: string;
 }
 
 // 意图识别结果
@@ -290,6 +308,201 @@ export class IntentRecognitionService {
 
     return undefined;
   }
+}
+
+// 多步骤任务检测器
+export class MultiStepTaskDetector {
+  // 多步骤关键词模式
+  private static readonly MULTI_STEP_PATTERNS = [
+    { pattern: /先(.+?)再(.+)/, type: 'sequential' },
+    { pattern: /先(.+?)然后(.+)/, type: 'sequential' },
+    { pattern: /首先(.+?)接着(.+)/, type: 'sequential' },
+    { pattern: /第一步(.+?)第二步(.+)/, type: 'sequential' },
+    { pattern: /第1步(.+?)第2步(.+)/, type: 'sequential' },
+    { pattern: /(.+?)之后(.+)/, type: 'sequential' },
+    { pattern: /(.+?)接着(.+)/, type: 'sequential' },
+    { pattern: /(.+?)然后(.+)/, type: 'sequential' },
+    { pattern: /(.+?)最后(.+)/, type: 'sequential' },
+    { pattern: /不仅(.+?)还要(.+)/, type: 'parallel' },
+    { pattern: /既要(.+?)又要(.+)/, type: 'parallel' },
+    { pattern: /同时(.+?)和(.+)/, type: 'parallel' }
+  ];
+
+  // 任务类型映射
+  private static readonly TASK_TYPE_MAP: Record<string, { name: string; agent: string; description: string }> = {
+    '品牌设计': { name: '品牌设计', agent: 'designer', description: '设计品牌Logo和视觉识别系统' },
+    '品牌': { name: '品牌设计', agent: 'designer', description: '设计品牌Logo和视觉识别系统' },
+    'Logo': { name: 'Logo设计', agent: 'designer', description: '设计品牌标志' },
+    'logo': { name: 'Logo设计', agent: 'designer', description: '设计品牌标志' },
+    '标志': { name: 'Logo设计', agent: 'designer', description: '设计品牌标志' },
+    'VI': { name: 'VI系统设计', agent: 'designer', description: '设计品牌视觉识别系统' },
+    'vi': { name: 'VI系统设计', agent: 'designer', description: '设计品牌视觉识别系统' },
+    '视觉识别': { name: 'VI系统设计', agent: 'designer', description: '设计品牌视觉识别系统' },
+    '包装': { name: '包装设计', agent: 'designer', description: '设计产品包装' },
+    '礼盒': { name: '包装设计', agent: 'designer', description: '设计产品包装' },
+    '盒子': { name: '包装设计', agent: 'designer', description: '设计产品包装' },
+    '宣传': { name: '宣传物料设计', agent: 'designer', description: '设计宣传海报和物料' },
+    '海报': { name: '海报设计', agent: 'designer', description: '设计宣传海报' },
+    '物料': { name: '宣传物料设计', agent: 'designer', description: '设计宣传物料' },
+    'IP': { name: 'IP形象设计', agent: 'illustrator', description: '设计IP形象和角色' },
+    '形象': { name: 'IP形象设计', agent: 'illustrator', description: '设计IP形象和角色' },
+    '角色': { name: 'IP形象设计', agent: 'illustrator', description: '设计IP形象和角色' },
+    '插画': { name: '插画设计', agent: 'illustrator', description: '创作插画作品' },
+    '文案': { name: '文案创作', agent: 'copywriter', description: '撰写品牌文案' },
+    '标语': { name: '标语创作', agent: 'copywriter', description: '创作品牌标语' },
+    '动画': { name: '动画制作', agent: 'animator', description: '制作动画视频' },
+    '视频': { name: '视频制作', agent: 'animator', description: '制作宣传视频' }
+  };
+
+  /**
+   * 检测是否为多步骤任务
+   */
+  static detect(userInput: string): MultiStepTaskResult {
+    const normalized = userInput.toLowerCase().trim();
+
+    // 检查是否匹配多步骤模式
+    for (const { pattern, type } of this.MULTI_STEP_PATTERNS) {
+      const match = normalized.match(pattern);
+      if (match) {
+        const steps = this.extractSteps(match, type);
+        if (steps.length >= 2) {
+          return {
+            isMultiStep: true,
+            steps,
+            workflowType: this.determineWorkflowType(steps),
+            estimatedDuration: this.estimateDuration(steps)
+          };
+        }
+      }
+    }
+
+    // 检查是否包含多个任务类型
+    const detectedTypes = this.detectMultipleTaskTypes(normalized);
+    if (detectedTypes.length >= 2) {
+      const steps = detectedTypes.map((type, index) => ({
+        id: `step_${index + 1}`,
+        name: type.name,
+        description: type.description,
+        agent: type.agent,
+        dependencies: index === 0 ? [] : [`step_${index}`]
+      }));
+
+      return {
+        isMultiStep: true,
+        steps,
+        workflowType: this.determineWorkflowType(steps),
+        estimatedDuration: this.estimateDuration(steps)
+      };
+    }
+
+    return {
+      isMultiStep: false,
+      steps: [],
+      workflowType: '',
+      estimatedDuration: ''
+    };
+  }
+
+  /**
+   * 从匹配结果提取步骤
+   */
+  private static extractSteps(match: RegExpMatchArray, type: string): TaskStep[] {
+    const steps: TaskStep[] = [];
+    const groups = match.slice(1); // 去掉完整匹配
+
+    groups.forEach((content, index) => {
+      const taskInfo = this.identifyTaskType(content.trim());
+      steps.push({
+        id: `step_${index + 1}`,
+        name: taskInfo.name,
+        description: taskInfo.description,
+        agent: taskInfo.agent,
+        dependencies: index === 0 ? [] : [`step_${index}`]
+      });
+    });
+
+    return steps;
+  }
+
+  /**
+   * 识别任务类型
+   */
+  private static identifyTaskType(content: string): { name: string; agent: string; description: string } {
+    for (const [keyword, info] of Object.entries(this.TASK_TYPE_MAP)) {
+      if (content.includes(keyword.toLowerCase())) {
+        return info;
+      }
+    }
+
+    // 默认返回通用设计任务
+    return {
+      name: '设计任务',
+      agent: 'designer',
+      description: `完成${content}相关设计`
+    };
+  }
+
+  /**
+   * 检测多个任务类型
+   */
+  private static detectMultipleTaskTypes(content: string): Array<{ name: string; agent: string; description: string }> {
+    const detected: Array<{ name: string; agent: string; description: string }> = [];
+    const detectedNames = new Set<string>();
+
+    for (const [keyword, info] of Object.entries(this.TASK_TYPE_MAP)) {
+      if (content.includes(keyword.toLowerCase()) && !detectedNames.has(info.name)) {
+        detected.push(info);
+        detectedNames.add(info.name);
+      }
+    }
+
+    return detected;
+  }
+
+  /**
+   * 确定工作流类型
+   */
+  private static determineWorkflowType(steps: TaskStep[]): string {
+    const hasBrand = steps.some(s => s.name.includes('品牌') || s.name.includes('Logo'));
+    const hasPackaging = steps.some(s => s.name.includes('包装'));
+    const hasPromotion = steps.some(s => s.name.includes('宣传') || s.name.includes('海报'));
+    const hasIP = steps.some(s => s.name.includes('IP') || s.name.includes('形象'));
+
+    if (hasBrand && hasPackaging && hasPromotion) {
+      return 'brand-packaging-promotion';
+    }
+    if (hasBrand && hasPackaging) {
+      return 'brand-packaging';
+    }
+    if (hasIP) {
+      return 'ip-design';
+    }
+    if (hasBrand) {
+      return 'brand-design';
+    }
+
+    return 'custom-workflow';
+  }
+
+  /**
+   * 估计执行时间
+   */
+  private static estimateDuration(steps: TaskStep[]): string {
+    const baseTime = steps.length * 5; // 每步5分钟基础时间
+    const totalMinutes = baseTime + 5; // 加5分钟缓冲
+
+    if (totalMinutes < 60) {
+      return `${totalMinutes}分钟`;
+    }
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes > 0 ? `${hours}小时${minutes}分钟` : `${hours}小时`;
+  }
+}
+
+// 导出便捷函数
+export function detectMultiStepTask(userInput: string): MultiStepTaskResult {
+  return MultiStepTaskDetector.detect(userInput);
 }
 
 // 导出单例

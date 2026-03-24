@@ -16,13 +16,17 @@ import ThinkingProcessCard from './ThinkingProcessCard';
 import ImageLightbox from './ImageLightbox';
 import { generateVideo } from '../services/agentService';
 import { AgentError } from '../types/errors';
-import { ChevronDown, ChevronUp, Lightbulb, Wand2, Users, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Lightbulb, Wand2, Users, Loader2, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
+import { useNavigate } from 'react-router-dom';
 
 interface ChatMessageProps {
   message: AgentMessage;
   isLast?: boolean;
+  onOpenStyleLibrary?: () => void;
+  onCloseStyleLibrary?: () => void;
+  showStyleLibrary?: boolean;
 }
 
 // Markdown 内容渲染组件 - 美化版本
@@ -232,12 +236,35 @@ function VideoMessageContent({
   );
 }
 
-export default function ChatMessage({ message, isLast = false }: ChatMessageProps) {
+export default function ChatMessage({
+  message,
+  isLast = false,
+  onOpenStyleLibrary,
+  onCloseStyleLibrary,
+  showStyleLibrary = false
+}: ChatMessageProps) {
   const { isDark } = useTheme();
-  const { setShowThinkingProcess, showThinkingProcess, addMessage, setShowSatisfactionModal, generatedOutputs, updateTaskRequirements, setCurrentAgent } = useAgentStore();
+  const { setShowThinkingProcess, showThinkingProcess, addMessage, setShowSatisfactionModal, generatedOutputs, updateTaskRequirements, setCurrentAgent, messages } = useAgentStore();
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+
+  // 获取当前AI消息对应的用户查询
+  const getUserQuery = () => {
+    const messageIndex = messages.findIndex(m => m.id === message.id);
+    if (messageIndex > 0) {
+      // 向前查找最近一条用户消息
+      for (let i = messageIndex - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          return messages[i].content;
+        }
+      }
+    }
+    return '';
+  };
+
+  const userQuery = getUserQuery();
 
   // Lightbox 状态
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -249,6 +276,36 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
     setLightboxImageUrl(imageUrl);
     setLightboxImageName(imageName);
     setLightboxOpen(true);
+  };
+
+  // 发布到案例
+  const handlePublishToCase = () => {
+    if (!message.metadata?.images || message.metadata.images.length === 0) {
+      toast.error('没有可发布的图片');
+      return;
+    }
+
+    // 收集所有图片URL
+    const images = message.metadata.images.map((img: any) => 
+      typeof img === 'string' ? img : img.url
+    );
+
+    // 获取用户查询作为标题基础
+    const title = userQuery.slice(0, 20) + (userQuery.length > 20 ? '...' : '') || 'AI创作作品';
+    
+    // 构建发布数据
+    const publishData = {
+      title,
+      description: userQuery,
+      coverImage: images[0],
+      images,
+      conversationId: message.id,
+    };
+
+    // 跳转到发布页面（可以创建一个专门的发布页面，或者使用弹窗）
+    // 这里我们先使用导航到案例页面，并传递数据
+    navigate('/agent-cases/publish', { state: { publishData } });
+    toast.success('准备发布案例...');
   };
 
   // 处理满意度检查 - 满意
@@ -488,12 +545,15 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         break;
       // 新增：Agent切换后的确认操作
       case 'generate_now':
-        // 用户确认立即生成
-        addMessage({
-          role: 'designer',
-          content: '好的！我立即开始为你生成设计作品，请稍候...',
-          type: 'text'
-        });
+        // 用户确认立即生成 - 使用当前Agent，避免硬编码
+        {
+          const { currentAgent: currentAgentForGenerate } = useAgentStore.getState();
+          addMessage({
+            role: currentAgentForGenerate,
+            content: '好的！我立即开始为你生成设计作品，请稍候...',
+            type: 'text'
+          });
+        }
         // 触发生成
         setTimeout(() => {
           const { selectedStyle, currentTask, currentAgent } = useAgentStore.getState();
@@ -504,21 +564,27 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
         }, 500);
         break;
       case 'continue_chat':
-        // 用户选择继续沟通，不生成
-        addMessage({
-          role: 'designer',
-          content: '没问题！我们可以继续交流，你可以告诉我更多关于设计的需求和想法。',
-          type: 'text'
-        });
+        // 用户选择继续沟通，不生成 - 使用当前Agent，避免硬编码
+        {
+          const { currentAgent: currentAgentForContinue } = useAgentStore.getState();
+          addMessage({
+            role: currentAgentForContinue,
+            content: '没问题！我们可以继续交流，你可以告诉我更多关于设计的需求和想法。',
+            type: 'text'
+          });
+        }
         break;
       // 新增：确认生成（在 executeRespond 中询问确认时使用）
       case 'confirm_generate':
-        // 用户确认生成
-        addMessage({
-          role: 'designer',
-          content: '好的！我立即开始为你生成设计作品，请稍候...',
-          type: 'text'
-        });
+        // 用户确认生成 - 使用当前Agent，避免硬编码
+        {
+          const { currentAgent: currentAgentForConfirm } = useAgentStore.getState();
+          addMessage({
+            role: currentAgentForConfirm,
+            content: '好的！我立即开始为你生成设计作品，请稍候...',
+            type: 'text'
+          });
+        }
         // 触发生成
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('trigger-auto-generation'));
@@ -834,7 +900,11 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
           <div className="space-y-4">
             {renderDelegationIndicator()}
             <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
-            <StyleSelector />
+            <StyleSelector
+              onOpenStyleLibrary={onOpenStyleLibrary}
+              onCloseStyleLibrary={onCloseStyleLibrary}
+              showStyleLibrary={showStyleLibrary}
+            />
             {message.metadata?.thinking && (
               <ThinkingProcess thinking={message.metadata.thinking} />
             )}
@@ -901,6 +971,56 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
                   );
                 })}
               </div>
+            )}
+            {/* 显示思考过程 */}
+            {message.metadata?.thinking && (
+              <ThinkingProcess thinking={message.metadata.thinking} />
+            )}
+            {/* 显示 Skill 调用过程 */}
+            {message.metadata?.skillExecution && (
+              <div className={`mt-3 p-3 rounded-lg text-xs ${
+                isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'
+              }`}>
+                <div className={`flex items-center gap-2 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <Wand2 className="w-3 h-3" />
+                  <span className="font-medium">Skill 调用</span>
+                </div>
+                <div className={`pl-5 space-y-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
+                  <p>技能: {message.metadata.skillExecution.skillName}</p>
+                  <p>执行时间: {new Date(message.metadata.skillExecution.executionTime).toLocaleTimeString()}</p>
+                  {message.metadata.skillExecution.parameters && (
+                    <div className="mt-2">
+                      <p className="mb-1">参数:</p>
+                      <pre className={`p-2 rounded text-[10px] overflow-x-auto ${
+                        isDark ? 'bg-gray-900 text-gray-400' : 'bg-white text-gray-600'
+                      }`}>
+                        {JSON.stringify(message.metadata.skillExecution.parameters, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 发布到案例按钮 */}
+            {Array.isArray(message.metadata?.images) && message.metadata.images.length > 0 && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                onClick={handlePublishToCase}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
+                  transition-colors mt-3
+                  ${isDark 
+                    ? 'bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white hover:opacity-90' 
+                    : 'bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white hover:opacity-90'
+                  }
+                `}
+              >
+                <Share2 className="w-4 h-4" />
+                <span>发布到案例</span>
+              </motion.button>
             )}
           </div>
         );
@@ -1344,6 +1464,7 @@ export default function ChatMessage({ message, isLast = false }: ChatMessageProp
                 messageId={message.id}
                 messageContent={message.content}
                 agentType={agentRole}
+                userQuery={userQuery}
               />
             </div>
           )}

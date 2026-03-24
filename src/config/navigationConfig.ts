@@ -46,6 +46,7 @@ export const creationNavItems: NavItem[] = [
 export const discoverNavItems: NavItem[] = [
   { id: 'square', path: '/square', label: '津脉广场', icon: 'fas fa-th-large', priority: 'high' },
   { id: 'community', path: '/community', label: '作品与社区', icon: 'fas fa-users', priority: 'high' },
+  { id: 'agent-cases', path: '/agent-cases', label: 'Agent案例', icon: 'fas fa-sparkles', priority: 'high', badge: 'NEW', description: '探索AI创作案例，激发无限灵感' },
   { id: 'leaderboard', path: '/leaderboard', label: '人气榜', icon: 'fas fa-chart-line', priority: 'medium' },
   { id: 'events', path: '/cultural-events', label: '津脉活动', icon: 'fas fa-calendar-alt', priority: 'medium' }
 ];

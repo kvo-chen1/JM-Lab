@@ -16,6 +16,7 @@ import {
 import { llmService, Message, ConversationSession, QuickActionCard, MediaContent } from '@/services/llmService';
 import { downloadAndUploadImage, downloadAndUploadVideo } from '@/services/imageService';
 import { aiConversationService } from '@/services/aiConversationService';
+import AIFeedbackModal from '@/components/Feedback/AIFeedbackModal';
 
 // 生成类型
 type GenerateMode = 'image' | 'video';
@@ -95,6 +96,9 @@ export default function AIAssistantPanel() {
 
   // 历史记录
   const [history, setHistory] = useState<any[]>([]);
+
+  // 反馈弹窗状态
+  const [feedbackMessageIndex, setFeedbackMessageIndex] = useState<number | null>(null);
 
   // 初始化会话
   useEffect(() => {
@@ -1736,7 +1740,7 @@ export default function AIAssistantPanel() {
                               >
                                 <i className="fas fa-copy text-xs" />
                               </button>
-                              
+
                               {/* 语音朗读按钮 */}
                               <button
                                 onClick={() => {
@@ -1752,31 +1756,20 @@ export default function AIAssistantPanel() {
                               >
                                 <i className="fas fa-volume-up text-xs" />
                               </button>
-                              
-                              {/* 点赞按钮 */}
+
+                              {/* 评价按钮 */}
                               <button
-                                onClick={() => toast.success('已点赞')}
+                                onClick={() => setFeedbackMessageIndex(index)}
                                 className={clsx(
-                                  "p-1.5 rounded-lg transition-all hover:scale-110",
-                                  isDark ? "hover:bg-gray-700 hover:text-green-400" : "hover:bg-gray-100 hover:text-green-600"
+                                  "p-1.5 rounded-lg transition-all hover:scale-110 flex items-center gap-1",
+                                  isDark ? "hover:bg-gray-700 hover:text-yellow-400" : "hover:bg-gray-100 hover:text-yellow-600"
                                 )}
-                                title="点赞"
+                                title="评价"
                               >
-                                <i className="fas fa-thumbs-up text-xs" />
+                                <i className="fas fa-star text-xs" />
+                                <span className="text-xs">评价</span>
                               </button>
-                              
-                              {/* 点踩按钮 */}
-                              <button
-                                onClick={() => toast.success('已反馈')}
-                                className={clsx(
-                                  "p-1.5 rounded-lg transition-all hover:scale-110",
-                                  isDark ? "hover:bg-gray-700 hover:text-red-400" : "hover:bg-gray-100 hover:text-red-600"
-                                )}
-                                title="不喜欢"
-                              >
-                                <i className="fas fa-thumbs-down text-xs" />
-                              </button>
-                              
+
                               {/* 收藏按钮 */}
                               <button
                                 onClick={() => toast.success('已收藏')}
@@ -1788,7 +1781,7 @@ export default function AIAssistantPanel() {
                               >
                                 <i className="fas fa-bookmark text-xs" />
                               </button>
-                              
+
                               {/* 分享按钮 */}
                               <button
                                 onClick={() => toast.success('分享功能开发中')}
@@ -1800,7 +1793,7 @@ export default function AIAssistantPanel() {
                               >
                                 <i className="fas fa-share-alt text-xs" />
                               </button>
-                              
+
                               {/* 更多按钮 */}
                               <button
                                 onClick={() => toast.success('更多功能开发中')}
@@ -2466,6 +2459,21 @@ export default function AIAssistantPanel() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* AI反馈弹窗 */}
+      {feedbackMessageIndex !== null && chatMessages[feedbackMessageIndex] && (
+        <AIFeedbackModal
+          isOpen={feedbackMessageIndex !== null}
+          onClose={() => setFeedbackMessageIndex(null)}
+          aiModel="creation-assistant"
+          aiName="创作中心AI助手"
+          messageId={`creation-${feedbackMessageIndex}-${Date.now()}`}
+          userQuery={feedbackMessageIndex > 0 && chatMessages[feedbackMessageIndex - 1]?.role === 'user'
+            ? chatMessages[feedbackMessageIndex - 1].content
+            : ''}
+          aiResponse={chatMessages[feedbackMessageIndex]?.content || ''}
+        />
+      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   AgentType
 } from '../../types/skill';
 import { SkillRegistry } from './SkillRegistry';
+import { isSkillSupportedByAgent, getSkillPriority } from '../../config/agentSkillConfig';
 
 // 匹配权重配置
 interface MatchWeights {
@@ -67,12 +68,27 @@ export class SkillMatcher {
 
   /**
    * 根据意图匹配最佳 Skill
+   * 增强版：支持 Agent 过滤和优先级配置
    */
   match(intent: UserIntent, context?: ExecutionContext): SkillMatchResult[] {
     const allSkills = this.registry.getAllSkills();
     const results: SkillMatchResult[] = [];
+    const currentAgent = context?.currentAgent;
 
     for (const skill of allSkills) {
+      // 1. 如果指定了当前 Agent，检查 Skill 是否支持该 Agent
+      if (currentAgent && currentAgent !== 'system' && currentAgent !== 'user') {
+        if (!isSkillSupportedByAgent(skill.id, currentAgent)) {
+          // 检查 Skill 的 supportedAgents 是否包含当前 Agent
+          const metadata = skill.getMetadata();
+          const isSupported = metadata.supportedAgents.includes(currentAgent) ||
+                             metadata.supportedAgents.includes('system');
+          if (!isSupported) {
+            continue; // 跳过不支持的 Skill
+          }
+        }
+      }
+
       const score = this.calculateMatchScore(skill, intent, context);
       if (score > 0) {
         results.push({
@@ -84,8 +100,15 @@ export class SkillMatcher {
       }
     }
 
-    // 按分数排序
-    return results.sort((a, b) => b.score - a.score);
+    // 按分数排序，同时考虑 Skill 优先级配置
+    return results.sort((a, b) => {
+      const priorityA = getSkillPriority(a.skill.id);
+      const priorityB = getSkillPriority(b.skill.id);
+      // 综合分数和优先级排序
+      const scoreA = a.score * (priorityA / 100);
+      const scoreB = b.score * (priorityB / 100);
+      return scoreB - scoreA;
+    });
   }
 
   /**

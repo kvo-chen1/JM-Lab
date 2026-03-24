@@ -442,6 +442,7 @@ export default function WorkCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const dragStartPosRef = useRef({ x: 0, y: 0, mouseX: 0, mouseY: 0 });
   const isDraggingRef = useRef(false);
+  const hasDraggedRef = useRef(false); // 用于区分拖动和点击
 
   const handleEditStart = useCallback(() => {
     setIsEditing(true);
@@ -493,6 +494,9 @@ export default function WorkCard({
     e.preventDefault();
     e.stopPropagation();
 
+    // 重置拖动标记
+    hasDraggedRef.current = false;
+
     // 获取当前实际位置（从 DOM 读取，避免闭包问题）
     const currentX = position?.x || 0;
     const currentY = position?.y || 0;
@@ -514,6 +518,9 @@ export default function WorkCard({
 
       // 如果不在拖拽状态，忽略
       if (!isDraggingRef.current) return;
+
+      // 标记已拖动（用于区分拖动和点击）
+      hasDraggedRef.current = true;
 
       const scale = (canvasZoom || 100) / 100;
       const deltaX = (moveEvent.clientX - dragStartPosRef.current.mouseX) / scale;
@@ -563,9 +570,13 @@ export default function WorkCard({
       <div
         ref={cardRef}
         onClick={(e) => {
-          if (!isCurrentlyDragging) {
+          // 使用 ref 检查是否实际发生了拖动，而不是依赖 state
+          // 因为 state 更新是异步的，click 事件触发时 state 可能已经被重置
+          if (!hasDraggedRef.current) {
             onSelect?.(e);
           }
+          // 重置拖动标记，为下一次交互做准备
+          hasDraggedRef.current = false;
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}

@@ -1,6 +1,6 @@
 import { callQwenChat } from '@/services/llm/chatProviders';
 
-export type IntentType = 
+export type IntentType =
   | 'image-generation'
   | 'logo-design'
   | 'poster-design'
@@ -10,9 +10,13 @@ export type IntentType =
   | 'social-copy'
   | 'color-scheme'
   | 'creative-idea'
-  | 'image-beautification'  // 新增：图片美化
-  | 'image-style-transfer'  // 新增：风格转换
-  | 'image-recognition'     // 新增：图片识别
+  | 'image-beautification'
+  | 'image-style-transfer'
+  | 'image-recognition'
+  | 'video-script'
+  | 'event-planning'
+  | 'ui-design'
+  | 'data-report'
   | 'general'
   | 'greeting'
   | 'help';
@@ -40,8 +44,12 @@ const INTENT_RECOGNITION_PROMPT = `你是一个意图识别专家。请分析用
 - image-beautification: 图片美化（美化图片、优化图片、让图片更好看等）
 - image-style-transfer: 风格转换（将图片转换成某种风格，如水彩、油画、卡通等）
 - image-recognition: 图片识别（识别图片内容、分析图片、描述图片等）
-- greeting: 问候（打招呼、寒暄等）
-- help: 帮助（询问功能、如何使用等）
+- video-script: 视频脚本（写视频脚本、分镜头、拍摄脚本等）
+- event-planning: 活动策划（策划活动、举办活动、活动方案等）
+- ui-design: UI 设计（界面设计、APP 设计、网页设计等）
+- data-report: 数据分析报告（数据分析报告、周报、月报、数据总结等）
+- greeting: 问候（打招呼、寒暄等，如"你好"、"早上好"）
+- help: 帮助（询问功能、如何使用、查资料、搜索信息、获取帮助等，如"帮我查资料"、"你能做什么"、"怎么用"）
 - general: 一般对话（其他类型的对话）
 
 请严格按照以下 JSON 格式返回结果：
@@ -60,7 +68,13 @@ const INTENT_RECOGNITION_PROMPT = `你是一个意图识别专家。请分析用
 2. params 是提取的关键参数，如风格、主题、用途等
 3. 只返回 JSON，不要包含其他内容
 
-重要：如果用户提到"美化"、"优化"、"转换风格"、"变成 X 风格"等词汇，应该识别为 image-beautification 或 image-style-transfer，而不是一般对话。`;
+重要：如果用户提到"美化"、"优化"、"转换风格"、"变成 X 风格"等词汇，应该识别为 image-beautification 或 image-style-transfer，而不是一般对话。
+
+关键区分：
+- 视频脚本(video-script) vs 文案(text-generation): 如果用户提到"视频"、"脚本"、"分镜"、"拍摄"，应该识别为 video-script
+- 活动策划(event-planning) vs 创意点子(creative-idea): 如果用户提到"举办"、"策划"、"活动方案"、"会议"，应该识别为 event-planning
+- UI设计(ui-design) vs 海报设计(poster-design): 如果用户提到"界面"、"APP"、"网页"、"小程序"、"交互"，应该识别为 ui-design
+- 数据报告(data-report) vs 其他文案: 如果用户提到"数据"、"分析"、"报告"、"周报"、"月报"、"统计"，应该识别为 data-report`;
 
 // 置信度阈值
 const CONFIDENCE_THRESHOLD = 0.6;
@@ -74,8 +88,8 @@ export const recognizeIntent = async (
     const response = await callQwenChat({
       model: 'qwen-turbo',
       messages: [
-        { role: 'system' as 'system', content: INTENT_RECOGNITION_PROMPT },
-        { role: 'user' as 'user', content: userMessage },
+        { role: 'system', content: INTENT_RECOGNITION_PROMPT, timestamp: Date.now() },
+        { role: 'user', content: userMessage, timestamp: Date.now() },
       ],
       temperature: 0.3,
       max_tokens: 500,
@@ -244,6 +258,46 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
     };
   }
 
+  // 视频脚本相关（支持中英文）
+  if (lowerMessage.includes('视频') || lowerMessage.includes('脚本') || lowerMessage.includes('分镜') || lowerMessage.includes('拍摄') || lowerMessage.includes('video') || lowerMessage.includes('script') || lowerMessage.includes('storyboard')) {
+    return {
+      intent: 'video-script',
+      confidence: 0.9,
+      params: extractParams(lowerMessage),
+      reasoning: '关键词匹配：视频/脚本/分镜/拍摄',
+    };
+  }
+
+  // 活动策划相关（支持中英文）
+  if (lowerMessage.includes('活动') || lowerMessage.includes('策划') || lowerMessage.includes('举办') || lowerMessage.includes('会议') || lowerMessage.includes('event') || lowerMessage.includes('planning') || lowerMessage.includes('organize')) {
+    return {
+      intent: 'event-planning',
+      confidence: 0.9,
+      params: extractParams(lowerMessage),
+      reasoning: '关键词匹配：活动/策划/举办/会议',
+    };
+  }
+
+  // UI设计相关（支持中英文）
+  if (lowerMessage.includes('界面') || lowerMessage.includes('app') || lowerMessage.includes('网页') || lowerMessage.includes('小程序') || lowerMessage.includes('交互') || lowerMessage.includes('ui') || lowerMessage.includes('interface') || lowerMessage.includes('dashboard')) {
+    return {
+      intent: 'ui-design',
+      confidence: 0.9,
+      params: extractParams(lowerMessage),
+      reasoning: '关键词匹配：界面/APP/网页/小程序/UI',
+    };
+  }
+
+  // 数据分析报告相关（支持中英文）
+  if (lowerMessage.includes('数据') || lowerMessage.includes('分析') || lowerMessage.includes('报告') || lowerMessage.includes('周报') || lowerMessage.includes('月报') || lowerMessage.includes('统计') || lowerMessage.includes('data') || lowerMessage.includes('report') || lowerMessage.includes('analytics')) {
+    return {
+      intent: 'data-report',
+      confidence: 0.9,
+      params: extractParams(lowerMessage),
+      reasoning: '关键词匹配：数据/分析/报告/周报/月报',
+    };
+  }
+
   // 问候相关（支持中英文）
   if (lowerMessage.includes('你好') || lowerMessage.includes('您好') || lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey') || lowerMessage.includes('greetings')) {
     return {
@@ -255,12 +309,15 @@ const fallbackIntentRecognition = (message: string): IntentResult => {
   }
 
   // 帮助相关（支持中英文）
-  if (lowerMessage.includes('帮助') || lowerMessage.includes('怎么用') || lowerMessage.includes('功能') || lowerMessage.includes('help') || lowerMessage.includes('how to') || lowerMessage.includes('what can')) {
+  if (lowerMessage.includes('帮助') || lowerMessage.includes('怎么用') || lowerMessage.includes('功能') || 
+      lowerMessage.includes('help') || lowerMessage.includes('how to') || lowerMessage.includes('what can') ||
+      lowerMessage.includes('查资料') || lowerMessage.includes('搜索') || lowerMessage.includes('查找') || 
+      lowerMessage.includes('找资料') || lowerMessage.includes('能做什么') || lowerMessage.includes('有什么功能')) {
     return {
       intent: 'help',
       confidence: 0.85,
       params: {},
-      reasoning: '关键词匹配：帮助/功能',
+      reasoning: '关键词匹配：帮助/查资料/功能',
     };
   }
 
@@ -321,6 +378,10 @@ export const getIntentDisplayName = (intent: IntentType): string => {
     'image-beautification': '图片美化',
     'image-style-transfer': '风格转换',
     'image-recognition': '图片识别',
+    'video-script': '视频脚本',
+    'event-planning': '活动策划',
+    'ui-design': 'UI 设计',
+    'data-report': '数据分析报告',
     'general': '一般对话',
     'greeting': '问候',
     'help': '帮助',
@@ -344,6 +405,10 @@ export const getIntentColor = (intent: IntentType): string => {
     'image-beautification': 'from-pink-500 to-rose-500',
     'image-style-transfer': 'from-purple-500 to-indigo-500',
     'image-recognition': 'from-blue-500 to-cyan-500',
+    'video-script': 'from-red-600 to-orange-500',
+    'event-planning': 'from-emerald-500 to-green-500',
+    'ui-design': 'from-violet-500 to-purple-500',
+    'data-report': 'from-sky-500 to-blue-500',
     'general': 'from-gray-500 to-gray-600',
     'greeting': 'from-green-500 to-teal-500',
     'help': 'from-blue-500 to-indigo-500',

@@ -45,7 +45,8 @@ interface ThemeConfig {
 
 // 主题配置列表
 export const themeConfig: ThemeConfig[] = [
-  { value: 'light', label: '浅色', icon: 'fas fa-sun', description: '明亮清爽的默认主题', isDefault: true },
+  { value: 'retro-pixel', label: '复古像素', icon: 'fas fa-gamepad', description: '新粗野主义×复古像素艺术风，2px粗黑边框、零圆角、硬边偏移阴影，致敬80年代街机游戏与霓虹灯箱的怀旧氛围', isDefault: true },
+  { value: 'light', label: '浅色', icon: 'fas fa-sun', description: '明亮清爽的默认主题' },
   { value: 'dark', label: '暗色', icon: 'fas fa-moon', description: '墨韵深空暗色主题，专业级深色体验' },
   { value: 'blue', label: '蓝色', icon: 'fas fa-water', description: '清新蓝色主题，带来宁静感' },
   { value: 'green', label: '绿色', icon: 'fas fa-leaf', description: '自然绿色主题，充满生机' },
@@ -61,7 +62,6 @@ export const themeConfig: ThemeConfig[] = [
   { value: 'delta-force', label: '三角洲行动', icon: 'fas fa-crosshairs', description: '三角洲行动战术风格主题,军事硬核体验,霓虹科技色调' },
   { value: 'cyber-brutalist', label: '赛博粗犷', icon: 'fas fa-cubes', description: '赛博粗犷主义像素风，硬朗边框与霓虹强调色的未来感融合，致敬8-bit时代的同时保持现代布局逻辑' },
   { value: 'pink-brutalist', label: '粉色赛博', icon: 'fas fa-heart', description: '粉色赛博粗犷主义像素风，硬朗边框与霓虹粉色调的甜美融合，赛博甜心风格' },
-  { value: 'retro-pixel', label: '复古像素', icon: 'fas fa-gamepad', description: '新粗野主义×复古像素艺术风，2px粗黑边框、零圆角、硬边偏移阴影，致敬80年代街机游戏与霓虹灯箱的怀旧氛围' },
   { value: 'kawaii', label: '日系萌系', icon: 'fas fa-heart', description: '日系萌系治愈风，马卡龙粉+柠檬黄+天蓝色调，超大圆角卡片与柔和阴影，营造温暖治愈的数字乌托邦' },
   { value: 'chiikawa', label: 'Chiikawa世界', icon: 'fas fa-heart', description: 'Chiikawa治愈风，马卡龙粉+柠檬黄+Baby蓝渐变，Chiikawa角色元素与柔和波浪边框' }
 ];
@@ -323,7 +323,7 @@ export const themePresets = {
 };
 
 // 默认主题配置
-export const defaultTheme: Theme = 'pixel';
+export const defaultTheme: Theme = 'retro-pixel';
 
 // 主题切换顺序
 export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'kawaii', 'chiikawa'];

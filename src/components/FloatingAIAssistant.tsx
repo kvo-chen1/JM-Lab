@@ -6,6 +6,7 @@ import { llmService, Message, AssistantPersonality, AssistantTheme, ConnectionSt
 import { aiAssistantService, AIAction } from '@/services/aiAssistantService';
 import { culturalExpertService } from '@/services/culturalExpertService';
 import { MessageBubble, ChatInput } from '@/components/Chat';
+import AIFeedbackModal from '@/components/Feedback/AIFeedbackModal';
 
 interface FloatingAIAssistantProps {
   // 可以添加一些自定义配置属性
@@ -36,10 +37,8 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
   const [autoScroll, setAutoScroll] = useState(true);
   // 添加标志位，防止滚动事件在程序化滚动时触发
   const [isProgrammaticScroll, setIsProgrammaticScroll] = useState(false);
-  // 反馈相关状态
-  const [feedbackVisible, setFeedbackVisible] = useState<{[key: number]: boolean}>({});
-  const [feedbackRatings, setFeedbackRatings] = useState<{[key: number]: number}>({});
-  const [feedbackComments, setFeedbackComments] = useState<{[key: number]: string}>({});
+  // 反馈相关状态 - 使用新的统一反馈弹窗
+  const [feedbackMessageIndex, setFeedbackMessageIndex] = useState<number | null>(null);
   // 复制相关状态
   const [copiedMessage, setCopiedMessage] = useState<number | null>(null);
   const [windowWidth, setWindowWidth] = useState<number>(0);
@@ -151,9 +150,7 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
             setMessages([]);
             setMessageActions({});
             setCopiedMessage(null);
-            setFeedbackRatings({});
-            setFeedbackComments({});
-            setFeedbackVisible({});
+            setFeedbackMessageIndex(null);
           }
         },
         visible: messages.length > 0
@@ -388,46 +385,14 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
     saveSettings();
   };
 
-  // 处理消息评分
-  const handleRating = (messageIndex: number, rating: number) => {
-    setFeedbackRatings(prev => ({
-      ...prev,
-      [messageIndex]: rating
-    }));
-    
-    // 记录评分到本地存储或发送到服务器
-    console.log(`Message ${messageIndex} rated: ${rating}`);
-    
-    // 显示评论输入框
-    setFeedbackVisible(prev => ({
-      ...prev,
-      [messageIndex]: true
-    }));
+  // 处理消息评分 - 打开统一反馈弹窗
+  const handleRating = (messageIndex: number) => {
+    setFeedbackMessageIndex(messageIndex);
   };
 
-  // 处理反馈评论提交
-  const handleFeedbackSubmit = (messageIndex: number) => {
-    const comment = feedbackComments[messageIndex] || '';
-    const rating = feedbackRatings[messageIndex] || 0;
-    
-    // 发送反馈到服务器或本地存储
-    console.log(`Feedback submitted for message ${messageIndex}:`, {
-      rating,
-      comment,
-      message: messages[messageIndex]
-    });
-    
-    // 隐藏评论输入框
-    setFeedbackVisible(prev => ({
-      ...prev,
-      [messageIndex]: false
-    }));
-    
-    // 清除评论
-    setFeedbackComments(prev => ({
-      ...prev,
-      [messageIndex]: ''
-    }));
+  // 关闭反馈弹窗
+  const handleCloseFeedback = () => {
+    setFeedbackMessageIndex(null);
   };
 
   // 处理消息复制
@@ -1495,6 +1460,24 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
                         />
                         {/* 渲染交互式操作按钮 */}
                         {message.role === 'assistant' && renderMessageActions(index)}
+                        {/* 渲染反馈按钮 */}
+                        {message.role === 'assistant' && (
+                          <div className="mt-2 flex justify-start">
+                            <button
+                              onClick={() => handleRating(index)}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
+                                isDark
+                                  ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
+                                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                              }`}
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                              </svg>
+                              <span>评价</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
 
@@ -1882,6 +1865,21 @@ const FloatingAIAssistant: React.FC<FloatingAIAssistantProps> = ({
           </motion.div>
         )}
       </motion.button>
+
+      {/* AI反馈弹窗 */}
+      {feedbackMessageIndex !== null && messages[feedbackMessageIndex] && (
+        <AIFeedbackModal
+          isOpen={feedbackMessageIndex !== null}
+          onClose={handleCloseFeedback}
+          aiModel="jinmai-floating"
+          aiName="AI创意助手津小脉"
+          messageId={`floating-${feedbackMessageIndex}-${Date.now()}`}
+          userQuery={feedbackMessageIndex > 0 && messages[feedbackMessageIndex - 1]?.role === 'user' 
+            ? messages[feedbackMessageIndex - 1].content 
+            : ''}
+          aiResponse={messages[feedbackMessageIndex]?.content || ''}
+        />
+      )}
     </div>
   );
 };

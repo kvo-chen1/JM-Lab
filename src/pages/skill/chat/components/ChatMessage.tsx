@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bot, Wand2, Brain, Zap, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, HelpCircle, MessageSquare, CheckSquare, ListTodo } from 'lucide-react';
+import { User, Bot, Wand2, Brain, Zap, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, HelpCircle, MessageSquare, CheckSquare, ListTodo, Star } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import type { ChatMessage as ChatMessageType, SkillCallInfo, RequirementPhase, MerchandiseCategory } from '../types';
 import { getIntentDisplayName, getIntentColor } from '../services/intentService';
 import { MerchandiseTypeCollector } from './MerchandiseTypeCollector';
+import AIFeedbackModal from '@/components/Feedback/AIFeedbackModal';
 
 // 获取当前用户头像
 const getCurrentUserAvatar = (): string => {
@@ -236,16 +237,18 @@ const SkillCallCard: React.FC<{
                 <div className={`text-xs mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>建议回复:</div>
                 <div className="flex flex-wrap gap-2">
                   {skillCall.suggestions.map((suggestion, index) => (
-                    <span
+                    <button
                       key={index}
-                      className={`text-xs px-2 py-1 rounded-full border ${
-                        isDark 
-                          ? 'bg-gray-700 border-gray-600 text-gray-300' 
-                          : 'bg-white border-gray-200 text-gray-600'
-                      }`}
+                      onClick={() => onSendMessage?.(suggestion)}
+                      disabled={!onSendMessage}
+                      className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                        isDark
+                          ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500'
+                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                      } ${!onSendMessage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                       {suggestion}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -345,7 +348,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
   const isUser = message.role === 'user';
   const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});
   const [userAvatar, setUserAvatar] = useState<string>('');
-  
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
   // 获取当前用户头像
   useEffect(() => {
     const avatar = getCurrentUserAvatar();
@@ -557,6 +561,34 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
             }
           })()}
         </span>
+
+        {/* Feedback Button - only for AI messages and last message */}
+        {!isUser && isLast && (
+          <div className="mt-2">
+            <button
+              onClick={() => setShowFeedbackModal(true)}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
+                isDark
+                  ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+              }`}
+            >
+              <Star className="w-3 h-3" />
+              <span>评价</span>
+            </button>
+          </div>
+        )}
+
+        {/* AI Feedback Modal */}
+        <AIFeedbackModal
+          isOpen={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          aiModel="jinmai-skill"
+          aiName="津小脉Skill"
+          messageId={message.id}
+          userQuery=""
+          aiResponse={message.content}
+        />
       </div>
     </div>
   );

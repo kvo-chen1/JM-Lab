@@ -3,7 +3,10 @@
  * 定义 Skill 架构的核心类型和接口
  */
 
-import { AgentType, AgentMessage } from './agent';
+import { AgentType as AgentTypeFromAgent, AgentMessage } from './agent';
+
+// 重新导出 AgentType
+export type AgentType = AgentTypeFromAgent;
 
 // ==================== Skill 分类 ====================
 

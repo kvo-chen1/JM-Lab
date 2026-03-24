@@ -61,7 +61,18 @@ const getWelcomeMessage = (options: WelcomeMessageOptions = {}): AgentMessage =>
     role: 'director',
     content: welcomeContent,
     timestamp: Date.now(),
-    type: 'text'
+    type: 'design-type-options',
+    metadata: {
+      showDesignTypeSelector: true,
+      designTypeOptions: [
+        { id: 'ip-character', label: 'IP形象设计', description: '打造独特的角色、吉祥物或虚拟形象', icon: '🎭' },
+        { id: 'brand-design', label: '品牌设计', description: '构建完整的品牌视觉识别系统', icon: '🎨' },
+        { id: 'packaging', label: '包装设计', description: '产品包装创意设计与视觉呈现', icon: '📦' },
+        { id: 'poster', label: '海报设计', description: '宣传海报、物料设计与视觉传达', icon: '🖼️' },
+        { id: 'animation', label: '动画视频', description: '动态视觉内容与短视频制作', icon: '🎬' },
+        { id: 'illustration', label: '插画设计', description: '手绘风格插画与艺术创作', icon: '✏️' }
+      ]
+    }
   };
 };
 
@@ -263,7 +274,12 @@ export const useAgentStore = create<AgentState & AgentActions>()(
           previousTaskType: state.currentTask?.type,
           isReturningUser: state.messages.length > 2
         });
-        return { messages: [welcomeMessage] };
+        return {
+          messages: [welcomeMessage],
+          selectedStyle: null, // 新对话时清除风格选择
+          currentTask: null,   // 新对话时清除当前任务
+          generatedOutputs: [] // 新对话时清除生成内容
+        };
       }),
 
       // 新增：直接设置消息列表（用于资源管理器清理）
@@ -634,6 +650,7 @@ export const useAgentStore = create<AgentState & AgentActions>()(
     }},
     {
       name: 'agent-store',
+      version: 1, // 添加版本控制
       partialize: (state) => ({
         messages: state.messages.slice(-50), // 只保留最近50条消息
         currentTask: state.currentTask,
@@ -647,6 +664,7 @@ export const useAgentStore = create<AgentState & AgentActions>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           console.log('[AgentStore] 状态已恢复，消息数:', state.messages?.length || 0);
+          console.log('[AgentStore] 状态已恢复，生成内容数:', state.generatedOutputs?.length || 0);
           // 同步模型到 storage
           if (state.currentModel) {
             setCurrentModelInStorage(state.currentModel);
@@ -656,11 +674,18 @@ export const useAgentStore = create<AgentState & AgentActions>()(
             console.warn('[AgentStore] 恢复的消息不是数组，重置为空');
             state.messages = [];
           }
+          // 确保 generatedOutputs 是数组
+          if (!Array.isArray(state.generatedOutputs)) {
+            console.warn('[AgentStore] 恢复的生成内容不是数组，重置为空');
+            state.generatedOutputs = [];
+          }
           // 如果有生成内容，清除selectedStyle（已完成的任务不需要）
           if (state.generatedOutputs && state.generatedOutputs.length > 0) {
             console.log('[AgentStore] 已有生成内容，清除selectedStyle');
             state.selectedStyle = null;
           }
+        } else {
+          console.warn('[AgentStore] 状态恢复失败，state 为 null');
         }
       }
     }

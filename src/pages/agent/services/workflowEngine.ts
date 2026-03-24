@@ -243,6 +243,270 @@ const WORKFLOW_TEMPLATES: Record<string, Workflow> = {
     endNodeId: 'end'
   },
 
+  // ==================== 复合业务工作流 ====================
+
+  // 品牌设计 + 包装 + 宣传物料完整工作流
+  'brand-packaging-promotion': {
+    id: 'brand-packaging-promotion',
+    name: '品牌设计+包装+宣传物料工作流',
+    description: '完整的品牌视觉系统设计流程，包含品牌策略、Logo设计、VI系统、包装设计和宣传物料',
+    nodes: [
+      {
+        id: 'requirement_analysis',
+        type: WorkflowNodeType.START,
+        agent: 'director',
+        name: '需求分析',
+        description: '深入分析品牌设计需求，明确目标和受众',
+        inputs: [],
+        outputs: ['requirements'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: [],
+        autoExecute: false
+      },
+      {
+        id: 'brand_strategy',
+        type: WorkflowNodeType.ANALYSIS,
+        agent: 'copywriter',
+        name: '品牌策略制定',
+        description: '制定品牌定位、品牌故事和核心价值',
+        inputs: ['requirements'],
+        outputs: ['brandStrategy'],
+        estimatedTime: 8 * 60 * 1000,
+        dependencies: ['requirement_analysis'],
+        autoExecute: true
+      },
+      {
+        id: 'logo_design',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'designer',
+        name: '品牌Logo设计',
+        description: '设计品牌标志和Logo系统',
+        inputs: ['brandStrategy'],
+        outputs: ['logoDesigns'],
+        estimatedTime: 15 * 60 * 1000,
+        dependencies: ['brand_strategy'],
+        autoExecute: false
+      },
+      {
+        id: 'logo_review',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'director',
+        name: 'Logo方案评审',
+        description: '评审Logo设计方案，确认方向',
+        inputs: ['logoDesigns'],
+        outputs: ['logoFeedback'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['logo_design'],
+        autoExecute: false
+      },
+      {
+        id: 'logo_refinement',
+        type: WorkflowNodeType.REVISE,
+        agent: 'designer',
+        name: 'Logo优化定稿',
+        description: '根据反馈优化Logo设计',
+        inputs: ['logoDesigns', 'logoFeedback'],
+        outputs: ['finalLogo'],
+        estimatedTime: 10 * 60 * 1000,
+        dependencies: ['logo_review'],
+        autoExecute: false
+      },
+      {
+        id: 'vi_design',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'designer',
+        name: 'VI系统设计',
+        description: '设计品牌视觉识别系统（色彩、字体、图形系统）',
+        inputs: ['finalLogo', 'brandStrategy'],
+        outputs: ['viSystem'],
+        estimatedTime: 20 * 60 * 1000,
+        dependencies: ['logo_refinement'],
+        autoExecute: false
+      },
+      {
+        id: 'vi_review',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'director',
+        name: 'VI系统评审',
+        description: '评审VI系统设计方案',
+        inputs: ['viSystem'],
+        outputs: ['viFeedback'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['vi_design'],
+        autoExecute: false
+      },
+      {
+        id: 'packaging_design',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'designer',
+        name: '包装设计',
+        description: '设计产品包装（基于已确定的品牌视觉）',
+        inputs: ['viSystem', 'finalLogo'],
+        outputs: ['packagingDesigns'],
+        estimatedTime: 25 * 60 * 1000,
+        dependencies: ['vi_review'],
+        autoExecute: false
+      },
+      {
+        id: 'packaging_review',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'director',
+        name: '包装方案评审',
+        description: '评审包装设计方案',
+        inputs: ['packagingDesigns'],
+        outputs: ['packagingFeedback'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['packaging_design'],
+        autoExecute: false
+      },
+      {
+        id: 'promotion_design',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'designer',
+        name: '宣传物料设计',
+        description: '设计海报、宣传册等营销物料',
+        inputs: ['viSystem', 'finalLogo', 'packagingFeedback'],
+        outputs: ['promotionMaterials'],
+        estimatedTime: 20 * 60 * 1000,
+        dependencies: ['packaging_review'],
+        autoExecute: false
+      },
+      {
+        id: 'final_review',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'director',
+        name: '整体方案评审',
+        description: '评审所有设计成果',
+        inputs: ['finalLogo', 'viSystem', 'packagingDesigns', 'promotionMaterials'],
+        outputs: ['finalFeedback'],
+        estimatedTime: 10 * 60 * 1000,
+        dependencies: ['promotion_design'],
+        autoExecute: false
+      },
+      {
+        id: 'final_delivery',
+        type: WorkflowNodeType.END,
+        agent: 'director',
+        name: '项目交付',
+        description: '整理并交付所有设计文件',
+        inputs: ['finalFeedback'],
+        outputs: ['deliveryPackage'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['final_review'],
+        autoExecute: true
+      }
+    ],
+    startNodeId: 'requirement_analysis',
+    endNodeId: 'final_delivery'
+  },
+
+  // 品牌设计 + 包装工作流（简化版）
+  'brand-packaging': {
+    id: 'brand-packaging',
+    name: '品牌设计+包装工作流',
+    description: '品牌视觉系统设计加包装设计',
+    nodes: [
+      {
+        id: 'start',
+        type: WorkflowNodeType.START,
+        agent: 'director',
+        name: '需求收集',
+        description: '收集品牌和包装设计需求',
+        inputs: [],
+        outputs: ['requirements'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: [],
+        autoExecute: false
+      },
+      {
+        id: 'brand_strategy',
+        type: WorkflowNodeType.ANALYSIS,
+        agent: 'copywriter',
+        name: '品牌策略',
+        description: '制定品牌定位和策略',
+        inputs: ['requirements'],
+        outputs: ['brandStrategy'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['start'],
+        autoExecute: true
+      },
+      {
+        id: 'logo_design',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'designer',
+        name: 'Logo设计',
+        description: '设计品牌Logo',
+        inputs: ['brandStrategy'],
+        outputs: ['logoDesigns'],
+        estimatedTime: 15 * 60 * 1000,
+        dependencies: ['brand_strategy'],
+        autoExecute: false
+      },
+      {
+        id: 'logo_review',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'director',
+        name: 'Logo评审',
+        description: '评审并确认Logo方案',
+        inputs: ['logoDesigns'],
+        outputs: ['logoFeedback'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['logo_design'],
+        autoExecute: false
+      },
+      {
+        id: 'vi_design',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'designer',
+        name: 'VI设计',
+        description: '设计品牌视觉识别系统',
+        inputs: ['logoDesigns'],
+        outputs: ['viSystem'],
+        estimatedTime: 15 * 60 * 1000,
+        dependencies: ['logo_review'],
+        autoExecute: false
+      },
+      {
+        id: 'packaging_design',
+        type: WorkflowNodeType.DESIGN,
+        agent: 'designer',
+        name: '包装设计',
+        description: '基于品牌视觉设计包装',
+        inputs: ['viSystem'],
+        outputs: ['packagingDesigns'],
+        estimatedTime: 20 * 60 * 1000,
+        dependencies: ['vi_design'],
+        autoExecute: false
+      },
+      {
+        id: 'final_review',
+        type: WorkflowNodeType.REVIEW,
+        agent: 'director',
+        name: '最终评审',
+        description: '整体方案评审',
+        inputs: ['packagingDesigns'],
+        outputs: ['reviewFeedback'],
+        estimatedTime: 5 * 60 * 1000,
+        dependencies: ['packaging_design'],
+        autoExecute: false
+      },
+      {
+        id: 'end',
+        type: WorkflowNodeType.END,
+        agent: 'director',
+        name: '完成',
+        description: '项目完成',
+        inputs: ['reviewFeedback'],
+        outputs: [],
+        estimatedTime: 0,
+        dependencies: ['final_review'],
+        autoExecute: true
+      }
+    ],
+    startNodeId: 'start',
+    endNodeId: 'end'
+  },
+
   // ==================== 角色专属工作流 ====================
 
   // 1. 设计总监专属工作流

@@ -24,6 +24,9 @@ import {
 import { callAgent, AIResponse } from './agentService';
 import { callEnhancedAgent } from './enhancedAgentIntegration';
 import { llmService } from '@/services/llmService';
+import { ImageGenerationSkill } from '../skills/creation/ImageGenerationSkill';
+import { detectMultiStepTask, MultiStepTaskResult, TaskStep } from './intentRecognition';
+import { getWorkflowEngine, Workflow, WorkflowInstance } from './workflowEngine';
 
 /**
  * 根据当前模型调用对应的API
@@ -50,6 +53,7 @@ export interface ConversationContext {
   requirementCollection?: RequirementCollection; // 需求收集状态
   selectedStyle?: string; // 用户选择的风格
   selectedBrand?: string; // 用户选择的品牌
+  excludedElements?: string[]; // 用户明确排除的元素
   sessionId?: string; // 会话 ID（用于增强功能）
   userId?: string; // 用户 ID（用于增强功能）
   mentionedWorks?: { id: string; name: string; title?: string; imageUrl?: string; description?: string; prompt?: string; style?: string; type?: 'image' | 'video' | 'text' }[]; // 引用的作品信息
@@ -68,7 +72,7 @@ export interface ConversationContext {
 
 // 编排器响应
 export interface OrchestratorResponse {
-  type: 'response' | 'delegation' | 'collaboration' | 'chain' | 'handoff' | 'image_generation' | 'generating';
+  type: 'response' | 'delegation' | 'collaboration' | 'chain' | 'handoff' | 'image_generation' | 'generating' | 'workflow' | 'style-options' | 'image' | 'error' | 'character-workflow';
   agent: AgentType;
   content: string;
   aiResponse?: AIResponse & { type?: string };
@@ -82,6 +86,17 @@ export interface OrchestratorResponse {
     title?: string;
   };
   generatingPrompt?: string; // 生成中的提示词
+  workflow?: {
+    id: string;
+    name: string;
+    steps: TaskStep[];
+    estimatedDuration: string;
+    currentStepIndex: number;
+  };
+  metadata?: {
+    showStyleSelector?: boolean;
+    [key: string]: any;
+  };
 }
 
 /**
@@ -135,10 +150,17 @@ export class AgentOrchestrator {
             enableEntityExtraction: true,
             enableContextTracking: true,
             enablePersonalization: true,
-            enableMemory: true,
-            mentionedWorks
+            enableMemory: true
           }
         );
+        
+        // 将 mentionedWorks 添加到响应的 metadata 中
+        if (mentionedWorks && mentionedWorks.length > 0) {
+          enhancedResponse.metadata = {
+            ...enhancedResponse.metadata,
+            mentionedWorks
+          };
+        }
         
         console.log('[Orchestrator] EnhancedAgent used:', {
           intent: enhancedResponse.detectedIntent,
@@ -203,6 +225,13 @@ export class AgentOrchestrator {
       return this.processImageMessage(userMessage, context);
     }
 
+    // ===== 多步骤任务检测 =====
+    const multiStepResult = detectMultiStepTask(userMessage);
+    if (multiStepResult.isMultiStep) {
+      console.log('[Orchestrator] 检测到多步骤任务:', multiStepResult);
+      return this.executeMultiStepWorkflow(userMessage, context, multiStepResult);
+    }
+
     // 如果是总监Agent，使用智能需求收集流程
     if (context.currentAgent === 'director' && context.requirementCollection) {
       return this.processDirectorInput(userMessage, context);
@@ -233,6 +262,72 @@ export class AgentOrchestrator {
         // 默认直接响应
         return this.executeRespond(userMessage, context);
     }
+  }
+
+  /**
+   * 执行多步骤工作流
+   */
+  private async executeMultiStepWorkflow(
+    userMessage: string,
+    context: ConversationContext,
+    multiStepResult: MultiStepTaskResult
+  ): Promise<OrchestratorResponse> {
+    console.log('[Orchestrator] 执行多步骤工作流:', multiStepResult.workflowType);
+
+    // 创建工作流实例
+    const workflowEngine = getWorkflowEngine();
+    const workflowInstance = workflowEngine.createWorkflow(multiStepResult.workflowType, {
+      userMessage,
+      steps: multiStepResult.steps
+    });
+
+    if (!workflowInstance) {
+      console.warn('[Orchestrator] 工作流创建失败，降级到普通响应');
+      return this.executeRespond(userMessage, context);
+    }
+
+    // 构建工作流介绍消息
+    const stepsDescription = multiStepResult.steps.map((step, index) => 
+      `${index + 1}. **${step.name}** - ${step.description}`
+    ).join('\n');
+
+    const content = `我理解您需要完成一个多步骤的设计项目。让我为您规划了以下执行计划：
+
+**📋 项目执行计划**
+
+${stepsDescription}
+
+**⏱️ 预计总耗时**: ${multiStepResult.estimatedDuration}
+
+这个项目需要分步骤完成，每个步骤完成后我会请您确认，满意后再继续下一步。
+
+是否现在开始执行第一步：**${multiStepResult.steps[0].name}**？`;
+
+    return {
+      type: 'workflow',
+      agent: 'director',
+      content,
+      workflow: {
+        id: workflowInstance.id,
+        name: multiStepResult.workflowType === 'brand-packaging-promotion' 
+          ? '品牌设计+包装+宣传物料工作流'
+          : multiStepResult.workflowType === 'brand-packaging'
+          ? '品牌设计+包装工作流'
+          : '多步骤设计工作流',
+        steps: multiStepResult.steps,
+        estimatedDuration: multiStepResult.estimatedDuration,
+        currentStepIndex: 0
+      },
+      aiResponse: {
+        content,
+        type: 'workflow',
+        metadata: {
+          workflowType: multiStepResult.workflowType,
+          steps: multiStepResult.steps,
+          workflowInstanceId: workflowInstance.id
+        }
+      }
+    };
   }
 
   /**
@@ -786,7 +881,10 @@ ${infoLines}
    * 检查用户是否确认需求
    */
   private isConfirmation(message: string): boolean {
-    const confirmKeywords = ['确认', '没问题', '对的', '是的', '可以', '好', 'ok', '没问题'];
+    const confirmKeywords = [
+      '确认', '没问题', '对的', '是的', '可以', '好', 'ok', '没问题',
+      '不错', '很好', '太棒了', '满意', '喜欢', '完美', '赞', '棒', '优秀'
+    ];
     const lowerMsg = message.toLowerCase();
     return confirmKeywords.some(keyword => lowerMsg.includes(keyword));
   }
@@ -821,20 +919,23 @@ ${infoLines}
 
   /**
    * 检测用户是否有明确的生成意图
+   * 严格匹配：必须包含明确的生成指令，而不是仅仅提到设计类型
    */
   private hasGenerationIntent(userMessage: string): boolean {
-    const generationKeywords = [
-      '生成', '画', '绘制', '创作', '设计一个', '设计个',
-      '生成ip', '生成形象', '画一个', '画一下',
-      '帮我生成', '帮我画', '直接生成', '直接画',
-      '给我画', '给我生成', '做一个', '做个'
-    ];
     const lowerMsg = userMessage.toLowerCase();
+
+    // 严格的生成指令关键词（必须包含这些词才算有生成意图）
+    const generationKeywords = [
+      '生成', '画', '绘制', '创作', '画一个', '画一下', '画个', '画幅',
+      '帮我生成', '帮我画', '直接生成', '直接画',
+      '给我画', '给我生成', '做一个', '做个', '来一张', '来张'
+    ];
 
     // 排除词：这些词表示用户只是咨询/寻求建议，不是要生成设计
     const exclusionKeywords = [
       '需求描述', '需求文档', '怎么写', '如何写', '模板', '框架',
-      '灵感', '建议', '推荐', '参考', '例子', '案例'
+      '灵感', '建议', '推荐', '参考', '例子', '案例', '名称', '名字',
+      '叫什么', '怎么起', '如何起', '起名', '命名'
     ];
 
     // 如果包含排除词，不认为是生成意图
@@ -842,6 +943,7 @@ ${infoLines}
       return false;
     }
 
+    // 必须包含明确的生成指令
     return generationKeywords.some(keyword => lowerMsg.includes(keyword));
   }
 
@@ -868,15 +970,37 @@ ${infoLines}
    * 检测用户是否想要跳过需求收集直接生成
    */
   private isSkipToGeneration(message: string): boolean {
-    const skipKeywords = [
+    const lowerMsg = message.toLowerCase().trim();
+
+    // 精确匹配：用户明确表达跳过/直接开始的意图
+    const exactMatchKeywords = [
       '直接生成', '直接开始', '开始生成', '生成吧', '开始吧',
-      '不想', '不用了', '不需要', '不需要了', '跳过', '直接做',
       '就这样', '直接开始设计', '直接设计', '开始设计',
-      '可以生成了', '可以开始了', '开始吧', '生成', '开始制作',
-      '不用调整', '不用修改', '直接出图', '出图吧'
+      '不用调整', '不用修改', '直接出图', '出图吧',
+      '直接做', '开始制作'
     ];
-    const lowerMsg = message.toLowerCase();
-    return skipKeywords.some(keyword => lowerMsg.includes(keyword));
+
+    // 否定词：用户明确拒绝详细收集
+    const rejectionKeywords = [
+      '不想', '不用了', '不需要', '不需要了', '跳过'
+    ];
+
+    // 检查精确匹配
+    if (exactMatchKeywords.some(keyword => lowerMsg.includes(keyword))) {
+      return true;
+    }
+
+    // 检查否定词（但排除"可以"等确认词）
+    if (rejectionKeywords.some(keyword => lowerMsg.includes(keyword))) {
+      return true;
+    }
+
+    // 单独检查"生成"和"开始"，但要求消息较短（避免误匹配）
+    if ((lowerMsg === '生成' || lowerMsg === '开始') && lowerMsg.length <= 4) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -935,6 +1059,13 @@ ${infoLines}
   private extractDesignTypeFromInput(message: string): { type: string; detected: boolean } {
     const lowerMsg = message.toLowerCase();
 
+    // 先提取品牌名，避免品牌名中的关键词被误识别
+    const brandName = this.extractBrandFromMessage(message);
+    let messageWithoutBrand = lowerMsg;
+    if (brandName) {
+      messageWithoutBrand = lowerMsg.replace(brandName.toLowerCase(), '');
+    }
+
     // 设计类型关键词映射
     const designTypeMap = [
       { keywords: ['海报', 'poster', '宣传'], type: '海报设计' },
@@ -946,7 +1077,7 @@ ${infoLines}
     ];
 
     for (const item of designTypeMap) {
-      if (item.keywords.some(kw => lowerMsg.includes(kw))) {
+      if (item.keywords.some(kw => messageWithoutBrand.includes(kw))) {
         return { type: item.type, detected: true };
       }
     }
@@ -1220,6 +1351,34 @@ ${infoLines}
   }
 
   /**
+   * 从用户消息中提取排除的元素（如"不是狗形象"中的"狗形象"）
+   */
+  private extractExcludedElements(message: string): string[] {
+    const excludedElements: string[] = [];
+    const lowerMsg = message.toLowerCase();
+
+    // 匹配"不是..."、"不要..."、"排除..."等否定表达
+    const exclusionPatterns = [
+      /不是([\u4e00-\u9fa5]+)/g,
+      /不要([\u4e00-\u9fa5]+)/g,
+      /排除([\u4e00-\u9fa5]+)/g,
+      /避免([\u4e00-\u9fa5]+)/g,
+      /不要包含([\u4e00-\u9fa5]+)/g
+    ];
+
+    for (const pattern of exclusionPatterns) {
+      let match;
+      while ((match = pattern.exec(lowerMsg)) !== null) {
+        if (match[1] && match[1].length >= 2) {
+          excludedElements.push(match[1]);
+        }
+      }
+    }
+
+    return excludedElements;
+  }
+
+  /**
    * 检测用户是否想要生成图像
    */
   private shouldGenerateImage(userMessage: string, context: ConversationContext): boolean {
@@ -1232,9 +1391,9 @@ ${infoLines}
 
     // 检测生成图像的关键词（更严格）
     const generationKeywords = [
-      '生成', '画', '画一个', '画一下', '绘制', '创作', '设计',
+      '生成', '画', '画一个', '画一下', '绘制', '创作',
       '生成图像', '生成图片', '画出来', '画个', '画幅',
-      '开始设计', '开始画', '开始生成', '帮我画', '帮我生成',
+      '开始画', '开始生成', '帮我画', '帮我生成',
       '你能画', '你能生成', '可以画', '可以生成'
     ];
 
@@ -1244,7 +1403,7 @@ ${infoLines}
 
     // 检测确认/同意类关键词（更严格：必须明确表达生成意图）
     // 收紧关键词列表，避免误触发
-    const confirmationKeywords = ['确认生成', '确认设计', '就这样生成', '开始生成吧', '直接生成', '立即生成'];
+    const confirmationKeywords = ['确认生成', '确认设计', '就这样生成', '开始生成吧', '直接生成', '立即生成', '好了吗', '好了么', '可以了吗', '完成了吗', '生成了吗', '画好了吗', '做好了吗'];
     const hasConfirmation = confirmationKeywords.some(keyword =>
       lowerMsg.includes(keyword)
     );
@@ -1294,22 +1453,19 @@ ${infoLines}
 
   /**
    * 执行图像生成
+   * 使用 ImageGenerationSkill 替代直接 API 调用
    */
   private async executeImageGeneration(
     userMessage: string,
     context: ConversationContext
   ): Promise<OrchestratorResponse> {
-    console.log('[Orchestrator] 开始执行图像生成');
+    console.log('[Orchestrator] 开始执行图像生成 (通过 ImageGenerationSkill)');
     console.log('[Orchestrator] 用户消息:', userMessage);
     console.log('[Orchestrator] 当前任务:', context.currentTask);
     console.log('[Orchestrator] 选择的风格:', context.selectedStyle);
 
-    // 构建图像生成提示词
-    // 只使用用户选择的风格，如果没有选择则提示用户选择
-    let selectedStyle = context.selectedStyle;
-
-    // 如果没有选择风格，返回提示用户选择风格的消息
-    if (!selectedStyle) {
+    // 检查是否已选择风格
+    if (!context.selectedStyle) {
       console.log('[Orchestrator] 未选择风格，提示用户选择');
       return {
         type: 'style-options',
@@ -1321,154 +1477,59 @@ ${infoLines}
       };
     }
 
-    // 构建完整的提示词，包含用户的完整需求
-    // 智能提取用户当前输入中的实际内容（去除指令词如"直接生成"、"开始吧"等）
-    const generationKeywords = ['直接生成', '开始生成', '生成吧', '开始吧', '直接做', '就这样', '可以生成了', '可以开始了', '开始制作', '不用调整', '不用修改', '直接出图', '出图吧'];
-    let extractedUserNeed = userMessage;
-
-    // 处理 @风格名 引用格式
-    // 匹配 @风格名 或 @风格ID 格式（支持中文风格名和英文风格ID）
-    const styleMentionRegex = /@([\u4e00-\u9fa5]+|[a-zA-Z0-9_-]+)/g;
-    const styleMentions = extractedUserNeed.match(styleMentionRegex);
-    
-    if (styleMentions && styleMentions.length > 0) {
-      console.log('[Orchestrator] 检测到风格引用:', styleMentions);
-      
-      for (const mention of styleMentions) {
-        const styleNameOrId = mention.substring(1); // 移除 @ 符号
-        
-        // 在预设风格中查找匹配的风格
-        const matchedStyle = PRESET_STYLES.find(s => 
-          s.name === styleNameOrId || // 匹配风格名称（如"诡萌幻想绘本"）
-          s.id === styleNameOrId      // 匹配风格ID（如"fantasy-picture-book"）
-        );
-        
-        if (matchedStyle) {
-          console.log('[Orchestrator] 匹配到风格:', matchedStyle.name, 'ID:', matchedStyle.id);
-          selectedStyle = matchedStyle.prompt; // 使用风格的prompt作为生成提示词
-          // 从用户输入中移除风格引用，保留其他内容
-          extractedUserNeed = extractedUserNeed.replace(mention, '').trim();
-        } else {
-          console.warn('[Orchestrator] 未找到匹配的风格:', styleNameOrId);
-        }
-      }
-      
-      // 清理多余的空格和标点
-      extractedUserNeed = extractedUserNeed.replace(/\s+/g, ' ').trim();
-      extractedUserNeed = extractedUserNeed.replace(/^[，,、]+|[，,、]+$/g, '').trim();
-    }
-
-    // 如果用户消息包含生成指令，尝试提取实际内容
-    for (const keyword of generationKeywords) {
-      if (extractedUserNeed.includes(keyword)) {
-        // 移除指令词，保留前面的实际内容
-        const parts = extractedUserNeed.split(keyword);
-        if (parts[0] && parts[0].trim().length > 0) {
-          extractedUserNeed = parts[0].trim();
-          // 移除常见的连接词
-          extractedUserNeed = extractedUserNeed.replace(/[,，、]$/g, '').trim();
-        }
-        break;
-      }
-    }
-
-    // 如果提取的内容太短（只有指令），则使用任务描述
-    const hasMeaningfulContent = extractedUserNeed && extractedUserNeed.length >= 2 && !generationKeywords.some(k => extractedUserNeed === k);
-    const taskDescription = hasMeaningfulContent
-      ? extractedUserNeed
-      : (context.currentTask?.requirements?.description || userMessage);
-    const targetAudience = context.currentTask?.requirements?.targetAudience;
-    const usageScenario = context.currentTask?.requirements?.usageScenario;
-
     // 获取品牌信息
     const brandName = context.selectedBrand || 
                       context.currentTask?.requirements?.brand ||
                       this.extractBrandFromMessage(userMessage);
 
-    // 构建详细的提示词
-    let prompt = `${taskDescription}`;
-
-    // 如果指定了品牌，在提示词开头添加品牌信息
-    if (brandName) {
-      prompt = `为品牌"${brandName}"设计IP形象。${prompt}`;
-      console.log('[Orchestrator] 添加品牌信息到提示词:', brandName);
-    }
-
-    // 如果用户引用了作品，添加参考作品信息（用于修改/优化）
-    if (context.mentionedWorks && context.mentionedWorks.length > 0) {
-      const mentionedWork = context.mentionedWorks[0];
-      const originalPrompt = mentionedWork.prompt || '';
-      const originalStyle = mentionedWork.style || '';
-      
-      // 构建基于参考作品的提示词
-      prompt = `基于以下参考作品进行修改优化：
-参考作品名称：${mentionedWork.title || mentionedWork.name}
-参考作品原描述：${mentionedWork.description || '无'}
-参考作品原风格：${originalStyle || '无'}
-
-修改需求：${taskDescription}
-
-要求：请保持参考作品的整体构图、主题和核心元素，根据修改需求进行调整优化。保留原作的优点，针对修改需求进行精准调整。`;
-      
-      // 如果有原作品的生成提示词，也一并参考
-      if (originalPrompt) {
-        prompt += `\n参考作品原提示词：${originalPrompt}`;
-      }
-      
-      console.log('[Orchestrator] 基于引用作品构建提示词:', {
-        mentionedWork: mentionedWork.name,
-        originalPrompt: originalPrompt.substring(0, 100) + '...',
-        modificationRequest: taskDescription
-      });
-    }
-
-    // 添加目标受众信息
-    if (targetAudience) {
-      prompt += `\n目标受众：${targetAudience}`;
-    }
-
-    // 添加使用场景信息
-    if (usageScenario) {
-      prompt += `\n使用场景：${usageScenario}`;
-    }
-
-    // 添加风格要求
-    prompt += `\n风格要求：${selectedStyle}，高质量，精美细节，专业设计作品`;
-
-    console.log('[Orchestrator] 最终生成的提示词:', prompt.substring(0, 200) + '...');
+    // 获取任务描述
+    const taskDescription = context.currentTask?.requirements?.description || userMessage;
+    const taskType = context.currentTask?.type || '设计';
 
     try {
-      // 调用图像生成API
-      const result = await llmService.generateImage({
-        model: 'qwen-image-2.0-pro',
-        prompt: prompt,
-        size: '1024x1024',
-        n: 1
+      // 使用 ImageGenerationSkill 执行图像生成
+      console.log('[Orchestrator] 创建 ImageGenerationSkill 实例...');
+      const imageSkill = new ImageGenerationSkill({
+        enableStyleEnhancement: true
       });
 
-      console.log('[Orchestrator] 图像生成结果:', result);
+      // 构建 Skill 执行上下文
+      const skillContext = {
+        userId: context.userId || 'anonymous',
+        sessionId: context.sessionId || 'default',
+        message: userMessage,
+        history: context.messages,
+        parameters: {
+          prompt: taskDescription,
+          style: context.selectedStyle,
+          brand: brandName,
+          targetAudience: context.currentTask?.requirements?.targetAudience,
+          usageScenario: context.currentTask?.requirements?.usageScenario,
+          mentionedWorks: context.mentionedWorks
+        }
+      };
 
-      if (!result.ok) {
-        throw new Error(result.error || '图像生成失败');
+      console.log('[Orchestrator] 调用 ImageGenerationSkill.execute()...');
+      const skillResult = await imageSkill.execute(skillContext);
+
+      if (!skillResult.success) {
+        throw new Error(skillResult.error?.message || '图像生成失败');
       }
 
-      // 提取图像URL
-      let imageUrl: string | undefined;
-      if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
-        imageUrl = result.data.data[0].url;
-      } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-        imageUrl = result.data[0].url;
-      }
+      // 提取图像URL和提示词
+      const imageUrl = skillResult.data?.url || skillResult.data?.imageUrl;
+      const finalPrompt = skillResult.data?.prompt || taskDescription;
 
       if (!imageUrl) {
         throw new Error('无法获取生成的图像URL');
       }
 
+      console.log('[Orchestrator] ImageGenerationSkill 执行成功，图像URL:', imageUrl);
+
       // 生成成功后的回复内容
-      const taskType = context.currentTask?.type || '设计';
       const content = `✨ **生成完成！**
 
-我已经为你创作了${selectedStyle}风格的${taskType}作品，基于你的需求：「${taskDescription}」
+我已经为你创作了${context.selectedStyle}风格的${taskType}作品，基于你的需求：「${taskDescription}」
 
 看看效果如何？如果需要调整风格、颜色或细节，随时告诉我！`;
 
@@ -1478,27 +1539,125 @@ ${infoLines}
         content: content,
         generatedImage: {
           url: imageUrl,
-          prompt: prompt
+          prompt: finalPrompt
+        },
+        aiResponse: {
+          content: content,
+          type: 'image',
+          metadata: {
+            thinking: skillResult.metadata?.thinking,
+            skillExecution: {
+              skillName: 'ImageGenerationSkill',
+              skillId: imageSkill.id,
+              executionTime: Date.now(),
+              parameters: skillContext.parameters,
+              success: true
+            }
+          }
         }
       };
     } catch (error: any) {
-      console.error('[Orchestrator] 图像生成失败:', error);
+      console.error('[Orchestrator] ImageGenerationSkill 执行失败，尝试降级到直接API调用:', error);
 
-      // 返回错误响应
-      return {
-        type: 'response',
-        agent: context.currentAgent,
-        content: `❌ **生成失败**
+      // 降级处理：直接调用 API
+      try {
+        console.log('[Orchestrator] 降级：直接调用 llmService.generateImage...');
 
-抱歉，图像生成遇到了问题：${error.message}
+        // 构建提示词
+        let prompt = taskDescription;
+        if (brandName) {
+          prompt = `为品牌"${brandName}"设计。${prompt}`;
+        }
+        prompt += `\n风格要求：${context.selectedStyle}，高质量，精美细节，专业设计作品`;
+
+        // 直接调用 API
+        const result = await llmService.generateImage({
+          model: 'qwen-image-2.0-pro',
+          prompt: prompt,
+          size: '1024x1024',
+          n: 1
+        });
+
+        if (!result.ok) {
+          throw new Error(result.error || '图像生成失败');
+        }
+
+        // 提取图像URL
+        let imageUrl: string | undefined;
+        if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
+          imageUrl = result.data.data[0].url;
+        } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+          imageUrl = result.data[0].url;
+        }
+
+        if (!imageUrl) {
+          throw new Error('无法获取生成的图像URL');
+        }
+
+        console.log('[Orchestrator] 降级API调用成功，图像URL:', imageUrl);
+
+        const content = `✨ **生成完成！** (通过备用方式)
+
+我已经为你创作了${context.selectedStyle}风格的${taskType}作品，基于你的需求：「${taskDescription}」
+
+看看效果如何？如果需要调整风格、颜色或细节，随时告诉我！`;
+
+        return {
+          type: 'image_generation',
+          agent: context.currentAgent,
+          content: content,
+          generatedImage: {
+            url: imageUrl,
+            prompt: prompt
+          },
+          aiResponse: {
+            content: content,
+            type: 'image',
+            metadata: {
+              skillExecution: {
+                skillName: 'DirectAPIFallback',
+                executionTime: Date.now(),
+                parameters: { prompt, style: context.selectedStyle },
+                success: true,
+                note: 'ImageGenerationSkill failed, used direct API as fallback'
+              }
+            }
+          }
+        };
+      } catch (fallbackError: any) {
+        console.error('[Orchestrator] 降级API调用也失败了:', fallbackError);
+
+        // 返回错误响应
+        return {
+          type: 'response',
+          agent: context.currentAgent,
+          content: `❌ **生成失败**
+
+抱歉，图像生成遇到了问题：
+- Skill错误：${error.message}
+- API错误：${fallbackError.message}
 
 可能的原因：
 - 网络连接不稳定
 - 服务器繁忙
-- 提示词需要调整
+- API配置问题
 
-请稍后重试，或者换一种描述方式告诉我你的需求～`
-      };
+请稍后重试，或者换一种描述方式告诉我你的需求～`,
+          aiResponse: {
+            content: `生成失败：${error.message}`,
+            type: 'error',
+            metadata: {
+              skillExecution: {
+                skillName: 'ImageGenerationSkill',
+                executionTime: Date.now(),
+                success: false,
+                error: error.message,
+                fallbackError: fallbackError.message
+              }
+            }
+          }
+        };
+      }
     }
   }
 
@@ -1573,7 +1732,17 @@ ${infoLines}
     }
 
     try {
-      const systemPrompt = getAgentSystemPrompt(context.currentAgent, context.selectedBrand, context.selectedStyle);
+      // 从用户消息中提取品牌名（如果context中没有）
+      const brandFromMessage = !context.selectedBrand ? this.extractBrandFromMessage(userMessage) : undefined;
+      const effectiveBrand = context.selectedBrand || brandFromMessage;
+
+      // 从用户消息中提取排除的元素
+      const excludedElements = this.extractExcludedElements(userMessage);
+
+      // 获取当前设计类型
+      const projectType = context.currentTask?.type || context.requirementCollection?.collectedInfo?.projectType;
+
+      const systemPrompt = getAgentSystemPrompt(context.currentAgent, effectiveBrand, context.selectedStyle, excludedElements, projectType);
       const aiResponse = await this.smartCallAgent(
         systemPrompt,
         context.messages,
@@ -1635,7 +1804,8 @@ ${infoLines}
     );
 
     // 调用目标 Agent
-    const systemPrompt = getAgentSystemPrompt(targetAgent, context.selectedBrand, context.selectedStyle);
+    const projectType = context.currentTask?.type || context.requirementCollection?.collectedInfo?.projectType;
+    const systemPrompt = getAgentSystemPrompt(targetAgent, context.selectedBrand, context.selectedStyle, undefined, projectType);
 
     // 构建历史消息（包含上下文）
     const historyMessages: AgentMessage[] = context.messages.map(msg => ({

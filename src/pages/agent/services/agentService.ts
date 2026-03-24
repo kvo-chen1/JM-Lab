@@ -19,7 +19,7 @@ import { getIntentRecognitionService, IntentType } from './intentRecognition';
 // AI响应类型
 export interface AIResponse {
   content: string;
-  type: 'text' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'delegation' | 'collaboration';
+  type: 'text' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'delegation' | 'collaboration' | 'workflow';
   thinking?: string;
   switchToDesigner?: boolean;
   metadata?: {

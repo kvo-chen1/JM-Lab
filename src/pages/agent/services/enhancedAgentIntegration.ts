@@ -238,8 +238,8 @@ export async function callEnhancedAgent(
     const profileService = getUserProfileService();
     const profile = profileService.getProfile(userId);
 
-    // 根据用户偏好调整Prompt
-    if (profile.preferences.styles.length > 0) {
+    // 根据用户偏好调整Prompt - 但新对话（历史消息少于3条）时不使用历史偏好
+    if (profile.preferences.styles.length > 0 && history.length > 2) {
       const preferredStyles = profile.preferences.styles
         .slice(0, 3)
         .map(s => s.value)

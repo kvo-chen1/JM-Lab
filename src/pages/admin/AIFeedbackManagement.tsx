@@ -31,7 +31,16 @@ export default function AIFeedbackManagement() {
   const [ratingFilter, setRatingFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [readFilter, setReadFilter] = useState<string>('all');
+  const [aiModelFilter, setAiModelFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<string>('7');
+
+  // AI模型配置
+  const AI_MODEL_CONFIG: Record<string, { label: string; color: string }> = {
+    'jinmai-agent': { label: '津小脉Agent', color: '#8B5CF6' },
+    'jinmai-skill': { label: '津小脉Skill', color: '#EC4899' },
+    'jinmai-floating': { label: 'AI创意助手', color: '#10B981' },
+    'creation-assistant': { label: '创作中心AI', color: '#F59E0B' },
+  };
   const [selectedFeedback, setSelectedFeedback] = useState<AIFeedback | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [stats, setStats] = useState<AIFeedbackStats>({
@@ -160,8 +169,9 @@ export default function AIFeedbackManagement() {
     const matchesRead = readFilter === 'all' ||
       (readFilter === 'read' && feedback.isRead) ||
       (readFilter === 'unread' && !feedback.isRead);
+    const matchesAiModel = aiModelFilter === 'all' || feedback.aiModel === aiModelFilter;
 
-    return matchesSearch && matchesRating && matchesType && matchesRead;
+    return matchesSearch && matchesRating && matchesType && matchesRead && matchesAiModel;
   });
 
   // 获取评分星星
@@ -351,6 +361,18 @@ export default function AIFeedbackManagement() {
           </select>
 
           <select
+            value={aiModelFilter}
+            onChange={(e) => setAiModelFilter(e.target.value)}
+            className={`px-4 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+          >
+            <option value="all">全部AI</option>
+            <option value="jinmai-agent">津小脉Agent</option>
+            <option value="jinmai-skill">津小脉Skill</option>
+            <option value="jinmai-floating">AI创意助手</option>
+            <option value="creation-assistant">创作中心AI</option>
+          </select>
+
+          <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
             className={`px-4 py-2 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
@@ -383,6 +405,7 @@ export default function AIFeedbackManagement() {
                 <thead className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-semibold">用户</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">AI类型</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold">评分</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold">类型</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold">用户问题</th>
@@ -409,6 +432,17 @@ export default function AIFeedbackManagement() {
                             )}
                           </div>
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className="px-3 py-1 rounded-full text-xs font-medium"
+                          style={{
+                            backgroundColor: AI_MODEL_CONFIG[feedback.aiModel]?.color + '20' || '#9CA3AF20',
+                            color: AI_MODEL_CONFIG[feedback.aiModel]?.color || '#9CA3AF'
+                          }}
+                        >
+                          {AI_MODEL_CONFIG[feedback.aiModel]?.label || feedback.aiModel || '未知'}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1">

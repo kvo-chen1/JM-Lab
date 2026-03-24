@@ -3,14 +3,14 @@
  */
 
 import { AnalysisSkill } from '../base/BaseSkill';
-import type { UserIntent, ExecutionContext, SkillResult } from '../../types/skill';
+import type { UserIntent, ExecutionContext, SkillResult, Capability } from '../../types/skill';
 
 export class IntentRecognitionSkill extends AnalysisSkill {
   readonly id = 'intent-recognition';
   readonly name = '意图识别';
   readonly description = '分析用户输入，识别用户意图';
 
-  readonly capabilities = [
+  readonly capabilities: Capability[] = [
     {
       id: 'recognize-intent',
       name: '识别意图',

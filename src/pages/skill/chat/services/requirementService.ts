@@ -28,6 +28,15 @@ export interface RequirementField {
   options?: string[];
   placeholder?: string;
   categories?: MerchandiseCategory[];
+  condition?: FieldCondition;  // 动态字段显示条件
+}
+
+// 动态字段显示条件
+export interface FieldCondition {
+  field: string;      // 触发条件的字段 key
+  operator: 'equals' | 'notEquals' | 'contains' | 'notContains' | 'in' | 'notIn';
+  value: string | string[];
+  action?: 'show' | 'hide' | 'require';
 }
 
 // 需求分析结果
@@ -38,6 +47,15 @@ export interface RequirementAnalysis {
   summary: string;                   // 当前理解的需求摘要
   nextQuestion?: string;             // 下一个问题
   suggestions?: string[];            // 建议的回复
+  intentSwitch?: IntentSwitchInfo;   // 意图切换信息
+}
+
+// 意图切换信息
+export interface IntentSwitchInfo {
+  previousIntent: IntentType;
+  newIntent: IntentType;
+  confidence: number;
+  needsConfirmation: boolean;
 }
 
 // 各意图类型的需求字段定义
@@ -122,6 +140,60 @@ const INTENT_REQUIREMENTS: Record<IntentType, RequirementField[]> = {
     { key: 'budget', label: '预算范围', description: '大致预算', required: false, type: 'select', options: ['低预算', '中等预算', '高预算', '不限'] },
     { key: 'timeline', label: '时间周期', description: '准备时间', required: false, type: 'select', options: ['一周内', '一个月内', '三个月内', '长期规划'] },
   ],
+  'image-beautification': [
+    { key: 'imageUrl', label: '图片', description: '需要美化的图片', required: false, type: 'text', placeholder: '请上传图片' },
+    { key: 'beautifyType', label: '美化类型', description: '想要如何美化', required: false, type: 'select', options: ['提升画质', '色彩增强', '风格转换', '修复瑕疵'] },
+  ],
+  'image-style-transfer': [
+    { key: 'imageUrl', label: '图片', description: '需要转换风格的图片', required: false, type: 'text', placeholder: '请上传图片' },
+    { key: 'targetStyle', label: '目标风格', description: '想要转换成的风格', required: true, type: 'select', options: ['油画', '水彩', '素描', '卡通', '赛博朋克', '国风'] },
+  ],
+  'image-recognition': [
+    { key: 'imageUrl', label: '图片', description: '需要识别的图片', required: false, type: 'text', placeholder: '请上传图片' },
+    { key: 'recognitionType', label: '识别类型', description: '想要识别什么', required: false, type: 'select', options: ['物体识别', '文字识别', '场景识别', '人脸识别'] },
+  ],
+  'video-script': [
+    { key: 'videoType', label: '视频类型', description: '需要什么类型的视频脚本', required: true, type: 'select', options: ['宣传片', '短视频', 'vlog', '教学视频', '产品演示', '品牌故事'] },
+    { key: 'duration', label: '视频时长', description: '视频预计时长', required: true, type: 'select', options: ['15秒以内', '15-30秒', '30-60秒', '1-3分钟', '3-5分钟', '5分钟以上'] },
+    { key: 'mainMessage', label: '核心信息', description: '视频要传达的核心内容', required: true, type: 'textarea', placeholder: '例如：产品核心卖点、品牌理念等' },
+    { key: 'targetAudience', label: '目标受众', description: '视频面向的人群', required: true, type: 'text', placeholder: '例如：25-35岁职场女性' },
+    { key: 'scene', label: '场景描述', description: '视频的主要场景', required: false, type: 'textarea', placeholder: '例如：办公室场景、家庭场景、户外场景等' },
+    { key: 'style', label: '视频风格', description: '期望的视频风格', required: false, type: 'select', options: ['纪录片风格', '剧情风格', '动画风格', '访谈风格', '快闪风格', '真人出镜', '无人物'] },
+    { key: 'scriptFormat', label: '脚本格式', description: '需要的脚本格式', required: false, type: 'select', options: ['分镜脚本', '对话脚本', '纯文字脚本', '详细脚本'] },
+    { key: 'needVoiceover', label: '配音需求', description: '是否需要配音', required: false, type: 'select', options: ['不需要配音', '需要配音', '只需要配音'] },
+    { key: 'bgmStyle', label: '背景音乐', description: '背景音乐风格偏好', required: false, type: 'select', options: ['轻快', '舒缓', '激昂', '神秘', '科技感', '无要求'] },
+  ],
+  'event-planning': [
+    { key: 'eventType', label: '活动类型', description: '活动形式', required: true, type: 'select', options: ['线上活动', '线下活动', '线上线下结合'] },
+    { key: 'eventName', label: '活动名称', description: '活动主题名称', required: true, type: 'text', placeholder: '例如：618大促、年度用户大会' },
+    { key: 'eventGoal', label: '活动目标', description: '希望通过活动达成什么', required: true, type: 'textarea', placeholder: '例如：提升品牌知名度、增加销售额、获取新用户' },
+    { key: 'targetAudience', label: '目标人群', description: '活动面向的对象', required: true, type: 'text', placeholder: '例如：现有客户、潜在客户、企业客户' },
+    { key: 'budget', label: '预算范围', description: '活动预算', required: true, type: 'select', options: ['1万以下', '1-5万', '5-10万', '10-50万', '50万以上', '暂不确定'] },
+    { key: 'timeline', label: '时间安排', description: '活动时间和周期', required: true, type: 'textarea', placeholder: '例如：2024年Q2，计划筹备1个月' },
+    { key: 'activities', label: '活动内容', description: '主要活动环节', required: true, type: 'textarea', placeholder: '例如：开幕式、主题演讲、互动环节、抽奖等' },
+    { key: 'promotion', label: '推广计划', description: '活动宣传推广方案', required: false, type: 'textarea', placeholder: '例如：预热期、爆发期、持续期各阶段的推广策略' },
+    { key: 'kpi', label: '效果指标', description: '衡量活动成功的指标', required: false, type: 'textarea', placeholder: '例如：参与人数、转化率、销售额增长' },
+  ],
+  'ui-design': [
+    { key: 'projectType', label: '项目类型', description: '设计项目的类型', required: true, type: 'select', options: ['APP设计', '网页设计', '小程序设计', 'Dashboard', '后台管理系统', '落地页'] },
+    { key: 'mainFunction', label: '主要功能', description: '产品的核心功能', required: true, type: 'textarea', placeholder: '例如：用户登录、内容浏览、在线下单、支付等' },
+    { key: 'userCount', label: '用户规模', description: '预计用户量级', required: false, type: 'select', options: ['100以内', '100-1000', '1000-1万', '1万-10万', '10万以上'] },
+    { key: 'platform', label: '目标平台', description: '设计面向的平台', required: false, type: 'multiselect', options: ['iOS', 'Android', 'Web', 'H5', '微信小程序'] },
+    { key: 'style', label: '设计风格', description: '期望的设计风格', required: false, type: 'select', options: ['简约现代', '科技感', '可爱活泼', '高端奢华', '商务正式', '文艺清新'] },
+    { key: 'brandColor', label: '品牌色', description: '品牌主色调', required: false, type: 'text', placeholder: '例如：蓝色系，或具体色值 #0066FF' },
+    { key: 'reference', label: '参考案例', description: '是否有参考的设计', required: false, type: 'textarea', placeholder: '例如：参考某APP的设计风格' },
+    { key: 'needs', label: '特殊需求', description: '其他特殊要求', required: false, type: 'textarea', placeholder: '例如：无障碍设计、深色模式支持等' },
+  ],
+  'data-report': [
+    { key: 'reportType', label: '报告类型', description: '需要的报告类型', required: true, type: 'select', options: ['周报', '月报', '季报', '年报', '专项报告', '竞品分析'] },
+    { key: 'reportTitle', label: '报告标题', description: '报告的主题', required: true, type: 'text', placeholder: '例如：2024年Q1用户增长分析报告' },
+    { key: 'dataSource', label: '数据来源', description: '数据来自哪里', required: true, type: 'textarea', placeholder: '例如：GA、友盟、自有数据库等' },
+    { key: 'metrics', label: '关键指标', description: '需要关注的核心指标', required: true, type: 'textarea', placeholder: '例如：DAU、留存率、转化率、GMV等' },
+    { key: 'comparison', label: '对比维度', description: '是否需要对比分析', required: false, type: 'select', options: ['环比', '同比', '竞品对比', '不做对比'] },
+    { key: 'audience', label: '阅读对象', description: '报告的读者是谁', required: true, type: 'text', placeholder: '例如：管理层、业务负责人、公司全员' },
+    { key: 'focus', label: '重点关注', description: '报告需要重点分析的内容', required: false, type: 'textarea', placeholder: '例如：用户流失原因分析、新功能效果评估等' },
+    { key: 'format', label: '报告格式', description: '期望的报告格式', required: false, type: 'select', options: ['PPT', 'Word', 'Excel', '在线文档', '邮件'] },
+  ],
   'general': [],
   'greeting': [],
   'help': [],
@@ -176,8 +248,8 @@ ${history.map(h => `${h.role}: ${h.content}`).join('\n')}
     const response = await callQwenChat({
       model: 'qwen-turbo',
       messages: [
-        { role: 'system' as 'system', content: '你是一个需求分析专家，擅长从对话中提取结构化信息。' },
-        { role: 'user' as 'user', content: prompt },
+        { role: 'system', content: '你是一个需求分析专家，擅长从对话中提取结构化信息。', timestamp: Date.now() },
+        { role: 'user', content: prompt, timestamp: Date.now() },
       ],
       temperature: 0.3,
       max_tokens: 1000,
@@ -202,12 +274,17 @@ ${history.map(h => `${h.role}: ${h.content}`).join('\n')}
       result = fallbackAnalysis(intent, userMessage, requirements);
     }
 
-    const missingRequired = result.missingFields || [];
-    
+    // 兜底逻辑：重新计算缺失字段，确保准确性
+    // 即使 LLM 返回了结果，也要根据 INTENT_REQUIREMENTS 重新验证
+    const finalMissingFields = requirements.filter(r =>
+      r.required && (!result.collectedInfo || !result.collectedInfo[r.key] ||
+                    result.collectedInfo[r.key].trim() === '')
+    );
+
     return {
-      ready: missingRequired.length === 0,
+      ready: finalMissingFields.length === 0,
       collectedInfo: result.collectedInfo || {},
-      missingFields: missingRequired,
+      missingFields: finalMissingFields,
       nextQuestion: result.nextQuestion,
       suggestions: result.suggestions,
       summary: result.summary || '',
@@ -285,6 +362,13 @@ const getIntentDisplayName = (intent: IntentType): string => {
     'social-copy': '社媒文案',
     'color-scheme': '配色方案',
     'creative-idea': '创意点子',
+    'image-beautification': '图片美化',
+    'image-style-transfer': '风格转换',
+    'image-recognition': '图片识别',
+    'video-script': '视频脚本',
+    'event-planning': '活动策划',
+    'ui-design': 'UI设计',
+    'data-report': '数据分析报告',
     'general': '对话',
     'greeting': '问候',
     'help': '帮助',
@@ -386,7 +470,8 @@ export const isRequirementsComplete = (
   collectedInfo: Record<string, string>
 ): boolean => {
   const requirements = INTENT_REQUIREMENTS[intent] || [];
-  return requirements
+  const visibleFields = filterVisibleFields(requirements, collectedInfo);
+  return visibleFields
     .filter(r => r.required)
     .every(r => {
       const value = collectedInfo[r.key];
@@ -396,10 +481,85 @@ export const isRequirementsComplete = (
     });
 };
 
+// 过滤动态显示的字段
+export const filterVisibleFields = (
+  requirements: RequirementField[],
+  collectedInfo: Record<string, string>
+): RequirementField[] => {
+  return requirements.filter(field => {
+    if (!field.condition) return true;
+
+    const conditionValue = collectedInfo[field.condition.field];
+    if (!conditionValue) return field.condition.action !== 'show';
+
+    const { operator, value, action } = field.condition;
+
+    let isMatch = false;
+    switch (operator) {
+      case 'equals':
+        isMatch = conditionValue === value;
+        break;
+      case 'notEquals':
+        isMatch = conditionValue !== value;
+        break;
+      case 'contains':
+        isMatch = conditionValue.includes(value as string);
+        break;
+      case 'notContains':
+        isMatch = !conditionValue.includes(value as string);
+        break;
+      case 'in':
+        isMatch = Array.isArray(value) && value.includes(conditionValue);
+        break;
+      case 'notIn':
+        isMatch = Array.isArray(value) && !value.includes(conditionValue);
+        break;
+    }
+
+    if (action === 'show') {
+      return isMatch;
+    } else if (action === 'hide') {
+      return !isMatch;
+    }
+
+    return true;
+  });
+};
+
+// 检测意图切换
+export const detectIntentSwitch = (
+  previousIntent: IntentType,
+  newIntent: IntentType,
+  message: string,
+  history: Array<{ role: 'user' | 'assistant'; content: string }>
+): IntentSwitchInfo | null => {
+  if (previousIntent === newIntent) {
+    return null;
+  }
+
+  if (['greeting', 'help', 'general'].includes(previousIntent) ||
+      ['greeting', 'help', 'general'].includes(newIntent)) {
+    return null;
+  }
+
+  const hasIntentKeywords = /^(帮我|我想|需要|给我|来个|设计|写|制作|生成)/.test(message);
+  const confidence = hasIntentKeywords ? 0.85 : 0.7;
+  const needsConfirmation = confidence < 0.9;
+
+  return {
+    previousIntent,
+    newIntent,
+    confidence,
+    needsConfirmation,
+  };
+};
+
 export default {
   analyzeRequirements,
   generateRequirementForm,
   isRequirementsComplete,
   validateField,
   validateCollectedInfo,
+  filterVisibleFields,
+  detectIntentSwitch,
 };

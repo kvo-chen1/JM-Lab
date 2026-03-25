@@ -228,6 +228,7 @@ const STYLE_INFERENCES: Record<string, Partial<InferredInfo>> = {
 /**
  * 智能推断缺失信息
  * 基于用户输入和已有信息进行推断
+ * 支持多字段联合推断
  */
 export const inferMissingInfo = (
   intent: IntentType,
@@ -236,7 +237,11 @@ export const inferMissingInfo = (
 ): InferredInfo[] => {
   const inferences: InferredInfo[] = [];
 
-  // 1. 基于行业关键词推断
+  // 1. 多字段联合推断 - 基于完整句子推断多个字段
+  const combinedInferences = inferMultipleFields(intent, collectedInfo, userMessage);
+  inferences.push(...combinedInferences);
+
+  // 2. 基于行业关键词推断（如果联合推断未覆盖）
   if (intent === 'logo-design' || intent === 'color-scheme') {
     const rules = INDUSTRY_INFERENCES[intent] || [];
     
@@ -248,7 +253,8 @@ export const inferMissingInfo = (
       if (matchedKeyword) {
         // 找到匹配的行业关键词
         for (const [key, value] of Object.entries(rule.inferences)) {
-          if (!collectedInfo[key]) {
+          // 如果联合推断已经覆盖了这个字段，跳过
+          if (!collectedInfo[key] && !combinedInferences.find(i => i.key === key)) {
             inferences.push({
               key,
               value,
@@ -262,8 +268,9 @@ export const inferMissingInfo = (
     }
   }
 
-  // 2. 颜色推断
-  if (!collectedInfo['colorTone'] && !collectedInfo['colorPreference'] && !collectedInfo['baseColor']) {
+  // 3. 颜色推断（如果联合推断未覆盖）
+  if (!collectedInfo['colorTone'] && !collectedInfo['colorPreference'] && !collectedInfo['baseColor'] && 
+      !combinedInferences.find(i => ['colorTone', 'colorPreference', 'baseColor'].includes(i.key))) {
     for (const [color, inference] of Object.entries(COLOR_INFERENCES)) {
       if (userMessage.includes(color)) {
         const targetKey = intent === 'logo-design' ? 'colorPreference' : 
@@ -276,12 +283,13 @@ export const inferMissingInfo = (
           reasoning: inference.reasoning || '',
           source: 'keyword',
         });
+        break; // 只取第一个匹配的颜色
       }
     }
   }
 
-  // 3. 风格推断
-  if (!collectedInfo['style']) {
+  // 4. 风格推断（如果联合推断未覆盖）
+  if (!collectedInfo['style'] && !combinedInferences.find(i => i.key === 'style')) {
     for (const [style, inference] of Object.entries(STYLE_INFERENCES)) {
       if (userMessage.includes(style)) {
         inferences.push({
@@ -291,11 +299,12 @@ export const inferMissingInfo = (
           reasoning: inference.reasoning || '',
           source: 'keyword',
         });
+        break;
       }
     }
   }
 
-  // 4. 周边类型推断
+  // 5. 周边类型推断
   if (intent === 'logo-design' && !collectedInfo['merchandiseType']) {
     for (const rule of MERCHANDISE_INFERENCES) {
       const matchedKeyword = rule.keywords.find(keyword =>
@@ -310,12 +319,136 @@ export const inferMissingInfo = (
           reasoning: `根据您提到的"${matchedKeyword}"推断`,
           source: 'keyword',
         });
+        break;
       }
     }
   }
 
-  // 5. 上下文推断（如果之前提到过）
-  // TODO: 结合历史对话进行推断
+  // 6. 品牌名推断
+  const brandNameInfo = extractBrandName(userMessage);
+  if (brandNameInfo && !collectedInfo['brandName']) {
+    inferences.push(brandNameInfo);
+  }
+
+  return inferences;
+};
+
+/**
+ * 多字段联合推断
+ * 从一句话中推断多个相关字段
+ * 例如："科技公司的蓝色简约 Logo" → 行业:科技, 颜色:蓝色, 风格:简约
+ */
+const inferMultipleFields = (
+  intent: IntentType,
+  collectedInfo: Record<string, string>,
+  userMessage: string
+): InferredInfo[] => {
+  const inferences: InferredInfo[] = [];
+  
+  // 定义多字段联合推断模式
+  const combinedPatterns = [
+    // Logo 设计模式
+    {
+      intent: 'logo-design',
+      patterns: [
+        {
+          regex: /(.+?)公司.*?(蓝色|红色|绿色|紫色|橙色|黑色|白色).*?(简约|现代|科技|复古|可爱|高端)/i,
+          extract: (match: RegExpMatchArray) => ({
+            industry: match[1],
+            color: match[2],
+            style: match[3],
+          }),
+        },
+        {
+          regex: /(.+?)品牌.*?(蓝色|红色|绿色|紫色|橙色|黑色|白色).*?风格/i,
+          extract: (match: RegExpMatchArray) => ({
+            industry: match[1],
+            color: match[2],
+          }),
+        },
+        {
+          regex: /(科技|互联网|餐饮|教育|环保|时尚|医疗|金融).*?(蓝色|红色|绿色|紫色|橙色|黑色|白色)/i,
+          extract: (match: RegExpMatchArray) => ({
+            industry: match[1],
+            color: match[2],
+          }),
+        },
+      ],
+    },
+    // 配色方案模式
+    {
+      intent: 'color-scheme',
+      patterns: [
+        {
+          regex: /(科技|互联网|餐饮|教育|环保|时尚|医疗|金融).*?(专业|活力|高端|温馨|清新)/i,
+          extract: (match: RegExpMatchArray) => ({
+            industry: match[1],
+            emotion: match[2],
+          }),
+        },
+      ],
+    },
+  ];
+
+  // 查找匹配的模式
+  for (const patternGroup of combinedPatterns) {
+    if (patternGroup.intent === intent) {
+      for (const pattern of patternGroup.patterns) {
+        const match = userMessage.match(pattern.regex);
+        if (match) {
+          const extracted = pattern.extract(match);
+          
+          // 根据提取的信息推断字段
+          if (extracted.industry && !collectedInfo['industry']) {
+            inferences.push({
+              key: 'industry',
+              value: extracted.industry,
+              confidence: 0.85,
+              reasoning: `从"${match[0]}"中识别到行业信息`,
+              source: 'context',
+            });
+          }
+          
+          if (extracted.color) {
+            const colorKey = intent === 'logo-design' ? 'colorPreference' : 'baseColor';
+            if (!collectedInfo[colorKey]) {
+              const colorInference = COLOR_INFERENCES[extracted.color];
+              inferences.push({
+                key: colorKey,
+                value: colorInference?.value || extracted.color,
+                confidence: 0.9,
+                reasoning: colorInference?.reasoning || `识别到颜色偏好：${extracted.color}`,
+                source: 'context',
+              });
+            }
+          }
+          
+          if (extracted.style && !collectedInfo['style']) {
+            const styleInference = STYLE_INFERENCES[extracted.style];
+            inferences.push({
+              key: 'style',
+              value: styleInference?.value || extracted.style,
+              confidence: 0.85,
+              reasoning: styleInference?.reasoning || `识别到风格偏好：${extracted.style}`,
+              source: 'context',
+            });
+          }
+          
+          if (extracted.emotion && !collectedInfo['emotion']) {
+            inferences.push({
+              key: 'emotion',
+              value: extracted.emotion,
+              confidence: 0.8,
+              reasoning: `识别到情感氛围：${extracted.emotion}`,
+              source: 'context',
+            });
+          }
+          
+          break; // 只使用第一个匹配的模式
+        }
+      }
+    }
+  }
 
   return inferences;
 };
@@ -380,13 +513,28 @@ export const generateNextQuestion = (
   // 生成智能问题
   const question = generateSmartQuestion(intent, nextField.key, collectedInfo);
 
-  // 生成建议回复（传递 collectedInfo 以便动态生成更贴合的建议）
-  const suggestions = generateSuggestions(intent, nextField.key, collectedInfo);
+  // 修复：为所有缺失字段生成建议，而不是只生成第一个字段的建议
+  const suggestions: string[] = [];
+  
+  // 优先为必填字段生成建议
+  requiredFields.forEach(field => {
+    const fieldSuggestions = generateSuggestions(intent, field.key, collectedInfo);
+    suggestions.push(...fieldSuggestions);
+  });
+  
+  // 然后为选填字段生成建议（限制数量，避免过多）
+  optionalFields.slice(0, 2).forEach(field => {
+    const fieldSuggestions = generateSuggestions(intent, field.key, collectedInfo);
+    suggestions.push(...fieldSuggestions.slice(0, 2)); // 每个选填字段最多2个建议
+  });
+  
+  // 限制总建议数量，避免界面拥挤
+  const finalSuggestions = suggestions.slice(0, 8);
 
   return {
     question,
     priority: nextField.required ? 'high' : 'medium',
-    suggestions,
+    suggestions: finalSuggestions,
   };
 };
 
@@ -432,13 +580,89 @@ const generateSmartQuestion = (
 /**
  * 生成建议回复选项
  * 根据已收集的信息动态生成更贴合的建议
+ * 
+ * 修复：为每个字段生成具体示例，而不是笼统的描述
  */
 const generateSuggestions = (
   intent: IntentType,
   fieldKey: string,
   collectedInfo?: Record<string, string>
 ): string[] => {
-  // 基础建议映射
+  // 字段特定的具体示例（包含字段标签前缀）
+  const fieldExamples: Record<string, string[]> = {
+    'brandConcept': [
+      '💡 品牌理念：专注健康茶饮，传递温暖生活',
+      '💡 品牌理念：年轻时尚，每一杯都是惊喜',
+      '💡 品牌理念：传统工艺，现代口感，匠心制茶',
+    ],
+    'merchandiseType': [
+      '📦 周边类型：商务文具（名片、信纸、文件夹）',
+      '📦 周边类型：包装产品（杯子、袋子、包装盒）',
+      '📦 周边类型：服饰周边（T恤、帽子、帆布袋）',
+      '📦 周边类型：生活用品（马克杯、笔记本、贴纸）',
+    ],
+    'style': [
+      '🎨 风格：简约现代，干净利落',
+      '🎨 风格：科技感，未来感强',
+      '🎨 风格：高端大气，精致优雅',
+      '🎨 风格：年轻活力，色彩鲜明',
+    ],
+    'tone': [
+      '📝 语气：专业严谨，权威可信',
+      '📝 语气：亲切友好，温暖感人',
+      '📝 语气：幽默风趣，轻松活泼',
+      '📝 语气：简洁有力，直击要点',
+    ],
+    'emotion': [
+      '✨ 情感氛围：专业可信，值得信赖',
+      '✨ 情感氛围：活力青春，充满朝气',
+      '✨ 情感氛围：高端优雅，尊贵奢华',
+      '✨ 情感氛围：温馨舒适，放松惬意',
+    ],
+    'colorPreference': [
+      '🎨 颜色偏好：蓝色系（专业、科技）',
+      '🎨 颜色偏好：绿色系（自然、健康）',
+      '🎨 颜色偏好：红色系（热情、活力）',
+      '🎨 颜色偏好：黑白色（简约、高端）',
+    ],
+    'targetAudience': [
+      '👥 目标受众：18-25岁年轻人，学生群体',
+      '👥 目标受众：25-35岁职场白领',
+      '👥 目标受众：35-50岁中产家庭',
+      '👥 目标受众：全年龄段大众消费者',
+    ],
+    'topic': [
+      '📌 主题：春季新品发布会',
+      '📌 主题：品牌周年庆活动',
+      '📌 主题：节日促销活动',
+      '📌 主题：新品上市推广',
+    ],
+    'purpose': [
+      '🎯 目的：提升品牌知名度',
+      '🎯 目的：增加产品销量',
+      '🎯 目的：吸引新用户',
+      '🎯 目的：提升用户活跃度',
+    ],
+    'industry': [
+      '🏢 行业：科技互联网',
+      '🏢 行业：餐饮美食',
+      '🏢 行业：教育培训',
+      '🏢 行业：时尚美妆',
+    ],
+    'brandName': [
+      '🏷️ 品牌名：绿野科技',
+      '🏷️ 品牌名：悦享生活',
+      '🏷️ 品牌名：品味时光',
+      '🏷️ 品牌名：创意无限',
+    ],
+  };
+
+  // 如果有字段特定的示例，直接返回
+  if (fieldExamples[fieldKey]) {
+    return fieldExamples[fieldKey];
+  }
+
+  // 基础建议映射（作为降级方案）
   const suggestionsMap: Record<string, string[]> = {
     'style': ['简约现代', '科技感', '高端大气', '年轻活力'],
     'tone': ['专业严谨', '亲切友好', '幽默风趣', '简洁有力'],
@@ -446,6 +670,8 @@ const generateSuggestions = (
     'merchandiseType': ['商务文具📇', '服饰周边👕', '包装产品📦', '生活用品☕'],
     'colorPreference': ['蓝色系', '绿色系', '红色系', '黑白色'],
   };
+
+  let suggestions = suggestionsMap[fieldKey] || [];
 
   // 基于已收集信息动态调整建议
   const contextSuggestions: Record<string, Record<string, string[]>> = {
@@ -475,8 +701,6 @@ const generateSuggestions = (
       '儿童': ['多彩配色', '粉色系', '明亮色'],
     },
   };
-
-  let suggestions = suggestionsMap[fieldKey] || [];
 
   // 根据行业关键词调整建议
   if (collectedInfo && (fieldKey === 'style' || fieldKey === 'tone' || fieldKey === 'emotion' || fieldKey === 'colorPreference')) {

@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { JinXiaoMai } from '@/components/jinmai';
 
 interface IPMascotVideoLoaderProps {
   /** 是否显示 */
@@ -24,9 +23,8 @@ export const IPMascotVideoLoader: React.FC<IPMascotVideoLoaderProps> = ({
   videoSrc = '/ip创作加载.mp4'
 }) => {
   const { isDark } = useTheme();
-  const [videoError, setVideoError] = useState(false);
 
-  console.log('[IPMascotVideoLoader] 组件渲染:', { isVisible, message, videoSrc, videoError });
+  console.log('[IPMascotVideoLoader] 组件渲染:', { isVisible, message, videoSrc });
 
   if (!isVisible) return null;
 
@@ -55,46 +53,22 @@ export const IPMascotVideoLoader: React.FC<IPMascotVideoLoaderProps> = ({
           transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
         />
         
-        {/* 视频或备用动画 */}
+        {/* 视频 */}
         <div className="relative w-72 h-72 rounded-full overflow-hidden bg-gray-800">
-          {!videoError ? (
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-              onLoadedData={() => console.log('视频加载成功:', videoSrc)}
-              onError={(e) => {
-                console.error('视频加载失败:', videoSrc, e);
-                setVideoError(true);
-              }}
-            >
-              <source src={videoSrc} type="video/mp4" />
-              <source src="/IP动画.mp4" type="video/mp4" />
-            </video>
-          ) : (
-            // 视频加载失败时显示津小脉SVG动画
-            <div className="w-full h-full flex items-center justify-center relative bg-gradient-to-br from-[#C02C38] via-[#E85D75] to-[#FFB6C1]">
-              <motion.div
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                }}
-                transition={{ 
-                  duration: 2, 
-                  repeat: Infinity, 
-                  ease: "easeInOut" 
-                }}
-                className="w-48 h-48"
-              >
-                <JinXiaoMai 
-                  mode="creation" 
-                  expression="thinking" 
-                  size="lg"
-                />
-              </motion.div>
-            </div>
-          )}
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+            onLoadedData={() => console.log('视频加载成功:', videoSrc)}
+            onError={(e) => {
+              console.error('视频加载失败:', videoSrc, e);
+            }}
+          >
+            <source src={videoSrc} type="video/mp4" />
+            <source src="/IP动画.mp4" type="video/mp4" />
+          </video>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 // Agent案例列表页
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
@@ -35,6 +35,11 @@ const AgentCasesPage: React.FC = () => {
     loadMore,
   } = useAgentCases();
 
+  // 调试：查看 currentTab 变化
+  useEffect(() => {
+    console.log('[AgentCases] currentTab:', currentTab, 'cases:', cases.length);
+  }, [currentTab, cases]);
+
   // 处理案例点击
   const handleCaseClick = (caseData: AgentCase) => {
     navigate(`/agent-cases/${caseData.id}`);
@@ -47,8 +52,9 @@ const AgentCasesPage: React.FC = () => {
 
   // Tab配置
   const tabs: { value: CasesTab; label: string }[] = [
-    { value: 'cases', label: 'Agent案例' },
-    { value: 'inspiration', label: '图片灵感' },
+    { value: 'all', label: '全部案例' },
+    { value: 'agent', label: 'Agent案例' },
+    { value: 'skill', label: 'Skill案例' },
   ];
 
   return (
@@ -273,7 +279,11 @@ const AgentCasesPage: React.FC = () => {
             onLoadMore={loadMore}
             onCaseClick={handleCaseClick}
             onAuthorClick={handleAuthorClick}
-            emptyText={currentTab === 'cases' ? '暂无Agent案例' : '暂无图片灵感'}
+            emptyText={
+              currentTab === 'agent' ? '暂无Agent案例' :
+              currentTab === 'skill' ? '暂无Skill案例' :
+              '暂无案例'
+            }
           />
         </div>
       </main>

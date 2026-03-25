@@ -118,6 +118,12 @@ interface CreateActions {
   analyzeLayout: () => Promise<LayoutRecommendation | null>;
   applyLayout: () => void;
   resetLayout: () => void;
+  
+  // 图片编辑相关
+  startImageEditing: (imageId: number, mode: 'inline' | 'modal') => void;
+  stopImageEditing: () => void;
+  updateEditedImage: (imageId: number, editedDataUrl: string) => Promise<string>;
+  updateGeneratedResultThumbnail: (imageId: number, newThumbnail: string) => void;
 }
 
 // 注意：之前用于从 localStorage 读取保存状态的函数已被移除
@@ -221,6 +227,11 @@ const getInitialState = (): CreateState => {
     isAnalyzingLayout: false,
     layoutRecommendation: null,
     pendingMention: null,
+    
+    // 图片编辑相关状态
+    isEditingImage: false,
+    editingImageId: null,
+    editingMode: null,
   };
 };
 
@@ -1390,6 +1401,49 @@ export const useCreateStore = create<CreateState & CreateActions>()(
   // 引用相关方法
   setPendingMention: (mention) => set({ pendingMention: mention }),
   clearPendingMention: () => set({ pendingMention: null }),
+  
+  // 图片编辑相关方法
+  startImageEditing: (imageId, mode) => set({ 
+    isEditingImage: true, 
+    editingImageId: imageId, 
+    editingMode: mode 
+  }),
+  stopImageEditing: () => set({ 
+    isEditingImage: false, 
+    editingImageId: null, 
+    editingMode: null 
+  }),
+  updateEditedImage: async (imageId, editedDataUrl) => {
+    try {
+      // 将 base64 转换为 File 对象
+      const response = await fetch(editedDataUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `edited-image-${Date.now()}.png`, { type: 'image/png' });
+      
+      // 调用图片上传服务
+      const { uploadImage } = await import('@/services/imageService');
+      const uploadedUrl = await uploadImage(file);
+      
+      // 更新 generatedResults 中对应图片的缩略图
+      set((state) => {
+        const updatedResults = state.generatedResults.map(r => 
+          r.id === imageId ? { ...r, thumbnail: uploadedUrl, editedAt: Date.now() } : r
+        );
+        return { generatedResults: updatedResults };
+      });
+      
+      return uploadedUrl;
+    } catch (error) {
+      console.error('Failed to update edited image:', error);
+      throw error;
+    }
+  },
+  updateGeneratedResultThumbnail: (imageId, newThumbnail) => set((state) => {
+    const updatedResults = state.generatedResults.map(r => 
+      r.id === imageId ? { ...r, thumbnail: newThumbnail, editedAt: Date.now() } : r
+    );
+    return { generatedResults: updatedResults };
+  }),
 }),
     {
       name: 'create-store',

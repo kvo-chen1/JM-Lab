@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bot, Wand2, Brain, Zap, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, HelpCircle, MessageSquare, CheckSquare, ListTodo, Star } from 'lucide-react';
+import { User, Bot, Wand2, Brain, Zap, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, HelpCircle, MessageSquare, CheckSquare, ListTodo, Star, Sparkles } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import type { ChatMessage as ChatMessageType, SkillCallInfo, RequirementPhase, MerchandiseCategory } from '../types';
 import { getIntentDisplayName, getIntentColor } from '../services/intentService';
 import { MerchandiseTypeCollector } from './MerchandiseTypeCollector';
+import { ThinkingProcessPanel } from './ThinkingProcessPanel';
 import AIFeedbackModal from '@/components/Feedback/AIFeedbackModal';
 
 // 获取当前用户头像
@@ -74,6 +75,236 @@ const PhaseLabel: React.FC<{ phase?: RequirementPhase }> = ({ phase }) => {
     error: '出错',
   };
   return <span>{phase ? labels[phase] || phase : ''}</span>;
+};
+
+/**
+ * 根据意图类型获取开始按钮文字
+ */
+const getStartButtonText = (intent: string | undefined): string => {
+  if (!intent) return '开始生成';
+
+  const buttonTexts: Record<string, string> = {
+    'text-generation': '开始撰写',
+    'brand-copy': '开始撰写',
+    'marketing-copy': '开始撰写',
+    'social-copy': '开始撰写',
+    'video-script': '开始撰写',
+    'image-generation': '开始生成',
+    'logo-design': '开始设计',
+    'poster-design': '开始设计',
+    'color-scheme': '开始生成',
+    'ui-design': '开始设计',
+    'batch-generation': '开始批量生成',
+    'image-editing': '开始编辑',
+    'image-beautification': '开始美化',
+    'image-style-transfer': '开始转换',
+    'creative-idea': '开始创意',
+    'event-planning': '开始策划',
+    'data-report': '开始分析',
+    'web-search': '开始搜索',
+    'general': '开始',
+    'greeting': '开始',
+    'help': '开始',
+  };
+
+  return buttonTexts[intent] || '开始生成';
+};
+
+/**
+ * 进度条组件
+ * 用于展示任务进度
+ */
+const ProgressBar: React.FC<{ progress: number; label?: string; isDark?: boolean }> = ({ 
+  progress, 
+  label, 
+  isDark = false 
+}) => (
+  <div className="w-full">
+    {label && (
+      <div className={`text-xs mb-1.5 flex justify-between ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+        <span>{label}</span>
+        <span className="font-medium">{Math.round(progress)}%</span>
+      </div>
+    )}
+    <div className={`w-full h-2 rounded-full overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+      <div 
+        className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500 ease-out"
+        style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+      />
+    </div>
+  </div>
+);
+
+/**
+ * 带取消按钮的加载状态组件
+ */
+interface LoadingWithCancelProps {
+  message: string;
+  onCancel?: () => void;
+  progress?: number;
+  isDark?: boolean;
+  subMessage?: string;
+}
+
+const LoadingWithCancel: React.FC<LoadingWithCancelProps> = ({ 
+  message, 
+  onCancel, 
+  progress, 
+  isDark = false,
+  subMessage
+}) => (
+  <div className={`p-4 rounded-xl border ${isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'}`}>
+    <div className="flex items-center gap-3 mb-3">
+      <div className="relative">
+        <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+        <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping" />
+      </div>
+      <div className="flex-1">
+        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+          {message}
+        </span>
+        {subMessage && (
+          <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            {subMessage}
+          </p>
+        )}
+      </div>
+      {onCancel && (
+        <button 
+          onClick={onCancel}
+          className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+            isDark 
+              ? 'border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50' 
+              : 'border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300'
+          }`}
+        >
+          取消
+        </button>
+      )}
+    </div>
+    {progress !== undefined && (
+      <ProgressBar progress={progress} isDark={isDark} />
+    )}
+  </div>
+);
+
+/**
+ * 按字段分组展示建议回复
+ * 修复：将建议按字段分组，并添加字段标签和图标
+ */
+interface GroupedSuggestionsProps {
+  suggestions: string[];
+  onSelect?: (content: string) => void;
+  isDark: boolean;
+}
+
+const GroupedSuggestions: React.FC<GroupedSuggestionsProps> = ({ suggestions, onSelect, isDark }) => {
+  // 按字段分组
+  const grouped = React.useMemo(() => {
+    const groups: Record<string, string[]> = {};
+    
+    suggestions.forEach(suggestion => {
+      // 解析建议格式："💡 字段名：具体示例"
+      const match = suggestion.match(/^([💡📦🎨📝✨👥📌🎯🏢])\s*([^：:]+)[：:](.+)$/);
+      
+      if (match) {
+        const [, emoji, fieldName, example] = match;
+        const key = `${emoji} ${fieldName}`;
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(example.trim());
+      } else {
+        // 无法解析的建议，放入"其他"分组
+        if (!groups['其他']) {
+          groups['其他'] = [];
+        }
+        groups['其他'].push(suggestion);
+      }
+    });
+    
+    return groups;
+  }, [suggestions]);
+
+  // 点击状态（用于动画效果）
+  const [clickedButton, setClickedButton] = React.useState<string | null>(null);
+
+  // 处理点击事件（带动画效果）
+  const handleClick = (fullText: string, displayText: string) => {
+    setClickedButton(displayText);
+    
+    // 300ms 后清除点击状态
+    setTimeout(() => {
+      setClickedButton(null);
+    }, 300);
+    
+    // 调用 onSelect
+    onSelect?.(fullText);
+  };
+
+  // 如果没有分组，直接展示所有建议
+  if (Object.keys(grouped).length === 0) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {suggestions.map((suggestion, index) => (
+          <button
+            key={index}
+            onClick={() => handleClick(suggestion, suggestion)}
+            disabled={!onSelect}
+            className={`text-xs px-2 py-1 rounded-full border transition-all duration-200 ${
+              clickedButton === suggestion
+                ? 'scale-95 opacity-70'
+                : ''
+            } ${
+              isDark
+                ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500'
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+            } ${!onSelect ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {Object.entries(grouped).map(([fieldLabel, examples]) => (
+        <div key={fieldLabel} className="flex flex-wrap items-start gap-2">
+          <span className={`text-xs font-medium whitespace-nowrap mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {fieldLabel}:
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {examples.map((example, index) => {
+              const fullText = `${fieldLabel}：${example}`;
+              const isClicked = clickedButton === example;
+              
+              return (
+                <button
+                  key={index}
+                  onClick={() => handleClick(fullText, example)}
+                  disabled={!onSelect}
+                  className={`text-xs px-2 py-1 rounded-full border transition-all duration-200 ${
+                    isClicked
+                      ? 'scale-95 opacity-70 shadow-inner'
+                      : 'hover:shadow-sm'
+                  } ${
+                    isDark
+                      ? 'bg-gray-700/50 border-gray-600/50 text-gray-300 hover:bg-gray-600 hover:border-gray-500'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                  } ${!onSelect ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  title={`点击发送：${fullText}`}
+                >
+                  {example}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 const SkillCallCard: React.FC<{ 
@@ -231,25 +462,36 @@ const SkillCallCard: React.FC<{
               </div>
             )}
             
-            {/* 建议回复 */}
+            {/* 建议回复 - 按字段分组展示 */}
             {skillCall.suggestions && skillCall.suggestions.length > 0 && (
               <div className="mt-3">
-                <div className={`text-xs mb-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>建议回复:</div>
-                <div className="flex flex-wrap gap-2">
-                  {skillCall.suggestions.map((suggestion, index) => (
-                    <button
-                      key={index}
-                      onClick={() => onSendMessage?.(suggestion)}
-                      disabled={!onSendMessage}
-                      className={`text-xs px-2 py-1 rounded-full border transition-colors ${
-                        isDark
-                          ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500'
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
-                      } ${!onSendMessage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
+                <div className={`text-xs mb-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  💡 建议回复（点击可直接使用）：
+                </div>
+                <GroupedSuggestions
+                  suggestions={skillCall.suggestions}
+                  onSelect={onSendMessage}
+                  isDark={isDark}
+                />
+              </div>
+            )}
+
+            {/* 确认信息阶段的开始按钮 */}
+            {skillCall.phase === 'confirming' && skillCall.intent && (
+              <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    onClick={() => onSendMessage?.(getStartButtonText(skillCall.intent))}
+                    className={`px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full font-medium shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center gap-2 ${
+                      isDark ? 'from-blue-600 to-blue-700' : ''
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {getStartButtonText(skillCall.intent)}
+                  </button>
+                  <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    或继续补充信息
+                  </span>
                 </div>
               </div>
             )}
@@ -454,11 +696,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
             {formatContent(message.content)}
           </div>
         </div>
-        
+
+        {/* Thinking Process Panel */}
+        {!isUser && message.skillCall && (
+          <ThinkingProcessPanel
+            steps={message.skillCall.thinkingSteps}
+            analysisDetails={message.skillCall.analysisDetails}
+            isProcessing={message.skillCall.status === 'thinking' || message.skillCall.status === 'recognizing'}
+          />
+        )}
+
         {/* Skill Call Info */}
         {!isUser && message.skillCall && (
-          <SkillCallCard 
-            skillCall={message.skillCall} 
+          <SkillCallCard
+            skillCall={message.skillCall}
             onSendMessage={onSendMessage}
           />
         )}

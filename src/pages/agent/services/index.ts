@@ -3,93 +3,6 @@
  * 集中导出所有服务
  */
 
-// ==================== 新 Skill 架构 ====================
-
-// Skill 类型和基类
-export {
-  SkillCategory,
-  SkillCategoryNames,
-} from '../types/skill';
-
-export type {
-  UserIntent,
-  ExecutionContext,
-  SkillResult,
-  SkillResultType,
-  SkillMetadata,
-  ISkill,
-  SkillRegistration,
-  SkillMatchResult,
-  SkillFilter,
-  SkillConfig,
-  SkillEvent,
-  SkillEventType,
-  SkillEventHandler,
-  SkillStats,
-  Capability,
-  Parameter,
-  MemorySnapshot,
-  SkillChain,
-  SkillChainCondition,
-  SkillId,
-  SkillFactory,
-  SkillRegistryConfig
-} from '../types/skill';
-
-// Skill 注册中心和匹配器
-export {
-  SkillRegistry,
-  getSkillRegistry,
-  resetSkillRegistry,
-  createSkillRegistry
-} from '../skills/registry/SkillRegistry';
-
-export {
-  SkillMatcher,
-  getSkillMatcher,
-  resetSkillMatcher,
-  createSkillMatcher
-} from '../skills/registry/SkillMatcher';
-
-// Skill 基类
-export {
-  BaseSkill,
-  CreationSkill,
-  AnalysisSkill,
-  CognitionSkill,
-  OrchestrationSkill,
-  EnhancementSkill
-} from '../skills/base/BaseSkill';
-
-export type { BaseSkillConfig } from '../skills/base/BaseSkill';
-
-// 创作类 Skill
-export { ImageGenerationSkill } from '../skills/creation/ImageGenerationSkill';
-export type { ImageGenerationConfig } from '../skills/creation/ImageGenerationSkill';
-
-export { VideoGenerationSkill } from '../skills/creation/VideoGenerationSkill';
-export type { VideoGenerationConfig } from '../skills/creation/VideoGenerationSkill';
-
-export { TextGenerationSkill } from '../skills/creation/TextGenerationSkill';
-export type { TextGenerationConfig } from '../skills/creation/TextGenerationSkill';
-
-// 分析类 Skill
-export { IntentRecognitionSkill } from '../skills/analysis/IntentRecognitionSkill';
-export type { IntentRecognitionConfig } from '../skills/analysis/IntentRecognitionSkill';
-
-export { RequirementAnalysisSkill } from '../skills/analysis/RequirementAnalysisSkill';
-
-// Agent - 类型和函数
-export type { AgentConfig, AgentResponse, AgentInfo } from '../agents';
-export {
-  BaseAgent,
-  DirectorAgent,
-  DesignerAgent,
-  createAgent,
-  getAllAgentTypes,
-  getAllAgentInfo
-} from '../agents';
-
 // ==================== 模型调用服务 ====================
 export {
   callCurrentModel,
@@ -98,7 +11,7 @@ export {
   setCurrentModelInStorage as setCurrentModel
 } from './modelCaller';
 
-// ==================== 保留的核心服务（向后兼容）====================
+// ==================== 核心服务 ====================
 
 // RAG 服务
 export {

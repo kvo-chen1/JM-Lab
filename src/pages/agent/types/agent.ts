@@ -89,6 +89,15 @@ export interface AgentMessage {
     designType?: string;
     agentType?: AgentType;
     mentionInfo?: { type: 'work' | 'brand' | 'style'; name: string; id?: string } | null;
+    // Workflow
+    workflow?: {
+      id: string;
+      name: string;
+      steps: any[];
+      estimatedDuration: string;
+      currentStepIndex: number;
+    };
+    isGenerating?: boolean;
   };
 }
 
@@ -231,6 +240,7 @@ export interface GeneratedOutput {
   isFavorite?: boolean;   // 是否收藏
   status?: 'generating' | 'completed' | 'error';  // 生成状态
   position?: CardPosition; // 卡片位置（用于自由拖拽布局）
+  cardType?: 'character_profile' | 'concept_art' | 'three_view' | 'poster' | 'default'; // 卡片类型
 }
 
 // 引用的作品信息（用于@作品引用功能）
@@ -290,6 +300,23 @@ export interface AgentState {
 
   // 待处理的引用（从作品库或生成作品引用到输入框）
   pendingMention: { type: 'work' | 'brand' | 'style'; name: string; id?: string } | null;
+
+  // 画布内容状态
+  canvasContent: CanvasContent | null;
+}
+
+// 画布内容类型
+export interface CanvasContent {
+  id: string;
+  type: 'design-spec' | 'image' | 'table' | 'mixed' | 'derivatives';
+  title: string;
+  content: any;
+  metadata?: {
+    agentType: AgentType;
+    timestamp: number;
+    tags?: string[];
+    sourceMessageId?: string;
+  };
 }
 
 // Agent 配置项

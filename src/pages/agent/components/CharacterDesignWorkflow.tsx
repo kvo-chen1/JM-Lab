@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import { getWorkflowEngine, WorkflowInstance } from '../services/workflowEngine';
 import { llmService } from '@/services/llmService';
+import WorkflowProgress from './WorkflowProgress';
 
 // 角色设定信息
 export interface CharacterProfile {
@@ -100,6 +101,7 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
   } = useAgentStore();
   
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('collecting_basic');
+  const [completedSteps, setCompletedSteps] = useState<WorkflowStep[]>([]);
   const [characterProfile, setCharacterProfile] = useState<Partial<CharacterProfile>>({});
   const [generationProgress, setGenerationProgress] = useState<GenerationProgress>({
     status: 'idle',
@@ -188,10 +190,21 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     }
   }, [workflowInstance]);
 
-  // 步骤1: 收集基本信息
+  // 更新当前步骤并追踪完成状态
+  const updateCurrentStep = useCallback((newStep: WorkflowStep) => {
+    setCurrentStep(prevStep => {
+      // 如果前一个步骤不是新步骤，且不在已完成列表中，则添加
+      if (prevStep !== newStep && !completedSteps.includes(prevStep)) {
+        setCompletedSteps(prev => [...prev, prevStep]);
+      }
+      return newStep;
+    });
+  }, [completedSteps]);
+
+  // 步骤 1: 收集基本信息
   const handleBasicInfoCollected = (info: Partial<CharacterProfile>) => {
     setCharacterProfile(prev => ({ ...prev, ...info }));
-    setCurrentStep('collecting_appearance');
+    updateCurrentStep('collecting_appearance');
     
     // 更新工作流数据
     updateWorkflowData({ 
@@ -210,10 +223,10 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     });
   };
 
-  // 步骤2: 收集外貌特征
+  // 步骤 2: 收集外貌特征
   const handleAppearanceCollected = (appearance: CharacterProfile['appearance']) => {
     setCharacterProfile(prev => ({ ...prev, appearance }));
-    setCurrentStep('collecting_clothing');
+    updateCurrentStep('collecting_clothing');
     
     updateWorkflowData({ 
       characterProfile: { ...characterProfile, appearance },
@@ -227,10 +240,10 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     });
   };
 
-  // 步骤3: 收集服装信息
+  // 步骤 3: 收集服装信息
   const handleClothingCollected = (clothing: CharacterProfile['clothing']) => {
     setCharacterProfile(prev => ({ ...prev, clothing }));
-    setCurrentStep('collecting_background');
+    updateCurrentStep('collecting_background');
     
     updateWorkflowData({ 
       characterProfile: { ...characterProfile, clothing },
@@ -244,11 +257,11 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     });
   };
 
-  // 步骤4: 收集背景故事
+  // 步骤 4: 收集背景故事
   const handleBackgroundCollected = (info: { background: string; story: string; targetAudience: string }) => {
     const updatedProfile = { ...characterProfile, ...info };
     setCharacterProfile(updatedProfile);
-    setCurrentStep('generating_profile');
+    updateCurrentStep('generating_profile');
     
     updateWorkflowData({ 
       characterProfile: updatedProfile,
@@ -275,7 +288,7 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
       }
       
       stopProgressSimulation(true);
-      setCurrentStep('showing_profile');
+      updateCurrentStep('showing_profile');
       
       const profileDescription = generateProfileDescription();
       
@@ -330,10 +343,10 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
     `.trim();
   };
 
-  // 步骤5: 选择风格并生成概念图
+  // 步骤 5: 选择风格并生成概念图
   const handleStyleSelected = async (styleId: string) => {
     setSelectedStyle(styleId);
-    setCurrentStep('generating_concept');
+    updateCurrentStep('generating_concept');
     
     updateWorkflowData({ 
       selectedStyle: styleId,
@@ -386,7 +399,7 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
       
       stopProgressSimulation(true);
       setGeneratedImages([imageUrl]);
-      setCurrentStep('showing_concept');
+      updateCurrentStep('showing_concept');
       
       // 添加图像到聊天
       addMessage({
@@ -403,12 +416,13 @@ export default function CharacterDesignWorkflow({ onComplete }: CharacterDesignW
         thumbnail: imageUrl,
         title: `${characterProfile.name} - 概念图`,
         description: `${style?.name}风格`,
-        agentType: 'illustrator'
+        agentType: 'illustrator',
+        cardType: 'concept_art'
       });
       
       // 延迟显示满意度确认
       setTimeout(() => {
-        setCurrentStep('satisfaction_check');
+        updateCurrentStep('satisfaction_check');
         updateWorkflowData({ currentStep: 'satisfaction_check' });
       }, 1500);
       
@@ -767,6 +781,13 @@ ${p.personality?.join('、')}的性格，
   // 主渲染
   return (
     <div className="space-y-4">
+      {/* 工作流进度指示器 */}
+      <WorkflowProgress 
+        currentStep={currentStep}
+        completedSteps={completedSteps}
+        compact={false}
+      />
+      
       {/* 进度显示 */}
       {renderProgress()}
       

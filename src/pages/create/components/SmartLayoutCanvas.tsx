@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { traditionalPatterns } from '../data';
 import { LayoutRecommendation, SmartLayoutConfig, GeneratedResult } from '../types';
+import { useCreateStore } from '../hooks/useCreateStore';
 
 interface SmartLayoutCanvasProps {
   selectedResult: number;
@@ -229,6 +230,21 @@ export const SmartLayoutCanvas: React.FC<SmartLayoutCanvasProps> = ({
       
       {/* Floating Actions on Image */}
       <div className="absolute bottom-6 right-6 flex gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-y-4 group-hover:translate-y-0">
+        {/* 编辑按钮 - 仅对图片显示 */}
+        {!isVideo && selectedResult && (
+          <motion.button 
+            whileHover={{ scale: 1.1, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-10 h-10 rounded-full bg-blue-500 text-white shadow-lg flex items-center justify-center" 
+            title="编辑图片"
+            onClick={() => {
+              const store = useCreateStore.getState();
+              store.startImageEditing(selectedResult, null as any);
+            }}
+          >
+            <i className="fas fa-edit"></i>
+          </motion.button>
+        )}
         {activeTool === 'pattern' && selectedResult && (
           <motion.button 
             whileHover={{ scale: 1.1, y: -2 }}

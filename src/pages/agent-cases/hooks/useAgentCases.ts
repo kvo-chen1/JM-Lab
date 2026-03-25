@@ -28,7 +28,7 @@ export function useAgentCases(): UseAgentCasesReturn {
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [currentTab, setCurrentTab] = useState<CasesTab>('cases');
+  const [currentTab, setCurrentTab] = useState<CasesTab>('all');
   const [sort, setSort] = useState<'newest' | 'popular'>('newest');
   const [popularTags, setPopularTags] = useState<string[]>([]);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
@@ -51,6 +51,7 @@ export function useAgentCases(): UseAgentCasesReturn {
         limit: LIMIT,
         sort,
         tag: selectedTag || undefined,
+        source: currentTab === 'all' ? undefined : currentTab,
       };
 
       const response = await getAgentCases(params);
@@ -110,7 +111,7 @@ export function useAgentCases(): UseAgentCasesReturn {
   useEffect(() => {
     setPage(1);
     loadCases(true);
-  }, [sort, selectedTag]);
+  }, [sort, selectedTag, currentTab]);
 
   return {
     cases,

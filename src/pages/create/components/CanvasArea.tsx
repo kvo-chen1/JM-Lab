@@ -13,6 +13,7 @@ import { SmartLayoutPreview } from './SmartLayoutPreview';
 import { LayoutGrid, GalleryHorizontal } from 'lucide-react';
 import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 import { IPMascotVideoLoader } from '@/components/ip-mascot';
+import { PreviewImageEditor } from './PreviewImageEditor';
 
 interface CanvasAreaProps {
   isSidebarCollapsed: boolean;
@@ -63,6 +64,12 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
   // 智能排版相关状态
   const smartLayoutConfig = useCreateStore((state) => state.smartLayoutConfig);
   const layoutRecommendation = useCreateStore((state) => state.layoutRecommendation);
+
+  // 图片编辑相关状态
+  const isEditingImage = useCreateStore((state) => state.isEditingImage);
+  const editingImageId = useCreateStore((state) => state.editingImageId);
+  const editingMode = useCreateStore((state) => state.editingMode);
+  const stopImageEditing = useCreateStore((state) => state.stopImageEditing);
 
   // 津币相关状态
   const {
@@ -502,6 +509,17 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
                   )}
                 </div>
 
+                {/* 图片编辑器 */}
+                {isEditingImage && editingImageId === selectedResult && selectedResult && (
+                  <PreviewImageEditor
+                    imageUrl={generatedResults.find(r => r.id === selectedResult)?.thumbnail || ''}
+                    imageId={selectedResult}
+                    editingMode={editingMode}
+                    isOpen={true}
+                    onClose={() => stopImageEditing()}
+                  />
+                )}
+
                 {selectedPatternId && activeTool === 'pattern' && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -743,7 +761,7 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
                             }}
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            className="w-full h-full"
+                            className="w-full h-full relative"
                           >
                             {/* 视频直接显示视频元素，图片显示图片 */}
                             {(result.type === 'video' || result.video) ? (
@@ -780,6 +798,20 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
                                   (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
                                 }}
                               />
+                            )}
+                            
+                            {/* 编辑状态标识 */}
+                            {isEditingImage && editingImageId === result.id && (
+                              <div className="absolute inset-0 bg-purple-500/80 flex items-center justify-center">
+                                <i className="fas fa-edit text-white text-lg"></i>
+                              </div>
+                            )}
+                            
+                            {/* 已编辑标识 */}
+                            {(result as any).editedAt && !isEditingImage && (
+                              <div className="absolute top-1 right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                                <i className="fas fa-pen text-white text-[10px]"></i>
+                              </div>
                             )}
                           </motion.button>
                           

@@ -1,14 +1,24 @@
 import { useState, useCallback, useRef } from 'react';
-import type { ChatMessage, SkillCallInfo, RequirementPhase, Attachment } from '../types';
+import type { ChatMessage, SkillCallInfo, RequirementPhase, Attachment, ThinkingStep } from '../types';
 import { PastedImage } from '@/components/ImagePasteInput';
-import { 
-  createChatContext, 
-  sendMessageStream, 
+import {
+  createChatContext,
+  sendMessageStream,
   generateImage
 } from '../services/chatService';
+import { editImage } from '@/services/imageGenerationService';
 import { recognizeIntent, getIntentDisplayName, IntentType } from '../services/intentService';
 import { analyzeRequirements, isRequirementsComplete, detectIntentSwitch, filterVisibleFields, RequirementField, MerchandiseCategory, IntentSwitchInfo } from '../services/requirementService';
 import { uploadPastedImages } from '../services/imageUploadService';
+import { performWebSearch, formatSearchResults, buildSearchContext } from '../services/webSearchService';
+import {
+  taskFlowManager,
+  parseComplexTask,
+  createDesignTaskFlow,
+  extractBrandNameFromMessage,
+  type TaskFlow,
+  type TaskProgress,
+} from '../services/taskOrchestrationService';
 import { toast } from 'sonner';
 
 // 多轮对话状态
@@ -19,6 +29,36 @@ interface ConversationState {
   phase: RequirementPhase;
   pendingIntent?: IntentType;
   intentSwitch?: IntentSwitchInfo;
+  // 新增：保存上下文引用
+  lastImageAttachment?: {
+    url: string;
+    type: string;
+    title?: string;
+  };
+  lastTextAttachment?: {
+    content: string;
+    title?: string;
+  };
+  // 新增：保存上一次执行的结果，用于多Skill联动
+  lastExecutionResult?: {
+    intent: IntentType;
+    content: string;
+    attachments?: Attachment[];
+  };
+  // 新增：设计上下文 - 保存设计元素用于后续引用
+  designContext?: {
+    brandName?: string;
+    colors?: string[];
+    style?: string;
+    logoUrl?: string;
+    lastPrompt?: string;
+    lastOutputUrl?: string;
+  };
+  // 新增：当前任务流
+  currentTaskFlow?: {
+    flowId: string;
+    name: string;
+  };
 }
 
 // 进度预估
@@ -104,6 +144,560 @@ const calculateProgressEstimate = (
   };
 };
 
+// 生成意图识别思考步骤
+const generateIntentRecognitionSteps = (
+  userMessage: string,
+  intentResult: { intent: IntentType; confidence: number; reasoning: string; reasoningSteps?: string[] }
+): ThinkingStep[] => {
+  const steps: ThinkingStep[] = [
+    {
+      id: `intent-1-${Date.now()}`,
+      type: 'intent-recognition',
+      status: 'completed',
+      title: '正在分析用户输入',
+      content: `"${userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage}"`,
+      timestamp: Date.now(),
+    },
+  ];
+
+  if (intentResult.reasoningSteps && intentResult.reasoningSteps.length > 0) {
+    intentResult.reasoningSteps.forEach((step, index) => {
+      steps.push({
+        id: `intent-2-${Date.now()}-${index}`,
+        type: 'intent-recognition',
+        status: 'completed',
+        title: `识别步骤 ${index + 1}`,
+        content: step,
+        timestamp: Date.now(),
+      });
+    });
+  }
+
+  steps.push({
+    id: `intent-3-${Date.now()}`,
+    type: 'intent-recognition',
+    status: 'completed',
+    title: '意图识别结果',
+    content: `${getIntentDisplayName(intentResult.intent)}（置信度 ${Math.round(intentResult.confidence * 100)}%）`,
+    details: {
+      intent: intentResult.intent,
+      confidence: intentResult.confidence,
+      reasoning: intentResult.reasoning,
+    },
+    timestamp: Date.now(),
+  });
+
+  return steps;
+};
+
+// 生成需求分析思考步骤
+const generateRequirementAnalysisSteps = (
+  collectedInfo: Record<string, string>,
+  missingFields: RequirementField[],
+  analysisDetails?: Array<{ field: string; label: string; value?: string; source: string; reasoning?: string }>
+): ThinkingStep[] => {
+  const steps: ThinkingStep[] = [];
+
+  if (Object.keys(collectedInfo).length > 0) {
+    steps.push({
+      id: `req-1-${Date.now()}`,
+      type: 'requirement-analysis',
+      status: 'completed',
+      title: '已提取的信息',
+      content: `从用户消息中成功提取了 ${Object.keys(collectedInfo).length} 项信息`,
+      details: collectedInfo,
+      timestamp: Date.now(),
+    });
+  }
+
+  if (analysisDetails && analysisDetails.length > 0) {
+    const collectedDetails = analysisDetails.filter(d => d.value && d.value.trim());
+    const missingDetails = analysisDetails.filter(d => !d.value || !d.value.trim());
+
+    if (collectedDetails.length > 0) {
+      collectedDetails.forEach((detail, index) => {
+        const sourceText = detail.source === 'explicit' ? '用户明确说的' : detail.source === 'inferred' ? 'AI推断的' : '从上下文导入的';
+        steps.push({
+          id: `req-2-${Date.now()}-${index}`,
+          type: 'info-collection',
+          status: 'completed',
+          title: `提取: ${detail.label}`,
+          content: `${detail.value}${detail.reasoning ? `\n💭 ${detail.reasoning}` : ''}`,
+          details: { source: sourceText, confidence: detail.source },
+          timestamp: Date.now(),
+        });
+      });
+    }
+
+    if (missingDetails.length > 0) {
+      steps.push({
+        id: `req-3-${Date.now()}`,
+        type: 'info-collection',
+        status: 'completed',
+        title: '待补充信息',
+        content: `还需要补充 ${missingDetails.length} 项信息才能完成任务`,
+        timestamp: Date.now(),
+      });
+
+      missingDetails.slice(0, 3).forEach((detail, index) => {
+        steps.push({
+          id: `req-4-${Date.now()}-${index}`,
+          type: 'info-collection',
+          status: 'completed',
+          title: `待补充: ${detail.label}`,
+          content: detail.reasoning || '请提供此信息',
+          timestamp: Date.now(),
+        });
+      });
+    }
+  } else if (missingFields.length > 0) {
+    steps.push({
+      id: `req-5-${Date.now()}`,
+      type: 'requirement-analysis',
+      status: 'completed',
+      title: '需求分析完成',
+      content: `已了解您的需求，还需补充 ${missingFields.length} 项信息`,
+      timestamp: Date.now(),
+    });
+  }
+
+  return steps;
+};
+
+// 生成技能执行思考步骤
+const generateSkillExecutionSteps = (
+  intent: IntentType,
+  collectedInfo: Record<string, string>
+): ThinkingStep[] => {
+  return [
+    {
+      id: `exec-1-${Date.now()}`,
+      type: 'skill-execution',
+      status: 'processing',
+      title: '开始执行技能',
+      content: `正在为您进行${getIntentDisplayName(intent)}...`,
+      timestamp: Date.now(),
+    },
+    {
+      id: `exec-2-${Date.now()}`,
+      type: 'skill-execution',
+      status: 'completed',
+      title: '使用的信息',
+      content: Object.keys(collectedInfo).length > 0
+        ? Object.entries(collectedInfo).map(([k, v]) => `${k}: ${v}`).join('\n')
+        : '使用默认参数',
+      timestamp: Date.now(),
+    },
+  ];
+};
+
+// 错误信息映射 - 将技术错误转换为用户友好的提示
+const ERROR_MESSAGES: Record<string, string> = {
+  '图片生成失败：返回 URL 为空': '图片生成遇到了问题，可能是描述太复杂或网络不稳定',
+  '图片生成失败': '生成图片时出错了，请稍后重试或简化描述',
+  '请求已取消': '操作已取消',
+  '网络错误': '网络连接不稳定，请检查网络后重试',
+  'timeout': '生成时间过长，请稍后重试或简化需求',
+  '未知错误': '发生了意外错误，请稍后重试',
+};
+
+// 错误恢复建议
+const ERROR_RECOVERY: Record<string, string[]> = {
+  'image-generation': [
+    '简化描述，突出重点',
+    '尝试不同的关键词',
+    '分步骤描述需求',
+  ],
+  'logo-design': [
+    '提供更具体的品牌信息',
+    '描述想要的风格（如简约、科技感）',
+    '说明目标受众',
+  ],
+  'poster-design': [
+    '明确海报用途（宣传、促销、活动）',
+    '提供关键文案内容',
+    '描述期望的视觉风格',
+  ],
+  'text-generation': [
+    '明确文案用途',
+    '提供核心卖点或关键信息',
+    '说明目标读者群体',
+  ],
+  'batch-generation': [
+    '减少批量生成的数量',
+    '简化每个项目的要求',
+    '分批次进行生成',
+  ],
+};
+
+// 获取用户友好的错误信息
+const getUserFriendlyError = (error: Error | string, intent?: string): { message: string; suggestions: string[] } => {
+  const errorMessage = typeof error === 'string' ? error : error.message;
+  
+  // 查找匹配的错误映射
+  for (const [key, value] of Object.entries(ERROR_MESSAGES)) {
+    if (errorMessage.includes(key)) {
+      return {
+        message: value,
+        suggestions: intent ? ERROR_RECOVERY[intent] || [] : [],
+      };
+    }
+  }
+  
+  // 默认错误处理
+  return {
+    message: errorMessage || '操作失败，请稍后重试',
+    suggestions: intent ? ERROR_RECOVERY[intent] || [] : [],
+  };
+};
+
+// 增强版批量物品解析（保留原函数作为降级方案）
+const extractBatchItemsEnhanced = (
+  message: string,
+  previousImageUrl?: string
+): string[] => {
+  // 优先使用任务编排服务的解析结果
+  const parsed = parseComplexTask(message, {
+    previousImageUrl,
+  });
+
+  if (parsed.tasks.length > 0) {
+    return parsed.tasks.map(t => t.name);
+  }
+
+  // 降级：使用原有逻辑
+  return extractBatchItems(message);
+};
+
+// 执行任务流（带进度跟踪）
+const executeTaskFlowWithProgress = async (
+  flow: TaskFlow,
+  previousImageUrl: string | undefined,
+  onDelta: (message: string) => void
+): Promise<{ content: string; attachments: Attachment[] }> => {
+  console.log('[executeTaskFlow] 开始执行任务流:', flow.name);
+
+  // 启动任务流
+  taskFlowManager.startFlow(flow.id);
+
+  // 订阅进度更新
+  const progressMessages: string[] = [];
+  const unsubscribe = taskFlowManager.subscribe(flow.id, (progress: TaskProgress) => {
+    const progressBar = '█'.repeat(Math.round(progress.progress / 10)) + '░'.repeat(10 - Math.round(progress.progress / 10));
+    const msg = `📊 ${progress.stageName} (${progress.stageIndex + 1}/${progress.totalStages})\n${progressBar} ${progress.progress}%`;
+    progressMessages.push(msg);
+    onDelta(msg);
+  });
+
+  const allAttachments: Attachment[] = [];
+  const failedTasks: Array<{ name: string; error: string }> = [];
+
+  try {
+    for (let i = 0; i < flow.stages.length; i++) {
+      // 检查是否已取消
+      if (taskFlowManager.isCancelled(flow.id)) {
+        return {
+          content: `❌ **任务已取消**\n\n已生成 ${allAttachments.length} 个设计`,
+          attachments: allAttachments,
+        };
+      }
+
+      const stage = flow.stages[i];
+
+      // 更新阶段状态
+      taskFlowManager.updateStage(flow.id, stage.id, {
+        status: 'running',
+        startTime: Date.now(),
+        progress: 0,
+      });
+
+      console.log(`[executeTaskFlow] 执行阶段 ${i + 1}/${flow.stages.length}: ${stage.name}`);
+
+      try {
+        // 根据不同的 skill 类型执行不同的生成逻辑
+        const result = await executeStageTask(stage, previousImageUrl, (progress) => {
+          taskFlowManager.updateStage(flow.id, stage.id, { progress });
+        });
+
+        // 保存输出
+        taskFlowManager.updateStage(flow.id, stage.id, {
+          status: 'completed',
+          output: {
+            content: result.content,
+            imageUrl: result.imageUrl,
+            attachments: result.attachments,
+          },
+          progress: 100,
+          endTime: Date.now(),
+        });
+
+        // 收集附件
+        if (result.attachments) {
+          allAttachments.push(...result.attachments);
+        }
+
+        // 将当前输出作为下一个阶段的输入参考
+        if (result.imageUrl) {
+          previousImageUrl = result.imageUrl;
+        }
+
+      } catch (error) {
+        console.error(`[executeTaskFlow] 阶段 ${stage.name} 执行失败:`, error);
+        taskFlowManager.updateStage(flow.id, stage.id, {
+          status: 'failed',
+          error: error instanceof Error ? error.message : '未知错误',
+          endTime: Date.now(),
+        });
+        failedTasks.push({
+          name: stage.name,
+          error: error instanceof Error ? error.message : '未知错误',
+        });
+      }
+    }
+
+    // 生成最终消息
+    let finalMessage = `✅ **${flow.name}完成！**\n\n`;
+
+    if (flow.stages.length > 0) {
+      finalMessage += `共 ${flow.stages.length} 个阶段：\n`;
+      flow.stages.forEach((stage, idx) => {
+        const statusEmoji = stage.status === 'completed' ? '✅' : stage.status === 'failed' ? '❌' : '⏳';
+        finalMessage += `${idx + 1}. ${statusEmoji} ${stage.name}`;
+        if (stage.status === 'failed' && stage.error) {
+          finalMessage += ` - ${stage.error}`;
+        }
+        finalMessage += '\n';
+      });
+    }
+
+    if (allAttachments.length > 0) {
+      finalMessage += `\n📦 共生成 ${allAttachments.length} 个设计`;
+    }
+
+    if (failedTasks.length > 0) {
+      finalMessage += `\n❌ 失败 ${failedTasks.length} 个任务`;
+    }
+
+    return {
+      content: finalMessage,
+      attachments: allAttachments,
+    };
+
+  } finally {
+    unsubscribe();
+  }
+};
+
+// 执行单个阶段任务
+const executeStageTask = async (
+  stage: { name: string; skill: IntentType; input: Record<string, any> },
+  previousImageUrl: string | undefined,
+  onProgress: (progress: number) => void
+): Promise<{ content?: string; imageUrl?: string; attachments?: Attachment[] }> => {
+  const { skill, input } = stage;
+
+  onProgress(10);
+
+  switch (skill) {
+    case 'logo-design':
+    case 'poster-design':
+    case 'image-generation': {
+      // 构建生成提示词
+      const prompt = buildGenerationPrompt(input.prompt, input.brandName, input.style, previousImageUrl);
+      onProgress(30);
+
+      const imageUrl = await generateImage(prompt);
+      onProgress(90);
+
+      const attachment: Attachment = {
+        id: `img_${Date.now()}`,
+        type: 'image',
+        url: imageUrl,
+        thumbnailUrl: imageUrl,
+        title: stage.name,
+        status: 'completed',
+      };
+
+      return {
+        content: `✅ ${stage.name}完成`,
+        imageUrl,
+        attachments: [attachment],
+      };
+    }
+
+    case 'color-scheme': {
+      // 配色方案返回文本
+      return {
+        content: `🎨 **配色方案建议**\n\n主色：#2563EB（蓝色系）\n辅色：#10B981（绿色系）\n强调色：#F59E0B（橙色）`,
+        attachments: [],
+      };
+    }
+
+    case 'brand-copy':
+    case 'marketing-copy':
+    case 'social-copy': {
+      // 文案生成返回文本
+      return {
+        content: `📝 **${stage.name}**\n\n这是一段示例文案内容...`,
+        attachments: [],
+      };
+    }
+
+    default: {
+      // 默认当作图片生成处理
+      const prompt = buildGenerationPrompt(input.prompt, input.brandName, input.style, previousImageUrl);
+      const imageUrl = await generateImage(prompt);
+
+      return {
+        imageUrl,
+        attachments: [{
+          id: `img_${Date.now()}`,
+          type: 'image',
+          url: imageUrl,
+          thumbnailUrl: imageUrl,
+          title: stage.name,
+          status: 'completed',
+        }],
+      };
+    }
+  }
+};
+
+// 构建生成提示词
+const buildGenerationPrompt = (
+  basePrompt: string,
+  brandName?: string,
+  style?: string,
+  referenceImageUrl?: string
+): string => {
+  let prompt = basePrompt;
+
+  if (brandName) {
+    prompt = `${brandName}品牌，${prompt}`;
+  }
+
+  if (style) {
+    prompt = `${prompt}，风格：${style}`;
+  }
+
+  if (referenceImageUrl) {
+    prompt = `${prompt}，参考风格：${referenceImageUrl}`;
+  }
+
+  return prompt;
+};
+
+// 执行批量生成（带进度）
+const executeBatchGeneration = async (
+  items: string[],
+  originalMessage: string,
+  previousImageUrl: string | undefined,
+  onDelta: (message: string) => void,
+  isCancelled?: () => boolean
+): Promise<{ content: string; attachments: Attachment[] }> => {
+  console.log('[executeBatchGeneration] 开始批量生成:', items);
+
+  onDelta(`📦 **批量生成**\n\n正在为您生成 ${items.length} 个设计...\n\n目标：${items.join('、')}`);
+
+  const results: Array<{ item: string; url?: string; content?: string; error?: string }> = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+
+    // 检查是否已取消
+    if (isCancelled?.()) {
+      break;
+    }
+
+    const progress = Math.round(((i + 0.5) / items.length) * 100);
+    onDelta(`📦 **批量生成**\n\n正在生成 ${i + 1}/${items.length}：${item}...\n\n进度：${progress}%`);
+
+    try {
+      const itemPrompt = `${item}，${originalMessage.replace(/一套|一组|多个|批量|全套|所有的/g, '')}`;
+      const imageUrl = await generateImage(itemPrompt);
+      results.push({ item, url: imageUrl });
+    } catch (error) {
+      results.push({ item, error: error instanceof Error ? error.message : '生成失败' });
+    }
+  }
+
+  // 生成结果
+  const successResults = results.filter(r => r.url);
+  const failedResults = results.filter(r => r.error);
+
+  const attachments = successResults.map((r, idx) => ({
+    id: `img_batch_${Date.now()}_${idx}`,
+    type: 'image' as const,
+    url: r.url!,
+    thumbnailUrl: r.url!,
+    title: r.item,
+    status: 'completed' as const,
+  }));
+
+  let message = `✅ **批量生成完成！**\n\n成功生成 ${successResults.length}/${items.length} 个设计：\n\n`;
+  successResults.forEach((r, idx) => {
+    message += `${idx + 1}. ${r.item} ✅\n`;
+  });
+
+  if (failedResults.length > 0) {
+    message += `\n❌ 生成失败 ${failedResults.length} 个：\n`;
+    failedResults.forEach((r, idx) => {
+      message += `${idx + 1}. ${r.item}：${r.error}\n`;
+    });
+  }
+
+  return {
+    content: message,
+    attachments,
+  };
+};
+
+// 解析批量生成的物品列表
+const extractBatchItems = (message: string): string[] => {
+  const items: string[] = [];
+
+  // VI系统物料列表
+  const viItems = ['名片', '信纸', '信封', '文件夹', '工牌', '胸牌', '马克杯', '笔记本', '帆布袋', 'T恤', '帽子', '包装盒', '手提袋', '贴纸', '标签'];
+
+  // 检测VI系统批量生成
+  if (message.includes('VI') || message.includes('vi') || message.includes('VIs')) {
+    const viKeywords = ['系统', '整套', '全套', '一套'];
+    if (viKeywords.some(k => message.includes(k))) {
+      // 检查是否指定了具体物料
+      for (const item of viItems) {
+        if (message.includes(item)) {
+          items.push(item);
+        }
+      }
+      // 如果没有指定具体物料，返回常用物料
+      if (items.length === 0) {
+        return ['名片', '信纸', '工牌'];
+      }
+    }
+  }
+
+  // 检测多平台文案批量生成
+  const platforms = ['朋友圈', '微博', '小红书', '抖音', 'B站', '知乎', '微信'];
+  const mentionedPlatforms = platforms.filter(p => message.includes(p));
+  if (mentionedPlatforms.length > 1) {
+    return mentionedPlatforms.map(p => `${p}文案`);
+  }
+
+  // 检测多个物品罗列（如：海报、名片、信纸）
+  const separators = /、|,|和|与|及/;
+  const parts = message.split(separators);
+  for (const part of parts) {
+    const trimmed = part.trim();
+    // 排除数量词和连接词
+    if (/^一|^二|^三|^几|^多个|套|组|系列|批量|^全套$/.test(trimmed)) continue;
+    if (trimmed.length >= 2 && trimmed.length <= 10) {
+      items.push(trimmed);
+    }
+  }
+
+  return items;
+};
+
 export const useSkillChat = () => {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const draft = restoreDraft();
@@ -159,6 +753,23 @@ export const useSkillChat = () => {
       return [
         ...prev.slice(0, lastIndex),
         { ...lastMessage, ...updates },
+      ];
+    });
+  }, []);
+
+  // 根据消息 ID 更新消息
+  const updateMessage = useCallback((messageId: string, updates: Partial<ChatMessage>) => {
+    setMessages((prev) => {
+      const messageIndex = prev.findIndex(m => m.id === messageId);
+      if (messageIndex === -1) {
+        console.warn('[updateMessage] 未找到消息 ID:', messageId);
+        return prev;
+      }
+      
+      return [
+        ...prev.slice(0, messageIndex),
+        { ...prev[messageIndex], ...updates },
+        ...prev.slice(messageIndex + 1),
       ];
     });
   }, []);
@@ -268,12 +879,68 @@ export const useSkillChat = () => {
         };
       }
 
+      case 'web-search': {
+        try {
+          // 1. 显示搜索中的状态
+          onDelta(`🔍 **正在搜索**\n\n正在搜索："${userMessage}"...`);
+
+          // 2. 调用联网搜索服务
+          const searchResponse = await performWebSearch(userMessage, {
+            limit: 5,
+            includeAnswer: true,
+            signal: abortControllerRef.current?.signal,
+          });
+
+          console.log('[executeSkill] 搜索结果:', searchResponse);
+
+          // 3. 如果有搜索结果，使用 LLM 生成基于搜索结果的回答
+          if (searchResponse.results.length > 0) {
+            const searchContext = buildSearchContext(searchResponse);
+
+            // 构建提示词
+            const prompt = `基于以下搜索结果，回答用户的问题："${userMessage}"\n\n${searchContext}\n\n请综合以上信息，提供一个全面、准确的回答。在回答中适当标注信息来源。`;
+
+            let content = '';
+            await sendMessageStream(
+              prompt,
+              context,
+              (delta) => {
+                content += delta;
+                onDelta(content);
+              },
+              abortControllerRef.current?.signal
+            );
+
+            return { content };
+          } else {
+            // 没有搜索结果，使用 LLM 直接回答
+            let content = '';
+            await sendMessageStream(
+              `用户询问："${userMessage}"\n\n未找到相关网络搜索结果。请基于你的知识回答，并告知用户未找到实时信息。`,
+              context,
+              (delta) => {
+                content += delta;
+                onDelta(content);
+              },
+              abortControllerRef.current?.signal
+            );
+
+            return { content };
+          }
+        } catch (error) {
+          console.error('[executeSkill] 联网搜索失败:', error);
+          return {
+            content: `❌ **搜索失败**\n\n${error instanceof Error ? error.message : '未知错误'}\n\n请稍后重试，或尝试换一种方式描述您的搜索需求。`,
+          };
+        }
+      }
+
       case 'help': {
         // 检查用户是否需要实际的帮助操作（如查资料）
-        const isQueryRequest = userMessage.includes('查') || userMessage.includes('搜索') || 
+        const isQueryRequest = userMessage.includes('查') || userMessage.includes('搜索') ||
                                userMessage.includes('找') || userMessage.includes('资料') ||
                                userMessage.includes('信息') || userMessage.includes('数据');
-        
+
         if (isQueryRequest) {
           // 执行实际的帮助操作（使用流式输出）
           let responseContent = '';
@@ -281,7 +948,7 @@ export const useSkillChat = () => {
 
 请根据用户的需求提供详细的帮助。如果用户要求查资料，请提供相关的信息和建议。
 请用中文回答，保持友好和专业的语气。`;
-          
+
           await sendMessageStream(
             helpPrompt,
             context,
@@ -291,14 +958,211 @@ export const useSkillChat = () => {
             },
             abortControllerRef.current?.signal
           );
-          
+
           return { content: responseContent };
         }
-        
+
         // 否则显示帮助指南
         return {
-          content: '**津小脉 Skill Agent 使用指南**\n\n🎯 **如何使用**\n直接在对话框中描述你的需求，例如：\n- "帮我设计一个科技公司的Logo"\n- "写一段品牌宣传文案"\n- "推荐一套适合电商的配色方案"\n- "帮我查一下某品牌的资料"\n\n🛠️ **支持的技能**\n- 图片生成（Logo、海报、创意图）\n- 文案创作（品牌、营销、社媒）\n- 配色方案推荐\n- 创意点子生成\n- 信息查询和资料搜索\n\n💡 **小贴士**\n- 描述越详细，生成效果越好\n- 可以多次调整直到满意\n- 生成的作品会显示在左侧画布中\n\n有什么我可以帮你的吗？',
+          content: '**津小脉 Skill Agent 使用指南**\n\n🎯 **如何使用**\n直接在对话框中描述你的需求，例如：\n- "帮我设计一个科技公司的Logo"\n- "写一段品牌宣传文案"\n- "推荐一套适合电商的配色方案"\n- "帮我搜索最新的AI技术资讯"\n\n🛠️ **支持的技能**\n- 图片生成（Logo、海报、创意图）\n- 文案创作（品牌、营销、社媒）\n- 配色方案推荐\n- 创意点子生成\n- 联网搜索（查资料、获取最新资讯）\n\n💡 **小贴士**\n- 描述越详细，生成效果越好\n- 可以多次调整直到满意\n- 生成的作品会显示在左侧画布中\n\n有什么我可以帮你的吗？',
         };
+      }
+
+      case 'image-editing': {
+        // 获取上下文中的原图
+        const previousState = conversationStateRef.current;
+        const originalImageUrl = previousState?.lastImageAttachment?.url ||
+                                 collectedInfo['originalImageUrl'];
+
+        if (!originalImageUrl) {
+          return {
+            content: `❌ **图片编辑失败**\n\n找不到原图。请先上传或生成一张图片，然后告诉我你想要如何修改。`,
+            attachments: [],
+          };
+        }
+
+        try {
+          console.log('[executeSkill] 开始图片编辑，原图:', originalImageUrl);
+          console.log('[executeSkill] 用户请求:', userMessage);
+
+          // 构建编辑提示词
+          const editPrompt = `基于以下原图，根据用户的要求进行编辑或二次创作：
+
+原图 URL: ${originalImageUrl}
+用户要求：${userMessage}
+
+请保持原图的主要元素和构图，但按照用户的要求进行修改或风格转换。`;
+
+          onDelta(`🖼️ **图片编辑**\n\n正在基于原图进行编辑...\n\n要求：${userMessage}`);
+
+          // 调用图片编辑 API
+          const { editImage } = await import('@/services/imageGenerationService');
+          const editResult = await editImage({
+            prompt: editPrompt,
+            imageUrl: originalImageUrl,
+            size: '1024x1024',
+          });
+
+          const editedImageUrl = editResult.data?.[0]?.url;
+
+          if (!editedImageUrl) {
+            throw new Error('图片编辑失败：未返回图片 URL');
+          }
+
+          const attachment = {
+            id: `img_${Date.now()}`,
+            type: 'image' as const,
+            url: editedImageUrl,
+            thumbnailUrl: editedImageUrl,
+            title: '编辑后的图片',
+            status: 'completed' as const,
+          };
+
+          return {
+            content: `✅ **图片编辑完成！**\n\n已根据您的要求完成编辑。`,
+            attachments: [attachment],
+          };
+        } catch (error) {
+          console.error('[executeSkill] 图片编辑失败:', error);
+          return {
+            content: `❌ **图片编辑失败**\n\n${error instanceof Error ? error.message : '未知错误'}`,
+            attachments: [],
+          };
+        }
+      }
+
+      case 'batch-generation': {
+        // 使用任务编排服务处理批量生成
+        try {
+          console.log('[executeSkill] 开始批量生成，请求:', userMessage);
+
+          // 获取上下文信息
+          const previousState = conversationStateRef.current;
+          const previousImageUrl = previousState?.lastImageAttachment?.url ||
+                                  previousState?.designContext?.logoUrl ||
+                                  previousState?.designContext?.lastOutputUrl;
+          const brandName = previousState?.designContext?.brandName ||
+                           extractBrandNameFromMessage(userMessage);
+          const designStyle = previousState?.designContext?.style;
+
+          // 解析复杂任务
+          const parsedTask = parseComplexTask(userMessage, {
+            previousIntent: previousState?.intent,
+            previousImageUrl,
+            brandName,
+            designStyle,
+          });
+
+          console.log('[executeSkill] 任务解析结果:', parsedTask);
+
+          // 如果是复杂多步骤任务
+          if (parsedTask.isComplex && parsedTask.flow) {
+            const stages = parsedTask.flow.stages.map(stage => ({
+              name: stage.name,
+              skill: stage.skill,
+              input: {
+                prompt: `${stage.description}，品牌名：${brandName || '待定'}`,
+                imageUrl: previousImageUrl,
+                style: designStyle,
+                referenceFromPrevious: !!previousImageUrl,
+              },
+            }));
+
+            const flow = createDesignTaskFlow(
+              `品牌设计流程 - ${brandName || '新品牌'}`,
+              stages
+            );
+
+            // 保存当前任务流
+            conversationStateRef.current = {
+              ...currentState,
+              currentTaskFlow: { flowId: flow.id, name: flow.name },
+            };
+
+            // 开始执行任务流
+            return await executeTaskFlowWithProgress(flow, previousImageUrl, onDelta);
+          }
+
+          // 如果是批量生成任务
+          if (parsedTask.isBatch && parsedTask.tasks.length > 0) {
+            const flow = taskFlowManager.createFlow(
+              `批量生成 - ${parsedTask.tasks.length}个任务`
+            );
+
+            // 添加所有子任务
+            parsedTask.tasks.forEach(task => {
+              taskFlowManager.addStage(flow.id, {
+                name: task.name,
+                skill: task.skill,
+                input: {
+                  prompt: task.prompt,
+                  imageUrl: previousImageUrl,
+                  brandName,
+                  style: designStyle,
+                  referenceFromPrevious: !!previousImageUrl,
+                },
+              });
+            });
+
+            // 保存当前任务流
+            conversationStateRef.current = {
+              ...currentState,
+              currentTaskFlow: { flowId: flow.id, name: flow.name },
+            };
+
+            // 开始执行任务流
+            return await executeTaskFlowWithProgress(flow, previousImageUrl, onDelta);
+          }
+
+          // 如果没有解析到具体任务，使用原来的简单批量逻辑
+          const items = extractBatchItemsEnhanced(userMessage, previousImageUrl);
+
+          if (items.length === 0) {
+            // 如果没有解析到具体物品，作为普通图片生成处理
+            const imageUrl = await generateImage(userMessage);
+            if (!imageUrl) {
+              throw new Error('图片生成失败');
+            }
+            const attachment = {
+              id: `img_${Date.now()}`,
+              type: 'image' as const,
+              url: imageUrl,
+              thumbnailUrl: imageUrl,
+              title: '生成的图片',
+              status: 'completed' as const,
+            };
+            return {
+              content: `✅ **生成完成**`,
+              attachments: [attachment],
+            };
+          }
+
+          // 批量生成多个物品
+          // 创建取消检查函数
+          let cancelled = false;
+          const cancelCheck = () => {
+            if (cancelled) return true;
+            const flow = taskFlowManager.getFlow(batchFlowId);
+            return flow ? taskFlowManager.isCancelled(flow.id) : false;
+          };
+
+          // 先创建临时流用于取消检查（实际任务在 executeBatchGeneration 内部创建）
+          const batchFlowId = `batch_${Date.now()}`;
+
+          return await executeBatchGeneration(
+            items,
+            userMessage,
+            previousImageUrl,
+            onDelta,
+            cancelCheck
+          );
+        } catch (error) {
+          console.error('[executeSkill] 批量生成失败:', error);
+          return {
+            content: `❌ **批量生成失败**\n\n${error instanceof Error ? error.message : '未知错误'}`,
+            attachments: [],
+          };
+        }
       }
 
       case 'general':
@@ -329,16 +1193,20 @@ export const useSkillChat = () => {
   ) => {
     console.log(`[sendMessage] 自动执行图片${isStyleTransfer ? '风格转换' : '美化'}`);
 
-    // 显示执行中的消息
+    // 步骤1：分析图片内容
+    const analyzingMessageId = generateMessageId();
     addMessage({
+      id: analyzingMessageId,
       role: 'agent',
-      content: isStyleTransfer ? '✨ **正在为您转换图片风格**\n\n请稍候...' : '✨ **正在为您美化图片**\n\n请稍候...',
+      content: isStyleTransfer
+        ? '🔍 **步骤 1/3：分析原图内容**\n\n正在识别图片中的元素和风格特征...'
+        : '🔍 **步骤 1/3：分析原图内容**\n\n正在识别图片中的元素和特征，为美化做准备...',
       skillCall: {
         ...skillCall,
         status: 'executing',
         phase: 'executing',
       },
-    });
+    } as Omit<ChatMessage, 'timestamp'>);
 
     try {
       // 首先识别原图内容
@@ -355,25 +1223,70 @@ export const useSkillChat = () => {
         abortControllerRef.current?.signal
       );
 
-      // 构建图片生成提示词
-      const generationPrompt = isStyleTransfer
-        ? `基于以下图片描述，将图片转换为指定风格：${imageDescription}。用户要求：${content}`
-        : `基于以下图片描述，生成一张美化优化后的高质量版本，提升画质、色彩和细节：${imageDescription}。用户要求：${content}`;
-
-      console.log('[sendMessage] 调用图片生成 API，提示词:', generationPrompt);
-
-      // 调用真实的图片生成 API
-      const generatedImageUrl = await generateImage(generationPrompt, {
-        size: '1024x1024',
-        quality: 'hd',
+      // 更新消息为步骤2
+      updateMessage(analyzingMessageId, {
+        content: isStyleTransfer
+          ? `🔍 **步骤 1/3：分析原图内容**\n\n✅ 已识别：${imageDescription.slice(0, 100)}${imageDescription.length > 100 ? '...' : ''}\n\n🎨 **步骤 2/3：准备风格转换**\n\n正在根据您的要求准备转换方案...`
+          : `🔍 **步骤 1/3：分析原图内容**\n\n✅ 已识别：${imageDescription.slice(0, 100)}${imageDescription.length > 100 ? '...' : ''}\n\n✨ **步骤 2/3：准备美化方案**\n\n正在制定专业的美化策略...`,
       });
 
-      console.log('[sendMessage] 图片生成完成，URL:', generatedImageUrl);
+      // 构建图片生成提示词
+      let generationPrompt: string;
+
+      if (isStyleTransfer) {
+        generationPrompt = `基于以下图片描述，将图片转换为指定风格：${imageDescription}。用户要求：${content}`;
+      } else {
+        // 美化提示词 - 更具体、更有针对性
+        generationPrompt = `请对以下图片进行专业级美化处理，创建一张视觉效果显著提升的版本：
+
+原图描述：${imageDescription}
+
+请执行以下优化（根据图片情况选择适用的）：
+1. **色彩增强**：提升色彩饱和度和对比度，让画面更鲜艳生动
+2. **光影优化**：改善光线分布，增强立体感，修复过曝或欠曝区域
+3. **细节锐化**：增强边缘清晰度，提升纹理细节
+4. **质感提升**：增加画面通透感，让整体看起来更专业
+5. **肤色优化**（如有人物）：美化肤色，让人物看起来更健康自然
+
+重要要求：
+- 保持原图的主体内容和构图不变
+- 美化效果要明显可见，不能只是轻微调整
+- 输出高质量的精美图片
+
+用户原始要求：${content}`;
+      }
+
+      // 更新消息为步骤3
+      updateMessage(analyzingMessageId, {
+        content: isStyleTransfer
+          ? `🔍 **步骤 1/3：分析原图内容** ✅\n\n🎨 **步骤 2/3：准备风格转换** ✅\n\n✨ **步骤 3/3：生成新图片**\n\n正在应用风格转换，请稍候...`
+          : `🔍 **步骤 1/3：分析原图内容** ✅\n\n✨ **步骤 2/3：准备美化方案** ✅\n\n🎨 **步骤 3/3：应用美化效果**\n\n正在增强色彩、优化光影、锐化细节...`,
+      });
+
+      console.log('[sendMessage] 调用图片编辑 API，提示词:', generationPrompt);
+      console.log('[sendMessage] 参考图片 URL:', imageUrl);
+
+      // 调用图片编辑 API（基于原图进行编辑）
+      const editResult = await editImage({
+        prompt: generationPrompt,
+        imageUrl: imageUrl,
+        size: '1024x1024',
+      });
+
+      const generatedImageUrl = editResult.data?.[0]?.url;
+
+      if (!generatedImageUrl) {
+        throw new Error('未能获取编辑后的图片 URL');
+      }
+
+      console.log('[sendMessage] 图片编辑完成，URL:', generatedImageUrl);
 
       // 显示生成的图片
       addMessage({
         role: 'agent',
-        content: isStyleTransfer ? '✅ **风格转换完成！**' : '✅ **美化完成！**',
+        content: isStyleTransfer 
+          ? '✅ **风格转换完成！**\n\n已为您将图片转换为指定风格，效果如下：' 
+          : '✅ **美化完成！**\n\n已为您应用专业级美化效果，包括色彩增强、光影优化和细节锐化：',
         attachments: [
           {
             type: 'image',
@@ -490,6 +1403,13 @@ export const useSkillChat = () => {
       };
     }
 
+    // 生成思考步骤
+    const requirementThinkingSteps = generateRequirementAnalysisSteps(
+      analysis.collectedInfo,
+      analysis.missingFields,
+      analysis.analysisDetails
+    );
+
     const skillCall: SkillCallInfo = {
       skillId: 'requirement-collection',
       skillName: 'RequirementCollectionSkill',
@@ -503,6 +1423,8 @@ export const useSkillChat = () => {
       suggestions: analysis.suggestions,
       summary: analysis.summary,
       progress,
+      thinkingSteps: requirementThinkingSteps,
+      analysisDetails: analysis.analysisDetails,
       ...(merchandiseSelection && { merchandiseSelection }),
     };
 
@@ -760,6 +1682,46 @@ export const useSkillChat = () => {
           };
           setCurrentSkillCall(completedSkillCall);
 
+          // 保存执行结果到上下文（用于多Skill联动）
+          const imageAttachment = result.attachments?.find(att => att.type === 'image');
+          const textAttachment = result.attachments?.find(att => att.type === 'text');
+
+          // 提取附件中的图片URL
+          let lastImageUrl: string | undefined;
+          if (imageAttachment?.url) {
+            lastImageUrl = imageAttachment.url;
+          } else if (result.attachments?.[0]?.type === 'image') {
+            lastImageUrl = result.attachments[0].url;
+          }
+
+          // 提取附件中的文本内容
+          let lastTextContent: string | undefined;
+          if (textAttachment?.content) {
+            lastTextContent = textAttachment.content;
+          }
+
+          // 保存上下文（而不是重置），支持后续引用
+          conversationStateRef.current = {
+            intent,
+            collectedInfo,
+            missingFields: [],
+            phase: 'completed',
+            lastImageAttachment: lastImageUrl ? {
+              url: lastImageUrl,
+              type: 'image',
+              title: getIntentDisplayName(intent),
+            } : currentState.lastImageAttachment,
+            lastTextAttachment: lastTextContent ? {
+              content: lastTextContent,
+              title: getIntentDisplayName(intent),
+            } : currentState.lastTextAttachment,
+            lastExecutionResult: {
+              intent,
+              content: finalContent,
+              attachments: result.attachments,
+            },
+          };
+
           // 使用函数形式更新消息，确保能访问最新的 messages 状态
           setMessages((prevMessages) => {
             const lastMessageIsAgent = prevMessages.length > 0 && prevMessages[prevMessages.length - 1].role === 'agent';
@@ -812,8 +1774,19 @@ export const useSkillChat = () => {
           skillCall: skillCallInfo,
         });
 
-        // 识别意图
-        const intentResult = await recognizeIntent(content, abortControllerRef.current.signal);
+        // 构建历史消息（包含附件信息）
+        const historyWithAttachments = messages.map(m => ({
+          role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+          content: m.content,
+          attachments: m.attachments,
+        }));
+
+        // 识别意图（传入历史消息以支持上下文引用）
+        const intentResult = await recognizeIntent(
+          content,
+          abortControllerRef.current.signal,
+          historyWithAttachments
+        );
 
         // 检测意图切换
         const previousState = conversationStateRef.current;
@@ -851,6 +1824,8 @@ export const useSkillChat = () => {
         }
 
         // 更新意图识别状态
+        const intentThinkingSteps = generateIntentRecognitionSteps(content, intentResult);
+
         const recognizingSkillCall: SkillCallInfo = {
           ...skillCallInfo,
           intent: intentResult.intent,
@@ -858,6 +1833,8 @@ export const useSkillChat = () => {
           status: 'recognizing',
           phase: 'analyzing',
           params: intentResult.params,
+          reasoning: intentResult.reasoning,
+          thinkingSteps: intentThinkingSteps,
         };
         setCurrentSkillCall(recognizingSkillCall);
 
@@ -880,8 +1857,14 @@ export const useSkillChat = () => {
               // 对于风格转换，检查是否指定了具体风格
               if (intentResult.intent === 'image-style-transfer') {
                 const styleKeywords = ['油画', '水彩', '素描', '卡通', '赛博朋克', '国风'];
-                const hasSpecifiedStyle = styleKeywords.some(style => content.includes(style));
-                
+                // 检查是否包含风格关键词（包括"卡通风格"、"油画风格"等组合词）
+                const hasSpecifiedStyle = styleKeywords.some(style => {
+                  return content.includes(style) || // 单独的词，如"卡通"
+                         content.includes(`${style}风格`) || // 组合词，如"卡通风格"
+                         content.includes(`${style}样式`) || // 组合词，如"卡通样式"
+                         content.includes(`${style}效果`); // 组合词，如"卡通效果"
+                });
+
                 if (!hasSpecifiedStyle) {
                   // 没有指定风格，不自动执行，进入需求收集流程
                   console.log('[sendMessage] 风格转换但未指定具体风格，进入需求收集');
@@ -966,8 +1949,8 @@ export const useSkillChat = () => {
           }
         }
 
-        // 如果是问候、帮助或一般对话，直接回复，不走需求收集流程
-        if (intentResult.intent === 'greeting' || intentResult.intent === 'help' || intentResult.intent === 'general') {
+        // 如果是问候、帮助、一般对话或联网搜索，直接回复，不走需求收集流程
+        if (intentResult.intent === 'greeting' || intentResult.intent === 'help' || intentResult.intent === 'general' || intentResult.intent === 'web-search') {
           const result = await executeSkill(
             intentResult.intent as IntentType,
             content,

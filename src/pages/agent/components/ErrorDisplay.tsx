@@ -18,6 +18,12 @@ export default function ErrorDisplay({
   showDetails = false
 }: ErrorDisplayProps) {
   const { isDark } = useTheme();
+
+  // 空值检查
+  if (!error) {
+    return null;
+  }
+
   const errorConfig = ERROR_MESSAGES[error.type];
 
   const getErrorIcon = () => {

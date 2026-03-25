@@ -1,7 +1,7 @@
 // src/config/themeConfig.ts
 
 // 主题类型定义
-export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force' | 'cyber-brutalist' | 'pink-brutalist' | 'retro-pixel' | 'kawaii' | 'chiikawa';
+export type Theme = 'light' | 'blue' | 'green' | 'pixel' | 'dark' | 'tianjin' | 'nirenzhang' | 'yangliuqing' | 'fengzhengwei' | 'guifaxiang' | 'goubuli' | 'tianjin-enhanced' | 'poizon' | 'delta-force' | 'cyber-brutalist' | 'pink-brutalist' | 'retro-pixel' | 'retro-pixel-white' | 'kawaii' | 'chiikawa';
 
 // 自定义主题接口
 export interface CustomTheme {
@@ -46,6 +46,7 @@ interface ThemeConfig {
 // 主题配置列表
 export const themeConfig: ThemeConfig[] = [
   { value: 'retro-pixel', label: '复古像素', icon: 'fas fa-gamepad', description: '新粗野主义×复古像素艺术风，2px粗黑边框、零圆角、硬边偏移阴影，致敬80年代街机游戏与霓虹灯箱的怀旧氛围', isDefault: true },
+  { value: 'retro-pixel-white', label: '复古像素·白', icon: 'fas fa-gamepad', description: '复古像素艺术风白色背景版，纯白底色搭配复古红黄霓虹色调，经典街机游戏美学与现代简洁设计的融合' },
   { value: 'light', label: '浅色', icon: 'fas fa-sun', description: '明亮清爽的默认主题' },
   { value: 'dark', label: '暗色', icon: 'fas fa-moon', description: '墨韵深空暗色主题，专业级深色体验' },
   { value: 'blue', label: '蓝色', icon: 'fas fa-water', description: '清新蓝色主题，带来宁静感' },
@@ -110,6 +111,7 @@ export const themeEnhancements = {
     'cyber-brutalist': 1.25,
     'pink-brutalist': 1.32,
     'retro-pixel': 1.28,
+    'retro-pixel-white': 1.28,
     'kawaii': 1.15,
     'chiikawa': 1.12
   },
@@ -132,6 +134,7 @@ export const themeEnhancements = {
     'cyber-brutalist': 0.88,
     'pink-brutalist': 0.9,
     'retro-pixel': 1.02,
+    'retro-pixel-white': 1.05,
     'kawaii': 1.08
   },
   // 主题过渡动画
@@ -251,6 +254,17 @@ export const themeEnhancements = {
       offsetShadows: true,
       arcadeStyle: true
     },
+    'retro-pixel-white': {
+      glow: true,
+      intensity: 'high',
+      color: '#E60023',
+      pixelStyle: true,
+      scanlines: true,
+      brutalistBorders: true,
+      offsetShadows: true,
+      arcadeStyle: true,
+      whiteBackground: true
+    },
     'kawaii': {
       glow: true,
       intensity: 'soft',
@@ -301,7 +315,7 @@ export const autoThemeConfig = {
 // 主题预设配置
 export const themePresets = {
   // 推荐主题组合
-  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'kawaii', 'chiikawa'] as Theme[],
+  recommended: ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'retro-pixel-white', 'kawaii', 'chiikawa'] as Theme[],
   // 季节适配
   seasonal: {
     spring: 'green',
@@ -326,10 +340,10 @@ export const themePresets = {
 export const defaultTheme: Theme = 'retro-pixel';
 
 // 主题切换顺序
-export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'kawaii', 'chiikawa'];
+export const themeOrder: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'retro-pixel-white', 'kawaii', 'chiikawa'];
 
 // 有效的主题列表（用于验证）
-export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'kawaii', 'chiikawa'];
+export const validThemes: Theme[] = ['light', 'dark', 'blue', 'green', 'pixel', 'tianjin', 'nirenzhang', 'yangliuqing', 'fengzhengwei', 'guifaxiang', 'goubuli', 'tianjin-enhanced', 'poizon', 'delta-force', 'cyber-brutalist', 'pink-brutalist', 'retro-pixel', 'retro-pixel-white', 'kawaii', 'chiikawa'];
 
 // 检测系统主题偏好
 export const getSystemTheme = (): 'light' | 'dark' => {
@@ -379,6 +393,7 @@ export const getAppliedTheme = (theme: Theme): Theme => {
     case 'cyber-brutalist':
     case 'pink-brutalist':
     case 'retro-pixel':
+    case 'retro-pixel-white':
     case 'kawaii':
     case 'chiikawa':
       return theme;

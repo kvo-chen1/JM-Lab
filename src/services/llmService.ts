@@ -346,7 +346,7 @@ export const DEFAULT_CONFIG: ModelConfig = {
   frequency_penalty: 0,
   stop: [],
   // 新增通义千问模型配置默认值
-  qwen_model: 'qwen3-max-2026-01-23',
+  qwen_model: 'qwen3.5-flash-2026-02-23',
   qwen_base_url: 'https://dashscope.aliyuncs.com/api/v1',
   // 新增对话相关配置默认值
   enable_memory: true,
@@ -2844,7 +2844,7 @@ export interface WorkReviewResult {
   }): Promise<string> {
     try {
       return await callQwenChat({
-        model: this.modelConfig.qwen_model || 'qwen3-max-2026-01-23',
+        model: this.modelConfig.qwen_model || 'qwen3.5-flash-2026-02-23',
         messages,
         temperature: this.modelConfig.temperature,
         top_p: this.modelConfig.top_p,

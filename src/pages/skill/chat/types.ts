@@ -37,33 +37,70 @@ export interface RequirementField {
   categories?: MerchandiseCategory[];
 }
 
+// 思考步骤类型
+export type ThinkingStepType =
+  | 'intent-recognition'
+  | 'requirement-analysis'
+  | 'info-collection'
+  | 'skill-execution'
+  | 'completed';
+
+export type ThinkingStepStatus = 'pending' | 'processing' | 'completed' | 'error';
+
+// 思考步骤
+export interface ThinkingStep {
+  id: string;
+  type: ThinkingStepType;
+  status: ThinkingStepStatus;
+  title: string;
+  content: string;
+  timestamp?: number;
+  duration?: number;
+  details?: Record<string, unknown>;
+}
+
+// 分析详情 - 信息的来源和推理
+export interface AnalysisDetail {
+  field: string;
+  label: string;
+  value?: string;
+  source: 'explicit' | 'inferred' | 'imported';
+  confidence?: number;
+  reasoning?: string;
+}
+
 export interface SkillCallInfo {
   skillId: string;
   skillName: string;
   intent: string;
   confidence: number;
-  status: 'thinking' | 'recognizing' | 'calling' | 'executing' | 'completed' | 'error';
-  phase?: RequirementPhase;              // 当前阶段
+  status: 'thinking' | 'recognizing' | 'calling' | 'executing' | 'completed' | 'error' | 'waiting';
+  phase?: RequirementPhase;
   params?: Record<string, unknown>;
   result?: unknown;
   error?: string;
-  
+
   // 需求收集相关
-  collectedInfo?: Record<string, string>;  // 已收集的信息
-  missingFields?: RequirementField[];      // 缺失的字段
-  currentQuestion?: string;                // 当前问题
-  suggestions?: string[];                  // 建议回复
-  summary?: string;                        // 需求摘要
-  progress?: {                             // 收集进度
+  collectedInfo?: Record<string, string>;
+  missingFields?: RequirementField[];
+  currentQuestion?: string;
+  suggestions?: string[];
+  summary?: string;
+  progress?: {
     current: number;
     total: number;
   };
-  
+
   // 周边类型选择
   merchandiseSelection?: {
     categories: MerchandiseCategory[];
     selectedIds: string[];
   };
+
+  // 思考过程相关
+  thinkingSteps?: ThinkingStep[];
+  reasoning?: string;
+  analysisDetails?: AnalysisDetail[];
 }
 
 export interface Attachment {

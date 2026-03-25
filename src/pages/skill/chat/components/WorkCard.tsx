@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { WorkItem, ViewMode, useCanvasStore } from '../hooks/useCanvasStore';
 import { InlineImageEditor } from './InlineImageEditor';
+import { QuickEditPanel } from './QuickEditPanel';
 import { uploadFile, isStorageConfigured } from '@/services/storageServiceNew';
 import {
   Download,
@@ -19,9 +20,12 @@ import {
   Check,
   Pencil,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Zap,
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { performQuickEdit } from '../services/quickEditService';
 
 interface WorkCardProps {
   work: WorkItem;
@@ -60,6 +64,11 @@ export const WorkCard: React.FC<WorkCardProps> = ({
   const isEditing = editingWorkId === work.id;
   const [editedImageUrl, setEditedImageUrl] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
+  
+  // 快速编辑模式状态
+  const [editMode, setEditMode] = useState<'quick' | 'full'>('quick');
+  const [isQuickEditing, setIsQuickEditing] = useState(false);
+  const [quickEditResult, setQuickEditResult] = useState<string | null>(null);
 
   const cardRef = React.useRef<HTMLDivElement>(null);
   const dragStartPos = React.useRef({ x: 0, y: 0, mouseX: 0, mouseY: 0 });
@@ -221,12 +230,64 @@ export const WorkCard: React.FC<WorkCardProps> = ({
       // 如果已经在编辑，则关闭编辑
       setEditingWorkId(null);
       setEditedImageUrl(null);
+      setQuickEditResult(null);
     } else {
-      // 开始编辑
+      // 开始编辑（默认快速编辑模式）
       setEditingWorkId(work.id);
+      setEditMode('quick');
       setEditedImageUrl(null);
+      setQuickEditResult(null);
     }
   };
+
+  // 切换到完整编辑器
+  const handleOpenFullEditor = useCallback(() => {
+    setEditMode('full');
+  }, []);
+
+  // 切换到快速编辑
+  const handleOpenQuickEdit = useCallback(() => {
+    setEditMode('quick');
+  }, []);
+
+  // 处理快速编辑
+  const handleQuickEdit = useCallback(async (prompt: string, attachments?: File[]) => {
+    if (!work.imageUrl) return;
+
+    setIsQuickEditing(true);
+    try {
+      const result = await performQuickEdit({
+        imageUrl: work.imageUrl,
+        prompt,
+        attachments,
+      });
+
+      setQuickEditResult(result.editedImageUrl);
+      toast.success(`编辑完成：${result.appliedEffects.join('、')}`);
+    } catch (error: any) {
+      console.error('[WorkCard] Quick edit failed:', error);
+      toast.error(error.message || '编辑失败');
+    } finally {
+      setIsQuickEditing(false);
+    }
+  }, [work.imageUrl]);
+
+  // 处理添加到对话
+  const handleAddToChat = useCallback((content: string, imageUrl?: string) => {
+    // TODO: 实现添加到对话功能
+    toast.success('已添加到对话');
+  }, []);
+
+  // 处理快速编辑重置
+  const handleQuickEditReset = useCallback(() => {
+    setQuickEditResult(null);
+  }, []);
+
+  // 处理快速编辑取消
+  const handleQuickEditCancel = useCallback(() => {
+    setEditingWorkId(null);
+    setQuickEditResult(null);
+  }, [setEditingWorkId]);
 
   // 处理编辑变化（实时预览）
   const handleEditChange = useCallback((editedUrl: string) => {
@@ -316,12 +377,13 @@ export const WorkCard: React.FC<WorkCardProps> = ({
         thumbnailUrl: uploadedUrl,
         type: 'image' as const,
         status: 'completed' as const,
+        createdAt: Date.now(),
         position: {
           x: work.position.x + 50,  // 在原始作品右侧偏移
           y: work.position.y + 50,  // 在原始作品下方偏移
         },
       };
-      
+
       addWork(newWork);
       console.log('[WorkCard] 新作品已创建:', newWork.id);
 
@@ -555,50 +617,168 @@ export const WorkCard: React.FC<WorkCardProps> = ({
             className="overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 编辑工具栏 */}
-            <div className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-              <InlineImageEditor
-                imageUrl={work.imageUrl}
-                onChange={handleEditChange}
-                onSave={handleEditSave}
-                onCancel={handleEditCancel}
-              />
+            {/* 模式切换标签 */}
+            <div className={`flex items-center gap-2 px-3 py-2 border-t ${isDark ? 'border-gray-700 bg-gray-800/30' : 'border-gray-200 bg-gray-50/50'}`}>
+              <button
+                onClick={handleOpenQuickEdit}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  editMode === 'quick'
+                    ? isDark
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-purple-500 text-white'
+                    : isDark
+                      ? 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                快速编辑
+              </button>
+              <button
+                onClick={handleOpenFullEditor}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  editMode === 'full'
+                    ? isDark
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-purple-500 text-white'
+                    : isDark
+                      ? 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                完整编辑
+              </button>
             </div>
 
-            {/* 实时预览区域 */}
-            <AnimatePresence>
-              {editedImageUrl && showPreview && (
+            {/* 快速编辑面板 */}
+            <AnimatePresence mode="wait">
+              {editMode === 'quick' && (
                 <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
+                  key="quick-edit"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
                   className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
                 >
-                  {/* 预览头部 */}
-                  <div className={`flex items-center justify-between px-3 py-2 ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-                    <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                      修改后预览
-                    </span>
-                    <button
-                      onClick={() => setShowPreview(!showPreview)}
-                      className={`p-1 rounded transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
-                    >
-                      {showPreview ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    </button>
-                  </div>
-                  
-                  {/* 预览图片 */}
-                  <div 
-                    className="relative w-full" 
-                    style={{ height: cardHeight }}
-                  >
-                    <img
-                      src={editedImageUrl}
-                      alt="编辑预览"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  <QuickEditPanel
+                    imageUrl={work.imageUrl}
+                    workId={work.id}
+                    onEdit={handleQuickEdit}
+                    onOpenFullEditor={handleOpenFullEditor}
+                    onAddToChat={handleAddToChat}
+                    onReset={handleQuickEditReset}
+                    onCancel={handleQuickEditCancel}
+                    isProcessing={isQuickEditing}
+                  />
+
+                  {/* 快速编辑结果预览 */}
+                  <AnimatePresence>
+                    {quickEditResult && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+                      >
+                        {/* 预览头部 */}
+                        <div className={`flex items-center justify-between px-3 py-2 ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                          <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            编辑结果预览
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditSave(quickEditResult)}
+                              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                                isDark
+                                  ? 'bg-purple-600 hover:bg-purple-500 text-white'
+                                  : 'bg-purple-500 hover:bg-purple-600 text-white'
+                              }`}
+                            >
+                              保存为新作品
+                            </button>
+                            <button
+                              onClick={() => setQuickEditResult(null)}
+                              className={`p-1 rounded transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* 预览图片 */}
+                        <div 
+                          className="relative w-full" 
+                          style={{ height: cardHeight }}
+                        >
+                          <img
+                            src={quickEditResult}
+                            alt="编辑预览"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+
+              {/* 完整编辑器 */}
+              {editMode === 'full' && (
+                <motion.div
+                  key="full-edit"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+                >
+                  <InlineImageEditor
+                    imageUrl={work.imageUrl}
+                    onChange={handleEditChange}
+                    onSave={handleEditSave}
+                    onCancel={handleEditCancel}
+                  />
+
+                  {/* 实时预览区域 */}
+                  <AnimatePresence>
+                    {editedImageUrl && showPreview && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className={`border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+                      >
+                        {/* 预览头部 */}
+                        <div className={`flex items-center justify-between px-3 py-2 ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                          <span className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            修改后预览
+                          </span>
+                          <button
+                            onClick={() => setShowPreview(!showPreview)}
+                            className={`p-1 rounded transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+                          >
+                            {showPreview ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </button>
+                        </div>
+                        
+                        {/* 预览图片 */}
+                        <div 
+                          className="relative w-full" 
+                          style={{ height: cardHeight }}
+                        >
+                          <img
+                            src={editedImageUrl}
+                            alt="编辑预览"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               )}
             </AnimatePresence>

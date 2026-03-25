@@ -120,12 +120,23 @@ export default function StyleSelector({ onOpenStyleLibrary, onCloseStyleLibrary,
   const { isDark } = useTheme();
   const { selectedStyle, selectStyle, addMessage, addOutput, updateOutput, currentTask, messages, generatedOutputs, currentAgent, setShowStyleSelector } = useAgentStore();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [previewStyle, setPreviewStyle] = useState<typeof PRESET_STYLES[0] | null>(null);
 
   // 如果已经有生成的内容，显示完成状态而不是选择器
   const hasGeneratedContent = generatedOutputs.length > 0;
   const generatedStyle = hasGeneratedContent && selectedStyle
     ? PRESET_STYLES.find(s => s.id === selectedStyle)
     : null;
+
+  // 处理风格预览
+  const handleStylePreview = (style: typeof PRESET_STYLES[0]) => {
+    setPreviewStyle(style);
+  };
+
+  // 关闭预览
+  const handleClosePreview = () => {
+    setPreviewStyle(null);
+  };
 
   const handleStyleSelect = (styleId: string) => {
     console.log('[StyleSelector] 点击风格:', styleId);
@@ -381,6 +392,42 @@ export default function StyleSelector({ onOpenStyleLibrary, onCloseStyleLibrary,
 
   return (
     <div className="space-y-4">
+      {/* 风格预览面板 */}
+      {previewStyle && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          className={`p-4 rounded-xl border ${
+            isDark
+              ? 'bg-[#1E1E2E] border-[#2A2A3E]'
+              : 'bg-gray-50 border-gray-200'
+          }`}
+        >
+          <div className="flex gap-4">
+            <div className="w-32 h-40 rounded-lg overflow-hidden flex-shrink-0">
+              <img
+                src={previewStyle.thumbnail}
+                alt={previewStyle.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="flex-1">
+              <h4 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {previewStyle.name}
+              </h4>
+              <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {previewStyle.description}
+              </p>
+              <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                <span className="font-medium">提示词参考：</span>
+                <span className="ml-1">{previewStyle.prompt}</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Style Grid - 4列紧凑布局 */}
       <div className="grid grid-cols-4 gap-2">
         {PRESET_STYLES.map((style, index) => (
@@ -390,6 +437,10 @@ export default function StyleSelector({ onOpenStyleLibrary, onCloseStyleLibrary,
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.03 }}
             onClick={() => handleStyleSelect(style.id)}
+            onMouseEnter={() => handleStylePreview(style)}
+            onMouseLeave={handleClosePreview}
+            onFocus={() => handleStylePreview(style)}
+            onBlur={handleClosePreview}
             className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
               selectedStyle === style.id
                 ? 'border-[#C02C38] ring-2 ring-[#C02C38]/20'

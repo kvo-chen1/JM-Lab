@@ -13,9 +13,11 @@ import {
   DelegationTask,
   AGENT_CONFIG,
   LLMModelType,
-  CardPosition
+  CardPosition,
+  CanvasContent
 } from '../types/agent';
 import { setCurrentModelInStorage } from '../services/modelCaller';
+import { learningManager } from '../services/learningSystem';
 // import { getMemoryService } from '../services/memoryService';
 
 // 欢迎消息配置选项
@@ -182,6 +184,10 @@ interface AgentActions {
   // 卡片位置管理
   updateCardPosition: (id: string, position: CardPosition) => void;
   resetCardPositions: () => void;
+
+  // 画布内容管理
+  setCanvasContent: (content: CanvasContent | null) => void;
+  clearCanvasContent: () => void;
 }
 
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -222,7 +228,9 @@ const initialState: AgentState = {
     lastSummaryAt: 0
   },
   // 待处理的引用
-  pendingMention: null
+  pendingMention: null,
+  // 画布内容状态
+  canvasContent: null
 };
 
 export const useAgentStore = create<AgentState & AgentActions>()(
@@ -394,7 +402,23 @@ export const useAgentStore = create<AgentState & AgentActions>()(
       setGeneratedContent: (content) => set({ generatedOutputs: content }),
 
       // 风格选择
-      selectStyle: (styleId) => set({ selectedStyle: styleId }),
+      selectStyle: (styleId) => {
+        // 记录风格选择反馈
+        const state = get();
+        if (styleId && state.currentAgent) {
+          learningManager.recordFeedback(
+            'anonymous',  // 用户ID会在实际使用时传入
+            state.sessionId || 'unknown',
+            'select_style',
+            state.currentAgent,
+            {
+              style: styleId,
+              designType: state.currentTask?.type
+            }
+          );
+        }
+        set({ selectedStyle: styleId });
+      },
 
       // 画布操作
       setCanvasZoom: (zoom) => set({ canvasZoom: zoom }),
@@ -646,7 +670,11 @@ export const useAgentStore = create<AgentState & AgentActions>()(
           ...out,
           position: undefined
         }))
-      }))
+      })),
+
+      // 画布内容管理
+      setCanvasContent: (content) => set({ canvasContent: content }),
+      clearCanvasContent: () => set({ canvasContent: null })
     }},
     {
       name: 'agent-store',

@@ -1,9 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { Sparkles, Wand2, Palette, MessageSquare, Image, FileText } from 'lucide-react';
+import { Sparkles, Wand2, Palette, MessageSquare, Image, FileText, ArrowRight } from 'lucide-react';
 
-export const EmptyState: React.FC = () => {
+interface EmptyStateProps {
+  onExampleClick?: (example: string) => void;
+}
+
+export const EmptyState: React.FC<EmptyStateProps> = ({ onExampleClick }) => {
   const { isDark } = useTheme();
 
   const features = [
@@ -11,6 +15,30 @@ export const EmptyState: React.FC = () => {
     { icon: FileText, label: '文案创作', color: 'from-blue-500 to-cyan-500' },
     { icon: Palette, label: '配色方案', color: 'from-green-500 to-emerald-500' },
     { icon: MessageSquare, label: '智能对话', color: 'from-orange-500 to-red-500' },
+  ];
+
+  // 示例对话
+  const examples = [
+    {
+      category: 'Logo 设计',
+      icon: '🎨',
+      prompt: '帮我设计一个科技公司的 Logo，要蓝色简约风格',
+    },
+    {
+      category: '图片生成',
+      icon: '🖼️',
+      prompt: '生成一张未来城市的科幻场景图',
+    },
+    {
+      category: '文案创作',
+      icon: '✍️',
+      prompt: '写一段新产品的推广文案，面向年轻人群',
+    },
+    {
+      category: '配色方案',
+      icon: '🎨',
+      prompt: '推荐一套适合环保主题的配色方案',
+    },
   ];
 
   return (
@@ -65,7 +93,7 @@ export const EmptyState: React.FC = () => {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3, duration: 0.5 }}
-        className="grid grid-cols-2 gap-4"
+        className="grid grid-cols-2 gap-4 mb-8"
       >
         {features.map((feature, index) => (
           <motion.div
@@ -89,11 +117,54 @@ export const EmptyState: React.FC = () => {
         ))}
       </motion.div>
 
+      {/* 示例对话 */}
+      {onExampleClick && (
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.6, duration: 0.5 }}
+          className="w-full max-w-lg"
+        >
+          <div className={`text-xs mb-3 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            💡 试试这些示例（点击即可使用）：
+          </div>
+          <div className="space-y-2">
+            {examples.map((example, index) => (
+              <motion.button
+                key={example.category}
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.7 + index * 0.1, duration: 0.3 }}
+                onClick={() => onExampleClick(example.prompt)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all group ${
+                  isDark 
+                    ? 'bg-gray-800/50 border border-gray-700 hover:border-purple-500/50 hover:bg-purple-500/10' 
+                    : 'bg-white border border-gray-200 hover:border-purple-500/50 hover:bg-purple-50 shadow-sm'
+                }`}
+              >
+                <span className="text-xl">{example.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {example.category}
+                  </div>
+                  <div className={`text-sm truncate ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                    {example.prompt}
+                  </div>
+                </div>
+                <ArrowRight className={`w-4 h-4 transition-transform group-hover:translate-x-1 ${
+                  isDark ? 'text-gray-600' : 'text-gray-400'
+                }`} />
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* 提示 */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.8, duration: 0.5 }}
+        transition={{ delay: 1.1, duration: 0.5 }}
         className={`mt-8 text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}
       >
         提示：你可以使用空格键+拖拽来平移画布，Ctrl+滚轮来缩放

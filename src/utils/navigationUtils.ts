@@ -54,8 +54,9 @@ export const navGroupIdToTranslationKey: Record<string, string> = {
   'discover': 'sidebar.group.discover',
   'culture': 'sidebar.group.culture',
   'rewards': 'sidebar.group.rewards',
+  'creator': 'sidebar.group.creator',
   'business': 'sidebar.group.business',
-  
+
   // 向后兼容
   'core': 'sidebar.platform',
   'community': 'sidebar.community',

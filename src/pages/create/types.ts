@@ -185,6 +185,11 @@ export interface CreateState {
   
   // 引用状态
   pendingMention: PendingMention | null;
+  
+  // 图片编辑相关状态
+  isEditingImage: boolean;
+  editingImageId: number | null;
+  editingMode: 'inline' | 'modal' | null;
 }
 
 // 智能排版配置

@@ -24,7 +24,6 @@ import {
 import { callAgent, AIResponse } from './agentService';
 import { callEnhancedAgent } from './enhancedAgentIntegration';
 import { llmService } from '@/services/llmService';
-import { ImageGenerationSkill } from '../skills/creation/ImageGenerationSkill';
 import { detectMultiStepTask, MultiStepTaskResult, TaskStep } from './intentRecognition';
 import { getWorkflowEngine, Workflow, WorkflowInstance } from './workflowEngine';
 
@@ -1266,7 +1265,7 @@ ${infoLines}
     const lowerMsg = userMessage.toLowerCase();
 
     // 检查是否是确认/同意类消息（继续当前对话）
-    const confirmKeywords = ['好的', '可以', '行', '都行', '没问题', '继续', '开始', '好', '嗯', '是的', '对'];
+    const confirmKeywords = ['好的', '可以', '行', '都行', '没问题', '继续', '开始', '好', '嗯', '是的', '对', '好嘞', '收到', 'OK', 'ok'];
     const isConfirmMessage = confirmKeywords.some(keyword => lowerMsg.includes(keyword));
 
     if (isConfirmMessage) {
@@ -1289,45 +1288,33 @@ ${infoLines}
       };
     }
 
-    // 简单的规则判断
-    if (lowerMsg.includes('插画') || lowerMsg.includes('手绘')) {
-      return {
-        action: 'delegate',
-        targetAgent: 'illustrator',
-        reasoning: '用户需要插画相关服务'
-      };
-    }
-
-    if (lowerMsg.includes('文案') || lowerMsg.includes('标语') || lowerMsg.includes('故事')) {
-      return {
-        action: 'delegate',
-        targetAgent: 'copywriter',
-        reasoning: '用户需要文案创作服务'
-      };
-    }
-
-    // 视频/动画相关关键词
-    const videoKeywords = [
-      '动画', '视频', '短片', '动效', 'gif', '表情包',
-      'video', 'animation', 'motion', 'short film', 'clip',
-      '短视频', '宣传片', '广告片', '片头', '片尾',
-      '转场', '特效', 'mg动画', '二维动画', '三维动画'
+    // 设计类型关键词映射 - 用于更精准的Agent委派
+    const designTypeKeywords = [
+      // IP/插画类 -> illustrator
+      { keywords: ['ip', '形象', '角色', '吉祥物', ' mascot', 'character', '插画', '手绘', '绘本', '漫画'], agent: 'illustrator' as AgentType, reason: '用户需要IP形象/插画创作服务' },
+      // Logo/品牌类 -> designer
+      { keywords: ['logo', '标志', '商标', '品牌', 'vi', '视觉', '品牌设计', '企业形象'], agent: 'designer' as AgentType, reason: '用户需要品牌视觉设计服务' },
+      // 包装类 -> designer
+      { keywords: ['包装', '礼盒', '盒子', '产品包装', 'package'], agent: 'designer' as AgentType, reason: '用户需要包装设计服务' },
+      // 海报类 -> designer
+      { keywords: ['海报', 'poster', '宣传', '广告', 'banner', '宣传物料'], agent: 'designer' as AgentType, reason: '用户需要海报设计服务' },
+      // 文案类 -> copywriter
+      { keywords: ['文案', '标语', '口号', 'slogan', '故事', '脚本', '台词', '内容', '编辑'], agent: 'copywriter' as AgentType, reason: '用户需要文案创作服务' },
+      // 视频/动画类 -> animator
+      { keywords: ['动画', '视频', '短片', '动效', 'gif', '表情包', 'video', 'animation', 'motion', '短视频', '宣传片', '片头', '片尾', '特效', 'mg动画'], agent: 'animator' as AgentType, reason: '用户需要动画视频制作服务' },
+      // 调研类 -> researcher
+      { keywords: ['调研', '市场', '分析', '竞品', '研究', '调查', '数据', '报告'], agent: 'researcher' as AgentType, reason: '用户需要市场调研服务' },
     ];
 
-    if (videoKeywords.some(keyword => lowerMsg.includes(keyword))) {
-      return {
-        action: 'delegate',
-        targetAgent: 'animator',
-        reasoning: '用户需要动画视频制作服务'
-      };
-    }
-
-    if (lowerMsg.includes('调研') || lowerMsg.includes('市场') || lowerMsg.includes('分析')) {
-      return {
-        action: 'delegate',
-        targetAgent: 'researcher',
-        reasoning: '用户需要市场调研服务'
-      };
+    // 遍历设计类型关键词，匹配则委派
+    for (const item of designTypeKeywords) {
+      if (item.keywords.some(keyword => lowerMsg.includes(keyword))) {
+        return {
+          action: 'delegate',
+          targetAgent: item.agent,
+          reasoning: item.reason
+        };
+      }
     }
 
     // 默认保持当前 Agent
@@ -1428,10 +1415,10 @@ ${infoLines}
     const hasExplicitStyle = !!context.selectedStyle;
 
     // 修改触发条件：
-    // 1. 有明确的生成意图关键词，或者
+    // 1. 有明确的生成意图关键词 + 已选择风格，或者
     // 2. 有明确的确认生成关键词 + 有任务描述 + 已选择风格，或者
     // 3. 是修改请求（引用作品 + 修改意图）
-    const shouldGenerate = hasGenerationIntent ||
+    const shouldGenerate = (hasGenerationIntent && hasExplicitStyle) ||
                            (hasConfirmation && hasTaskDescription && hasExplicitStyle) ||
                            isModificationRequest;
 
@@ -1453,211 +1440,60 @@ ${infoLines}
 
   /**
    * 执行图像生成
-   * 使用 ImageGenerationSkill 替代直接 API 调用
+   * 直接使用 llmService 生成图像
    */
   private async executeImageGeneration(
     userMessage: string,
     context: ConversationContext
   ): Promise<OrchestratorResponse> {
-    console.log('[Orchestrator] 开始执行图像生成 (通过 ImageGenerationSkill)');
-    console.log('[Orchestrator] 用户消息:', userMessage);
-    console.log('[Orchestrator] 当前任务:', context.currentTask);
-    console.log('[Orchestrator] 选择的风格:', context.selectedStyle);
+    console.log('[Orchestrator] 开始执行图像生成');
 
     // 检查是否已选择风格
     if (!context.selectedStyle) {
-      console.log('[Orchestrator] 未选择风格，提示用户选择');
       return {
         type: 'style-options',
         agent: context.currentAgent,
         content: '在开始生成之前，请先选择一个你喜欢的风格。你可以从下方选择，或者告诉我你想要的风格。',
-        metadata: {
-          showStyleSelector: true
-        }
+        metadata: { showStyleSelector: true }
       };
     }
 
-    // 获取品牌信息
-    const brandName = context.selectedBrand || 
-                      context.currentTask?.requirements?.brand ||
-                      this.extractBrandFromMessage(userMessage);
-
-    // 获取任务描述
     const taskDescription = context.currentTask?.requirements?.description || userMessage;
     const taskType = context.currentTask?.type || '设计';
 
     try {
-      // 使用 ImageGenerationSkill 执行图像生成
-      console.log('[Orchestrator] 创建 ImageGenerationSkill 实例...');
-      const imageSkill = new ImageGenerationSkill({
-        enableStyleEnhancement: true
+      // 构建提示词
+      const brandName = context.selectedBrand || this.extractBrandFromMessage(userMessage);
+      let prompt = taskDescription;
+      if (brandName) prompt = `为品牌"${brandName}"设计。${prompt}`;
+      prompt += `\n风格要求：${context.selectedStyle}，高质量，精美细节，专业设计作品`;
+
+      // 直接调用 llmService 生成图像
+      const result = await llmService.generateImage({
+        model: 'qwen-image-2.0-pro',
+        prompt,
+        size: '1024x1024',
+        n: 1
       });
 
-      // 构建 Skill 执行上下文
-      const skillContext = {
-        userId: context.userId || 'anonymous',
-        sessionId: context.sessionId || 'default',
-        message: userMessage,
-        history: context.messages,
-        parameters: {
-          prompt: taskDescription,
-          style: context.selectedStyle,
-          brand: brandName,
-          targetAudience: context.currentTask?.requirements?.targetAudience,
-          usageScenario: context.currentTask?.requirements?.usageScenario,
-          mentionedWorks: context.mentionedWorks
-        }
-      };
+      if (!result.ok) throw new Error(result.error || '图像生成失败');
 
-      console.log('[Orchestrator] 调用 ImageGenerationSkill.execute()...');
-      const skillResult = await imageSkill.execute(skillContext);
+      const imageUrl = result.data?.data?.[0]?.url || result.data?.[0]?.url;
+      if (!imageUrl) throw new Error('无法获取生成的图像URL');
 
-      if (!skillResult.success) {
-        throw new Error(skillResult.error?.message || '图像生成失败');
-      }
-
-      // 提取图像URL和提示词
-      const imageUrl = skillResult.data?.url || skillResult.data?.imageUrl;
-      const finalPrompt = skillResult.data?.prompt || taskDescription;
-
-      if (!imageUrl) {
-        throw new Error('无法获取生成的图像URL');
-      }
-
-      console.log('[Orchestrator] ImageGenerationSkill 执行成功，图像URL:', imageUrl);
-
-      // 生成成功后的回复内容
-      const content = `✨ **生成完成！**
-
-我已经为你创作了${context.selectedStyle}风格的${taskType}作品，基于你的需求：「${taskDescription}」
-
-看看效果如何？如果需要调整风格、颜色或细节，随时告诉我！`;
-
-      return {
-        type: 'image_generation',
-        agent: context.currentAgent,
-        content: content,
-        generatedImage: {
-          url: imageUrl,
-          prompt: finalPrompt
-        },
-        aiResponse: {
-          content: content,
-          type: 'image',
-          metadata: {
-            thinking: skillResult.metadata?.thinking,
-            skillExecution: {
-              skillName: 'ImageGenerationSkill',
-              skillId: imageSkill.id,
-              executionTime: Date.now(),
-              parameters: skillContext.parameters,
-              success: true
-            }
-          }
-        }
-      };
+      return this.wrapImageResponse(
+        { data: { url: imageUrl, prompt }, content: '图片已生成' },
+        context.currentAgent,
+        taskType,
+        context.selectedStyle
+      );
     } catch (error: any) {
-      console.error('[Orchestrator] ImageGenerationSkill 执行失败，尝试降级到直接API调用:', error);
-
-      // 降级处理：直接调用 API
-      try {
-        console.log('[Orchestrator] 降级：直接调用 llmService.generateImage...');
-
-        // 构建提示词
-        let prompt = taskDescription;
-        if (brandName) {
-          prompt = `为品牌"${brandName}"设计。${prompt}`;
-        }
-        prompt += `\n风格要求：${context.selectedStyle}，高质量，精美细节，专业设计作品`;
-
-        // 直接调用 API
-        const result = await llmService.generateImage({
-          model: 'qwen-image-2.0-pro',
-          prompt: prompt,
-          size: '1024x1024',
-          n: 1
-        });
-
-        if (!result.ok) {
-          throw new Error(result.error || '图像生成失败');
-        }
-
-        // 提取图像URL
-        let imageUrl: string | undefined;
-        if (result.data?.data && Array.isArray(result.data.data) && result.data.data.length > 0) {
-          imageUrl = result.data.data[0].url;
-        } else if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-          imageUrl = result.data[0].url;
-        }
-
-        if (!imageUrl) {
-          throw new Error('无法获取生成的图像URL');
-        }
-
-        console.log('[Orchestrator] 降级API调用成功，图像URL:', imageUrl);
-
-        const content = `✨ **生成完成！** (通过备用方式)
-
-我已经为你创作了${context.selectedStyle}风格的${taskType}作品，基于你的需求：「${taskDescription}」
-
-看看效果如何？如果需要调整风格、颜色或细节，随时告诉我！`;
-
-        return {
-          type: 'image_generation',
-          agent: context.currentAgent,
-          content: content,
-          generatedImage: {
-            url: imageUrl,
-            prompt: prompt
-          },
-          aiResponse: {
-            content: content,
-            type: 'image',
-            metadata: {
-              skillExecution: {
-                skillName: 'DirectAPIFallback',
-                executionTime: Date.now(),
-                parameters: { prompt, style: context.selectedStyle },
-                success: true,
-                note: 'ImageGenerationSkill failed, used direct API as fallback'
-              }
-            }
-          }
-        };
-      } catch (fallbackError: any) {
-        console.error('[Orchestrator] 降级API调用也失败了:', fallbackError);
-
-        // 返回错误响应
-        return {
-          type: 'response',
-          agent: context.currentAgent,
-          content: `❌ **生成失败**
-
-抱歉，图像生成遇到了问题：
-- Skill错误：${error.message}
-- API错误：${fallbackError.message}
-
-可能的原因：
-- 网络连接不稳定
-- 服务器繁忙
-- API配置问题
-
-请稍后重试，或者换一种描述方式告诉我你的需求～`,
-          aiResponse: {
-            content: `生成失败：${error.message}`,
-            type: 'error',
-            metadata: {
-              skillExecution: {
-                skillName: 'ImageGenerationSkill',
-                executionTime: Date.now(),
-                success: false,
-                error: error.message,
-                fallbackError: fallbackError.message
-              }
-            }
-          }
-        };
-      }
+      return {
+        type: 'response',
+        agent: context.currentAgent,
+        content: `❌ **生成失败**\n\n抱歉，图像生成遇到了问题：${error.message}\n\n请稍后重试，或者换一种描述方式告诉我你的需求～`,
+        aiResponse: { content: `生成失败：${error.message}`, type: 'error' }
+      };
     }
   }
 

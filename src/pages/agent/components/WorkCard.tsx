@@ -10,10 +10,14 @@ import {
   X,
   Loader2,
   AtSign,
-  GripVertical
+  GripVertical,
+  Wand2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CardPosition } from '../types/agent';
+import { InlineImageEditor } from '@/pages/skill/chat/components/InlineImageEditor';
+import { uploadFile, isStorageConfigured } from '@/services/storageServiceNew';
+import { useAgentStore } from '../hooks/useAgentStore';
 
 export interface WorkCardData {
   id: string;
@@ -24,6 +28,7 @@ export interface WorkCardData {
   createdAt: number;
   isFavorite?: boolean;
   status?: 'pending' | 'generating' | 'completed' | 'error';
+  cardType?: 'character_profile' | 'concept_art' | 'three_view' | 'poster' | 'default'; // 卡片类型
 }
 
 interface WorkCardProps {
@@ -322,15 +327,19 @@ function ImageWithLoading({
 // 悬浮操作按钮组件
 function HoverActions({
   onEdit,
+  onImageEdit,
   onRefresh,
   onDownload,
   onDelete,
   onMention,
   isVisible,
   isDark,
-  showMentionButton
+  showMentionButton,
+  isImageEditing,
+  cardType
 }: {
   onEdit: () => void;
+  onImageEdit: () => void;
   onRefresh: () => void;
   onDownload: () => void;
   onDelete: () => void;
@@ -338,7 +347,32 @@ function HoverActions({
   isVisible: boolean;
   isDark: boolean;
   showMentionButton?: boolean;
+  isImageEditing?: boolean;
+  cardType?: 'character_profile' | 'concept_art' | 'three_view' | 'poster' | 'default';
 }) {
+  const getCardTypeLabel = () => {
+    switch (cardType) {
+      case 'character_profile': return '角色设定';
+      case 'concept_art': return '概念图';
+      case 'three_view': return '三视图';
+      case 'poster': return '海报';
+      default: return null;
+    }
+  };
+
+  const getCardTypeColor = () => {
+    switch (cardType) {
+      case 'character_profile': return isDark ? 'bg-[#8B5CF6]/20 text-[#8B5CF6]' : 'bg-[#C02C38]/10 text-[#C02C38]';
+      case 'concept_art': return isDark ? 'bg-[#C02C38]/20 text-[#C02C38]' : 'bg-[#C02C38]/20 text-[#C02C38]';
+      case 'three_view': return isDark ? 'bg-[#10B981]/20 text-[#10B981]' : 'bg-[#059669]/10 text-[#059669]';
+      case 'poster': return isDark ? 'bg-[#F59E0B]/20 text-[#F59E0B]' : 'bg-[#D97706]/10 text-[#D97706]';
+      default: return null;
+    }
+  };
+
+  const cardTypeLabel = getCardTypeLabel();
+  const cardTypeColor = getCardTypeColor();
+
   return (
     <AnimatePresence>
       {isVisible && (
@@ -351,6 +385,12 @@ function HoverActions({
             isDark ? 'bg-black/60' : 'bg-white/80'
           }`}
         >
+          {/* 卡片类型标签 */}
+          {cardTypeLabel && cardTypeColor && (
+            <span className={`px-2 py-1 rounded-lg text-xs font-medium ${cardTypeColor}`}>
+              {cardTypeLabel}
+            </span>
+          )}
           {/* 引用按钮 */}
           {showMentionButton && onMention && (
             <button
@@ -367,13 +407,28 @@ function HoverActions({
             </button>
           )}
           <button
+            onClick={(e) => { e.stopPropagation(); onImageEdit(); }}
+            className={`p-2 rounded-lg transition-all ${
+              isImageEditing
+                ? isDark
+                  ? 'bg-[#8B5CF6] text-white'
+                  : 'bg-[#C02C38] text-white'
+                : isDark
+                  ? 'text-gray-300 hover:text-white hover:bg-white/10'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-black/10'
+            }`}
+            title="图片编辑"
+          >
+            <Wand2 className="w-4 h-4" />
+          </button>
+          <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
             className={`p-2 rounded-lg transition-all ${
               isDark
                 ? 'text-gray-300 hover:text-white hover:bg-white/10'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-black/10'
             }`}
-            title="编辑"
+            title="编辑描述"
           >
             <Pencil className="w-4 h-4" />
           </button>
@@ -436,7 +491,10 @@ export default function WorkCard({
   onDragEnd
 }: WorkCardProps) {
   const { isDark } = useTheme();
+  const { addOutput } = useAgentStore();
   const [isEditing, setIsEditing] = useState(false);
+  const [isImageEditing, setIsImageEditing] = useState(false);
+  const [editedImageUrl, setEditedImageUrl] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -478,6 +536,125 @@ export default function WorkCard({
     onMention?.(data);
     toast.success(`已引用作品：${data.title}`);
   }, [data, onMention]);
+
+  // 图片编辑相关函数
+  const handleImageEditStart = useCallback(() => {
+    setIsImageEditing(true);
+    setEditedImageUrl(null);
+  }, []);
+
+  const handleImageEditEnd = useCallback(() => {
+    setIsImageEditing(false);
+    setEditedImageUrl(null);
+  }, []);
+
+  const handleImageEditChange = useCallback((editedUrl: string) => {
+    setEditedImageUrl(editedUrl);
+  }, []);
+
+  // 将 base64 data URL 转换为 Blob
+  const dataURLtoBlob = useCallback((dataURL: string): Blob => {
+    const arr = dataURL.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  }, []);
+
+  const handleImageEditSave = useCallback(async (editedUrl: string) => {
+    try {
+      console.log('[WorkCard] 开始保存编辑图片...');
+
+      // 检查存储配置
+      if (!isStorageConfigured()) {
+        throw new Error('存储服务未配置，请检查环境变量');
+      }
+
+      // 验证 editedUrl
+      if (!editedUrl) {
+        throw new Error('无效的图片数据');
+      }
+
+      let blob: Blob;
+
+      // 如果是 data URL，直接转换
+      if (editedUrl.startsWith('data:image')) {
+        console.log('[WorkCard] 转换 base64 data URL 为 blob...');
+        try {
+          blob = dataURLtoBlob(editedUrl);
+        } catch (convertError: any) {
+          console.error('[WorkCard] base64 转换失败:', convertError);
+          throw new Error('图片数据转换失败: ' + convertError.message);
+        }
+      } else {
+        // 如果是普通 URL，通过 fetch 获取
+        console.log('[WorkCard] 通过 fetch 获取图片...');
+        try {
+          const response = await fetch(editedUrl);
+          if (!response.ok) {
+            throw new Error(`获取图片失败: ${response.status}`);
+          }
+          blob = await response.blob();
+        } catch (fetchError: any) {
+          console.error('[WorkCard] fetch 失败:', fetchError);
+          throw new Error('获取图片失败: ' + fetchError.message);
+        }
+      }
+
+      console.log('[WorkCard] blob 大小:', blob.size, '类型:', blob.type);
+
+      if (blob.size === 0) {
+        throw new Error('图片数据为空');
+      }
+
+      const fileName = `${data.title || 'image'}_edited_${Date.now()}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+      console.log('[WorkCard] 创建文件:', fileName, '大小:', file.size);
+
+      // 上传到新位置
+      console.log('[WorkCard] 开始上传到 works 文件夹...');
+      let uploadedUrl: string;
+      try {
+        uploadedUrl = await uploadFile(file, 'works');
+        console.log('[WorkCard] 上传成功:', uploadedUrl);
+      } catch (uploadError: any) {
+        console.error('[WorkCard] 上传失败:', uploadError);
+        throw new Error('上传失败: ' + uploadError.message);
+      }
+
+      // 创建新作品（而不是更新原作品）
+      const newOutput = {
+        id: `output_${Date.now()}`,
+        type: 'image' as const,
+        url: uploadedUrl,
+        thumbnail: uploadedUrl,
+        title: `${data.title || '图片'} (编辑版)`,
+        description: data.description,
+        createdAt: Date.now(),
+        position: {
+          x: (position?.x || 0) + 50,
+          y: (position?.y || 0) + 50,
+        },
+      };
+
+      addOutput(newOutput);
+      console.log('[WorkCard] 新作品已创建:', newOutput.id);
+
+      toast.success('图片编辑已保存为新作品');
+
+      // 关闭编辑模式
+      setIsImageEditing(false);
+      setEditedImageUrl(null);
+    } catch (error: any) {
+      console.error('[WorkCard] 保存编辑图片失败:', error);
+      toast.error('保存失败: ' + (error.message || '请重试'));
+      throw error;
+    }
+  }, [data.title, data.description, position?.x, position?.y, addOutput, dataURLtoBlob]);
 
   // 同步 isDragging 状态到 ref
   useEffect(() => {
@@ -606,6 +783,10 @@ export default function WorkCard({
             : 'hover:shadow-2xl'
           }
           ${isCurrentlyDragging ? 'shadow-2xl scale-[1.02]' : ''}
+          ${data.cardType === 'concept_art' ? (isDark ? 'border-2 border-[#C02C38]/50' : 'border-2 border-[#C02C38]/60') : ''}
+          ${data.cardType === 'character_profile' ? (isDark ? 'border-2 border-[#8B5CF6]/50' : 'border-2 border-[#8B5CF6]/60') : ''}
+          ${data.cardType === 'three_view' ? (isDark ? 'border-2 border-[#10B981]/50' : 'border-2 border-[#10B981]/60') : ''}
+          ${data.cardType === 'poster' ? (isDark ? 'border-2 border-[#F59E0B]/50' : 'border-2 border-[#F59E0B]/60') : ''}
           ${className}
         `}
       >
@@ -635,14 +816,14 @@ export default function WorkCard({
 
         {/* 图片区域（在下） */}
         <div
-          className="relative overflow-hidden min-h-[200px] flex items-center justify-center"
+          className="relative overflow-hidden min-h-[200px] flex items-center justify-center flex-shrink-0"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
           <ImageWithLoading
             src={data.imageUrl}
             alt={data.title}
-            className="w-full h-auto max-h-[50vh] object-contain transition-transform duration-500 hover:scale-105"
+            className="w-full h-auto max-h-[50vh] object-contain"
             isGenerating={!data.imageUrl}
             status={data.status}
             title={data.title}
@@ -652,13 +833,16 @@ export default function WorkCard({
           {/* 悬浮操作按钮 */}
           <HoverActions
             onEdit={handleEditStart}
+            onImageEdit={handleImageEditStart}
             onRefresh={handleRefresh}
             onDownload={handleDownload}
             onDelete={handleDelete}
             onMention={handleMention}
-            isVisible={isHovered && !isEditing}
+            isVisible={isHovered && !isEditing && !isImageEditing}
             isDark={isDark}
             showMentionButton={showMentionButton}
+            isImageEditing={isImageEditing}
+            cardType={data.cardType || 'default'}
           />
 
           {/* 选中状态指示器 */}
@@ -668,6 +852,51 @@ export default function WorkCard({
             }`} />
           )}
         </div>
+
+        {/* 图片编辑器 - 展开状态 */}
+        <AnimatePresence>
+          {isImageEditing && data.imageUrl && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className={`overflow-hidden ${isDark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <InlineImageEditor
+                imageUrl={data.imageUrl}
+                onChange={handleImageEditChange}
+                onSave={handleImageEditSave}
+                onCancel={handleImageEditEnd}
+              />
+
+              {/* 编辑后预览 */}
+              <AnimatePresence>
+                {editedImageUrl && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`border-t ${isDark ? 'border-[#2A2A3E]' : 'border-gray-200'}`}
+                  >
+                    <div className={`px-3 py-2 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      修改后预览
+                    </div>
+                    <div className="relative w-full" style={{ height: 200 }}>
+                      <img
+                        src={editedImageUrl}
+                        alt="编辑预览"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* 底部信息栏 */}
         <div className={`px-4 py-2 flex items-center justify-between text-xs ${

@@ -15,12 +15,16 @@ import {
   Video, 
   Search,
   ChevronDown,
-  User
+  User,
+  Lock,
+  Unlock
 } from 'lucide-react';
 
 interface AgentSelectorProps {
   currentAgent: AgentType;
   onAgentChange: (agent: AgentType) => void;
+  isLocked?: boolean;
+  onToggleLock?: () => void;
   className?: string;
 }
 
@@ -47,6 +51,8 @@ const agentColorMap: Record<Exclude<AgentType, 'system' | 'user'>, string> = {
 export const AgentSelector: React.FC<AgentSelectorProps> = ({
   currentAgent,
   onAgentChange,
+  isLocked = false,
+  onToggleLock,
   className = ''
 }) => {
   const { isDark } = useAgentStore();
@@ -66,23 +72,44 @@ export const AgentSelector: React.FC<AgentSelectorProps> = ({
 
   return (
     <div className={`relative ${className}`}>
-      {/* 当前 Agent 显示按钮 */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
-          isDark 
-            ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700' 
-            : 'bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 shadow-sm'
-        }`}
-      >
-        <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${agentColorMap[currentAgent as Exclude<AgentType, 'system' | 'user'>]} flex items-center justify-center`}>
-          <span className="text-white text-xs">
-            {agentIconMap[currentAgent as Exclude<AgentType, 'system' | 'user'>]}
-          </span>
-        </div>
-        <span className="font-medium">{currentConfig?.name || currentAgent}</span>
-        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
+      {/* 当前 Agent 显示按钮 + 锁定按钮 */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
+            isDark 
+              ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700' 
+              : 'bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 shadow-sm'
+          }`}
+        >
+          <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${agentColorMap[currentAgent as Exclude<AgentType, 'system' | 'user'>]} flex items-center justify-center`}>
+            <span className="text-white text-xs">
+              {agentIconMap[currentAgent as Exclude<AgentType, 'system' | 'user'>]}
+            </span>
+          </div>
+          <span className="font-medium">{currentConfig?.name || currentAgent}</span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {/* 锁定按钮 */}
+        {onToggleLock && (
+          <button
+            onClick={onToggleLock}
+            title={isLocked ? '已锁定当前 Agent，不会自动切换' : '点击锁定当前 Agent'}
+            className={`p-2 rounded-lg transition-all ${
+              isLocked
+                ? isDark
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50'
+                  : 'bg-amber-100 text-amber-600 border border-amber-200'
+                : isDark
+                  ? 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700'
+                  : 'bg-white text-gray-400 border border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
 
       {/* 下拉菜单 */}
       <AnimatePresence>

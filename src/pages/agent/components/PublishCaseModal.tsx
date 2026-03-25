@@ -139,18 +139,47 @@ const PublishCaseModal: React.FC<PublishCaseModalProps> = ({
       const conversation = messages.map((msg) => {
         // 将 'director', 'designer' 等非用户角色转换为 'assistant'
         const role = msg.role === 'user' ? 'user' : 'assistant';
-        
+
         // 确保 type 符合数据库约束
         const validTypes = ['text', 'image', 'analysis', 'thinking'];
         const type = validTypes.includes(msg.type) ? msg.type : 'text';
-        
+
+        // 构建 metadata，保留重要信息用于展示
+        const metadata: any = {
+          ...msg.metadata,
+        };
+
+        // 保存 Agent 类型信息，用于展示不同的 Agent 头像
+        if (msg.role !== 'user') {
+          // 从 role 推断 agentType
+          const roleToAgentType: Record<string, string> = {
+            'director': 'director',
+            'designer': 'designer',
+            'illustrator': 'illustrator',
+            'copywriter': 'copywriter',
+            'animator': 'animator',
+            'researcher': 'researcher',
+          };
+
+          if (roleToAgentType[msg.role]) {
+            metadata.agentType = roleToAgentType[msg.role];
+          }
+        }
+
+        // 处理图片数据
+        if (msg.type === 'image' && msg.metadata?.images) {
+          metadata.images = msg.metadata.images.map((img: any) =>
+            typeof img === 'string' ? img : img.url
+          );
+        }
+
         return {
           id: msg.id,
           role: role as 'user' | 'assistant',
           content: msg.content,
           type: type as 'text' | 'image' | 'analysis' | 'thinking',
-          timestamp: new Date().toISOString(),
-          metadata: msg.metadata || {},
+          timestamp: new Date(msg.timestamp || Date.now()).toISOString(),
+          metadata,
         };
       });
 
@@ -165,6 +194,7 @@ const PublishCaseModal: React.FC<PublishCaseModalProps> = ({
         conversationId: `session_${Date.now()}`,
         tags,
         conversation, // 传递对话历史
+        source: 'agent',
       });
 
       setIsSuccess(true);

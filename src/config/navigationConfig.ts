@@ -46,7 +46,7 @@ export const creationNavItems: NavItem[] = [
 export const discoverNavItems: NavItem[] = [
   { id: 'square', path: '/square', label: '津脉广场', icon: 'fas fa-th-large', priority: 'high' },
   { id: 'community', path: '/community', label: '作品与社区', icon: 'fas fa-users', priority: 'high' },
-  { id: 'agent-cases', path: '/agent-cases', label: 'Agent案例', icon: 'fas fa-sparkles', priority: 'high', badge: 'NEW', description: '探索AI创作案例，激发无限灵感' },
+  { id: 'agent-cases', path: '/agent-cases', label: 'Agent案例', icon: 'fas fa-robot', priority: 'high', badge: 'NEW', description: '探索AI创作案例，激发无限灵感' },
   { id: 'leaderboard', path: '/leaderboard', label: '人气榜', icon: 'fas fa-chart-line', priority: 'medium' },
   { id: 'events', path: '/cultural-events', label: '津脉活动', icon: 'fas fa-calendar-alt', priority: 'medium' }
 ];
@@ -71,12 +71,16 @@ export const rewardsNavItems: NavItem[] = [
 // 6. 🛒 商业服务 (Business)
 export const businessNavItems: NavItem[] = [
   { id: 'marketplace', path: '/marketplace', label: '津脉文创商城', icon: 'fas fa-store', priority: 'high', badge: '新', description: '津门老字号文创产品' },
-  { id: 'creator-center', path: '/creator-center', label: '创作者中心', icon: 'fas fa-star', priority: 'high', badge: '新' },
   { id: 'merchant', path: '/merchant', label: '商家工作台', icon: 'fas fa-briefcase', priority: 'medium' },
   { id: 'organizer', path: '/organizer', label: '主办方中心', icon: 'fas fa-building', priority: 'medium' },
   { id: 'business', path: '/business', label: '品牌合作', icon: 'fas fa-handshake', priority: 'medium', description: '品牌合作与商业机会' },
-  { id: 'ip-incubation', path: '/ip-incubation', label: 'IP孵化中心', icon: 'fas fa-lightbulb', priority: 'low', description: 'IP孵化与培育平台' },
   { id: 'help', path: '/help', label: '帮助中心', icon: 'fas fa-info-circle', priority: 'low', description: '使用帮助与文档' }
+];
+
+// 7. ⭐ 创作者服务 (Creator)
+export const creatorNavItems: NavItem[] = [
+  { id: 'creator-center', path: '/creator-center', label: '创作者中心', icon: 'fas fa-star', priority: 'high', badge: '新' },
+  { id: 'ip-incubation', path: '/ip-incubation', label: 'IP孵化中心', icon: 'fas fa-lightbulb', priority: 'high', description: 'IP孵化与培育平台' }
 ];
 
 // ==================== 完整导航分组列表 (新结构) ====================
@@ -115,6 +119,13 @@ export const navigationGroups: NavGroup[] = [
     items: rewardsNavItems,
     priority: 'medium',
     icon: 'fas fa-gift'
+  },
+  {
+    id: 'creator',
+    title: '创作者服务',
+    items: creatorNavItems,
+    priority: 'medium',
+    icon: 'fas fa-star'
   },
   {
     id: 'business',

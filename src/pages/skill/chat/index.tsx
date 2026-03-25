@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Sparkles, Trash2, Wand2, PanelRightClose, PanelRight } from 'lucide-react';
+import { Sparkles, Trash2, Wand2, PanelRightClose, PanelRight, Share2 } from 'lucide-react';
 import { ChatMessage } from './components/ChatMessage';
 import { ChatInput } from './components/ChatInput';
 import { PresetScenarios } from './components/PresetScenarios';
 import { DraggableCanvas } from './components/DraggableCanvas';
 import { ChatHistory } from './components/ChatHistory';
+import { PublishCaseModal } from './components/PublishCaseModal';
 import { useSkillChat } from './hooks/useSkillChat';
 import { useChatSessions } from './hooks/useChatSessions';
 import { useCanvasStore, WorkItem } from './hooks/useCanvasStore';
@@ -39,7 +40,8 @@ const SkillAgentChatPage: React.FC = () => {
   const { works, addWork, clearWorks, selectWork } = useCanvasStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showChat, setShowChat] = useState(true);
-  
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+
   // 记录已处理的附件 ID，防止重复处理
   const processedAttachmentsRef = useRef<Set<string>>(new Set());
 
@@ -193,6 +195,14 @@ const SkillAgentChatPage: React.FC = () => {
     sendMessage(content, images);
   };
 
+  // 处理示例点击
+  const handleExampleClick = (example: string) => {
+    // 发送示例消息
+    sendMessage(example);
+    // 确保聊天窗口是打开的
+    setShowChat(true);
+  };
+
   const handleClearAll = () => {
     clearMessages();
     clearWorks();
@@ -282,6 +292,7 @@ const SkillAgentChatPage: React.FC = () => {
             onWorkSelect={handleWorkSelect}
             onWorkDelete={handleWorkDelete}
             onWorkDownload={handleWorkDownload}
+            onExampleClick={handleExampleClick}
           />
         </div>
       </div>
@@ -315,17 +326,37 @@ const SkillAgentChatPage: React.FC = () => {
                 </div>
               </div>
               
-              <button
-                onClick={() => setShowChat(false)}
-                className={`p-2 rounded-lg transition-colors ${
-                  isDark 
-                    ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200' 
-                    : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
-                }`}
-                title="收起面板"
-              >
-                <PanelRightClose className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* 发布案例按钮 */}
+                <button
+                  onClick={() => setIsPublishModalOpen(true)}
+                  disabled={messages.length === 0}
+                  className={`
+                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors
+                    ${isDark
+                      ? 'hover:bg-gray-800 text-gray-300 hover:text-[#E85D75]'
+                      : 'hover:bg-gray-100 text-gray-600 hover:text-[#C02C38]'
+                    }
+                    disabled:opacity-30 disabled:cursor-not-allowed
+                  `}
+                  title="发布案例"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">发布</span>
+                </button>
+
+                <button
+                  onClick={() => setShowChat(false)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDark
+                      ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
+                      : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+                  }`}
+                  title="收起面板"
+                >
+                  <PanelRightClose className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Chat History */}
@@ -381,8 +412,8 @@ const SkillAgentChatPage: React.FC = () => {
           animate={{ opacity: 1, x: 0 }}
           onClick={() => setShowChat(true)}
           className={`absolute right-4 top-1/2 -translate-y-1/2 z-30 p-3 rounded-xl shadow-lg transition-colors ${
-            isDark 
-              ? 'bg-gray-800 text-gray-200 hover:bg-gray-700 border border-gray-700' 
+            isDark
+              ? 'bg-gray-800 text-gray-200 hover:bg-gray-700 border border-gray-700'
               : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
           }`}
           title="展开聊天面板"
@@ -390,6 +421,14 @@ const SkillAgentChatPage: React.FC = () => {
           <PanelRight className="w-5 h-5" />
         </motion.button>
       )}
+
+      {/* 发布案例弹窗 */}
+      <PublishCaseModal
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+        messages={messages}
+        works={works}
+      />
     </div>
   );
 };

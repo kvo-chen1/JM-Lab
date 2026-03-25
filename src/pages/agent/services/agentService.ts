@@ -22,6 +22,7 @@ export interface AIResponse {
   type: 'text' | 'style-options' | 'satisfaction-check' | 'derivative-options' | 'delegation' | 'collaboration' | 'workflow';
   thinking?: string;
   switchToDesigner?: boolean;
+  action?: 'generate_image' | 'check_canvas' | 'retry_generation' | null;  // AI自主行动指令
   metadata?: {
     suggestedStyles?: string[];
     images?: string[];
@@ -55,7 +56,7 @@ export async function* streamQwenResponse(
   try {
     // 使用 callQwenChat 调用千问 API
     const response = await callQwenChat({
-      model: options?.model || 'qwen3-max-2026-01-23',
+      model: options?.model || 'qwen3.5-flash-2026-02-23',
       messages: formattedMessages,
       temperature: options?.temperature || 0.7,
       max_tokens: options?.maxTokens || 1500,
@@ -172,6 +173,7 @@ function parseAIResponse(response: string, agent: AgentType): AIResponse {
         type: parsed.type || 'text',
         thinking: parsed.thinking,
         switchToDesigner: parsed.switchToDesigner || false,
+        action: parsed.action || null,
         metadata: parsed.metadata || {}
       };
     }
@@ -184,6 +186,7 @@ function parseAIResponse(response: string, agent: AgentType): AIResponse {
         type: parsed.type || 'text',
         thinking: parsed.thinking,
         switchToDesigner: parsed.switchToDesigner || false,
+        action: parsed.action || null,
         metadata: parsed.metadata || {}
       };
     }
@@ -197,6 +200,7 @@ function parseAIResponse(response: string, agent: AgentType): AIResponse {
         type: parsed.type || 'text',
         thinking: parsed.thinking,
         switchToDesigner: parsed.switchToDesigner || false,
+        action: parsed.action || null,
         metadata: parsed.metadata || {}
       };
     }

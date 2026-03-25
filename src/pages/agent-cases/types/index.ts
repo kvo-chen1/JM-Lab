@@ -27,12 +27,75 @@ export interface ConversationMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  type: 'text' | 'image' | 'analysis' | 'thinking';
+  type: 'text' | 'image' | 'analysis' | 'thinking' | 'style-options' | 'design-type-options' | 'satisfaction-check' | 'derivative-options' | 'delegation' | 'collaboration' | 'workflow';
   timestamp: string;
   metadata?: {
+    // 图片相关
     imageUrl?: string;
+    images?: string[];
+    // 分析内容
     analysis?: string;
+    // 思考过程
     thinking?: string;
+    // Agent 类型
+    agentType?: string;
+    designType?: string;
+    // 风格选项
+    styles?: Array<{
+      id: string;
+      name: string;
+      thumbnail?: string;
+      description?: string;
+    }>;
+    // 设计类型选项
+    designTypeOptions?: Array<{
+      id: string;
+      label: string;
+      description?: string;
+      icon?: string;
+    }>;
+    // 满意度检查
+    showSatisfactionCheck?: boolean;
+    // 衍生选项
+    derivativeOptions?: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      icon?: string;
+      type?: string;
+    }>;
+    // 快速操作
+    quickActions?: Array<{
+      label: string;
+      action: string;
+      description?: string;
+    }>;
+    // 委派信息
+    delegationInfo?: {
+      fromAgent: string;
+      toAgent: string;
+      taskDescription: string;
+      reasoning?: string;
+    };
+    // 协作信息
+    collaborationInfo?: {
+      participatingAgents: string[];
+      taskDescription: string;
+      progress: number;
+    };
+    // 工作流
+    workflow?: {
+      id: string;
+      name: string;
+      steps: any[];
+      estimatedDuration?: string;
+      currentStepIndex?: number;
+    };
+    // 其他
+    prompt?: string;
+    showDesignTypeSelector?: boolean;
+    showThinkingProcess?: boolean;
+    isGenerating?: boolean;
   };
 }
 
@@ -53,6 +116,7 @@ export interface AgentCase {
   tags: string[];
   conversationId: string;
   isLiked?: boolean;
+  source?: 'agent' | 'skill'; // 案例来源：agent 或 skill
 }
 
 /**
@@ -81,6 +145,7 @@ export interface GetCasesParams {
   sort?: 'newest' | 'popular';
   tag?: string;
   search?: string;
+  source?: 'agent' | 'skill';
 }
 
 /**
@@ -103,6 +168,7 @@ export interface PublishCaseRequest {
   conversationId: string;
   tags: string[];
   conversation?: ConversationMessage[]; // 可选的对话历史
+  source?: 'agent' | 'skill'; // 案例来源
 }
 
 /**
@@ -121,4 +187,4 @@ export interface CreateSimilarResponse {
 /**
  * Tab类型
  */
-export type CasesTab = 'cases' | 'inspiration';
+export type CasesTab = 'all' | 'agent' | 'skill';

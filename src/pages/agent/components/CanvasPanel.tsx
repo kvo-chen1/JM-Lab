@@ -5,6 +5,7 @@ import { useAgentStore, DERIVATIVE_OPTIONS } from '../hooks/useAgentStore';
 import WorkCard from './WorkCard';
 import CharacterDesignWorkflow from './CharacterDesignWorkflow';
 import CanvasControls from './DraggableCanvas/CanvasControls';
+import CanvasContentRenderer from './CanvasContentRenderer';
 import {
   Download,
   Share2,
@@ -20,7 +21,8 @@ import {
   Smile,
   Check,
   X,
-  Loader2
+  Loader2,
+  LayoutTemplate
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { assignDefaultPositions } from '../utils/cardLayout';
@@ -128,7 +130,9 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
     setCurrentAgent,
     setPendingMention,
     updateCardPosition,
-    resetCardPositions
+    resetCardPositions,
+    canvasContent,
+    clearCanvasContent
   } = useAgentStore();
 
   // 海报设计状态管理
@@ -576,8 +580,18 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
           cursor: isDragging ? 'grabbing' : (selectedTool === 'hand' || isSpacePressed) ? 'grab' : 'default'
         }}
       >
+        {/* 画布内容渲染 - 优先显示 */}
+        {canvasContent && (
+          <div className="absolute inset-0 p-6 overflow-auto">
+            <CanvasContentRenderer
+              content={canvasContent}
+              onClose={clearCanvasContent}
+            />
+          </div>
+        )}
+
         {/* 海报设计画布 */}
-        {posterDesign.isActive && (
+        {!canvasContent && posterDesign.isActive && (
           <PosterCanvas
             layout={posterDesign.selectedLayout}
             images={posterDesign.images}
@@ -593,7 +607,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
         )}
 
         {/* 角色设计工作流 - 当任务是IP角色设计且没有生成内容时显示 */}
-        {!posterDesign.isActive && currentTask?.type === 'ip-character' && generatedOutputs.length === 0 && (
+        {!canvasContent && !posterDesign.isActive && currentTask?.type === 'ip-character' && generatedOutputs.length === 0 && (
           <CharacterDesignWorkflow
             onComplete={(result) => {
               console.log('[CanvasPanel] 角色设计工作流完成:', result);
@@ -601,7 +615,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
           />
         )}
 
-        {!posterDesign.isActive && generatedOutputs.length === 0 ? (
+        {!canvasContent && !posterDesign.isActive && generatedOutputs.length === 0 ? (
           // Empty State - 优化深色主题样式
           <div className="flex items-center justify-center h-full min-h-[400px]">
             <div className="text-center">
@@ -622,7 +636,7 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
               </p>
             </div>
           </div>
-        ) : (
+        ) : !canvasContent && (
           // 无限画布内容层 - 支持自由平移和缩放
           <div
             className="absolute top-0 left-0 w-full h-full"
@@ -646,7 +660,8 @@ export default function CanvasPanel({ onFeedbackClick }: CanvasPanelProps) {
                       thumbnailUrl: output.thumbnail || output.url,
                       createdAt: output.createdAt,
                       isFavorite: output.isFavorite,
-                      status: output.status
+                      status: output.status,
+                      cardType: output.cardType || 'default'
                     }}
                     position={output.position}
                     isSelected={selectedOutput === output.id}

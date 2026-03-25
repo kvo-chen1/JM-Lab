@@ -15,11 +15,16 @@ import {
  * 获取案例列表
  */
 export async function getAgentCases(params: GetCasesParams): Promise<GetCasesResponse> {
-  const { page, limit, sort = 'newest', tag, search } = params;
-  
+  const { page, limit, sort = 'newest', tag, search, source } = params;
+
   let query = supabase
     .from('agent_cases')
     .select('*', { count: 'exact' });
+
+  // 筛选来源（agent 或 skill）
+  if (source) {
+    query = query.eq('source', source);
+  }
 
   // 筛选标签
   if (tag) {
@@ -65,6 +70,7 @@ export async function getAgentCases(params: GetCasesParams): Promise<GetCasesRes
     tags: item.tags || [],
     conversationId: item.conversation_id,
     isLiked: item.is_liked || false,
+    source: item.source || 'agent',
   }));
 
   return {
@@ -199,6 +205,7 @@ export async function publishCase(request: PublishCaseRequest): Promise<AgentCas
     likes: 0,
     views: 0,
     is_liked: false,
+    source: request.source || 'agent',
   };
 
   // 插入案例数据

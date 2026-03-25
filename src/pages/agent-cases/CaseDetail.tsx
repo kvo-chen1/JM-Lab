@@ -1,6 +1,6 @@
 // 案例详情页
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
@@ -19,6 +19,7 @@ const CaseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isDark } = useTheme();
+  const [isReplayMode, setIsReplayMode] = useState(false);
 
   const {
     caseDetail,
@@ -43,6 +44,29 @@ const CaseDetailPage: React.FC = () => {
       });
     }
   };
+
+  // 处理查看回放 - 启用回放模式
+  const onViewReplay = useCallback(() => {
+    setIsReplayMode(true);
+    // 延迟滚动，确保状态更新后 DOM 已渲染
+    setTimeout(() => {
+      const conversationSection = document.getElementById('conversation-section');
+      if (conversationSection) {
+        // 使用更可靠的滚动方式
+        const rect = conversationSection.getBoundingClientRect();
+        const scrollTop = window.pageYOffset + rect.top - 100; // 留出顶部空间
+        window.scrollTo({
+          top: scrollTop,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
+  }, []);
+
+  // 回放完成回调
+  const onReplayComplete = useCallback(() => {
+    // 可以在这里添加完成提示
+  }, []);
 
   // 格式化日期
   const formatDate = (dateStr: string) => {
@@ -190,18 +214,38 @@ const CaseDetailPage: React.FC = () => {
               </div>
 
               {/* 生成过程标签 */}
-              <div className={`
-                p-4 rounded-2xl
-                ${isDark ? 'bg-[#1a1f1a]' : 'bg-white'}
-              `}>
-                <h3 className={`font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  生成过程
-                </h3>
+              <div
+                id="conversation-section"
+                className={`
+                  p-4 rounded-2xl
+                  ${isDark ? 'bg-[#1a1f1a]' : 'bg-white'}
+                `}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    生成过程
+                  </h3>
+                  {isReplayMode && (
+                    <button
+                      onClick={() => setIsReplayMode(false)}
+                      className={`
+                        text-xs px-3 py-1 rounded-full
+                        ${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}
+                      `}
+                    >
+                      退出回放
+                    </button>
+                  )}
+                </div>
                 <div className={`
-                  max-h-[400px] overflow-y-auto pr-2
+                  max-h-[500px] overflow-y-auto pr-2
                   ${isDark ? 'scrollbar-dark' : 'scrollbar-light'}
                 `}>
-                  <ConversationPanel messages={caseDetail.conversation} />
+                  <ConversationPanel
+                    messages={caseDetail.conversation}
+                    isReplayMode={isReplayMode}
+                    onReplayComplete={onReplayComplete}
+                  />
                 </div>
               </div>
 
@@ -215,7 +259,7 @@ const CaseDetailPage: React.FC = () => {
                   isLiked={isLiked}
                   onLike={handleLike}
                   onShare={handleShare}
-                  onViewReplay={handleViewReplay}
+                  onViewReplay={onViewReplay}
                   onCreateSimilar={onCreateSimilar}
                   loading={isCreatingSimilar}
                 />

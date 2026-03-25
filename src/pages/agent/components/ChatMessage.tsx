@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgentStore } from '../hooks/useAgentStore';
@@ -6,6 +6,7 @@ import { AgentMessage, AGENT_CONFIG, AgentType } from '../types/agent';
 import AgentAvatar from './AgentAvatar';
 import { AuthContext } from '@/contexts/authContext';
 import StyleSelector from './StyleSelector';
+import BrandSelector from './BrandSelector';
 import ThinkingProcess from './ThinkingProcess';
 import ErrorDisplay from './ErrorDisplay';
 import CharacterDesignWorkflow from './CharacterDesignWorkflow';
@@ -13,10 +14,14 @@ import ChainTaskProgress from './ChainTaskProgress';
 import FeedbackButtons from './FeedbackButtons';
 import DelegationIndicator from './DelegationIndicator';
 import ThinkingProcessCard from './ThinkingProcessCard';
+import { ThinkingDecisionPanel } from './thinking';
+import type { ThinkingSession } from '../types/thinking';
 import ImageLightbox from './ImageLightbox';
+import ColorSchemeSelector, { parseColorSchemesFromContent, parseOptionsFromContent } from './ColorSchemeSelector';
 import { generateVideo } from '../services/agentService';
 import { AgentError } from '../types/errors';
-import { ChevronDown, ChevronUp, Lightbulb, Wand2, Users, Loader2, Share2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Lightbulb, Wand2, Users, Loader2, Share2, LayoutTemplate, PanelRight, CheckCircle } from 'lucide-react';
+import { analyzeContent, ContentAnalysisResult } from '../services/contentAnalyzer';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
@@ -27,6 +32,9 @@ interface ChatMessageProps {
   onOpenStyleLibrary?: () => void;
   onCloseStyleLibrary?: () => void;
   showStyleLibrary?: boolean;
+  onOpenBrandLibrary?: () => void;
+  onSetPendingDesignType?: (type: string | null) => void;
+  onOptionSelect?: (option: any) => void;
 }
 
 // Markdown 内容渲染组件 - 美化版本
@@ -85,19 +93,57 @@ function MarkdownContent({
             </li>
           ),
           h1: ({ children }) => (
-            <h1 className={`text-lg font-bold mb-3 ${isUser ? 'text-white' : isDark ? 'text-white' : 'text-gray-900'}`}>
+            <h1 className={`text-xl font-bold mb-4 pb-2 border-b-2 ${
+              isUser 
+                ? 'text-white border-white/20' 
+                : isDark 
+                  ? 'text-white border-[#C02C38]/50' 
+                  : 'text-gray-900 border-[#C02C38]/30'
+            }`}>
               {children}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 className={`text-base font-semibold mb-2 ${isUser ? 'text-white' : isDark ? 'text-gray-100' : 'text-gray-800'}`}>
+            <h2 className={`text-lg font-bold mb-3 mt-5 ${
+              isUser 
+                ? 'text-white' 
+                : isDark 
+                  ? 'text-[#E85D75]' 
+                  : 'text-[#C02C38]'
+            }`}>
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className={`text-sm font-semibold mb-2 ${isUser ? 'text-white' : isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+            <h3 className={`text-base font-semibold mb-2 mt-4 ${
+              isUser 
+                ? 'text-white/90' 
+                : isDark 
+                  ? 'text-gray-200' 
+                  : 'text-gray-700'
+            }`}>
               {children}
             </h3>
+          ),
+          h4: ({ children }) => (
+            <h4 className={`text-sm font-semibold mb-2 mt-3 ${
+              isUser 
+                ? 'text-white/80' 
+                : isDark 
+                  ? 'text-gray-300' 
+                  : 'text-gray-600'
+            }`}>
+              {children}
+            </h4>
+          ),
+          hr: () => (
+            <hr className={`my-4 border-t ${
+              isUser 
+                ? 'border-white/20' 
+                : isDark 
+                  ? 'border-gray-700' 
+                  : 'border-gray-200'
+            }`} />
           ),
           code: ({ children }) => (
             <code className={`px-1.5 py-0.5 rounded text-xs font-mono ${
@@ -121,6 +167,74 @@ function MarkdownContent({
               {children}
             </blockquote>
           ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className={`w-full text-sm text-left ${
+                isUser 
+                  ? 'text-white/90' 
+                  : isDark 
+                    ? 'text-gray-300' 
+                    : 'text-gray-700'
+              }`}>
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ children }) => (
+            <thead className={`text-xs uppercase ${
+              isUser 
+                ? 'bg-white/10 text-white' 
+                : isDark 
+                  ? 'bg-gray-800 text-gray-300' 
+                  : 'bg-gray-50 text-gray-600'
+            }`}>
+              {children}
+            </thead>
+          ),
+          tbody: ({ children }) => (
+            <tbody className={`divide-y ${
+              isUser 
+                ? 'divide-white/10' 
+                : isDark 
+                  ? 'divide-gray-700' 
+                  : 'divide-gray-200'
+            }`}>
+              {children}
+            </tbody>
+          ),
+          tr: ({ children }) => (
+            <tr className={`${
+              isUser 
+                ? 'hover:bg-white/5' 
+                : isDark 
+                  ? 'hover:bg-gray-800/50' 
+                  : 'hover:bg-gray-50'
+            } transition-colors`}>
+              {children}
+            </tr>
+          ),
+          th: ({ children }) => (
+            <th className={`px-4 py-3 font-semibold ${
+              isUser 
+                ? 'text-white' 
+                : isDark 
+                  ? 'text-gray-200' 
+                  : 'text-gray-800'
+            }`}>
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className={`px-4 py-3 ${
+              isUser 
+                ? 'text-white/90' 
+                : isDark 
+                  ? 'text-gray-300' 
+                  : 'text-gray-600'
+            }`}>
+              {children}
+            </td>
+          ),
         }}
       >
         {safeContent}
@@ -133,10 +247,12 @@ function MarkdownContent({
 function VideoMessageContent({
   message,
   isDark,
+  isUser,
   renderDelegationIndicator
 }: {
   message: AgentMessage;
   isDark: boolean;
+  isUser: boolean;
   renderDelegationIndicator: () => React.ReactNode;
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -241,7 +357,9 @@ export default function ChatMessage({
   isLast = false,
   onOpenStyleLibrary,
   onCloseStyleLibrary,
-  showStyleLibrary = false
+  showStyleLibrary = false,
+  onOpenBrandLibrary,
+  onSetPendingDesignType
 }: ChatMessageProps) {
   const { isDark } = useTheme();
   const { setShowThinkingProcess, showThinkingProcess, addMessage, setShowSatisfactionModal, generatedOutputs, updateTaskRequirements, setCurrentAgent, messages } = useAgentStore();
@@ -249,6 +367,18 @@ export default function ChatMessage({
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+
+  // 智能内容分析
+  const contentAnalysis = useMemo<ContentAnalysisResult>(() => {
+    return analyzeContent(message);
+  }, [message]);
+
+  // 检查是否已自动添加到画布
+  const isAutoAddedToCanvas = useMemo(() => {
+    return generatedOutputs.some(
+      output => output.metadata?.sourceMessageId === message.id
+    );
+  }, [generatedOutputs, message.id]);
 
   // 获取当前AI消息对应的用户查询
   const getUserQuery = () => {
@@ -279,6 +409,17 @@ export default function ChatMessage({
   };
 
   // 发布到案例
+  // 处理生成到画布
+  const handleGenerateToCanvas = (type: 'design-spec' | 'derivatives') => {
+    console.log('[ChatMessage] 生成到画布:', type);
+    // 触发一个自定义事件，让父组件处理
+    const event = new CustomEvent('generate-to-canvas', {
+      detail: { type, message }
+    });
+    window.dispatchEvent(event);
+    toast.success(type === 'design-spec' ? '正在生成设计规范...' : '正在生成衍生内容...');
+  };
+
   const handlePublishToCase = () => {
     if (!message.metadata?.images || message.metadata.images.length === 0) {
       toast.error('没有可发布的图片');
@@ -317,32 +458,36 @@ export default function ChatMessage({
       type: 'text'
     });
 
-    // 添加设计师回复
+    // 添加设计师回复 - 提供细化设计选项
     addMessage({
       role: 'designer',
-      content: '太好了！你对设计满意我很高兴。接下来我可以为你制作：\n\n• **短视频** - 5秒以内的社交媒体视频\n• **剧情故事短片** - 有情节的动画短片\n• **文创周边** - 产品包装、文创商品设计\n• **宣传海报** - 多尺寸宣传物料\n\n你想先制作哪一个？',
-      type: 'derivative-options',
+      content: '太好了！你对初稿满意我很高兴。接下来我可以为你：\n\n- **生成正式概念图** - 细化初稿设计，完善细节\n- **生成三视图** - 正面、侧面、背面全方位展示\n- **生成细节图** - 表情、动作等细节设计\n- **直接制作衍生内容** - 短视频、海报、文创周边等\n\n你想先进行哪一步？',
+      type: 'refinement-options',
       metadata: {
-        derivativeOptions: [
+        refinementOptions: [
           {
-            id: 'short-video',
-            title: '短视频',
-            description: '5秒以内的社交媒体视频'
+            id: 'formal-concept',
+            title: '生成正式概念图',
+            description: '细化初稿设计，完善细节',
+            icon: '✨'
           },
           {
-            id: 'story-short-film',
-            title: '剧情故事短片',
-            description: '有情节的动画短片'
+            id: 'three-view',
+            title: '生成三视图',
+            description: '正面、侧面、背面全方位展示',
+            icon: '📐'
           },
           {
-            id: 'cultural-products',
-            title: '文创周边',
-            description: '产品包装、文创商品设计'
+            id: 'detail-design',
+            title: '生成细节图',
+            description: '表情、动作等细节设计',
+            icon: '🎨'
           },
           {
-            id: 'poster',
-            title: '宣传海报',
-            description: '多尺寸宣传物料'
+            id: 'derivative',
+            title: '直接制作衍生内容',
+            description: '短视频、海报、文创周边等',
+            icon: '🚀'
           }
         ]
       }
@@ -372,14 +517,81 @@ export default function ChatMessage({
     setShowSatisfactionModal(false);
   };
 
+  // 处理通用选项选择
+  const handleOptionSelect = (option: any) => {
+    console.log('[ChatMessage] 选项被点击:', option);
+
+    // 如果有外部传入的处理函数，优先使用
+    if (onOptionSelect) {
+      onOptionSelect(option);
+      return;
+    }
+
+    // 默认处理：添加用户选择消息并触发发送
+    addMessage({
+      role: 'user',
+      content: option.label,
+      type: 'text'
+    });
+
+    // 触发一个自定义事件，让 ChatPanel 处理后续逻辑
+    window.dispatchEvent(new CustomEvent('option-selected', {
+      detail: { option, message }
+    }));
+  };
+
   // 处理设计类型选项
   const handleDesignTypeOption = (option: any) => {
+    console.log('[ChatMessage] 设计类型选项被点击:', option);
+
     // 添加用户选择消息
     addMessage({
       role: 'user',
       content: option.label,
       type: 'text'
     });
+
+    toast.success(`已选择：${option.label}`);
+
+    // 如果是品牌设计，显示品牌选择器消息（内嵌式）
+    if (option.id === 'brand-design') {
+      // 设置待处理的设计类型
+      onSetPendingDesignType?.('brand-design');
+      
+      // 延迟一下，模拟Agent切换的效果
+      setTimeout(() => {
+        // 设置当前Agent为designer
+        setCurrentAgent('designer');
+
+        // 添加系统消息，显示Agent切换
+        addMessage({
+          role: 'system',
+          content: `设计总监将任务委派给了津脉品牌设计师`,
+          type: 'delegation',
+          metadata: {
+            delegationInfo: {
+              fromAgent: 'director',
+              toAgent: 'designer',
+              taskDescription: option.label,
+              reasoning: '根据设计类型智能分配：品牌设计由津脉品牌设计师负责'
+            }
+          }
+        });
+
+        // 添加designer的回复，包含品牌选择器
+        addMessage({
+          role: 'designer',
+          content: `请选择一个品牌进行设计创作：`,
+          type: 'brand-options',
+          metadata: {
+            showThinkingProcess: true,
+            designType: option.id,
+            agentType: 'designer'
+          }
+        });
+      }, 500);
+      return; // 不继续执行后续逻辑
+    }
 
     // 根据设计类型确定对应的Agent
     const agentMapping: Record<string, { agent: AgentType; questions: string[] }> = {
@@ -482,6 +694,180 @@ export default function ChatMessage({
         }
       });
     }, 500);
+  };
+
+  // 处理细化设计选项
+  const handleRefinementOption = (option: any) => {
+    // 确保当前Agent是插画师
+    setCurrentAgent('illustrator');
+
+    // 添加用户选择消息
+    addMessage({
+      role: 'user',
+      content: `我选择：${option.title}`,
+      type: 'text'
+    });
+
+    // 根据选择的选项执行不同逻辑
+    switch (option.id) {
+      case 'formal-concept':
+        // 生成正式概念图
+        addMessage({
+          role: 'illustrator',
+          content: '好的！我来为你生成正式版概念图，会细化初稿的设计细节，让整体效果更加精致完善。请稍候...',
+          type: 'text'
+        });
+        // 触发正式概念图生成 - 统一使用 trigger-auto-generation 事件
+        setTimeout(() => {
+          // 从 store 获取最新状态
+          const { selectedStyle, currentTask } = useAgentStore.getState();
+          console.log('[ChatMessage] 触发正式概念图生成，当前状态:', { selectedStyle, currentTask: currentTask ? '存在' : 'null' });
+          
+          if (!selectedStyle) {
+            console.warn('[ChatMessage] 未选择风格，无法生成');
+            addMessage({
+              role: 'illustrator',
+              content: '请先选择一个风格，然后再生成正式概念图。',
+              type: 'text'
+            });
+            // 显示风格选择器
+            const { setShowStyleSelector } = useAgentStore.getState();
+            setShowStyleSelector(true);
+            return;
+          }
+          
+          if (!currentTask) {
+            console.warn('[ChatMessage] 没有当前任务，无法生成');
+            addMessage({
+              role: 'illustrator',
+              content: '请先创建一个设计任务，然后再生成正式概念图。',
+              type: 'text'
+            });
+            return;
+          }
+          
+          console.log('[ChatMessage] 条件满足，触发 trigger-auto-generation 事件');
+          window.dispatchEvent(new CustomEvent('trigger-auto-generation'));
+        }, 800);
+        break;
+
+      case 'three-view':
+        // 生成三视图
+        addMessage({
+          role: 'illustrator',
+          content: '好的！我来为你生成三视图，包含正面、侧面、背面三个角度的完整展示。请稍候...',
+          type: 'text'
+        });
+        // 触发三视图生成 - 统一使用 trigger-auto-generation 事件
+        setTimeout(() => {
+          // 从 store 获取最新状态
+          const { selectedStyle, currentTask } = useAgentStore.getState();
+          console.log('[ChatMessage] 触发三视图生成，当前状态:', { selectedStyle, currentTask: currentTask ? '存在' : 'null' });
+          
+          if (!selectedStyle) {
+            console.warn('[ChatMessage] 未选择风格，无法生成');
+            addMessage({
+              role: 'illustrator',
+              content: '请先选择一个风格，然后再生成三视图。',
+              type: 'text'
+            });
+            const { setShowStyleSelector } = useAgentStore.getState();
+            setShowStyleSelector(true);
+            return;
+          }
+          
+          if (!currentTask) {
+            console.warn('[ChatMessage] 没有当前任务，无法生成');
+            addMessage({
+              role: 'illustrator',
+              content: '请先创建一个设计任务，然后再生成三视图。',
+              type: 'text'
+            });
+            return;
+          }
+          
+          console.log('[ChatMessage] 条件满足，触发 trigger-auto-generation 事件');
+          window.dispatchEvent(new CustomEvent('trigger-auto-generation'));
+        }, 800);
+        break;
+
+      case 'detail-design':
+        // 生成细节图
+        addMessage({
+          role: 'illustrator',
+          content: '好的！我来为你生成细节图，包含不同的表情和动作设计。请稍候...',
+          type: 'text'
+        });
+        // 触发细节图生成 - 统一使用 trigger-auto-generation 事件
+        setTimeout(() => {
+          // 从 store 获取最新状态
+          const { selectedStyle, currentTask } = useAgentStore.getState();
+          console.log('[ChatMessage] 触发细节图生成，当前状态:', { selectedStyle, currentTask: currentTask ? '存在' : 'null' });
+          
+          if (!selectedStyle) {
+            console.warn('[ChatMessage] 未选择风格，无法生成');
+            addMessage({
+              role: 'illustrator',
+              content: '请先选择一个风格，然后再生成细节图。',
+              type: 'text'
+            });
+            const { setShowStyleSelector } = useAgentStore.getState();
+            setShowStyleSelector(true);
+            return;
+          }
+          
+          if (!currentTask) {
+            console.warn('[ChatMessage] 没有当前任务，无法生成');
+            addMessage({
+              role: 'illustrator',
+              content: '请先创建一个设计任务，然后再生成细节图。',
+              type: 'text'
+            });
+            return;
+          }
+          
+          console.log('[ChatMessage] 条件满足，触发 trigger-auto-generation 事件');
+          window.dispatchEvent(new CustomEvent('trigger-auto-generation'));
+        }, 800);
+        break;
+
+      case 'derivative':
+        // 直接跳转到衍生内容 - 切换到品牌设计师
+        setCurrentAgent('designer');
+        addMessage({
+          role: 'designer',
+          content: '好的！既然你对初稿满意，我们可以直接开始制作衍生内容。接下来我可以为你制作：\n\n- **短视频** - 5秒以内的社交媒体视频\n- **剧情故事短片** - 有情节的动画短片\n- **文创周边** - 产品包装、文创商品设计\n- **宣传海报** - 多尺寸宣传物料\n\n你想先制作哪一个？',
+          type: 'derivative-options',
+          metadata: {
+            derivativeOptions: [
+              {
+                id: 'short-video',
+                title: '短视频',
+                description: '5秒以内的社交媒体视频'
+              },
+              {
+                id: 'story-short-film',
+                title: '剧情故事短片',
+                description: '有情节的动画短片'
+              },
+              {
+                id: 'cultural-products',
+                title: '文创周边',
+                description: '产品包装、文创商品设计'
+              },
+              {
+                id: 'poster',
+                title: '宣传海报',
+                description: '多尺寸宣传物料'
+              }
+            ]
+          }
+        });
+        break;
+
+      default:
+        break;
+    }
   };
 
   // 处理衍生内容选项
@@ -702,8 +1088,8 @@ export default function ChatMessage({
     }
   };
 
-  const isUser = message.role === 'user';
-  const agentRole = message.role as AgentType;
+  const isUser = message?.role === 'user';
+  const agentRole = message?.role as AgentType;
 
   // 动画配置
   const messageVariants = {
@@ -894,6 +1280,10 @@ export default function ChatMessage({
 
   // 渲染消息内容
   const renderContent = () => {
+    if (!message || !message.type) {
+      console.error('[ChatMessage] message or message.type is undefined:', message);
+      return null;
+    }
     switch (message.type) {
       case 'style-options':
         return (
@@ -911,12 +1301,61 @@ export default function ChatMessage({
           </div>
         );
 
+      case 'brand-options':
+        return (
+          <div className="space-y-4">
+            {renderDelegationIndicator()}
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
+            {/* 如果已经选择了品牌，显示品牌信息；否则显示品牌选择器 */}
+            {message.metadata?.selectedBrand ? (
+              <div className={`p-3 rounded-lg ${isDark ? 'bg-[#C02C38]/10 border border-[#C02C38]/30' : 'bg-[#C02C38]/5 border border-[#C02C38]/20'}`}>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded ${isDark ? 'bg-[#C02C38]/20 text-[#C02C38]' : 'bg-[#C02C38]/10 text-[#C02C38]'}`}>
+                    已选品牌
+                  </span>
+                  <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                    {message.metadata.selectedBrand.name}
+                  </span>
+                </div>
+                {message.metadata.selectedBrand.story && (
+                  <p className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {message.metadata.selectedBrand.story}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <BrandSelector
+                onBrandSelect={(brand) => {
+                  // 触发品牌选择事件，让 ChatPanel 处理
+                  window.dispatchEvent(new CustomEvent('brand-selected-for-design', { detail: brand }));
+                }}
+                onOpenBrandLibrary={() => {
+                  onSetPendingDesignType?.('brand-design');
+                  onOpenBrandLibrary?.();
+                }}
+                showBrandLibrary={false}
+              />
+            )}
+            {message.metadata?.thinking && (
+              <ThinkingProcess thinking={message.metadata.thinking} />
+            )}
+          </div>
+        );
+
       case 'thinking':
         return (
           <div className="space-y-3">
             {renderDelegationIndicator()}
             <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
-            {message.metadata?.thinking && (
+            {message.metadata?.thinkingSession && (
+              <ThinkingDecisionPanel
+                steps={message.metadata.thinkingSession.steps}
+                currentStepIndex={message.metadata.thinkingSession.currentStepIndex}
+                isExpanded={message.metadata.thinkingSession.isExpanded || false}
+                isDark={isDark}
+              />
+            )}
+            {message.metadata?.thinking && !message.metadata?.thinkingSession && (
               <ThinkingProcess thinking={message.metadata.thinking} />
             )}
           </div>
@@ -924,9 +1363,8 @@ export default function ChatMessage({
 
       case 'delegation':
         return (
-          <div className="space-y-3">
+          <div>
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
           </div>
         );
 
@@ -1030,6 +1468,7 @@ export default function ChatMessage({
           <VideoMessageContent
             message={message}
             isDark={isDark}
+            isUser={isUser}
             renderDelegationIndicator={renderDelegationIndicator}
           />
         );
@@ -1061,6 +1500,67 @@ export default function ChatMessage({
                 ✕ 差点意思，我要修改
               </motion.button>
             </div>
+          </div>
+        );
+
+      case 'refinement-options':
+        return (
+          <div className="space-y-4">
+            {renderDelegationIndicator()}
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
+            {Array.isArray(message.metadata?.refinementOptions) && (
+              <div className="grid grid-cols-2 gap-3">
+                {message.metadata.refinementOptions.map((option: any, index: number) => (
+                  <motion.button
+                    key={option.id}
+                    onClick={() => handleRefinementOption(option)}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: 1.03, y: -4 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`group relative p-4 rounded-2xl text-left overflow-hidden transition-all duration-300 ${
+                      isDark
+                        ? 'bg-gradient-to-br from-gray-800/90 to-gray-900/90 border border-gray-700/50 hover:border-[#C02C38]/50 hover:shadow-lg hover:shadow-[#C02C38]/10'
+                        : 'bg-gradient-to-br from-white to-gray-50/80 border border-gray-200/80 hover:border-[#C02C38]/40 hover:shadow-xl hover:shadow-[#C02C38]/10'
+                    }`}
+                  >
+                    {/* 背景装饰 */}
+                    <div className={`absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 ${
+                      isDark ? 'bg-[#C02C38]' : 'bg-[#C02C38]'
+                    }`} />
+
+                    <div className="relative flex items-start gap-3">
+                      {/* 图标容器 */}
+                      <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-transform duration-300 group-hover:scale-110 ${
+                        isDark
+                          ? 'bg-gradient-to-br from-[#C02C38]/20 to-[#C02C38]/5'
+                          : 'bg-gradient-to-br from-[#C02C38]/10 to-[#C02C38]/5'
+                      }`}>
+                        {option.icon}
+                      </div>
+
+                      {/* 文字内容 */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold text-sm mb-1 transition-colors group-hover:text-[#C02C38] ${
+                          isDark ? 'text-gray-100' : 'text-gray-900'
+                        }`}>
+                          {option.title}
+                        </p>
+                        <p className={`text-xs leading-relaxed line-clamp-2 ${
+                          isDark ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
+                          {option.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 底部指示条 */}
+                    <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C02C38] to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
+                  </motion.button>
+                ))}
+              </div>
+            )}
           </div>
         );
 
@@ -1253,7 +1753,71 @@ export default function ChatMessage({
           <div className="space-y-4">
             {renderDelegationIndicator()}
             <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
-            
+
+            {/* 显示通用选项按钮（如果消息中包含 metadata.options） */}
+            {Array.isArray(message.metadata?.options) && message.metadata.options.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {message.metadata.options
+                  // 过滤掉无效的选项（必须有 label 或 title，且不能是 "--"）
+                  .filter((option: any) => {
+                    const text = option.label || option.title || '';
+                    return text && text !== '--' && text.trim().length > 0;
+                  })
+                  .map((option: any, index: number) => (
+                    <motion.button
+                      key={option.id || index}
+                      onClick={() => handleOptionSelect(option)}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      whileHover={{ scale: 1.01, y: -2 }}
+                      whileTap={{ scale: 0.99 }}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 border-2 ${
+                        isDark
+                          ? 'bg-gray-800/80 border-gray-700 hover:border-[#C02C38]/50 hover:bg-gray-800'
+                          : 'bg-white border-gray-200 hover:border-[#C02C38]/50 hover:bg-gray-50'
+                      }`}
+                    >
+                      {/* 图标或序号 */}
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
+                        isDark
+                          ? 'bg-gray-700 text-gray-300'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {option.icon || (index + 1)}
+                      </div>
+
+                      {/* 内容区域 */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold text-sm ${
+                          isDark ? 'text-gray-100' : 'text-gray-900'
+                        }`}>
+                          {option.label || option.title}
+                        </p>
+                        {option.description && (
+                          <p className={`text-xs mt-0.5 ${
+                            isDark ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {option.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* 右侧箭头 */}
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                        isDark
+                          ? 'bg-gray-700/50 text-gray-500'
+                          : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </motion.button>
+                  ))}
+              </div>
+            )}
+
             {/* 显示设计类型选择器（如果消息中包含）- 卡片按钮式布局 */}
             {message.metadata?.showDesignTypeSelector && Array.isArray(message.metadata?.designTypeOptions) && (
               <div className="mt-4 space-y-4">
@@ -1279,7 +1843,7 @@ export default function ChatMessage({
                         globalIndex += index;
                         
                         return (
-                          <motion.div
+                          <motion.button
                             key={option.id}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -1291,12 +1855,15 @@ export default function ChatMessage({
                                 : '0 4px 20px rgba(0,0,0,0.1)'
                             }}
                             whileTap={{ scale: 0.99, y: 1 }}
-                            className={`group relative flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 border-2 ${
+                            className={`w-full group relative flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 border-2 ${
                               isDark 
                                 ? 'bg-gray-800/80 border-gray-700 hover:border-[#C02C38]/50 hover:bg-gray-800' 
                                 : 'bg-white border-gray-200 hover:border-[#C02C38]/50 hover:bg-gray-50'
                             }`}
-                            onClick={() => handleDesignTypeOption(option)}
+                            onClick={() => {
+                              console.log('[ChatMessage] 点击选项:', option);
+                              handleDesignTypeOption(option);
+                            }}
                           >
                             {/* 序号 - 圆形背景 */}
                             <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -1341,7 +1908,7 @@ export default function ChatMessage({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
                             </div>
-                          </motion.div>
+                          </motion.button>
                         );
                       })}
                     </div>
@@ -1365,12 +1932,115 @@ export default function ChatMessage({
             {/* 显示思考过程卡片（如果消息中包含） */}
             {message.metadata?.showThinkingProcess && message.metadata?.designType && message.metadata?.agentType && (
               <div className="mt-4">
-                <ThinkingProcessCard 
+                <ThinkingProcessCard
                   agentType={message.metadata.agentType}
                   designType={message.metadata.designType}
+                  selectedBrand={message.metadata?.selectedBrand}
                 />
               </div>
             )}
+
+            {/* 配色方案选择器 - 自动检测消息中的配色方案列表 */}
+            {!isUser && (() => {
+              const colorSchemes = parseColorSchemesFromContent(message.content);
+              return colorSchemes && colorSchemes.length >= 2 ? (
+                <ColorSchemeSelector
+                  title="点击选择配色方案"
+                  options={colorSchemes}
+                />
+              ) : null;
+            })()}
+
+            {/* 自动检测消息中的选项列表并渲染为可点击按钮 */}
+            {!isUser && (() => {
+              const options = parseOptionsFromContent(message.content);
+              return options && options.length >= 2 ? (
+                <div className="mt-4 space-y-2">
+                  <p className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    点击选择：
+                  </p>
+                  {options.map((option, index) => (
+                    <motion.button
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      whileHover={{ scale: 1.02, x: 4 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        addMessage({
+                          role: 'user',
+                          content: option,
+                          type: 'text'
+                        });
+                        toast.success(`已选择：${option}`);
+                      }}
+                      className={`
+                        w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all
+                        ${isDark
+                          ? 'bg-gray-800/80 border border-gray-700 hover:border-[#C02C38]/50 hover:bg-gray-800'
+                          : 'bg-white border border-gray-200 hover:border-[#C02C38]/50 hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
+                        isDark
+                          ? 'bg-gray-700 text-gray-300'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <span className={`flex-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                        {option}
+                      </span>
+                      <svg className={`w-5 h-5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </motion.button>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+
+            {/* 在画布生成按钮 - 暂时隐藏，因为功能重复且位置不合适 */}
+            {/* {!isUser && message.content && message.content.length > 100 && (
+              <div className="mt-4 flex gap-2">
+                <motion.button
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  onClick={() => handleGenerateToCanvas('design-spec')}
+                  className={`
+                    flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
+                    transition-all duration-200
+                    ${isDark 
+                      ? 'bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white hover:opacity-90 shadow-lg shadow-[#C02C38]/20' 
+                      : 'bg-gradient-to-r from-[#C02C38] to-[#E85D75] text-white hover:opacity-90 shadow-lg shadow-[#C02C38]/20'
+                    }
+                  `}
+                >
+                  <LayoutTemplate className="w-4 h-4" />
+                  <span>在画布上生成</span>
+                </motion.button>
+                <motion.button
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  onClick={() => handleGenerateToCanvas('derivatives')}
+                  className={`
+                    flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
+                    transition-all duration-200
+                    ${isDark 
+                      ? 'bg-gray-800 text-gray-200 border border-gray-700 hover:bg-gray-700' 
+                      : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  <PanelRight className="w-4 h-4" />
+                  <span>在右侧生成</span>
+                </motion.button>
+              </div>
+            )} */}
           </div>
         );
     }
@@ -1451,6 +2121,25 @@ export default function ChatMessage({
           <div className={`px-4 py-3 shadow-sm ${getBubbleStyle()}`}>
             {renderContent()}
           </div>
+
+          {/* 智能画布添加提示 */}
+          {!isUser && isAutoAddedToCanvas && (
+            <motion.div
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`flex items-center gap-1.5 mt-2 text-xs ${
+                isDark ? 'text-gray-400' : 'text-gray-500'
+              }`}
+            >
+              <CheckCircle className="w-3 h-3 text-green-500" />
+              <span>已自动添加到画布</span>
+              {contentAnalysis.confidence > 0 && (
+                <span className="opacity-60">
+                  (置信度: {Math.round(contentAnalysis.confidence * 100)}%)
+                </span>
+              )}
+            </motion.div>
+          )}
 
           {/* Timestamp */}
           <span className={`text-xs mt-1 px-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>

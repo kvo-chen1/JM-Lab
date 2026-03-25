@@ -1,7 +1,8 @@
 import { callQwenChat } from '@/services/llm/chatProviders';
 import type { IntentType } from './intentService';
-import { 
-  inferMissingInfo, 
+import type { AnalysisDetail } from '../types';
+import {
+  inferMissingInfo,
   generateNextQuestion as generateSmartQuestion,
   isShortReply,
   extractKeywords,
@@ -28,12 +29,12 @@ export interface RequirementField {
   options?: string[];
   placeholder?: string;
   categories?: MerchandiseCategory[];
-  condition?: FieldCondition;  // 动态字段显示条件
+  condition?: FieldCondition;
 }
 
 // 动态字段显示条件
 export interface FieldCondition {
-  field: string;      // 触发条件的字段 key
+  field: string;
   operator: 'equals' | 'notEquals' | 'contains' | 'notContains' | 'in' | 'notIn';
   value: string | string[];
   action?: 'show' | 'hide' | 'require';
@@ -41,13 +42,14 @@ export interface FieldCondition {
 
 // 需求分析结果
 export interface RequirementAnalysis {
-  ready: boolean;                    // 是否可以直接执行
-  collectedInfo: Record<string, string>;  // 已收集的信息
-  missingFields: RequirementField[]; // 缺失的字段
-  summary: string;                   // 当前理解的需求摘要
-  nextQuestion?: string;             // 下一个问题
-  suggestions?: string[];            // 建议的回复
-  intentSwitch?: IntentSwitchInfo;   // 意图切换信息
+  ready: boolean;
+  collectedInfo: Record<string, string>;
+  missingFields: RequirementField[];
+  summary: string;
+  nextQuestion?: string;
+  suggestions?: string[];
+  intentSwitch?: IntentSwitchInfo;
+  analysisDetails?: AnalysisDetail[];
 }
 
 // 意图切换信息
@@ -152,6 +154,17 @@ const INTENT_REQUIREMENTS: Record<IntentType, RequirementField[]> = {
     { key: 'imageUrl', label: '图片', description: '需要识别的图片', required: false, type: 'text', placeholder: '请上传图片' },
     { key: 'recognitionType', label: '识别类型', description: '想要识别什么', required: false, type: 'select', options: ['物体识别', '文字识别', '场景识别', '人脸识别'] },
   ],
+  'image-editing': [
+    { key: 'originalImageUrl', label: '原图', description: '需要编辑的原图', required: false, type: 'text', placeholder: '请上传或使用已生成的图片' },
+    { key: 'editType', label: '编辑类型', description: '想要如何编辑', required: true, type: 'select', options: ['修改局部', '更换元素', '调整颜色', '改变风格', '扩展画面', '复制变体'] },
+    { key: 'editInstruction', label: '编辑要求', description: '具体的编辑要求', required: true, type: 'textarea', placeholder: '例如：把这只猫换成蓝眼睛' },
+  ],
+  'batch-generation': [
+    { key: 'batchType', label: '批量类型', description: '批量生成什么', required: true, type: 'select', options: ['多张变体', '多款周边', '多平台适配', '整套VI', '系列插画'] },
+    { key: 'baseContent', label: '基础内容', description: '批量生成的基础', required: true, type: 'textarea', placeholder: '例如：基于之前生成的Logo' },
+    { key: 'quantity', label: '数量', description: '需要生成的数量', required: false, type: 'select', options: ['3-5个', '6-10个', '10个以上', '不限制'] },
+    { key: 'variations', label: '变化要求', description: '每个变体之间的差异', required: false, type: 'textarea', placeholder: '例如：不同的颜色方案、不同的布局等' },
+  ],
   'video-script': [
     { key: 'videoType', label: '视频类型', description: '需要什么类型的视频脚本', required: true, type: 'select', options: ['宣传片', '短视频', 'vlog', '教学视频', '产品演示', '品牌故事'] },
     { key: 'duration', label: '视频时长', description: '视频预计时长', required: true, type: 'select', options: ['15秒以内', '15-30秒', '30-60秒', '1-3分钟', '3-5分钟', '5分钟以上'] },
@@ -194,6 +207,7 @@ const INTENT_REQUIREMENTS: Record<IntentType, RequirementField[]> = {
     { key: 'focus', label: '重点关注', description: '报告需要重点分析的内容', required: false, type: 'textarea', placeholder: '例如：用户流失原因分析、新功能效果评估等' },
     { key: 'format', label: '报告格式', description: '期望的报告格式', required: false, type: 'select', options: ['PPT', 'Word', 'Excel', '在线文档', '邮件'] },
   ],
+  'web-search': [],
   'general': [],
   'greeting': [],
   'help': [],
@@ -257,21 +271,59 @@ ${history.map(h => `${h.role}: ${h.content}`).join('\n')}
     });
 
     // 解析结果
-    let result: Partial<RequirementAnalysis> = {};
+    let result: Partial<RequirementAnalysis> & { analysisDetails?: AnalysisDetail[] } = {};
     try {
       const parsed = JSON.parse(response);
+      const parsedCollectedInfo = parsed.collectedInfo || {};
+      const parsedMissingFields = requirements.filter(r =>
+        r.required && (!parsedCollectedInfo || !parsedCollectedInfo[r.key])
+      );
+
+      // 生成 analysisDetails
+      const generatedAnalysisDetails: AnalysisDetail[] = [];
+
+      // 已收集的信息
+      Object.entries(parsedCollectedInfo).forEach(([key, value]) => {
+        const stringValue = String(value || '');
+        if (stringValue.trim()) {
+          const field = requirements.find(r => r.key === key);
+          generatedAnalysisDetails.push({
+            field: key,
+            label: field?.label || key,
+            value: stringValue,
+            source: 'explicit',
+            confidence: 0.9,
+            reasoning: '从用户消息中直接提取',
+          });
+        }
+      });
+
+      // 缺失的字段
+      parsedMissingFields.forEach(field => {
+        generatedAnalysisDetails.push({
+          field: field.key,
+          label: field.label,
+          value: undefined,
+          source: 'inferred',
+          reasoning: `需要补充此信息才能完成${getIntentDisplayName(intent)}任务`,
+        });
+      });
+
       result = {
-        collectedInfo: parsed.collectedInfo || {},
-        missingFields: requirements.filter(r => 
-          r.required && (!parsed.collectedInfo || !parsed.collectedInfo[r.key])
-        ),
+        collectedInfo: parsedCollectedInfo,
+        missingFields: parsedMissingFields,
         nextQuestion: parsed.nextQuestion,
         suggestions: parsed.suggestions || [],
         summary: parsed.summary || '',
+        analysisDetails: generatedAnalysisDetails,
       };
     } catch (e) {
       // 解析失败，使用降级方案
-      result = fallbackAnalysis(intent, userMessage, requirements);
+      const fallbackResult = fallbackAnalysis(intent, userMessage, requirements);
+      result = {
+        ...fallbackResult,
+        analysisDetails: fallbackResult.analysisDetails || [],
+      };
     }
 
     // 兜底逻辑：重新计算缺失字段，确保准确性
@@ -281,6 +333,21 @@ ${history.map(h => `${h.role}: ${h.content}`).join('\n')}
                     result.collectedInfo[r.key].trim() === '')
     );
 
+    // 更新 analysisDetails 中的缺失字段
+    if (result.analysisDetails) {
+      finalMissingFields.forEach(field => {
+        if (!result.analysisDetails!.some(d => d.field === field.key)) {
+          result.analysisDetails!.push({
+            field: field.key,
+            label: field.label,
+            value: undefined,
+            source: 'inferred',
+            reasoning: `需要补充此信息才能完成${getIntentDisplayName(intent)}任务`,
+          });
+        }
+      });
+    }
+
     return {
       ready: finalMissingFields.length === 0,
       collectedInfo: result.collectedInfo || {},
@@ -288,6 +355,7 @@ ${history.map(h => `${h.role}: ${h.content}`).join('\n')}
       nextQuestion: result.nextQuestion,
       suggestions: result.suggestions,
       summary: result.summary || '',
+      analysisDetails: result.analysisDetails || [],
     };
   } catch (error: any) {
     if (error.name === 'AbortError') {
@@ -306,40 +374,77 @@ const fallbackAnalysis = (
   requirements: RequirementField[]
 ): RequirementAnalysis => {
   const collectedInfo: Record<string, string> = {};
-  
+  const analysisDetails: AnalysisDetail[] = [];
+
   // 尝试识别品牌名
   const brandNameInference = extractBrandName(userMessage);
   if (brandNameInference) {
     collectedInfo['brandName'] = brandNameInference.value;
+    analysisDetails.push({
+      field: 'brandName',
+      label: '品牌名称',
+      value: brandNameInference.value,
+      source: 'explicit',
+      confidence: brandNameInference.confidence,
+      reasoning: brandNameInference.reasoning,
+    });
   }
-  
+
   // 尝试识别行业
   const industry = identifyIndustry(userMessage);
   if (industry) {
     collectedInfo['industry'] = industry;
+    analysisDetails.push({
+      field: 'industry',
+      label: '行业',
+      value: industry,
+      source: 'inferred',
+      confidence: 0.8,
+      reasoning: '根据用户描述的关键词推断所属行业',
+    });
   }
-  
+
   // 使用智能推断引擎推断其他信息
   const inferences = inferMissingInfo(intent, collectedInfo, userMessage);
   inferences.forEach(inf => {
     if (!collectedInfo[inf.key]) {
       collectedInfo[inf.key] = inf.value;
+      const field = requirements.find(r => r.key === inf.key);
+      analysisDetails.push({
+        field: inf.key,
+        label: field?.label || inf.key,
+        value: inf.value,
+        source: 'inferred',
+        confidence: inf.confidence,
+        reasoning: inf.reasoning,
+      });
     }
   });
-  
+
   // 生成下一个问题
   const missingFieldsSimple = requirements
     .filter(r => r.required && !collectedInfo[r.key])
     .map(r => ({ key: r.key, label: r.label, required: r.required }));
-  
+
   const questionResult = generateSmartQuestion(intent, collectedInfo, missingFieldsSimple, userMessage);
-  
+
   // 生成建议回复
   const suggestions = questionResult.suggestions || [];
-  
+
+  // 为缺失的字段生成分析详情
+  missingFieldsSimple.forEach(field => {
+    analysisDetails.push({
+      field: field.key,
+      label: field.label,
+      value: undefined,
+      source: 'inferred',
+      reasoning: `需要补充此信息才能完成${getIntentDisplayName(intent)}任务`,
+    });
+  });
+
   // 生成摘要
   const summary = `用户想要进行${getIntentDisplayName(intent)}。${Object.keys(collectedInfo).length > 0 ? `已识别：${Object.entries(collectedInfo).map(([k, v]) => `${k}: ${v}`).join('、')}` : ''}`;
-  
+
   return {
     ready: missingFieldsSimple.length === 0,
     collectedInfo,
@@ -347,6 +452,7 @@ const fallbackAnalysis = (
     nextQuestion: questionResult.question,
     suggestions,
     summary,
+    analysisDetails,
   };
 };
 
@@ -365,10 +471,13 @@ const getIntentDisplayName = (intent: IntentType): string => {
     'image-beautification': '图片美化',
     'image-style-transfer': '风格转换',
     'image-recognition': '图片识别',
+    'image-editing': '图片编辑',
+    'batch-generation': '批量生成',
     'video-script': '视频脚本',
     'event-planning': '活动策划',
     'ui-design': 'UI设计',
     'data-report': '数据分析报告',
+    'web-search': '联网搜索',
     'general': '对话',
     'greeting': '问候',
     'help': '帮助',

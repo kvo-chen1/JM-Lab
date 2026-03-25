@@ -10,6 +10,13 @@ export interface GenerateImageParams {
   n?: number;
 }
 
+export interface EditImageParams {
+  prompt: string;
+  imageUrl: string;
+  size?: string;
+  n?: number;
+}
+
 export interface GenerateImageResult {
   data?: Array<{
     url: string;
@@ -117,7 +124,69 @@ export async function generateImagesWithDelay(
   return results;
 }
 
+/**
+ * 编辑图片
+ * 调用后端 API 基于参考图片进行编辑，带重试机制
+ */
+export async function editImage(
+  params: EditImageParams,
+  retryCount = 0
+): Promise<GenerateImageResult> {
+  const { prompt, imageUrl, size = '1024x1024', n = 1 } = params;
+  const maxRetries = 3;
+
+  try {
+    const response = await fetch('/api/qwen/images/edit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        prompt,
+        imageUrl,
+        size,
+        n,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      
+      // 检查是否是内容审核错误
+      if (errorData.code === 'inappropriate-content' || errorData.error === 'Content moderation failed') {
+        const moderationError = new Error(errorData.message || '内容审核未通过');
+        (moderationError as any).type = 'CONTENT_MODERATION_ERROR';
+        (moderationError as any).code = 'inappropriate-content';
+        (moderationError as any).suggestion = errorData.suggestion || '请尝试换种描述方式，避免使用敏感词汇';
+        throw moderationError;
+      }
+      
+      // 如果是 429 (Too Many Requests) 或 403 (Forbidden)，等待后重试
+      if ((response.status === 429 || response.status === 403) && retryCount < maxRetries) {
+        const waitTime = Math.pow(2, retryCount) * 2000; // 指数退避: 2s, 4s, 8s
+        console.log(`[Image Edit] Rate limited, waiting ${waitTime}ms before retry ${retryCount + 1}/${maxRetries}`);
+        await delay(waitTime);
+        return editImage(params, retryCount + 1);
+      }
+      
+      throw new Error(errorData.message || `编辑失败: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.ok) {
+      throw new Error(result.error || result.message || '编辑失败');
+    }
+
+    return result.data || {};
+  } catch (error) {
+    console.error('[Image Edit] Error:', error);
+    throw error;
+  }
+}
+
 export default {
   generateImage,
   generateImagesWithDelay,
+  editImage,
 };

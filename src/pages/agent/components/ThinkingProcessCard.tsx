@@ -9,6 +9,11 @@ interface ThinkingProcessCardProps {
   designType: string;
   isOpen?: boolean;
   onToggle?: () => void;
+  selectedBrand?: {
+    id: string;
+    name: string;
+    story?: string;
+  } | null;
 }
 
 // Agent 头像组件
@@ -92,19 +97,20 @@ function getDesignTypeName(designType: string): string {
   return nameMap[designType] || '设计';
 }
 
-export default function ThinkingProcessCard({ 
-  agentType, 
+export default function ThinkingProcessCard({
+  agentType,
   designType,
   isOpen: controlledIsOpen,
-  onToggle: controlledOnToggle
+  onToggle: controlledOnToggle,
+  selectedBrand
 }: ThinkingProcessCardProps) {
   const { isDark } = useAgentStore();
   const [internalIsOpen, setInternalIsOpen] = useState(false);
-  
+
   // 支持受控和非受控模式
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
   const onToggle = controlledOnToggle || (() => setInternalIsOpen(!internalIsOpen));
-  
+
   const questions = getQuestionsByDesignType(designType);
   const designName = getDesignTypeName(designType);
   const agentConfig = AGENT_CONFIG[agentType as keyof typeof AGENT_CONFIG];
@@ -152,7 +158,26 @@ export default function ThinkingProcessCard({
                 {agentConfig ? `作为${agentConfig.name}，我会根据您提供的信息为您打造专业的设计方案。` : ''}
                 请您告诉我以下内容：
               </p>
-              
+
+              {/* 已选品牌信息 */}
+              {selectedBrand && (
+                <div className={`p-3 rounded-lg ${isDark ? 'bg-[#C02C38]/10 border border-[#C02C38]/30' : 'bg-[#C02C38]/5 border border-[#C02C38]/20'}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded ${isDark ? 'bg-[#C02C38]/20 text-[#C02C38]' : 'bg-[#C02C38]/10 text-[#C02C38]'}`}>
+                      已选品牌
+                    </span>
+                    <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                      {selectedBrand.name}
+                    </span>
+                  </div>
+                  {selectedBrand.story && (
+                    <p className={`mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {selectedBrand.story}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* 问题列表 */}
               <div className="space-y-4">
                 {questions.map((item, index) => (

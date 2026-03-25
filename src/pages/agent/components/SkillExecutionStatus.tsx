@@ -131,8 +131,8 @@ export const SkillExecutionStatus: React.FC<SkillExecutionStatusProps> = ({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           className={`rounded-lg p-3 ${
-            isDark 
-              ? 'bg-green-900/20 border border-green-700/50' 
+            isDark
+              ? 'bg-green-900/20 border border-green-700/50'
               : 'bg-green-50 border border-green-200'
           } ${className}`}
         >
@@ -153,9 +153,9 @@ export const SkillExecutionStatus: React.FC<SkillExecutionStatusProps> = ({
               <p className={`text-xs ${
                 isDark ? 'text-green-400/70' : 'text-green-600/70'
               }`}>
-                {lastResult.type === 'image' 
-                  ? '图片已生成' 
-                  : lastResult.type === 'text'
+                {lastResult?.type === 'image'
+                  ? '图片已生成'
+                  : lastResult?.type === 'text'
                   ? '文本已生成'
                   : '操作已完成'}
               </p>

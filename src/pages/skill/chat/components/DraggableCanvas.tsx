@@ -12,6 +12,7 @@ interface DraggableCanvasProps {
   onWorkSelect?: (work: WorkItem) => void;
   onWorkDelete?: (id: string) => void;
   onWorkDownload?: (work: WorkItem) => void;
+  onExampleClick?: (example: string) => void;
 }
 
 export const DraggableCanvas: React.FC<DraggableCanvasProps> = ({
@@ -19,6 +20,7 @@ export const DraggableCanvas: React.FC<DraggableCanvasProps> = ({
   onWorkSelect,
   onWorkDelete,
   onWorkDownload,
+  onExampleClick,
 }) => {
   const { isDark } = useTheme();
   const {
@@ -277,7 +279,7 @@ export const DraggableCanvas: React.FC<DraggableCanvasProps> = ({
       >
         <div className="min-w-full min-h-full p-20">
           {works.length === 0 && !isGenerating ? (
-            <EmptyState />
+            <EmptyState onExampleClick={onExampleClick} />
           ) : (
             <div className={`${viewMode === 'grid' ? 'grid grid-cols-3 gap-12' : 'flex flex-wrap gap-16'} justify-center`}>
               <AnimatePresence>

@@ -1220,7 +1220,7 @@ export default function ChatPanel() {
 
   // 处理编排器响应
   const handleOrchestratorResponse = useCallback(async (
-    response: OrchestratorResponse,
+    response: OrchestratorResponse & { thinkingSteps?: ThinkingStep[]; decisionInfo?: any },
     messageId: string
   ) => {
     // 构建 metadata，包含思考过程（如果有）
@@ -1228,6 +1228,16 @@ export default function ChatPanel() {
       thinking: response.aiResponse?.thinking,
       ...response.aiResponse?.metadata
     };
+
+    // 如果有 V2 版本的思考过程，添加到 metadata
+    if (response.thinkingSteps && response.thinkingSteps.length > 0) {
+      metadata.thinkingSteps = response.thinkingSteps;
+    }
+
+    // 如果有 V2 版本的决策信息，添加到 metadata
+    if (response.decisionInfo) {
+      metadata.decisionInfo = response.decisionInfo;
+    }
 
     // 如果有思考过程，添加到 metadata
     if (thinkingSession) {
@@ -2323,6 +2333,8 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
             delegationTask: v2Response.delegationTask,
             collaborationAgents: v2Response.collaborationAgents,
             workflow: v2Response.workflow,
+            thinkingSteps: v2Response.thinkingSteps,
+            decisionInfo: v2Response.decisionInfo,
             metadata: {
               ...v2Response.metadata,
               decisionInfo: v2Response.decisionInfo,

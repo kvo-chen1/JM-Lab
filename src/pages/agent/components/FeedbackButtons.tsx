@@ -24,20 +24,21 @@ export default function FeedbackButtons({
 
   return (
     <>
-      {/* 反馈按钮 - 简化为单个评分按钮 */}
+      {/* 反馈按钮 - 简化为单个评分按钮，更低调 */}
       <div className="flex items-center gap-2">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowModal(true)}
-          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors opacity-60 hover:opacity-100 ${
             isDark
-              ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
-              : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+              ? 'text-gray-500 hover:text-gray-400'
+              : 'text-gray-400 hover:text-gray-600'
           }`}
+          title="评价此回复"
         >
           <Star className="w-3 h-3" />
-          <span>评价</span>
+          <span className="hidden sm:inline">评价</span>
         </motion.button>
       </div>
 

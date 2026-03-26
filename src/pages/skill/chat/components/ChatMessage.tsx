@@ -678,7 +678,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
   }, []);
   
   // 格式化内容，支持完整的 Markdown 样式
-  const formatContent = (content: string) => {
+  const formatContent = (content: string, forceWhiteText = false) => {
     if (!content) return null;
 
     // 按行分割内容
@@ -727,10 +727,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
           <HeaderTag
             key={key}
             className={`${headerClasses[level as keyof typeof headerClasses]} ${
-              isDark ? 'text-gray-100' : 'text-gray-900'
+              forceWhiteText ? 'text-white' : isDark ? 'text-gray-100' : 'text-gray-900'
             }`}
           >
-            {formatInlineStyles(text)}
+            {formatInlineStyles(text, forceWhiteText)}
           </HeaderTag>
         );
         continue;
@@ -749,8 +749,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
             <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
               isDark ? 'bg-purple-400' : 'bg-purple-500'
             }`} />
-            <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              {formatInlineStyles(text)}
+            <span className={`text-sm ${forceWhiteText ? 'text-white' : isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              {formatInlineStyles(text, forceWhiteText)}
             </span>
           </div>
         );
@@ -773,8 +773,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
             }`}>
               {num}.
             </span>
-            <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              {formatInlineStyles(text)}
+            <span className={`text-sm ${forceWhiteText ? 'text-white' : isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              {formatInlineStyles(text, forceWhiteText)}
             </span>
           </div>
         );
@@ -788,12 +788,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
           <blockquote
             key={key}
             className={`my-2 pl-3 border-l-2 italic ${
-              isDark 
-                ? 'border-purple-500/50 text-gray-400' 
-                : 'border-purple-400 text-gray-500'
+              forceWhiteText
+                ? 'border-white/50 text-white/90'
+                : isDark 
+                  ? 'border-purple-500/50 text-gray-400' 
+                  : 'border-purple-400 text-gray-500'
             }`}
           >
-            <span className="text-sm">{formatInlineStyles(quoteText)}</span>
+            <span className="text-sm">{formatInlineStyles(quoteText, forceWhiteText)}</span>
           </blockquote>
         );
         continue;
@@ -818,10 +820,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
           <p
             key={key}
             className={`my-1.5 text-sm leading-relaxed ${
-              isDark ? 'text-gray-300' : 'text-gray-700'
+              forceWhiteText ? 'text-white' : isDark ? 'text-gray-300' : 'text-gray-700'
             }`}
           >
-            {formatInlineStyles(line)}
+            {formatInlineStyles(line, forceWhiteText)}
           </p>
         );
       } else {
@@ -834,7 +836,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
   };
 
   // 处理行内样式（粗体、斜体、行内代码、链接）
-  const formatInlineStyles = (text: string): React.ReactNode => {
+  const formatInlineStyles = (text: string, forceWhite = false): React.ReactNode => {
     if (!text) return text;
 
     // 处理链接 [text](url)
@@ -845,7 +847,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
 
     while ((match = linkPattern.exec(text)) !== null) {
       if (match.index > lastIndex) {
-        parts.push(formatBoldAndItalic(text.slice(lastIndex, match.index)));
+        parts.push(formatBoldAndItalic(text.slice(lastIndex, match.index), forceWhite));
       }
       parts.push(
         <a
@@ -854,7 +856,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
           target="_blank"
           rel="noopener noreferrer"
           className={`underline hover:opacity-80 ${
-            isDark ? 'text-purple-400' : 'text-purple-600'
+            forceWhite ? 'text-white/90' : isDark ? 'text-purple-400' : 'text-purple-600'
           }`}
         >
           {match[1]}
@@ -864,14 +866,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
     }
 
     if (lastIndex < text.length) {
-      parts.push(formatBoldAndItalic(text.slice(lastIndex)));
+      parts.push(formatBoldAndItalic(text.slice(lastIndex), forceWhite));
     }
 
-    return parts.length > 0 ? parts : formatBoldAndItalic(text);
+    return parts.length > 0 ? parts : formatBoldAndItalic(text, forceWhite);
   };
 
   // 处理粗体和斜体
-  const formatBoldAndItalic = (text: string): React.ReactNode => {
+  const formatBoldAndItalic = (text: string, forceWhite = false): React.ReactNode => {
     // 处理粗体 **text**
     const boldPattern = /\*\*([^*]+)\*\*/g;
     const parts: React.ReactNode[] = [];
@@ -880,12 +882,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
 
     while ((match = boldPattern.exec(text)) !== null) {
       if (match.index > lastIndex) {
-        parts.push(formatItalicAndCode(text.slice(lastIndex, match.index)));
+        parts.push(formatItalicAndCode(text.slice(lastIndex, match.index), forceWhite));
       }
       parts.push(
         <strong
           key={`bold-${match.index}`}
-          className={isDark ? 'text-gray-100 font-semibold' : 'text-gray-900 font-semibold'}
+          className={forceWhite ? 'text-white font-semibold' : isDark ? 'text-gray-100 font-semibold' : 'text-gray-900 font-semibold'}
         >
           {match[1]}
         </strong>
@@ -894,14 +896,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
     }
 
     if (lastIndex < text.length) {
-      parts.push(formatItalicAndCode(text.slice(lastIndex)));
+      parts.push(formatItalicAndCode(text.slice(lastIndex), forceWhite));
     }
 
-    return parts.length > 0 ? parts : formatItalicAndCode(text);
+    return parts.length > 0 ? parts : formatItalicAndCode(text, forceWhite);
   };
 
   // 处理斜体和行内代码
-  const formatItalicAndCode = (text: string): React.ReactNode => {
+  const formatItalicAndCode = (text: string, forceWhite = false): React.ReactNode => {
     // 处理斜体 *text* 或 _text_
     const italicPattern = /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|_([^_]+)_/g;
     // 处理行内代码 `code`
@@ -915,13 +917,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
     while ((match = codePattern.exec(text)) !== null) {
       if (match.index > lastIndex) {
         const beforeText = text.slice(lastIndex, match.index);
-        parts.push(formatItalicOnly(beforeText));
+        parts.push(formatItalicOnly(beforeText, forceWhite));
       }
       parts.push(
         <code
           key={`code-${match.index}`}
           className={`px-1.5 py-0.5 rounded text-xs font-mono ${
-            isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
+            forceWhite ? 'bg-white/20 text-white' : isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
           }`}
         >
           {match[1]}
@@ -931,14 +933,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
     }
 
     if (lastIndex < text.length) {
-      parts.push(formatItalicOnly(text.slice(lastIndex)));
+      parts.push(formatItalicOnly(text.slice(lastIndex), forceWhite));
     }
 
-    return parts.length > 0 ? parts : formatItalicOnly(text);
+    return parts.length > 0 ? parts : formatItalicOnly(text, forceWhite);
   };
 
   // 仅处理斜体
-  const formatItalicOnly = (text: string): React.ReactNode => {
+  const formatItalicOnly = (text: string, forceWhite = false): React.ReactNode => {
     const italicPattern = /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|_([^_]+)_/g;
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
@@ -951,7 +953,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
       parts.push(
         <em
           key={`italic-${match.index}`}
-          className={`italic ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+          className={`italic ${forceWhite ? 'text-white/90' : isDark ? 'text-gray-400' : 'text-gray-600'}`}
         >
           {match[1] || match[2]}
         </em>
@@ -1001,7 +1003,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
               : 'bg-white text-gray-800 rounded-bl-md border border-gray-200'
         }`}>
           <div className="leading-relaxed">
-            {formatContent(message.content)}
+            {formatContent(message.content, isUser)}
           </div>
         </div>
 

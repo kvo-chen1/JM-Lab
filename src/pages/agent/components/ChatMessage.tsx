@@ -25,6 +25,7 @@ import { ChevronDown, ChevronUp, Lightbulb, Wand2, Users, Loader2, Share2, Layou
 import { analyzeContent, ContentAnalysisResult } from '../services/contentAnalyzer';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
 
 interface ChatMessageProps {
@@ -264,6 +265,7 @@ function MarkdownContent({
             </td>
           ),
         }}
+        remarkPlugins={[remarkGfm]}
       >
         {processedContent}
       </ReactMarkdown>
@@ -1620,11 +1622,32 @@ export default function ChatMessage({
           </div>
         );
 
+      case 'requirement-collection':
+      case 'greeting':
+        return (
+          <div className="space-y-3">
+            {renderDelegationIndicator()}
+            {/* V2 版本思考过程 - 移到顶部 */}
+            {message.metadata?.thinkingSteps && (
+              <InlineThinkingProcess steps={message.metadata.thinkingSteps} />
+            )}
+            <MarkdownContent
+              content={message.content}
+              isDark={isDark}
+              isUser={isUser}
+            />
+          </div>
+        );
+
       case 'text':
       default:
         return (
           <div className="space-y-4">
             {renderDelegationIndicator()}
+            {/* V2 版本思考过程 - 移到顶部 */}
+            {message.metadata?.thinkingSteps && (
+              <InlineThinkingProcess steps={message.metadata.thinkingSteps} />
+            )}
             <MarkdownContent
               content={message.content}
               isDark={isDark}

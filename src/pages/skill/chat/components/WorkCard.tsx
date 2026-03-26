@@ -263,6 +263,8 @@ interface WorkCardProps {
   onDownload?: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
+  onElementEdit?: (workId: string) => void;
+  isElementEditing?: boolean;
 }
 
 export const WorkCard: React.FC<WorkCardProps> = ({
@@ -276,25 +278,27 @@ export const WorkCard: React.FC<WorkCardProps> = ({
   onDownload,
   onDragStart,
   onDragEnd,
+  onElementEdit,
+  isElementEditing,
 }) => {
   const { isDark } = useTheme();
-  const { editingWorkId, setEditingWorkId, addWork, enterElementEditMode } = useCanvasStore();
+  const { editingWorkId, setEditingWorkId, addWork } = useCanvasStore();
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isFavorite, setIsFavorite] = useState(work.isFavorite || false);
-  
+
   // 编辑相关状态
   const isEditing = editingWorkId === work.id;
   const [editedImageUrl, setEditedImageUrl] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
-  
+
   // 快速编辑模式状态
   const [editMode, setEditMode] = useState<'quick' | 'full'>('quick');
   const [isQuickEditing, setIsQuickEditing] = useState(false);
   const [quickEditResult, setQuickEditResult] = useState<string | null>(null);
-  
+
   // 文本展开状态
   const [isTextExpanded, setIsTextExpanded] = useState(false);
 
@@ -466,6 +470,16 @@ export const WorkCard: React.FC<WorkCardProps> = ({
       setEditedImageUrl(null);
       setQuickEditResult(null);
     }
+  };
+
+  // 处理编辑元素按钮点击
+  const handleEditElements = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (work.type !== 'image' && work.type !== 'design') {
+      toast.error('只有图片类型作品支持元素编辑');
+      return;
+    }
+    onElementEdit?.(work.id);
   };
 
   // 切换到完整编辑器
@@ -811,6 +825,19 @@ export const WorkCard: React.FC<WorkCardProps> = ({
           <div className="flex items-center gap-1">
             <button
               data-action-button
+              onClick={handleEditElements}
+              className={`p-1.5 rounded-lg backdrop-blur-sm transition-colors ${
+                (work.type === 'image' || work.type === 'design')
+                  ? 'bg-white/20 text-white hover:bg-purple-500/80'
+                  : 'bg-white/10 text-white/50 cursor-not-allowed'
+              }`}
+              title="编辑元素"
+              disabled={!(work.type === 'image' || work.type === 'design')}
+            >
+              <Layers className="w-3.5 h-3.5" />
+            </button>
+            <button
+              data-action-button
               onClick={handleEditClick}
               className={`p-1.5 rounded-lg backdrop-blur-sm transition-colors ${
                 isEditing
@@ -1047,6 +1074,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
     </motion.div>
   );
 };

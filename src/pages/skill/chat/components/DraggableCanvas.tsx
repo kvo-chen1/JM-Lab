@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@/hooks/useTheme';
-import { useCanvasStore, WorkItem } from '../hooks/useCanvasStore';
+import { useCanvasStore, WorkItem, IsolatedElement } from '../hooks/useCanvasStore';
 import { WorkCard } from './WorkCard';
+import { IsolatedElementCard } from './IsolatedElementCard';
 import { CanvasControls } from './CanvasControls';
 import { EmptyState } from './EmptyState';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Check, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+import { performElementIsolation } from '../services/elementIsolationService';
 
 interface DraggableCanvasProps {
   isGenerating?: boolean;
@@ -51,6 +54,13 @@ export const DraggableCanvas: React.FC<DraggableCanvasProps> = ({
   const lastMousePos = useRef({ x: 0, y: 0 });
   const previousToolRef = useRef(selectedTool);
   const [isCardDragging, setIsCardDragging] = useState(false);
+
+  // 元素编辑状态
+  const [elementEditingWorkId, setElementEditingWorkId] = useState<string | null>(null);
+  const [isolatedElements, setIsolatedElements] = useState<IsolatedElement[]>([]);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [isIsolating, setIsIsolating] = useState(false);
+  const [isElementDragging, setIsElementDragging] = useState(false);
 
   // 处理画布鼠标按下
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -254,6 +264,97 @@ export const DraggableCanvas: React.FC<DraggableCanvasProps> = ({
     updateWorkPosition(id, { x, y });
   }, [updateWorkPosition]);
 
+  // 处理元素编辑
+  const handleElementEdit = useCallback(async (workId: string) => {
+    const work = works.find(w => w.id === workId);
+    if (!work) return;
+
+    if (elementEditingWorkId === workId) {
+      // 退出元素编辑模式
+      setElementEditingWorkId(null);
+      // 保存到 work
+      updateWork(workId, {
+        isolatedElements,
+        isElementSeparated: isolatedElements.length > 0,
+      });
+      toast.success('元素编辑已保存');
+    } else {
+      // 进入元素编辑模式
+      setElementEditingWorkId(workId);
+      setSelectedElementId(null);
+      // 如果已有分离的元素，使用它们
+      if (work.isolatedElements && work.isolatedElements.length > 0) {
+        setIsolatedElements(work.isolatedElements);
+      } else if (work.imageUrl) {
+        // 自动识别元素
+        setIsIsolating(true);
+        try {
+          toast.info('正在智能识别图片元素...');
+          const elements = await performElementIsolation(work.imageUrl, work.id);
+          setIsolatedElements(elements);
+          toast.success(`成功分离 ${elements.length} 个元素`);
+        } catch (error) {
+          console.error('[DraggableCanvas] 元素分离失败:', error);
+          toast.error('元素识别失败');
+        } finally {
+          setIsIsolating(false);
+        }
+      }
+    }
+  }, [elementEditingWorkId, works, isolatedElements, updateWork]);
+
+  // 处理重新识别元素
+  const handleReisolate = useCallback(async () => {
+    if (!elementEditingWorkId) return;
+    const work = works.find(w => w.id === elementEditingWorkId);
+    if (!work?.imageUrl) return;
+
+    setIsIsolating(true);
+    try {
+      toast.info('正在重新识别图片元素...');
+      const elements = await performElementIsolation(work.imageUrl, work.id);
+      setIsolatedElements(elements);
+      toast.success(`成功分离 ${elements.length} 个元素`);
+    } catch (error) {
+      console.error('[DraggableCanvas] 元素分离失败:', error);
+      toast.error('元素识别失败');
+    } finally {
+      setIsIsolating(false);
+    }
+  }, [elementEditingWorkId, works]);
+
+  // 处理元素位置更新
+  const handleElementPositionChange = useCallback((id: string, x: number, y: number) => {
+    setIsolatedElements(prev => prev.map(el =>
+      el.id === id ? { ...el, position: { ...el.position, x, y } } : el
+    ));
+  }, []);
+
+  // 处理元素变换更新
+  const handleElementTransformChange = useCallback((id: string, transform: Partial<IsolatedElement['transform']>) => {
+    setIsolatedElements(prev => prev.map(el =>
+      el.id === id ? { ...el, transform: { ...el.transform, ...transform } } : el
+    ));
+  }, []);
+
+  // 处理元素样式更新
+  const handleElementStyleChange = useCallback((id: string, style: Partial<IsolatedElement['style']>) => {
+    setIsolatedElements(prev => prev.map(el =>
+      el.id === id ? { ...el, style: { ...el.style, ...style } } : el
+    ));
+  }, []);
+
+  // 处理删除元素
+  const handleDeleteElement = useCallback((id: string) => {
+    setIsolatedElements(prev => prev.filter(el => el.id !== id));
+    if (selectedElementId === id) {
+      setSelectedElementId(null);
+    }
+  }, [selectedElementId]);
+
+  // 获取当前编辑的作品
+  const elementEditingWork = elementEditingWorkId ? works.find(w => w.id === elementEditingWorkId) : null;
+
   return (
     <div
       ref={containerRef}
@@ -296,9 +397,223 @@ export const DraggableCanvas: React.FC<DraggableCanvasProps> = ({
                     onDownload={() => onWorkDownload?.(work)}
                     onDragStart={() => setIsCardDragging(true)}
                     onDragEnd={() => setIsCardDragging(false)}
+                    onElementEdit={handleElementEdit}
+                    isElementEditing={elementEditingWorkId === work.id}
                   />
                 ))}
               </AnimatePresence>
+
+              {/* 分离的元素卡片 - 显示在画布上 */}
+              {elementEditingWork && isolatedElements.length > 0 && (
+                <>
+                  {isolatedElements.map((element, index) => (
+                    <motion.div
+                      key={element.id}
+                      initial={{ opacity: 0, scale: 0.8, x: -20 }}
+                      animate={{ opacity: 1, scale: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.8, x: -20 }}
+                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                      style={{
+                        position: 'absolute',
+                        left: elementEditingWork.position.x + element.position.x,
+                        top: elementEditingWork.position.y + element.position.y,
+                        width: element.position.width || 150,
+                        height: element.position.height || 150,
+                        zIndex: 1000 + index,
+                      }}
+                    >
+                      <IsolatedElementCard
+                        element={{
+                          ...element,
+                          position: {
+                            ...element.position,
+                            x: 0,
+                            y: 0,
+                          }
+                        }}
+                        isSelected={selectedElementId === element.id}
+                        canvasZoom={canvasZoom}
+                        onSelect={() => {
+                          if (!isElementDragging) {
+                            setSelectedElementId(selectedElementId === element.id ? null : element.id);
+                          }
+                        }}
+                        onPositionChange={(x, y) => {
+                          // 计算相对于原作品的位置
+                          const relativeX = x - elementEditingWork.position.x;
+                          const relativeY = y - elementEditingWork.position.y;
+                          handleElementPositionChange(element.id, relativeX, relativeY);
+                        }}
+                        onTransformChange={(transform) => handleElementTransformChange(element.id, transform)}
+                        onDragStart={() => setIsElementDragging(true)}
+                        onDragEnd={() => setIsElementDragging(false)}
+                      />
+                    </motion.div>
+                  ))}
+
+                  {/* 元素编辑工具栏 */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className={`absolute flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg ${
+                      isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
+                    }`}
+                    style={{
+                      left: elementEditingWork.position.x,
+                      top: elementEditingWork.position.y - 50,
+                      zIndex: 2000,
+                    }}
+                  >
+                    <span className={`text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      元素编辑模式
+                    </span>
+                    <div className={`w-px h-4 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                    <button
+                      onClick={handleReisolate}
+                      disabled={isIsolating}
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                        isDark
+                          ? 'hover:bg-gray-700 text-gray-300'
+                          : 'hover:bg-gray-100 text-gray-600'
+                      } disabled:opacity-50`}
+                    >
+                      {isIsolating ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3 h-3" />
+                      )}
+                      重新识别
+                    </button>
+                    <button
+                      onClick={() => handleElementEdit(elementEditingWork.id)}
+                      className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-purple-500 text-white hover:bg-purple-600 transition-colors"
+                    >
+                      <Check className="w-3 h-3" />
+                      完成
+                    </button>
+                  </motion.div>
+
+                  {/* 选中元素的属性面板 */}
+                  <AnimatePresence>
+                    {selectedElementId && (() => {
+                      const selectedElement = isolatedElements.find(el => el.id === selectedElementId);
+                      if (!selectedElement) return null;
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20 }}
+                          className={`absolute w-56 rounded-lg shadow-lg overflow-hidden ${
+                            isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
+                          }`}
+                          style={{
+                            left: elementEditingWork.position.x + (elementEditingWork.position.width || 448) + 520,
+                            top: elementEditingWork.position.y,
+                            zIndex: 2000,
+                            maxHeight: '500px',
+                          }}
+                        >
+                          {/* 属性面板头部 */}
+                          <div className={`px-3 py-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                            <h4 className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {selectedElement.name}
+                            </h4>
+                          </div>
+
+                          {/* 属性面板内容 */}
+                          <div className="p-3 space-y-4 overflow-y-auto" style={{ maxHeight: '450px' }}>
+                            {/* 变换控制 */}
+                            <div className="space-y-2">
+                              <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                变换
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>缩放</span>
+                                  <input
+                                    type="range"
+                                    min="10"
+                                    max="500"
+                                    value={Math.round(selectedElement.transform.scale * 100)}
+                                    onChange={(e) => handleElementTransformChange(selectedElementId, { scale: Number(e.target.value) / 100 })}
+                                    className="w-full h-1 mt-1"
+                                  />
+                                </div>
+                                <div>
+                                  <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>旋转</span>
+                                  <input
+                                    type="range"
+                                    min="-180"
+                                    max="180"
+                                    value={selectedElement.transform.rotation}
+                                    onChange={(e) => handleElementTransformChange(selectedElementId, { rotation: Number(e.target.value) })}
+                                    className="w-full h-1 mt-1"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 样式控制 */}
+                            <div className="space-y-2">
+                              <label className={`text-xs font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                样式
+                              </label>
+                              <div className="space-y-2">
+                                <div>
+                                  <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>亮度</span>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="200"
+                                    value={selectedElement.style.brightness}
+                                    onChange={(e) => handleElementStyleChange(selectedElementId, { brightness: Number(e.target.value) })}
+                                    className="w-full h-1 mt-1"
+                                  />
+                                </div>
+                                <div>
+                                  <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>对比度</span>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="200"
+                                    value={selectedElement.style.contrast}
+                                    onChange={(e) => handleElementStyleChange(selectedElementId, { contrast: Number(e.target.value) })}
+                                    className="w-full h-1 mt-1"
+                                  />
+                                </div>
+                                <div>
+                                  <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>透明度</span>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    value={selectedElement.style.opacity}
+                                    onChange={(e) => handleElementStyleChange(selectedElementId, { opacity: Number(e.target.value) })}
+                                    className="w-full h-1 mt-1"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 删除按钮 */}
+                            <button
+                              onClick={() => handleDeleteElement(selectedElementId)}
+                              className={`w-full py-2 rounded text-xs transition-colors ${
+                                isDark
+                                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                                  : 'bg-red-50 text-red-600 hover:bg-red-100'
+                              }`}
+                            >
+                              删除元素
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })()}
+                  </AnimatePresence>
+                </>
+              )}
               
               {/* 生成中状态 */}
               {isGenerating && (
@@ -341,6 +656,7 @@ export const DraggableCanvas: React.FC<DraggableCanvasProps> = ({
         viewMode={viewMode}
         onViewModeChange={(mode) => useCanvasStore.setState({ viewMode: mode })}
       />
+
     </div>
   );
 };

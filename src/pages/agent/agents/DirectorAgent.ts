@@ -392,14 +392,17 @@ ${JSON.stringify(output, null, 2)}
     
     // 使用 Markdown 表格展示需求项
     if (questions.length > 0) {
-      message += '| 需求项 | 问题描述 |\n';
-      message += '|--------|----------|\n';
-      
       // 将问题映射到标准需求项
       const requirementItems = this.mapQuestionsToRequirementItems(questions, analysis);
       
+      // 构建表格 - 使用两行两列的格式
+      message += '| 需求项 | 问题描述 |\n';
+      message += '| :--- | :--- |\n';
+      
       requirementItems.forEach(item => {
-        message += `| **${item.label}** | ${item.question} |\n`;
+        // 确保问题描述在一行内，移除换行符
+        const cleanQuestion = item.question.replace(/\n/g, ' ').trim();
+        message += `| **${item.label}** | ${cleanQuestion} |\n`;
       });
       
       message += '\n';

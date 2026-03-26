@@ -273,14 +273,18 @@ export function parseColorSchemesFromContent(content: string | undefined | null)
 // 从消息内容中解析选项列表
 export function parseOptionsFromContent(content: string | undefined | null): string[] | null {
   if (!content || typeof content !== 'string') {
+    console.log('[parseOptionsFromContent] content is empty or not string');
     return null;
   }
+
+  console.log('[parseOptionsFromContent] parsing content:', content.substring(0, 200));
 
   const options: string[] = [];
   const seen = new Set<string>();
 
   // 按行分割并处理
   const lines = content.split('\n');
+  console.log('[parseOptionsFromContent] total lines:', lines.length);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -288,6 +292,7 @@ export function parseOptionsFromContent(content: string | undefined | null): str
     // 匹配 "1. 造型比例：xxx" 或 "1) 造型比例" 格式
     const numberedMatch = line.match(/^(\d+)[.)]\s*(.+)$/);
     if (numberedMatch) {
+      console.log('[parseOptionsFromContent] found numbered option:', numberedMatch[2]);
       let optionText = numberedMatch[2].trim();
 
       // 只取第一行内容，遇到 "-" 或 "•" 开头的行就停止
@@ -319,10 +324,12 @@ export function parseOptionsFromContent(content: string | undefined | null): str
       if (optionText.length >= 2 && !seen.has(optionText)) {
         seen.add(optionText);
         options.push(optionText);
+        console.log('[parseOptionsFromContent] added option:', optionText);
       }
     }
   }
 
+  console.log('[parseOptionsFromContent] found', options.length, 'options');
   // 如果找到至少2个选项，返回结果
   return options.length >= 2 ? options : null;
 }

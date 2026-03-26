@@ -1415,20 +1415,33 @@ export const useCreateStore = create<CreateState & CreateActions>()(
   }),
   updateEditedImage: async (imageId, editedDataUrl) => {
     try {
-      // 将 base64 转换为 File 对象
-      const response = await fetch(editedDataUrl);
-      const blob = await response.blob();
+      // 将 base64 转换为 Blob，使用 atob 避免 fetch CSP 问题
+      const base64Data = editedDataUrl.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
       const file = new File([blob], `edited-image-${Date.now()}.png`, { type: 'image/png' });
       
       // 调用图片上传服务
       const { uploadImage } = await import('@/services/imageService');
       const uploadedUrl = await uploadImage(file);
       
-      // 更新 generatedResults 中对应图片的缩略图
+      // 更新 generatedResults 中对应图片的缩略图，添加时间戳避免缓存
       set((state) => {
-        const updatedResults = state.generatedResults.map(r => 
-          r.id === imageId ? { ...r, thumbnail: uploadedUrl, editedAt: Date.now() } : r
-        );
+        const updatedResults = state.generatedResults.map(r => {
+          if (r.id === imageId) {
+            // 添加时间戳参数避免浏览器缓存
+            const urlWithTimestamp = uploadedUrl.includes('?') 
+              ? `${uploadedUrl}&_t=${Date.now()}` 
+              : `${uploadedUrl}?_t=${Date.now()}`;
+            return { ...r, thumbnail: urlWithTimestamp };
+          }
+          return r;
+        });
         return { generatedResults: updatedResults };
       });
       
@@ -1440,7 +1453,7 @@ export const useCreateStore = create<CreateState & CreateActions>()(
   },
   updateGeneratedResultThumbnail: (imageId, newThumbnail) => set((state) => {
     const updatedResults = state.generatedResults.map(r => 
-      r.id === imageId ? { ...r, thumbnail: newThumbnail, editedAt: Date.now() } : r
+      r.id === imageId ? { ...r, thumbnail: newThumbnail } : r
     );
     return { generatedResults: updatedResults };
   }),

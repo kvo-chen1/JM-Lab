@@ -806,13 +806,6 @@ export default function CanvasArea({ isSidebarCollapsed, setIsSidebarCollapsed }
                                 <i className="fas fa-edit text-white text-lg"></i>
                               </div>
                             )}
-                            
-                            {/* 已编辑标识 */}
-                            {(result as any).editedAt && !isEditingImage && (
-                              <div className="absolute top-1 right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                                <i className="fas fa-pen text-white text-[10px]"></i>
-                              </div>
-                            )}
                           </motion.button>
                           
                           {/* 删除按钮 - 默认隐藏，悬浮时显示 */}

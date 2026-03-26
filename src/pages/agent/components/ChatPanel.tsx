@@ -27,12 +27,12 @@ import BrandLibrary from './BrandLibrary';
 import WorkLibrary from './WorkLibrary';
 import IPPosterLibrary from './IPPosterLibrary';
 import StyleSelector from './StyleSelector';
-import SkillPanel from './SkillPanel';
 import AgentSelector from './AgentSelector';
 import WorkflowExecutionPanel, { WorkflowStep, StepStatus } from './WorkflowExecutionPanel';
 import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 import { IPMascotVideoLoader } from '@/components/ip-mascot';
 import { ThinkingDecisionPanel } from './thinking';
+import { ThinkingProcessPanel, InlineThinkingProcess } from './ThinkingProcessPanel';
 import type { ThinkingSession, ThinkingStep } from '../types/thinking';
 import type { InspirationHint, StyleOption } from '../types/agent';
 import type { Brand } from '@/lib/brands';
@@ -42,7 +42,7 @@ import { ipPosterService } from '@/services/ipPosterService';
 import { uploadPastedImages } from '@/pages/skill/chat/services/imageUploadService';
 import {
   processWithOrchestrator,
-  ConversationContext
+  ConversationContextV2
 } from '../services/agentOrchestrator';
 import {
   analyzeDesignRequirements
@@ -57,6 +57,7 @@ import { AGENT_CONFIG, PRESET_STYLES, LLM_MODELS, getLLMModelConfig } from '../t
 import { Suggestion } from '../services/suggestionEngine';
 import { executeStrategies, shouldAutoAddToCanvas } from '../services/canvasGenerationStrategy';
 import type { GeneratedOutput } from '../types/agent';
+import { getConversationTracker, resetConversationTracker } from '../services/conversationTracker';
 
 // Agent对话消耗的津币数
 const AGENT_CHAT_COST = 10;
@@ -367,11 +368,15 @@ export default function ChatPanel() {
     setCollaborating,
     selectStyle,
     setCurrentModel,
-    clearPendingMention
+    clearPendingMention,
+    setRequirementConfirmed
   } = useAgentStore();
 
   // 记录已处理的消息ID，防止重复添加
   const processedMessageIds = useRef<Set<string>>(new Set());
+
+  // AI生成状态 - 必须在所有依赖它的 useCallback 之前声明
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // 智能自动添加到画布
   const autoAddToCanvas = useCallback((message: AgentMessage, silent: boolean = false) => {
@@ -421,6 +426,47 @@ export default function ChatPanel() {
     return null;
   }, [addOutput]);
 
+  // 统一的安全检查函数：判断是否应该显示风格选择器
+  const shouldShowStyleSelectorSafely = useCallback(() => {
+    // 已经选择风格，不显示
+    if (selectedStyle) {
+      console.log('[ChatPanel] 已选择风格，不显示风格选择器');
+      return false;
+    }
+
+    // 正在生成中，不显示
+    if (isGenerating) {
+      console.log('[ChatPanel] 正在生成中，不显示风格选择器');
+      return false;
+    }
+
+    // 已经有生成内容，不显示
+    if (generatedOutputs.length > 0) {
+      console.log('[ChatPanel] 已有生成内容，不显示风格选择器');
+      return false;
+    }
+
+    // 当前没有任务，不显示
+    if (!currentTask) {
+      console.log('[ChatPanel] 没有当前任务，不显示风格选择器');
+      return false;
+    }
+
+    // 需求收集未完成，不显示
+    if (requirementCollection?.stage !== 'completed') {
+      console.log('[ChatPanel] 需求收集未完成，不显示风格选择器');
+      return false;
+    }
+
+    // 用户未确认，不显示
+    if (!requirementCollection?.confirmed) {
+      console.log('[ChatPanel] 用户未确认需求，不显示风格选择器');
+      return false;
+    }
+
+    return true;
+  }, [selectedStyle, isGenerating, generatedOutputs, currentTask, requirementCollection]);
+
   // 获取 URL 参数和 location state（用于"做同款"功能）
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -438,17 +484,15 @@ export default function ChatPanel() {
   const [showStyleLibrary, setShowStyleLibrary] = useState(false);
   const [showIPPosterLibrary, setShowIPPosterLibrary] = useState(false);
   const [selectedIPPosterLayoutId, setSelectedIPPosterLayoutId] = useState<string | undefined>();
-  // Skill面板状态
-  const [showSkillPanel, setShowSkillPanel] = useState(false);
   // Agent 锁定状态
   const [isAgentLocked, setIsAgentLocked] = useState(false);
-  // AI生成状态
-  const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationMessage, setGenerationMessage] = useState('AI正在创作中...');
   // 思考过程状态
   const [thinkingSession, setThinkingSession] = useState<ThinkingSession | null>(null);
   const [showThinkingProcess, setShowThinkingProcess] = useState(false);
+  // 增强版思考过程
+  const [enhancedThinkingSteps, setEnhancedThinkingSteps] = useState<any[]>([]);
   // 粘贴图片相关状态
   const [pastedImages, setPastedImages] = useState<Array<{ id: string; file: File; preview: string }>>([]);
   const [isProcessingPaste, setIsProcessingPaste] = useState(false);
@@ -469,6 +513,8 @@ export default function ChatPanel() {
   const { user: authUser } = useContext(AuthContext);
   const [userId, setUserId] = useState<string | undefined>(undefined);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  const sessionIdRef = useRef<string>('');
+  const retryCountRef = useRef(0);
 
   // 津币相关状态
   const {
@@ -587,25 +633,22 @@ export default function ChatPanel() {
   useEffect(() => {
     // 延迟执行，确保消息数据已从持久化存储中恢复
     const timer = setTimeout(() => {
-      // 检查消息历史中是否有提示选择风格的消息
-      const lastMessage = messages[messages.length - 1];
-      const hasStyleSelectionPrompt = lastMessage &&
-        (lastMessage.content?.includes('请先选择一个你喜欢的风格') ||
-         lastMessage.metadata?.showStyleSelector);
-
-      // 检查是否没有选择风格且没有生成内容
-      const shouldShowSelector = !selectedStyle &&
+      // 只有在需求收集完成且用户已确认后才显示风格选择器
+      const shouldShowSelector =
+        !selectedStyle &&
         generatedOutputs.length === 0 &&
-        hasStyleSelectionPrompt;
+        currentTask &&  // 需要当前任务存在
+        requirementCollection?.stage === 'completed' &&  // 需求收集完成
+        requirementCollection?.confirmed;  // 用户已确认
 
       if (shouldShowSelector) {
-        console.log('[ChatPanel] 检测到需要显示风格选择器');
+        console.log('[ChatPanel] 需求已确认，显示风格选择器');
         setShowStyleSelector(true);
       }
     }, 500); // 延迟500ms，确保状态已恢复
 
     return () => clearTimeout(timer);
-  }, [messages, selectedStyle, generatedOutputs, setShowStyleSelector]);
+  }, [selectedStyle, generatedOutputs, currentTask, requirementCollection, setShowStyleSelector]);
 
   // 监听 showStyleSelector 状态变化，当为 true 时添加风格选择消息
   useEffect(() => {
@@ -636,6 +679,7 @@ export default function ChatPanel() {
           localStorage.setItem('agent_session_id', storedSessionId);
         }
         setSessionId(storedSessionId);
+        sessionIdRef.current = storedSessionId;
 
         // 优先使用 AuthContext 中的用户（如果已登录）
         if (authUser?.id) {
@@ -725,7 +769,13 @@ export default function ChatPanel() {
   const handleAutoImageGeneration = useCallback(async (skipMessage = false) => {
     console.log('[ChatPanel] handleAutoImageGeneration 被调用，skipMessage:', skipMessage);
     console.log('[ChatPanel] 当前状态 - selectedStyle:', selectedStyle, 'currentTask:', currentTask ? '存在' : 'null');
-    
+
+    // 添加生成锁检查，防止重复触发
+    if (isGenerating) {
+      console.log('[ChatPanel] 生成正在进行中，跳过重复调用');
+      return;
+    }
+
     if (!selectedStyle || !currentTask) {
       console.warn('[ChatPanel] 生成条件不满足，提前返回:', { hasStyle: !!selectedStyle, hasTask: !!currentTask });
       return;
@@ -736,7 +786,17 @@ export default function ChatPanel() {
       console.warn('[ChatPanel] 未找到风格配置:', selectedStyle);
       return;
     }
-    
+
+    // 检查是否已经为当前任务和风格生成过内容
+    const hasGeneratedForCurrentTask = generatedOutputs.some(
+      output => output.agentType === currentAgent && output.style === selectedStyle
+    );
+
+    if (hasGeneratedForCurrentTask) {
+      console.log('[ChatPanel] 当前任务和风格已生成过，跳过');
+      return;
+    }
+
     console.log('[ChatPanel] 开始生成，风格:', style.name);
 
     // 获取最近创建的任务卡片（用于更新状态）
@@ -823,11 +883,25 @@ export default function ChatPanel() {
       console.log('[ChatPanel] 自动触发图像生成，prompt:', prompt);
 
       // 调用图像生成API
+      console.log('[ChatPanel] 开始调用 generateImage，参数:', {
+        model: 'qwen-image-2.0',
+        prompt: prompt.substring(0, 100) + '...',
+        size: '1024x1024',
+        n: 1
+      });
+
       const result = await llmService.generateImage({
-        model: 'qwen-image-2.0-pro',
+        model: 'qwen-image-2.0',
         prompt: prompt,
         size: '1024x1024',
         n: 1
+      });
+
+      console.log('[ChatPanel] generateImage 返回结果:', {
+        ok: result.ok,
+        hasData: !!result.data,
+        error: result.error,
+        dataStructure: result.data ? Object.keys(result.data) : 'no data'
       });
 
       // 停止进度模拟和分阶段提示
@@ -836,13 +910,17 @@ export default function ChatPanel() {
       setGenerationProgress(100);
 
       if (!result.ok) {
+        console.error('[ChatPanel] 图像生成失败:', result.error);
         throw new Error(result.error || '图像生成失败');
       }
 
       // 使用统一函数提取图像URL
+      console.log('[ChatPanel] 开始提取图像URL...');
       const imageUrl = extractImageUrl(result);
+      console.log('[ChatPanel] 提取的图像URL:', imageUrl ? '成功' : '失败');
 
       if (!imageUrl) {
+        console.error('[ChatPanel] 无法提取图像URL，result结构:', JSON.stringify(result, null, 2));
         throw new Error('无法获取生成的图像URL');
       }
 
@@ -943,6 +1021,9 @@ export default function ChatPanel() {
         }, 2000);
       }
 
+      // 生成成功，重置重试计数器
+      retryCountRef.current = 0;
+
       // 记录生成成功反馈
       learningManager.recordFeedback(
         authUser?.id || 'anonymous',
@@ -984,18 +1065,29 @@ export default function ChatPanel() {
         type: 'text'
       });
 
-      // 智能重试：延迟3秒后自动重试一次
-      setTimeout(() => {
-        console.log('[ChatPanel] 自动重试生成...');
+      // 智能重试：限制重试次数，避免无限循环
+      if (retryCountRef.current < 2) {  // 最多重试2次
+        retryCountRef.current++;
+        setTimeout(() => {
+          console.log(`[ChatPanel] 自动重试生成... (${retryCountRef.current}/2)`);
+          addMessage({
+            role: 'system',
+            content: `🔄 重新尝试生成中... (${retryCountRef.current}/2)`,
+            type: 'text'
+          });
+          handleAutoImageGenerationRef.current?.(true);
+        }, 3000);
+      } else {
+        // 超过重试次数，停止重试并提示用户
+        retryCountRef.current = 0;
         addMessage({
           role: 'system',
-          content: '🔄 重新尝试生成中...',
+          content: '❌ 生成多次失败，请稍后重试或调整描述后再次尝试',
           type: 'text'
         });
-        handleAutoImageGenerationRef.current?.(true);
-      }, 3000);
+      }
     }
-  }, [selectedStyle, currentTask, currentAgent, addMessage, addOutput, updateOutput, generatedOutputs, setShowStyleSelector]);
+  }, [selectedStyle, currentTask, currentAgent, addMessage, addOutput, updateOutput, generatedOutputs, setShowStyleSelector, isGenerating]);
 
   // 将函数赋值给 ref
   handleAutoImageGenerationRef.current = handleAutoImageGeneration;
@@ -1218,7 +1310,7 @@ export default function ChatPanel() {
         // 处理多步骤工作流响应
         if (response.workflow) {
           console.log('[ChatPanel] 收到工作流响应:', response.workflow);
-          
+
           // 初始化工作流状态
           const stepsWithStatus: WorkflowStep[] = response.workflow.steps.map((step, index) => ({
             ...step,
@@ -1234,12 +1326,23 @@ export default function ChatPanel() {
             isExecuting: false // 等待用户确认后开始
           });
 
-          // 更新消息类型为工作流
+          // 将 quickActions 转换为文字中的可点击选项
+          const quickActions = response.metadata?.quickActions || [];
+          const actionText = quickActions.length > 0
+            ? '\n\n**点击开始：**' + quickActions.map((action: any) => `[${action.label}](option:${action.action})`).join(' ｜ ')
+            : '\n\n**点击开始：**[开始执行](option:start_workflow) ｜ [先不开始](option:cancel_workflow)';
+
           updateMessage(messageId, {
-            type: 'workflow',
+            type: 'text',
+            content: response.content + actionText,
             metadata: {
               workflow: response.workflow,
-              thinking: response.aiResponse?.thinking
+              thinking: response.aiResponse?.thinking,
+              // 保留 quickActions 用于事件处理
+              quickActions: quickActions.length > 0 ? quickActions : [
+                { label: '开始执行', action: 'start_workflow', description: '开始执行工作流' },
+                { label: '先不开始', action: 'cancel_workflow', description: '暂不开始' }
+              ]
             }
           });
         }
@@ -1272,6 +1375,13 @@ export default function ChatPanel() {
           // Agent切换后，检查是否需要显示风格选择器或确认生成
           setTimeout(() => {
             console.log('[ChatPanel] Agent切换后检查 - selectedStyle:', selectedStyle);
+
+            // 先检查需求收集状态，未完成则不显示风格选择器
+            if (requirementCollection?.stage !== 'completed' || !requirementCollection?.confirmed) {
+              console.log('[ChatPanel] 需求收集未完成，不显示风格选择器，继续对话');
+              return;
+            }
+
             if (selectedStyle) {
               // 如果已选择风格，询问用户是否立即生成，而不是直接生成
               const style = PRESET_STYLES.find(s => s.id === selectedStyle);
@@ -1302,9 +1412,13 @@ export default function ChatPanel() {
                 }
               });
             } else {
-              // 如果没有选择风格，显示风格选择器
-              console.log('[ChatPanel] 未选择风格，显示风格选择器');
-              setShowStyleSelector(true);
+              // 如果没有选择风格，检查是否满足显示条件
+              if (shouldShowStyleSelectorSafely()) {
+                console.log('[ChatPanel] 未选择风格且满足条件，显示风格选择器');
+                setShowStyleSelector(true);
+              } else {
+                console.log('[ChatPanel] 不满足显示风格选择器条件，继续对话');
+              }
             }
           }, 1500); // 等待切换动画完成
         }
@@ -1419,17 +1533,18 @@ export default function ChatPanel() {
         break;
     }
 
-    // 处理风格选项
-    if (response.type === 'style-options' || response.aiResponse?.type === 'style-options' || response.metadata?.showStyleSelector) {
-      console.log('[ChatPanel] 显示风格选择器');
+    // 处理风格选项 - 添加安全检查
+    if ((response.type === 'style-options' || response.aiResponse?.type === 'style-options' || response.metadata?.showStyleSelector) &&
+        shouldShowStyleSelectorSafely()) {
+      console.log('[ChatPanel] 响应要求显示风格选择器，且满足条件');
       setShowStyleSelector(true);
     }
 
     // 检测 AI 响应中是否提到风格选择器在下方但未显示 - 修复显示不一致问题
     const hasStyleSelectorMention = response.content.includes('风格选择器') &&
       (response.content.includes('下方') || response.content.includes('在下面') || response.content.includes('下方显示'));
-    if (hasStyleSelectorMention && !showStyleSelector && !selectedStyle) {
-      console.log('[ChatPanel] 检测到 AI 提及风格选择器在下方，自动显示');
+    if (hasStyleSelectorMention && !showStyleSelector && !selectedStyle && shouldShowStyleSelectorSafely()) {
+      console.log('[ChatPanel] 检测到 AI 提及风格选择器在下方，且满足条件，自动显示');
       setShowStyleSelector(true);
     }
 
@@ -1441,9 +1556,30 @@ export default function ChatPanel() {
       response.content.includes('让我直接为你生成') ||
       response.content.includes('直接为你生成图像') ||
       response.content.includes('正在生成中，请稍候');
-    // 修改：移除 generatedOutputs.length === 0 限制，支持细化选项的生成（正式概念图、三视图等）
-    if (isGeneratingMention && selectedStyle && currentTask && !isGenerating) {
-      console.log('[ChatPanel] 检测到 AI 提及正在生成，自动触发生成流程');
+
+    // 更严格的检查：确保AI真正在确认生成，而不仅仅是提及
+    const isRealGenerationConfirmation = isGeneratingMention &&
+      !response.content.includes('如果') &&  // 排除条件句
+      !response.content.includes('可以') &&  // 排除建议句
+      !response.content.includes('需要') &&  // 排除需求询问
+      (response.content.includes('✅') ||
+       response.content.includes('开始生成') ||
+       response.content.includes('立即') ||
+       response.content.includes('马上'));   // 必须有明确的确认词
+
+    // 调试日志：显示触发条件状态
+    console.log('[ChatPanel] 生成触发检查:', {
+      isGeneratingMention,
+      isRealGenerationConfirmation,
+      hasSelectedStyle: !!selectedStyle,
+      hasCurrentTask: !!currentTask,
+      isNotGenerating: !isGenerating,
+      canTrigger: isRealGenerationConfirmation && selectedStyle && currentTask && !isGenerating
+    });
+
+    // 修改：使用更严格的确认检查，避免误触发
+    if (isRealGenerationConfirmation && selectedStyle && currentTask && !isGenerating) {
+      console.log('[ChatPanel] 检测到 AI 确认生成，自动触发生成流程');
       
       // 添加状态检测开始提示
       addMessage({
@@ -1603,24 +1739,36 @@ export default function ChatPanel() {
     // 检查上一条消息是否是询问（避免连续询问后错误触发）
     const lastMessage = messages[messages.length - 1];
 
-    const shouldShowStyleSelector = shouldShowStyleSelectorForResponse(
-      response.agent,
-      response.content,
-      !!selectedStyle,
-      hasGeneratedContent,
-      lastMessage
-    );
+    // 只有需求收集完成后才允许智能检测显示风格选择器
+    const canShowStyleSelector = requirementCollection?.stage === 'completed' &&
+                                  requirementCollection?.confirmed &&
+                                  !selectedStyle &&
+                                  !hasGeneratedContent;
+
+    let shouldShowStyleSelector = false;
+    if (canShowStyleSelector) {
+      shouldShowStyleSelector = shouldShowStyleSelectorForResponse(
+        response.agent,
+        response.content,
+        !!selectedStyle,
+        hasGeneratedContent,
+        lastMessage
+      );
+    }
 
     console.log('[ChatPanel] 智能检测风格选择器:', {
       agent: response.agent,
       content: response.content.slice(0, 100),
+      canShowStyleSelector,
       shouldShowStyleSelector,
       selectedStyle,
       hasGeneratedContent,
+      requirementStage: requirementCollection?.stage,
+      requirementConfirmed: requirementCollection?.confirmed,
       matchedKeyword: DESIGN_INTENT_KEYWORDS.find(keyword => response.content.includes(keyword))
     });
 
-    if (shouldShowStyleSelector) {
+    if (shouldShowStyleSelector && canShowStyleSelector) {
       console.log('[ChatPanel] 触发风格选择器显示');
       // 立即显示风格选择器，减少延迟提升用户体验
       setShowStyleSelector(true);
@@ -1879,6 +2027,42 @@ export default function ChatPanel() {
       }
     });
 
+    // 对话主题跟踪
+    const conversationTracker = getConversationTracker();
+    conversationTracker.addMessage(userMessageObj);
+
+    // 检查是否是特殊指令
+    const lowerInput = userMessage.toLowerCase();
+    if (lowerInput.includes('回到正题') || lowerInput.includes('回到主题') || lowerInput.includes('继续之前')) {
+      const topicSummary = conversationTracker.getTopicSummary();
+      if (topicSummary) {
+        addMessage({
+          role: 'system',
+          content: `📋 回到正题\n\n${topicSummary}\n\n💡 让我们继续讨论...`,
+          type: 'text'
+        });
+      }
+    } else if (lowerInput.includes('总结一下') || lowerInput.includes('总结当前')) {
+      const summary = await conversationTracker.summarizeTopic();
+      if (summary) {
+        addMessage({
+          role: 'system',
+          content: `📊 对话总结\n\n${summary}`,
+          type: 'text'
+        });
+      }
+    } else {
+      // 检查是否偏离主题
+      const deviationCheck = await conversationTracker.checkTopicDeviation(userMessage);
+      if (deviationCheck.isDeviated && deviationCheck.deviationReason) {
+        addMessage({
+          role: 'system',
+          content: `⚠️ 主题偏离提醒\n\n原因：${deviationCheck.deviationReason}\n\n💡 建议：可以输入"回到正题"继续之前的讨论，或者开始新的话题。`,
+          type: 'text'
+        });
+      }
+    }
+
     // 检测用户消息中是否包含风格关键词，自动设置风格（使用清理后的内容）
     console.log('[ChatPanel] 检测风格 - cleanInput:', cleanInput, '当前 selectedStyle:', selectedStyle);
     const detectedStyle = detectStyleFromMessage(cleanInput);
@@ -2091,7 +2275,57 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
       // 使用编排器处理用户输入（带错误处理和重试）
       const orchestratorResult = await errorHandler.handleWithRetry(
         async () => {
-          const response = await processWithOrchestrator(userMessage, context);
+          // 构建 V2 上下文
+          const contextV2: ConversationContextV2 = {
+            ...context,
+            systemStatus: {
+              isGenerating: false,
+              isThinking: true
+            }
+          };
+          
+          const v2Response = await processWithOrchestrator(userMessage, contextV2);
+          
+          // 保存增强版思考过程
+          if (v2Response.thinkingSteps) {
+            setEnhancedThinkingSteps(v2Response.thinkingSteps);
+          }
+          
+          // 转换 V2 响应为 V1 格式（兼容现有处理逻辑）
+          const response = {
+            type: v2Response.type === 'collaboration' ? 'delegation' : v2Response.type,
+            agent: v2Response.agent,
+            content: v2Response.content,
+            aiResponse: v2Response.aiResponse,
+            delegationTask: v2Response.delegationTask,
+            collaborationAgents: v2Response.collaborationAgents,
+            workflow: v2Response.workflow,
+            metadata: {
+              ...v2Response.metadata,
+              decisionInfo: v2Response.decisionInfo,
+              thinkingSteps: v2Response.thinkingSteps
+            }
+          };
+          
+          // 更新思考过程显示
+          if (v2Response.thinkingSteps && v2Response.thinkingSteps.length > 0) {
+            const lastStep = v2Response.thinkingSteps[v2Response.thinkingSteps.length - 1];
+            setThinkingSession(prev => prev ? {
+              ...prev,
+              status: lastStep.status === 'error' ? 'error' : 'completed',
+              steps: v2Response.thinkingSteps!.map((step, index) => ({
+                id: step.id,
+                type: step.type,
+                title: step.title,
+                status: step.status === 'running' ? 'processing' : 
+                        step.status === 'completed' ? 'completed' : 'error',
+                summary: step.summary || '',
+                details: step.details,
+                startTime: step.startTime,
+                endTime: step.endTime
+              }))
+            } : null);
+          }
 
           // 更新当前 Agent（仅在未锁定状态下）
           // 避免过度切换：如果用户只是咨询，不要切换Agent
@@ -2119,6 +2353,15 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
 
           // 处理编排器响应
           await handleOrchestratorResponse(response, tempMessageId);
+
+          // 根据响应类型设置需求收集确认状态
+          // 如果响应类型是 delegation、workflow、chain 或 handoff，说明需求收集已完成
+          if (['delegation', 'workflow', 'chain', 'handoff'].includes(response.type)) {
+            if (!requirementCollection?.confirmed) {
+              console.log('[ChatPanel] 检测到任务分配/工作流响应，设置需求已确认');
+              setRequirementConfirmed(true);
+            }
+          }
 
           return response;
         },
@@ -2483,9 +2726,13 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
   useEffect(() => {
     const handleBrandSelected = (event: CustomEvent<Brand>) => {
       const brand = event.detail;
-      console.log('[ChatPanel] 收到品牌选择事件:', brand.name);
-      if (pendingDesignType === 'brand-design') {
+      console.log('[ChatPanel] 收到品牌选择事件:', brand.name, 'pendingDesignType:', pendingDesignType);
+      // 只要有pendingDesignType就处理，不一定是'brand-design'
+      if (pendingDesignType) {
         handleBrandSelectedForDesign(brand);
+      } else {
+        // 如果没有pendingDesignType，使用常规处理
+        handleBrandSelect(brand);
       }
     };
 
@@ -2493,13 +2740,13 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
     return () => {
       window.removeEventListener('brand-selected-for-design', handleBrandSelected as EventListener);
     };
-  }, [pendingDesignType, handleBrandSelectedForDesign]);
+  }, [pendingDesignType, handleBrandSelectedForDesign, handleBrandSelect]);
 
   // 监听选项选择事件
   useEffect(() => {
     const handleOptionSelected = (event: CustomEvent<{ option: any; message: AgentMessage }>) => {
       const { option, message } = event.detail;
-      console.log('[ChatPanel] 收到选项选择事件:', option);
+      console.log('[ChatPanel] 收到选项选择事件:', option, '当前工作流:', activeWorkflow?.name);
 
       // 注意：细化设计选项 (formal-concept, three-view, detail-design) 现在直接使用 trigger-auto-generation 事件
       // 不再通过 option-selected 事件处理，参见 ChatMessage.tsx 中的 handleRefinementOption
@@ -2511,13 +2758,73 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
         type: 'text'
       });
 
+      // 检查是否是工作流相关操作
+      if (option.action === 'start_workflow' || option.action?.startsWith('start_workflow_step_')) {
+        console.log('[ChatPanel] 用户选择开始执行工作流，action:', option.action);
+        
+        // 使用函数式更新获取最新的 activeWorkflow 状态
+        setActiveWorkflow(prev => {
+          if (prev) {
+            console.log('[ChatPanel] 启动工作流:', prev.name);
+            
+            // 添加系统消息
+            addMessage({
+              role: 'system',
+              content: `开始执行：**${prev.steps[0].name}**\n\n正在为您${prev.steps[0].description}...`,
+              type: 'text'
+            });
+            
+            // 触发实际的图像生成
+            setTimeout(() => {
+              if (selectedStyle && currentTask) {
+                handleAutoImageGenerationRef.current?.(true);
+              } else if (!selectedStyle) {
+                // 如果没有选择风格，显示风格选择器
+                setShowStyleSelector(true);
+                addMessage({
+                  role: 'system',
+                  content: '请先选择一个风格，然后开始生成。',
+                  type: 'text'
+                });
+              }
+            }, 500);
+            
+            return { ...prev, isExecuting: true };
+          }
+          console.warn('[ChatPanel] 没有活跃的工作流可启动');
+          return prev;
+        });
+        return;
+      }
+
+      if (option.action === 'cancel_workflow') {
+        console.log('[ChatPanel] 用户取消工作流');
+        setActiveWorkflow(null);
+        addMessage({
+          role: 'system',
+          content: '已取消工作流。您可以随时提出新的需求。',
+          type: 'text'
+        });
+        return;
+      }
+
       // 检查是否是确认生成类的选项（如"开始"、"确认"、"生成"等）
       const isGenerationConfirmation = /^(开始|确认|生成|立即生成|开始生成)$/i.test(option.label.trim());
 
-      // 如果是确认生成，且未选择风格，则显示风格选择器
+      // 如果是确认生成，且未选择风格，则检查是否满足显示条件
       if (isGenerationConfirmation && !selectedStyle) {
-        console.log('[ChatPanel] 用户确认生成但未选择风格，显示风格选择器');
-        setShowStyleSelector(true);
+        if (shouldShowStyleSelectorSafely()) {
+          console.log('[ChatPanel] 用户确认生成且满足条件，显示风格选择器');
+          setShowStyleSelector(true);
+        } else {
+          console.log('[ChatPanel] 用户确认生成但不满足条件，继续对话');
+          // 添加提示消息说明需要先完成需求确认
+          addMessage({
+            role: 'system',
+            content: '💡 在生成之前，我需要先了解你的具体需求。请告诉我更多关于设计的想法。',
+            type: 'text'
+          });
+        }
         return;
       }
 
@@ -2558,7 +2865,7 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
     return () => {
       window.removeEventListener('option-selected', handleOptionSelected as EventListener);
     };
-  }, [currentAgent, messages, authUser, selectedWork, selectedBrand, addMessage, selectedStyle, setShowStyleSelector, currentTask]);
+  }, [currentAgent, messages, authUser, selectedWork, selectedBrand, addMessage, selectedStyle, setShowStyleSelector, currentTask, activeWorkflow]);
 
   // 处理作品选择
   const handleWorkSelect = (work: Work) => {
@@ -2769,6 +3076,7 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
           >
             <BrandLibrary
               onBrandSelect={(brand) => {
+                console.log('[ChatPanel] BrandLibrary onBrandSelect:', brand.name, 'pendingDesignType:', pendingDesignType);
                 if (pendingDesignType) {
                   handleBrandSelectedForDesign(brand);
                 } else {
@@ -2776,11 +3084,10 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
                 }
               }}
               onClose={() => {
+                console.log('[ChatPanel] BrandLibrary onClose, pendingDesignType:', pendingDesignType);
                 setShowBrandLibrary(false);
-                // 如果用户关闭品牌选择器而不选择品牌，清理待处理状态
-                if (pendingDesignType) {
-                  setPendingDesignType(null);
-                }
+                // 注意：品牌选择后会自动调用onClose，此时pendingDesignType已经被handleBrandSelectedForDesign清空
+                // 所以这里不需要再清理pendingDesignType
               }}
               selectedBrand={selectedBrand?.id}
             />
@@ -2871,18 +3178,23 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
 
       {/* Messages Area */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-        {/* Skill 能力面板 */}
-        <SkillPanel 
-          agentType={currentAgent}
-          isExpanded={showSkillPanel}
-          onToggle={() => setShowSkillPanel(!showSkillPanel)}
-        />
-
         {/* 智能建议面板 */}
         <SuggestionPanel onSuggestionClick={handleSuggestionClick} />
 
         {/* 工作流状态 */}
         <WorkflowStatus />
+
+        {/* 增强版思考过程面板 */}
+        {enhancedThinkingSteps.length > 0 && (
+          <div className="sticky top-2 z-10">
+            <ThinkingProcessPanel
+              steps={enhancedThinkingSteps}
+              isVisible={true}
+              onClose={() => setEnhancedThinkingSteps([])}
+              className="ml-auto mr-4 shadow-xl"
+            />
+          </div>
+        )}
 
         {/* 工作流执行面板 */}
         {activeWorkflow && (

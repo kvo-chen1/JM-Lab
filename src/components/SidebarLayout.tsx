@@ -1402,6 +1402,26 @@ export default memo(function SidebarLayout({ children }: SidebarLayoutProps) {
                             <i className="fas fa-chevron-right text-xs text-gray-300 group-hover/item:text-gray-400 transition-all transform group-hover/item:translate-x-1"></i>
                           </button>
                         </motion.li>
+
+                        {/* GitHub - 跳转到GitHub项目页面 */}
+                        <motion.li
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: getDuration(0.1), delay: getDelay(0.16) }}
+                        >
+                          <button
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group/item ${isDark ? 'hover:bg-gray-700/50 text-gray-200' : 'hover:bg-gray-100 text-gray-700'}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowUserMenu(false);
+                              window.open('https://github.com/kvo-chen1/JM-Lab', '_blank');
+                            }}
+                          >
+                            <i className={`fab fa-github w-5 text-center text-base transition-colors ${isDark ? 'text-gray-400 group-hover/item:text-pink-400' : 'text-gray-400 group-hover/item:text-pink-500'}`}></i>
+                            <span className="flex-1 text-left text-sm font-medium">GitHub</span>
+                            <i className="fas fa-chevron-right text-xs text-gray-300 group-hover/item:text-gray-400 transition-all transform group-hover/item:translate-x-1"></i>
+                          </button>
+                        </motion.li>
                       </ul>
 
                       {/* 主题切换 */}

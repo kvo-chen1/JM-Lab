@@ -136,12 +136,6 @@ const AgentPage = createLazyComponent(() => import(/* webpackChunkName: "pages-a
   name: 'agent'
 });
 
-// Skill 架构测试页面
-const SkillTestPage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent-skill-test" */ "@/pages/agent/skill-test"), {
-  priority: ROUTE_PRIORITIES.LOW,
-  name: 'skill-test'
-});
-
 // Agent案例展示页面
 const AgentCasesPage = createLazyComponent(() => import(/* webpackChunkName: "pages-agent-cases" */ "@/pages/agent-cases"), {
   priority: ROUTE_PRIORITIES.HIGH,
@@ -1469,8 +1463,6 @@ export default function App() {
           <Route path="/create/*" element={<LazyComponent><DesignPlatformGuard><Create /></DesignPlatformGuard></LazyComponent>} />
           {/* Agent 路由 - 独立于 create */}
           <Route path="/agent/*" element={<LazyComponent><DesignPlatformGuard><AgentPage /></DesignPlatformGuard></LazyComponent>} />
-          {/* Skill 架构测试页面 */}
-          <Route path="/agent-test" element={<LazyComponent><SkillTestPage /></LazyComponent>} />
           
           {/* Agent案例展示页面 */}
           <Route path="/agent-cases" element={<LazyComponent><AgentCasesPage /></LazyComponent>} />

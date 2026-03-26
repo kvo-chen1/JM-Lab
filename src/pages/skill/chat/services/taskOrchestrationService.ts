@@ -4,6 +4,53 @@
 
 import type { IntentType } from './intentService';
 
+// 任务子步骤定义
+export interface TaskSubStep {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number; // 0-100
+  startTime?: number;
+  endTime?: number;
+}
+
+// 不同技能类型的子步骤配置
+export const TASK_SUB_STEPS_CONFIG: Record<string, string[]> = {
+  'logo-design': ['分析品牌需求', '构思创意方向', '绘制图形草图', '优化细节设计', '生成最终Logo'],
+  'poster-design': ['分析主题内容', '构思视觉布局', '设计核心元素', '调整配色排版', '完善细节效果'],
+  'color-scheme': ['提取品牌基因', '生成配色方案', '验证色彩对比', '应用方案设计', '输出配色规范'],
+  'image-generation': ['解析画面需求', '构建视觉场景', '绘制图像内容', '优化光影效果', '生成最终图片'],
+  'brand-copy': ['理解品牌定位', '提炼核心卖点', '构思文案角度', '撰写文案内容', '润色优化表达'],
+  'video-script': ['明确视频目标', '设计叙事结构', '撰写分镜脚本', '优化节奏时长', '完善细节描述'],
+  'social-copy': ['分析平台特点', '把握用户心理', '撰写吸睛标题', '编写正文内容', '添加互动引导'],
+  'marketing-copy': ['分析产品卖点', '定位目标人群', '构思营销角度', '撰写推广文案', '优化转化引导'],
+  'text-generation': ['理解写作需求', '梳理内容框架', '撰写核心内容', '优化语言表达', '完善细节格式'],
+  'ui-design': ['分析功能需求', '设计信息架构', '绘制界面布局', '优化交互细节', '完善视觉规范'],
+  'illustration': ['理解创作需求', '构思画面构图', '绘制线稿草图', '上色细化处理', '完善最终效果'],
+  'default': ['分析需求', '构思方案', '执行创作', '优化调整', '完成生成'],
+};
+
+/**
+ * 获取技能类型的子步骤
+ */
+export const getSubStepsForSkill = (skill: IntentType): string[] => {
+  return TASK_SUB_STEPS_CONFIG[skill] || TASK_SUB_STEPS_CONFIG['default'];
+};
+
+/**
+ * 创建子步骤列表
+ */
+export const createSubSteps = (skill: IntentType): TaskSubStep[] => {
+  const stepNames = getSubStepsForSkill(skill);
+  return stepNames.map((name, index) => ({
+    id: `substep_${index}`,
+    name,
+    status: 'pending',
+    progress: 0,
+  }));
+};
+
 // 任务阶段状态
 export type TaskStageStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
@@ -327,6 +374,127 @@ const DESIGN_FLOW_STAGES = {
   copy: { name: '品牌文案', skill: 'brand-copy' as IntentType },
 };
 
+// 常见物料类型映射
+const MATERIAL_KEYWORDS: Record<string, { name: string; skill: IntentType; type: 'image' | 'text' | 'design' }> = {
+  'logo': { name: 'Logo设计', skill: 'logo-design', type: 'design' },
+  '标志': { name: 'Logo设计', skill: 'logo-design', type: 'design' },
+  '标识': { name: 'Logo设计', skill: 'logo-design', type: 'design' },
+  '商标': { name: 'Logo设计', skill: 'logo-design', type: 'design' },
+  '海报': { name: '海报设计', skill: 'poster-design', type: 'design' },
+  '宣传海报': { name: '海报设计', skill: 'poster-design', type: 'design' },
+  '主视觉': { name: '主视觉设计', skill: 'poster-design', type: 'design' },
+  'kv': { name: '主视觉设计', skill: 'poster-design', type: 'design' },
+  '名片': { name: '名片设计', skill: 'poster-design', type: 'design' },
+  '宣传册': { name: '宣传册设计', skill: 'poster-design', type: 'design' },
+  '手册': { name: '手册设计', skill: 'poster-design', type: 'design' },
+  '包装': { name: '包装设计', skill: 'poster-design', type: 'design' },
+  '包装盒': { name: '包装设计', skill: 'poster-design', type: 'design' },
+  '手提袋': { name: '手提袋设计', skill: 'poster-design', type: 'design' },
+  '工牌': { name: '工牌设计', skill: 'poster-design', type: 'design' },
+  '胸牌': { name: '胸牌设计', skill: 'poster-design', type: 'design' },
+  '信纸': { name: '信纸设计', skill: 'poster-design', type: 'design' },
+  '信封': { name: '信封设计', skill: 'poster-design', type: 'design' },
+  'ppt': { name: 'PPT模板', skill: 'poster-design', type: 'design' },
+  'ppt模板': { name: 'PPT模板', skill: 'poster-design', type: 'design' },
+  '社交媒体': { name: '社交媒体配图', skill: 'social-media-design', type: 'design' },
+  '配图': { name: '社交媒体配图', skill: 'social-media-design', type: 'design' },
+  '头图': { name: '头图设计', skill: 'poster-design', type: 'design' },
+  'banner': { name: 'Banner设计', skill: 'poster-design', type: 'design' },
+  '文案': { name: '品牌文案', skill: 'brand-copy', type: 'text' },
+  '品牌文案': { name: '品牌文案', skill: 'brand-copy', type: 'text' },
+  '品牌故事': { name: '品牌故事', skill: 'brand-copy', type: 'text' },
+  '故事': { name: '品牌故事', skill: 'brand-copy', type: 'text' },
+  '介绍': { name: '品牌介绍', skill: 'brand-copy', type: 'text' },
+  '简介': { name: '品牌简介', skill: 'brand-copy', type: 'text' },
+  '广告语': { name: '广告语', skill: 'brand-copy', type: 'text' },
+  'slogan': { name: 'Slogan', skill: 'brand-copy', type: 'text' },
+  '宣传语': { name: '宣传语', skill: 'brand-copy', type: 'text' },
+  '主持稿': { name: '主持稿', skill: 'brand-copy', type: 'text' },
+  '演讲稿': { name: '演讲稿', skill: 'brand-copy', type: 'text' },
+  '邀请函': { name: '邀请函文案', skill: 'brand-copy', type: 'text' },
+  '邀请': { name: '邀请函文案', skill: 'brand-copy', type: 'text' },
+  '朋友圈': { name: '朋友圈文案', skill: 'social-copy', type: 'text' },
+  '小红书': { name: '小红书文案', skill: 'social-copy', type: 'text' },
+  '微博': { name: '微博文案', skill: 'social-copy', type: 'text' },
+  '抖音': { name: '抖音文案', skill: 'social-copy', type: 'text' },
+  '社交媒体': { name: '社交媒体文案', skill: 'social-copy', type: 'text' },
+  '营销': { name: '营销文案', skill: 'marketing-copy', type: 'text' },
+  '推广': { name: '推广文案', skill: 'marketing-copy', type: 'text' },
+  '策略': { name: '营销策略', skill: 'marketing-copy', type: 'text' },
+  '方案': { name: '营销方案', skill: 'marketing-copy', type: 'text' },
+  '视频脚本': { name: '视频脚本', skill: 'video-script', type: 'text' },
+  '脚本': { name: '视频脚本', skill: 'video-script', type: 'text' },
+  '分镜': { name: '分镜脚本', skill: 'video-script', type: 'text' },
+  '短视频': { name: '短视频脚本', skill: 'video-script', type: 'text' },
+  '直播': { name: '直播脚本', skill: 'video-script', type: 'text' },
+  '插画': { name: '插画设计', skill: 'illustration', type: 'image' },
+  '插图': { name: '插画设计', skill: 'illustration', type: 'image' },
+  '吉祥物': { name: '吉祥物设计', skill: 'illustration', type: 'image' },
+  'ip': { name: 'IP形象', skill: 'illustration', type: 'image' },
+  '配色': { name: '配色方案', skill: 'color-scheme', type: 'design' },
+  '色彩': { name: '配色方案', skill: 'color-scheme', type: 'design' },
+  '字体': { name: '字体设计', skill: 'logo-design', type: 'design' },
+  '图标': { name: '图标设计', skill: 'logo-design', type: 'design' },
+  'icon': { name: '图标设计', skill: 'logo-design', type: 'design' },
+};
+
+/**
+ * 解析编号任务列表 (1. xxx, 2. xxx 格式)
+ * 支持格式：
+ * - 1. Logo设计 2. 海报设计
+ * - 1、Logo设计 2、海报设计
+ * - 1) Logo设计 2) 海报设计
+ */
+export const parseNumberedTasks = (message: string): Array<{ name: string; rawText: string }> => {
+  const tasks: Array<{ name: string; rawText: string }> = [];
+
+  // 匹配编号模式：1. xxx, 1、xxx, 1) xxx, (1) xxx
+  const numberedPattern = /(?:^|\n)\s*(?:\(?)(\d+)[\.、\)\s]+([^\n]+?)(?=\s*(?:\n|$|\(?\d+[\.、\)\s]))/g;
+
+  let match;
+  while ((match = numberedPattern.exec(message)) !== null) {
+    const rawText = match[2].trim();
+    // 提取任务名称（去除详细描述）
+    const name = rawText.split(/[，,。；;]/)[0].trim();
+    if (name) {
+      tasks.push({ name, rawText });
+    }
+  }
+
+  // 如果没有匹配到标准编号格式，尝试其他常见格式
+  if (tasks.length === 0) {
+    // 尝试匹配 "第一步 xxx"、"第1步 xxx" 格式
+    const stepPattern = /第\s*(\d+)\s*步[：:]?\s*([^\n]+?)(?=\s*(?:\n|$|第\s*\d+\s*步))/g;
+    while ((match = stepPattern.exec(message)) !== null) {
+      const rawText = match[2].trim();
+      const name = rawText.split(/[，,。；;]/)[0].trim();
+      if (name) {
+        tasks.push({ name, rawText });
+      }
+    }
+  }
+
+  return tasks;
+};
+
+/**
+ * 从任务描述中识别物料类型
+ */
+export const recognizeMaterialType = (taskText: string): { name: string; skill: IntentType; type: 'image' | 'text' | 'design' } | null => {
+  const normalizedText = taskText.toLowerCase();
+
+  // 按关键词长度降序排序，优先匹配更具体的词
+  const sortedKeywords = Object.entries(MATERIAL_KEYWORDS).sort((a, b) => b[0].length - a[0].length);
+
+  for (const [keyword, config] of sortedKeywords) {
+    if (normalizedText.includes(keyword.toLowerCase())) {
+      return config;
+    }
+  }
+
+  return null;
+};
+
 /**
  * 解析复杂任务
  */
@@ -363,6 +531,41 @@ export const parseComplexTask = (
 
   // 构建任务列表
   const tasks: BatchTask[] = [];
+
+  // ===== 新增：优先处理编号任务列表 =====
+  const numberedTasks = parseNumberedTasks(message);
+  if (numberedTasks.length >= 2) {
+    // 检测到编号列表，为每个编号创建任务
+    numberedTasks.forEach((task, index) => {
+      const materialType = recognizeMaterialType(task.rawText);
+
+      if (materialType) {
+        tasks.push({
+          name: materialType.name,
+          prompt: task.rawText,
+          type: materialType.type,
+          skill: materialType.skill,
+          dependencies: index > 0 ? [tasks[index - 1].name] : undefined,
+        });
+      } else {
+        // 无法识别具体类型时，根据内容推测
+        const isTextTask = /文案|脚本|故事|介绍|简介|文字|内容/.test(task.rawText);
+        tasks.push({
+          name: task.name,
+          prompt: task.rawText,
+          type: isTextTask ? 'text' : 'design',
+          skill: isTextTask ? 'brand-copy' : 'poster-design',
+          dependencies: index > 0 ? [tasks[index - 1].name] : undefined,
+        });
+      }
+    });
+
+    return {
+      isComplex: true,
+      isBatch: true,
+      tasks,
+    };
+  }
 
   // 1. 处理VI系统批量生成
   if (isBatch && (message.includes('VI') || message.includes('vi'))) {

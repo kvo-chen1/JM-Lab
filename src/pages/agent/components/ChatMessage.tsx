@@ -15,6 +15,7 @@ import FeedbackButtons from './FeedbackButtons';
 import DelegationIndicator from './DelegationIndicator';
 import ThinkingProcessCard from './ThinkingProcessCard';
 import { ThinkingDecisionPanel } from './thinking';
+import { InlineThinkingProcess } from './ThinkingProcessPanel';
 import type { ThinkingSession } from '../types/thinking';
 import ImageLightbox from './ImageLightbox';
 import ColorSchemeSelector, { parseColorSchemesFromContent, parseOptionsFromContent } from './ColorSchemeSelector';
@@ -41,13 +42,21 @@ interface ChatMessageProps {
 function MarkdownContent({ 
   content, 
   isDark,
-  isUser = false
+  isUser = false,
+  onOptionClick
 }: { 
   content: string | unknown; 
   isDark: boolean;
   isUser?: boolean;
+  onOptionClick?: (optionText: string) => void;
 }) {
   const safeContent = typeof content === 'string' ? content : String(content || '');
+  
+  // 预处理内容：将方案标题转换为可点击的链接格式
+  const processedContent = safeContent.replace(
+    /(方案[ABC]：[^\n]+)/g,
+    '[$1](option:$1)'
+  );
   
   return (
     <div className={`prose prose-sm max-w-none text-left ${isDark ? 'prose-invert' : ''}`}>
@@ -60,6 +69,25 @@ function MarkdownContent({
               {children}
             </p>
           ),
+          a: ({ href, children }) => {
+            // 检查是否是选项链接
+            if (href?.startsWith('option:')) {
+              const optionText = href.replace('option:', '');
+              return (
+                <button
+                  onClick={() => onOptionClick?.(optionText)}
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer hover:scale-105 ${
+                    isDark 
+                      ? 'bg-[#C02C38]/20 text-[#E85D75] hover:bg-[#C02C38]/30 border border-[#C02C38]/30' 
+                      : 'bg-[#C02C38]/10 text-[#C02C38] hover:bg-[#C02C38]/20 border border-[#C02C38]/20'
+                  }`}
+                >
+                  {children}
+                </button>
+              );
+            }
+            return <a href={href}>{children}</a>;
+          },
           strong: ({ children }) => (
             <strong className={`font-bold ${
               isUser 
@@ -237,7 +265,7 @@ function MarkdownContent({
           ),
         }}
       >
-        {safeContent}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );
@@ -883,112 +911,6 @@ export default function ChatMessage({
     generateDerivativeContent(option);
   };
 
-  // 处理快速操作按钮
-  const handleQuickAction = (action: any) => {
-    // 添加用户选择消息
-    addMessage({
-      role: 'user',
-      content: action.label,
-      type: 'text'
-    });
-
-    // 根据操作类型执行不同逻辑
-    switch (action.action) {
-      case 'generate_variations':
-        addMessage({
-          role: 'designer',
-          content: '好的！我来为你生成几个不同姿态和表情的变体，请稍候...',
-          type: 'text'
-        });
-        // TODO: 触发变体生成
-        break;
-      case 'refine':
-        addMessage({
-          role: 'designer',
-          content: '没问题！请告诉我具体想调整哪里？比如颜色、服饰、表情等',
-          type: 'text'
-        });
-        break;
-      case 'change_style':
-        addMessage({
-          role: 'designer',
-          content: '好的！我们换个风格试试。你想尝试什么风格？',
-          type: 'text'
-        });
-        // 显示风格选择器
-        setTimeout(() => {
-          const { setShowStyleSelector } = useAgentStore.getState();
-          setShowStyleSelector(true);
-        }, 500);
-        break;
-      case 'finalize':
-        addMessage({
-          role: 'designer',
-          content: '完美！作品已保存到你的作品库。你可以随时查看、下载或分享！',
-          type: 'text'
-        });
-        toast.success('作品已保存！');
-        break;
-      // 新增：Agent切换后的确认操作
-      case 'generate_now':
-        // 用户确认立即生成 - 使用当前Agent，避免硬编码
-        {
-          const { currentAgent: currentAgentForGenerate } = useAgentStore.getState();
-          addMessage({
-            role: currentAgentForGenerate,
-            content: '好的！我立即开始为你生成设计作品，请稍候...',
-            type: 'text'
-          });
-        }
-        // 触发生成
-        setTimeout(() => {
-          const { selectedStyle, currentTask, currentAgent } = useAgentStore.getState();
-          if (selectedStyle && currentTask) {
-            // 触发自动图像生成
-            window.dispatchEvent(new CustomEvent('trigger-auto-generation'));
-          }
-        }, 500);
-        break;
-      case 'continue_chat':
-        // 用户选择继续沟通，不生成 - 使用当前Agent，避免硬编码
-        {
-          const { currentAgent: currentAgentForContinue } = useAgentStore.getState();
-          addMessage({
-            role: currentAgentForContinue,
-            content: '没问题！我们可以继续交流，你可以告诉我更多关于设计的需求和想法。',
-            type: 'text'
-          });
-        }
-        break;
-      // 新增：确认生成（在 executeRespond 中询问确认时使用）
-      case 'confirm_generate':
-        // 用户确认生成 - 使用当前Agent，避免硬编码
-        {
-          const { currentAgent: currentAgentForConfirm } = useAgentStore.getState();
-          addMessage({
-            role: currentAgentForConfirm,
-            content: '好的！我立即开始为你生成设计作品，请稍候...',
-            type: 'text'
-          });
-        }
-        // 触发生成
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('trigger-auto-generation'));
-        }, 500);
-        break;
-      // 新增：选择风格
-      case 'select_style':
-        // 显示风格选择器
-        setTimeout(() => {
-          const { setShowStyleSelector } = useAgentStore.getState();
-          setShowStyleSelector(true);
-        }, 300);
-        break;
-      default:
-        break;
-    }
-  };
-
   // 生成衍生内容
   const generateDerivativeContent = async (option: any) => {
     // 添加生成中消息
@@ -1358,13 +1280,22 @@ export default function ChatMessage({
             {message.metadata?.thinking && !message.metadata?.thinkingSession && (
               <ThinkingProcess thinking={message.metadata.thinking} />
             )}
+            {/* V2 版本思考过程 */}
+            {message.metadata?.thinkingSteps && (
+              <InlineThinkingProcess steps={message.metadata.thinkingSteps} />
+            )}
           </div>
         );
 
       case 'delegation':
         return (
-          <div>
+          <div className="space-y-3">
             {renderDelegationIndicator()}
+            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
+            {/* V2 版本思考过程 */}
+            {message.metadata?.thinkingSteps && (
+              <InlineThinkingProcess steps={message.metadata.thinkingSteps} />
+            )}
           </div>
         );
 
@@ -1373,6 +1304,10 @@ export default function ChatMessage({
           <div className="space-y-3">
             {renderCollaborationIndicator()}
             <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
+            {/* V2 版本思考过程 */}
+            {message.metadata?.thinkingSteps && (
+              <InlineThinkingProcess steps={message.metadata.thinkingSteps} />
+            )}
           </div>
         );
 
@@ -1413,31 +1348,6 @@ export default function ChatMessage({
             {/* 显示思考过程 */}
             {message.metadata?.thinking && (
               <ThinkingProcess thinking={message.metadata.thinking} />
-            )}
-            {/* 显示 Skill 调用过程 */}
-            {message.metadata?.skillExecution && (
-              <div className={`mt-3 p-3 rounded-lg text-xs ${
-                isDark ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'
-              }`}>
-                <div className={`flex items-center gap-2 mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  <Wand2 className="w-3 h-3" />
-                  <span className="font-medium">Skill 调用</span>
-                </div>
-                <div className={`pl-5 space-y-1 ${isDark ? 'text-gray-500' : 'text-gray-600'}`}>
-                  <p>技能: {message.metadata.skillExecution.skillName}</p>
-                  <p>执行时间: {new Date(message.metadata.skillExecution.executionTime).toLocaleTimeString()}</p>
-                  {message.metadata.skillExecution.parameters && (
-                    <div className="mt-2">
-                      <p className="mb-1">参数:</p>
-                      <pre className={`p-2 rounded text-[10px] overflow-x-auto ${
-                        isDark ? 'bg-gray-900 text-gray-400' : 'bg-white text-gray-600'
-                      }`}>
-                        {JSON.stringify(message.metadata.skillExecution.parameters, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              </div>
             )}
 
             {/* 发布到案例按钮 */}
@@ -1609,55 +1519,69 @@ export default function ChatMessage({
             {renderDelegationIndicator()}
             <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
             {Array.isArray(message.metadata?.designTypeOptions) && (
-              <div className="grid grid-cols-2 gap-3">
-                {message.metadata.designTypeOptions.map((option: any, index: number) => (
-                  <motion.button
-                    key={option.id}
-                    onClick={() => handleDesignTypeOption(option)}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: 1.03, y: -4 }}
-                    whileTap={{ scale: 0.97 }}
-                    className={`group relative p-4 rounded-2xl text-left overflow-hidden transition-all duration-300 ${
-                      isDark
-                        ? 'bg-gradient-to-br from-gray-800/90 to-gray-900/90 border border-gray-700/50 hover:border-[#C02C38]/50 hover:shadow-lg hover:shadow-[#C02C38]/10'
-                        : 'bg-gradient-to-br from-white to-gray-50/80 border border-gray-200/80 hover:border-[#C02C38]/40 hover:shadow-xl hover:shadow-[#C02C38]/10'
-                    }`}
-                  >
-                    {/* 背景装饰 */}
-                    <div className={`absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 ${
-                      isDark ? 'bg-[#C02C38]' : 'bg-[#C02C38]'
-                    }`} />
-
-                    <div className="relative flex items-start gap-3">
-                      {/* 图标容器 */}
-                      <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-transform duration-300 group-hover:scale-110 ${
-                        isDark
-                          ? 'bg-gradient-to-br from-[#C02C38]/20 to-[#C02C38]/5'
-                          : 'bg-gradient-to-br from-[#C02C38]/10 to-[#C02C38]/5'
-                      }`}>
-                        {option.icon}
-                      </div>
-
-                      {/* 文字内容 */}
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-semibold text-sm mb-1 transition-colors group-hover:text-[#C02C38] ${
-                          isDark ? 'text-gray-100' : 'text-gray-900'
-                        }`}>
-                          {option.label}
-                        </p>
-                        <p className={`text-xs leading-relaxed line-clamp-2 ${
-                          isDark ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          {option.description}
-                        </p>
-                      </div>
+              <div className="space-y-4">
+                {message.metadata.designTypeOptions.map((category: any, catIndex: number) => (
+                  <div key={catIndex} className="space-y-3">
+                    {/* 分类标题 */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{category.category?.split(' ')[0]}</span>
+                      <span className={`text-sm font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {category.category?.split(' ').slice(1).join(' ')}
+                      </span>
                     </div>
+                    {/* 选项网格 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {category.items?.map((option: any, index: number) => (
+                        <motion.button
+                          key={option.id}
+                          onClick={() => handleDesignTypeOption(option)}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: (catIndex * 2 + index) * 0.1 }}
+                          whileHover={{ scale: 1.03, y: -4 }}
+                          whileTap={{ scale: 0.97 }}
+                          className={`group relative p-4 rounded-2xl text-left overflow-hidden transition-all duration-300 ${
+                            isDark
+                              ? 'bg-gradient-to-br from-gray-800/90 to-gray-900/90 border border-gray-700/50 hover:border-[#C02C38]/50 hover:shadow-lg hover:shadow-[#C02C38]/10'
+                              : 'bg-gradient-to-br from-white to-gray-50/80 border border-gray-200/80 hover:border-[#C02C38]/40 hover:shadow-xl hover:shadow-[#C02C38]/10'
+                          }`}
+                        >
+                          {/* 背景装饰 */}
+                          <div className={`absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 ${
+                            isDark ? 'bg-[#C02C38]' : 'bg-[#C02C38]'
+                          }`} />
 
-                    {/* 底部指示条 */}
-                    <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C02C38] to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
-                  </motion.button>
+                          <div className="relative flex items-start gap-3">
+                            {/* 图标容器 */}
+                            <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-transform duration-300 group-hover:scale-110 ${
+                              isDark
+                                ? 'bg-gradient-to-br from-[#C02C38]/20 to-[#C02C38]/5'
+                                : 'bg-gradient-to-br from-[#C02C38]/10 to-[#C02C38]/5'
+                            }`}>
+                              {option.icon}
+                            </div>
+
+                            {/* 文字内容 */}
+                            <div className="flex-1 min-w-0">
+                              <p className={`font-semibold text-sm mb-1 transition-colors group-hover:text-[#C02C38] ${
+                                isDark ? 'text-gray-100' : 'text-gray-900'
+                              }`}>
+                                {option.label}
+                              </p>
+                              <p className={`text-xs leading-relaxed line-clamp-2 ${
+                                isDark ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                {option.description}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 底部指示条 */}
+                          <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C02C38] to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -1685,57 +1609,6 @@ export default function ChatMessage({
           </div>
         );
 
-      case 'quick-actions':
-        return (
-          <div className="space-y-4">
-            {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
-            {Array.isArray(message.metadata?.quickActions) && (
-              <div className="grid grid-cols-2 gap-3">
-                {message.metadata.quickActions.map((action: any, index: number) => (
-                  <motion.button
-                    key={action.action}
-                    onClick={() => handleQuickAction(action)}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: 1.03, y: -2 }}
-                    whileTap={{ scale: 0.97 }}
-                    className={`group relative p-4 rounded-2xl text-left overflow-hidden transition-all duration-300 ${
-                      isDark
-                        ? 'bg-gradient-to-br from-gray-800/90 to-gray-900/90 border border-gray-700/50 hover:border-[#C02C38]/50 hover:shadow-lg hover:shadow-[#C02C38]/10'
-                        : 'bg-gradient-to-br from-white to-gray-50/80 border border-gray-200/80 hover:border-[#C02C38]/40 hover:shadow-xl hover:shadow-[#C02C38]/10'
-                    }`}
-                  >
-                    {/* 背景装饰 */}
-                    <div className={`absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 ${
-                      isDark ? 'bg-[#C02C38]' : 'bg-[#C02C38]'
-                    }`} />
-
-                    <div className="relative">
-                      {/* 标题 */}
-                      <p className={`font-semibold text-sm mb-1 transition-colors group-hover:text-[#C02C38] ${
-                        isDark ? 'text-gray-100' : 'text-gray-900'
-                      }`}>
-                        {action.label}
-                      </p>
-                      {/* 描述 */}
-                      <p className={`text-xs leading-relaxed ${
-                        isDark ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
-                        {action.description}
-                      </p>
-                    </div>
-
-                    {/* 底部指示条 */}
-                    <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#C02C38] to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500`} />
-                  </motion.button>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
       case 'chain-progress':
         return (
           <div className="space-y-3">
@@ -1752,71 +1625,37 @@ export default function ChatMessage({
         return (
           <div className="space-y-4">
             {renderDelegationIndicator()}
-            <MarkdownContent content={message.content} isDark={isDark} isUser={isUser} />
+            <MarkdownContent
+              content={message.content}
+              isDark={isDark}
+              isUser={isUser}
+              onOptionClick={(optionText) => {
+                console.log('[ChatMessage] 点击文字选项:', optionText);
 
-            {/* 显示通用选项按钮（如果消息中包含 metadata.options） */}
-            {Array.isArray(message.metadata?.options) && message.metadata.options.length > 0 && (
-              <div className="mt-4 space-y-2">
-                {message.metadata.options
-                  // 过滤掉无效的选项（必须有 label 或 title，且不能是 "--"）
-                  .filter((option: any) => {
-                    const text = option.label || option.title || '';
-                    return text && text !== '--' && text.trim().length > 0;
-                  })
-                  .map((option: any, index: number) => (
-                    <motion.button
-                      key={option.id || index}
-                      onClick={() => handleOptionSelect(option)}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      whileHover={{ scale: 1.01, y: -2 }}
-                      whileTap={{ scale: 0.99 }}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 border-2 ${
-                        isDark
-                          ? 'bg-gray-800/80 border-gray-700 hover:border-[#C02C38]/50 hover:bg-gray-800'
-                          : 'bg-white border-gray-200 hover:border-[#C02C38]/50 hover:bg-gray-50'
-                      }`}
-                    >
-                      {/* 图标或序号 */}
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-                        isDark
-                          ? 'bg-gray-700 text-gray-300'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {option.icon || (index + 1)}
-                      </div>
+                // 检查是否是工作流相关选项 (格式: "开始执行" 或 "先不开始")
+                const quickActions = message.metadata?.quickActions || [];
+                const matchedAction = quickActions.find((action: any) =>
+                  optionText.includes(action.label) || action.label.includes(optionText)
+                );
 
-                      {/* 内容区域 */}
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-semibold text-sm ${
-                          isDark ? 'text-gray-100' : 'text-gray-900'
-                        }`}>
-                          {option.label || option.title}
-                        </p>
-                        {option.description && (
-                          <p className={`text-xs mt-0.5 ${
-                            isDark ? 'text-gray-400' : 'text-gray-500'
-                          }`}>
-                            {option.description}
-                          </p>
-                        )}
-                      </div>
+                if (matchedAction) {
+                  console.log('[ChatMessage] 匹配到工作流操作:', matchedAction);
+                  // 派发 option-selected 事件让 ChatPanel 处理
+                  window.dispatchEvent(new CustomEvent('option-selected', {
+                    detail: { option: matchedAction, message }
+                  }));
+                  return;
+                }
 
-                      {/* 右侧箭头 */}
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                        isDark
-                          ? 'bg-gray-700/50 text-gray-500'
-                          : 'bg-gray-100 text-gray-400'
-                      }`}>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </motion.button>
-                  ))}
-              </div>
-            )}
+                // 默认处理：添加用户选择消息
+                addMessage({
+                  role: 'user',
+                  content: `我选择${optionText}`,
+                  type: 'text'
+                });
+                toast.success(`已选择：${optionText}`);
+              }}
+            />
 
             {/* 显示设计类型选择器（如果消息中包含）- 卡片按钮式布局 */}
             {message.metadata?.showDesignTypeSelector && Array.isArray(message.metadata?.designTypeOptions) && (

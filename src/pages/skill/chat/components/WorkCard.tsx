@@ -27,6 +27,230 @@ import {
 import { toast } from 'sonner';
 import { performQuickEdit } from '../services/quickEditService';
 
+// 格式化文本内容，支持基础 Markdown 样式
+const formatTextContent = (content: string, isDark: boolean): React.ReactNode[] => {
+  if (!content) return [];
+
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const key = `line-${i}`;
+
+    // 处理标题
+    const headerMatch = line.match(/^(#{1,4})\s+(.+)$/);
+    if (headerMatch) {
+      const level = headerMatch[1].length;
+      const text = headerMatch[2];
+      const headerClasses = {
+        1: 'text-lg font-bold my-2',
+        2: 'text-base font-semibold my-1.5',
+        3: 'text-sm font-semibold my-1',
+        4: 'text-xs font-medium my-1',
+      };
+      const HeaderTag = `h${level}` as keyof JSX.IntrinsicElements;
+      elements.push(
+        <HeaderTag
+          key={key}
+          className={`${headerClasses[level as keyof typeof headerClasses]} ${
+            isDark ? 'text-gray-100' : 'text-gray-900'
+          }`}
+        >
+          {formatInlineStyles(text, isDark)}
+        </HeaderTag>
+      );
+      continue;
+    }
+
+    // 处理无序列表
+    const unorderedListMatch = line.match(/^(\s*)[-*+]\s+(.+)$/);
+    if (unorderedListMatch) {
+      const indent = unorderedListMatch[1].length;
+      const text = unorderedListMatch[2];
+      elements.push(
+        <div
+          key={key}
+          className={`flex items-start gap-2 my-0.5 ${indent > 0 ? 'ml-3' : ''}`}
+        >
+          <span className={`mt-1.5 w-1 h-1 rounded-full flex-shrink-0 ${
+            isDark ? 'bg-purple-400' : 'bg-purple-500'
+          }`} />
+          <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+            {formatInlineStyles(text, isDark)}
+          </span>
+        </div>
+      );
+      continue;
+    }
+
+    // 处理有序列表
+    const orderedListMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/);
+    if (orderedListMatch) {
+      const indent = orderedListMatch[1].length;
+      const num = orderedListMatch[2];
+      const text = orderedListMatch[3];
+      elements.push(
+        <div
+          key={key}
+          className={`flex items-start gap-2 my-0.5 ${indent > 0 ? 'ml-3' : ''}`}
+        >
+          <span className={`text-sm font-medium flex-shrink-0 min-w-[1.25rem] ${
+            isDark ? 'text-purple-400' : 'text-purple-500'
+          }`}>
+            {num}.
+          </span>
+          <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+            {formatInlineStyles(text, isDark)}
+          </span>
+        </div>
+      );
+      continue;
+    }
+
+    // 处理引用块
+    if (line.startsWith('>')) {
+      const quoteText = line.slice(1).trim();
+      elements.push(
+        <blockquote
+          key={key}
+          className={`my-1.5 pl-2.5 border-l-2 text-sm italic ${
+            isDark 
+              ? 'border-purple-500/50 text-gray-400' 
+              : 'border-purple-400 text-gray-500'
+          }`}
+        >
+          {formatInlineStyles(quoteText, isDark)}
+        </blockquote>
+      );
+      continue;
+    }
+
+    // 处理分隔线
+    if (/^---+$|^\*\*\*+$|^___+$/.test(line.trim())) {
+      elements.push(
+        <hr
+          key={key}
+          className={`my-2 border-t ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}
+        />
+      );
+      continue;
+    }
+
+    // 处理普通段落
+    if (line.trim()) {
+      elements.push(
+        <p
+          key={key}
+          className={`my-1 text-sm leading-relaxed ${
+            isDark ? 'text-gray-300' : 'text-gray-700'
+          }`}
+        >
+          {formatInlineStyles(line, isDark)}
+        </p>
+      );
+    } else {
+      elements.push(<div key={key} className="h-1.5" />);
+    }
+  }
+
+  return elements;
+};
+
+// 处理行内样式
+const formatInlineStyles = (text: string, isDark: boolean): React.ReactNode[] => {
+  if (!text) return [text];
+
+  // 处理粗体 **text**
+  const boldPattern = /\*\*([^*]+)\*\*/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = boldPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(...formatItalicAndCode(text.slice(lastIndex, match.index), isDark));
+    }
+    parts.push(
+      <strong
+        key={`bold-${match.index}`}
+        className={isDark ? 'text-gray-100 font-semibold' : 'text-gray-900 font-semibold'}
+      >
+        {match[1]}
+      </strong>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(...formatItalicAndCode(text.slice(lastIndex), isDark));
+  }
+
+  return parts.length > 0 ? parts : formatItalicAndCode(text, isDark);
+};
+
+// 处理斜体和行内代码
+const formatItalicAndCode = (text: string, isDark: boolean): React.ReactNode[] => {
+  const codePattern = /`([^`]+)`/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codePattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(...formatItalicOnly(text.slice(lastIndex, match.index), isDark));
+    }
+    parts.push(
+      <code
+        key={`code-${match.index}`}
+        className={`px-1 py-0.5 rounded text-xs font-mono ${
+          isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
+        }`}
+      >
+        {match[1]}
+      </code>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(...formatItalicOnly(text.slice(lastIndex), isDark));
+  }
+
+  return parts.length > 0 ? parts : formatItalicOnly(text, isDark);
+};
+
+// 仅处理斜体
+const formatItalicOnly = (text: string, isDark: boolean): React.ReactNode[] => {
+  const italicPattern = /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|_([^_]+)_/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = italicPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    parts.push(
+      <em
+        key={`italic-${match.index}`}
+        className={`italic ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+      >
+        {match[1] || match[2]}
+      </em>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+};
+
 interface WorkCardProps {
   work: WorkItem;
   isSelected: boolean;
@@ -69,6 +293,9 @@ export const WorkCard: React.FC<WorkCardProps> = ({
   const [editMode, setEditMode] = useState<'quick' | 'full'>('quick');
   const [isQuickEditing, setIsQuickEditing] = useState(false);
   const [quickEditResult, setQuickEditResult] = useState<string | null>(null);
+  
+  // 文本展开状态
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
 
   const cardRef = React.useRef<HTMLDivElement>(null);
   const dragStartPos = React.useRef({ x: 0, y: 0, mouseX: 0, mouseY: 0 });
@@ -407,7 +634,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({
 
   // 卡片尺寸
   const cardWidth = viewMode === 'grid' ? 320 : 448;
-  const cardHeight = work.type === 'image' || work.type === 'design' ? 400 : 300;
+  const cardHeight = work.type === 'image' || work.type === 'design' ? 400 : 500;
 
   // 根据拖拽状态返回不同的 transition 配置
   const getTransition = () => {
@@ -514,23 +741,57 @@ export const WorkCard: React.FC<WorkCardProps> = ({
 
       {/* 文本类型内容 */}
       {(work.type === 'text' || work.type === 'code') && (
-        <div className={`w-full h-full p-4 overflow-auto ${
+        <div className={`w-full h-full flex flex-col ${
           isDark ? 'bg-[#1a1f1a]' : 'bg-white'
         }`}>
-          <div className="flex items-center gap-2 mb-3">
+          {/* 头部信息 */}
+          <div className={`flex items-center gap-2 px-4 py-3 border-b ${
+            isDark ? 'border-gray-800' : 'border-gray-100'
+          }`}>
             {getTypeIcon()}
             <span className={`text-xs font-medium uppercase tracking-wider ${
               isDark ? 'text-gray-500' : 'text-gray-400'
             }`}>
-              {work.type}
+              {work.type === 'code' ? 'Code' : '文案'}
             </span>
+            {work.content && work.content.length > 200 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsTextExpanded(!isTextExpanded);
+                }}
+                className={`ml-auto text-xs px-2 py-1 rounded transition-colors ${
+                  isDark 
+                    ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {isTextExpanded ? '收起' : '展开'}
+              </button>
+            )}
           </div>
-          <h3 className={`font-semibold mb-2 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+          
+          {/* 标题 */}
+          <h3 className={`px-4 pt-3 font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
             {work.title}
           </h3>
-          <p className={`text-sm line-clamp-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            {work.content || work.description}
-          </p>
+          
+          {/* 内容区域 */}
+          <div className={`flex-1 px-4 py-3 overflow-y-auto ${
+            isTextExpanded ? 'max-h-[380px]' : 'max-h-[350px]'
+          }`}>
+            {work.type === 'code' ? (
+              <pre className={`text-xs font-mono whitespace-pre-wrap ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                <code>{work.content || work.description}</code>
+              </pre>
+            ) : (
+              <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                {formatTextContent(work.content || work.description || '', isDark)}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

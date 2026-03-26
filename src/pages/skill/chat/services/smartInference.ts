@@ -554,24 +554,30 @@ const generateSmartQuestion = (
 
   const questions: Record<string, string> = {
     // Logo 设计
-    'brandName': context 
+    'brandName': context
       ? `好的，了解了${collectedInfo['brandName'] || '您的品牌'}。接下来，品牌名称是什么呢？`
       : '首先，请告诉我品牌或公司的名称？',
     'brandConcept': '这个品牌有什么特别的理念或故事吗？这能帮助我设计更有意义的 Logo。',
     'merchandiseType': '您想要设计哪些类型的周边产品呢？我会为您推荐合适的设计方案。',
     'style': '您偏好什么风格？比如简约现代、复古经典、科技感等。',
     'colorPreference': '颜色方面有什么偏好吗？比如蓝色系代表专业，绿色系体现环保。',
-    
+
     // 文案创作
     'topic': '这篇文案的主题是什么呢？比如新品发布、活动宣传等。',
     'targetAudience': '这篇文案是写给谁看的？了解受众能帮助我选择合适的语气。',
     'keyPoints': '有哪些核心卖点或关键信息需要突出强调？',
     'tone': '您希望文案是什么语气？专业严谨、亲切友好、还是幽默风趣？',
-    
+
     // 配色方案
     'projectType': '这个配色方案用于什么项目呢？不同项目有不同的配色策略。',
     'emotion': '您想通过配色传达什么感觉？比如专业可信、活力青春、高端优雅等。',
     'baseColor': '有指定的主色吗？或者您偏好某个色系？',
+
+    // 批量生成
+    'batchType': '您需要批量生成什么类型的物料？比如整套VI、多平台配图、系列周边等。',
+    'baseContent': '批量生成的基础是什么？比如基于某个Logo、某个品牌概念，或者具体描述您的需求。',
+    'quantity': '您大概需要生成多少个？数量会影响生成策略。',
+    'variations': '这些物料之间需要什么差异？比如不同配色、不同尺寸、不同应用场景等。',
   };
 
   return questions[fieldKey] || `请告诉我${getLabelForKey(fieldKey, intent)}？`;
@@ -600,6 +606,30 @@ const generateSuggestions = (
       '📦 周边类型：包装产品（杯子、袋子、包装盒）',
       '📦 周边类型：服饰周边（T恤、帽子、帆布袋）',
       '📦 周边类型：生活用品（马克杯、笔记本、贴纸）',
+    ],
+    // batch-generation 字段建议
+    'batchType': [
+      '📋 批量类型：整套VI设计（Logo、名片、信纸、工牌）',
+      '📋 批量类型：品牌物料套装（海报、宣传册、包装）',
+      '📋 批量类型：多平台配图（朋友圈、微博、小红书）',
+      '📋 批量类型：系列插画（主视觉+延展应用）',
+    ],
+    'baseContent': [
+      '🎯 基础内容：基于已设计的品牌Logo进行延展',
+      '🎯 基础内容：新能源汽车品牌「未来出行」全套物料',
+      '🎯 基础内容：科技公司品牌视觉系统',
+      '🎯 基础内容：餐饮品牌「茶语时光」周边设计',
+    ],
+    'quantity': [
+      '🔢 数量：3-5个（精简套装）',
+      '🔢 数量：6-10个（标准套装）',
+      '🔢 数量：10个以上（完整VI系统）',
+    ],
+    'variations': [
+      '🔄 变化要求：不同配色方案（主色/辅色/单色）',
+      '🔄 变化要求：不同尺寸规格（横版/竖版/方形）',
+      '🔄 变化要求：不同应用场景（线上/线下/印刷）',
+      '🔄 变化要求：保持风格一致，仅调整布局',
     ],
     'style': [
       '🎨 风格：简约现代，干净利落',
@@ -751,6 +781,11 @@ const getLabelForKey = (key: string, intent: IntentType): string => {
     'keyPoints': '核心卖点',
     'tone': '语气风格',
     'projectType': '项目类型',
+    // batch-generation 字段
+    'batchType': '批量类型',
+    'baseContent': '基础内容',
+    'quantity': '数量',
+    'variations': '变化要求',
   };
 
   return labels[key] || key;
@@ -807,18 +842,27 @@ export const extractKeywords = (message: string): {
  */
 export const extractBrandName = (message: string): InferredInfo | null => {
   // 尝试匹配引号中的内容（优先级最高）
-  const quoteMatch = message.match(/[""']([^""']+)[""']/);
-  if (quoteMatch && quoteMatch[1].trim()) {
-    const brandName = quoteMatch[1].trim();
-    // 排除一些通用词汇
-    if (!['这个', '那个', '什么', '如何', '怎么'].includes(brandName)) {
-      return {
-        key: 'brandName',
-        value: brandName,
-        confidence: 0.95,
-        reasoning: '从引号中提取',
-        source: 'context',
-      };
+  // 支持英文引号 "" '' 和中文引号 「」 『』 《》
+  const quotePatterns = [
+    /[""']([^""']+)[""']/,  // 英文引号
+    /[「『]([^」』]+)[」』]/,  // 中文单引号
+    /《([^》]+)》/,           // 书名号
+  ];
+  
+  for (const pattern of quotePatterns) {
+    const quoteMatch = message.match(pattern);
+    if (quoteMatch && quoteMatch[1].trim()) {
+      const brandName = quoteMatch[1].trim();
+      // 排除一些通用词汇
+      if (!['这个', '那个', '什么', '如何', '怎么'].includes(brandName)) {
+        return {
+          key: 'brandName',
+          value: brandName,
+          confidence: 0.95,
+          reasoning: '从引号中提取',
+          source: 'context',
+        };
+      }
     }
   }
   
@@ -846,6 +890,144 @@ export const extractBrandName = (message: string): InferredInfo | null => {
   }
   
   return null;
+};
+
+/**
+ * 提取品牌相关信息（风格、配色、关键词等）
+ * 支持多种输入格式，尽可能提取完整信息
+ */
+export const extractBrandInfo = (message: string): {
+  style?: string;
+  colors?: string;
+  keywords?: string;
+  targetAudience?: string;
+  industry?: string;
+  brandConcept?: string;
+  font?: string;
+} => {
+  const info: {
+    style?: string;
+    colors?: string;
+    keywords?: string;
+    targetAudience?: string;
+    industry?: string;
+    brandConcept?: string;
+    font?: string;
+  } = {};
+
+  // 提取品牌调性/风格
+  const stylePatterns = [
+    /品牌调性[：:]\s*([^。\n]+)/,
+    /风格要求[：:]\s*([^。\n]+)/,
+    /风格[：:]\s*([^。\n]+)/,
+    /(.+?)风格/,
+    /(.+?)调性/,
+  ];
+  for (const pattern of stylePatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      const style = match[1].trim();
+      // 过滤掉一些不合适的匹配
+      if (style.length > 2 && !['这个', '那个', '什么'].includes(style)) {
+        info.style = style;
+        break;
+      }
+    }
+  }
+
+  // 提取配色信息（支持多种格式）
+  const colorPatterns = [
+    /主色调[：:]\s*([^。\n]+)/,
+    /配色[：:]\s*([^。\n]+)/,
+    /颜色[：:]\s*([^。\n]+)/,
+    /([\u4e00-\u9fa5]+色\s*[\+＋]\s*[\u4e00-\u9fa5]+色)/,
+    /([\u4e00-\u9fa5]+色\s*\+\s*[\u4e00-\u9fa5]+色\s*\+\s*[\u4e00-\u9fa5]+色)/,
+  ];
+  for (const pattern of colorPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      info.colors = match[1].trim();
+      break;
+    }
+  }
+
+  // 提取关键词
+  const keywordPatterns = [
+    /关键词[：:]\s*([^。\n]+)/,
+    /关键字[：:]\s*([^。\n]+)/,
+  ];
+  for (const pattern of keywordPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      info.keywords = match[1].trim();
+      break;
+    }
+  }
+
+  // 提取目标客群
+  const audiencePatterns = [
+    /目标客群[：:]\s*([^。\n]+)/,
+    /目标人群[：:]\s*([^。\n]+)/,
+    /受众[：:]\s*([^。\n]+)/,
+    /面向(.+?)[的客群人群]/,
+    /(.+?)岁/,
+  ];
+  for (const pattern of audiencePatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      info.targetAudience = match[1].trim();
+      break;
+    }
+  }
+
+  // 提取行业类型
+  const industryPatterns = [
+    /行业[：:]\s*([^。\n]+)/,
+    /(.+?)行业/,
+    /(.+?)品牌/,
+  ];
+  for (const pattern of industryPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      const industry = match[1].trim();
+      if (industry.length > 1 && industry.length < 20) {
+        info.industry = industry;
+        break;
+      }
+    }
+  }
+
+  // 提取品牌理念/故事
+  const conceptPatterns = [
+    /品牌理念[：:]\s*([^。\n]+)/,
+    /品牌故事[：:]\s*([^。\n]+)/,
+    /主打(.+?)[的结合]/,
+    /主打(.+?)[的理念]/,
+  ];
+  for (const pattern of conceptPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      info.brandConcept = match[1].trim();
+      break;
+    }
+  }
+
+  // 提取字体要求
+  const fontPatterns = [
+    /字体要求[：:]\s*([^。\n]+)/,
+    /字体[：:]\s*([^。\n]+)/,
+    /英文用(\w+)/,
+    /中文用(\w+)/,
+  ];
+  for (const pattern of fontPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      info.font = match[1].trim();
+      break;
+    }
+  }
+
+  return info;
 };
 
 /**

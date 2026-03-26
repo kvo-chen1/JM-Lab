@@ -7,7 +7,7 @@
 
 export type StepStatus = 'pending' | 'processing' | 'completed' | 'error';
 
-export type StepType = 'intent' | 'decision' | 'parameter' | 'skill' | 'wrap';
+export type StepType = 'intent' | 'decision' | 'parameter' | 'skill' | 'wrap' | 'analysis' | 'execution' | 'delegation';
 
 // ==================== 步骤详情 ====================
 
@@ -176,6 +176,57 @@ export const STEP_TYPE_CONFIG: Record<StepType, StepTypeConfig> = {
         bg: 'bg-pink-900/20',
         border: 'border-pink-700',
         text: 'text-pink-400'
+      }
+    }
+  },
+  analysis: {
+    name: '需求分析',
+    description: '深度分析用户需求',
+    icon: 'Search',
+    colors: {
+      light: {
+        bg: 'bg-purple-50',
+        border: 'border-purple-200',
+        text: 'text-purple-600'
+      },
+      dark: {
+        bg: 'bg-purple-900/20',
+        border: 'border-purple-700',
+        text: 'text-purple-400'
+      }
+    }
+  },
+  execution: {
+    name: '执行决策',
+    description: '执行调度决策',
+    icon: 'Sparkles',
+    colors: {
+      light: {
+        bg: 'bg-green-50',
+        border: 'border-green-200',
+        text: 'text-green-600'
+      },
+      dark: {
+        bg: 'bg-green-900/20',
+        border: 'border-green-700',
+        text: 'text-green-400'
+      }
+    }
+  },
+  delegation: {
+    name: '任务委派',
+    description: '委派任务给 Agent',
+    icon: 'Users',
+    colors: {
+      light: {
+        bg: 'bg-indigo-50',
+        border: 'border-indigo-200',
+        text: 'text-indigo-600'
+      },
+      dark: {
+        bg: 'bg-indigo-900/20',
+        border: 'border-indigo-700',
+        text: 'text-indigo-400'
       }
     }
   }

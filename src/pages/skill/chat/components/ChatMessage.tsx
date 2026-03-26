@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bot, Wand2, Brain, Zap, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, HelpCircle, MessageSquare, CheckSquare, ListTodo, Star, Sparkles } from 'lucide-react';
+import { User, Bot, Wand2, Brain, Zap, CheckCircle, XCircle, Loader2, ChevronDown, ChevronUp, HelpCircle, MessageSquare, CheckSquare, ListTodo, Star, Sparkles, FileText } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import type { ChatMessage as ChatMessageType, SkillCallInfo, RequirementPhase, MerchandiseCategory } from '../types';
 import { getIntentDisplayName, getIntentColor } from '../services/intentService';
@@ -75,6 +75,85 @@ const PhaseLabel: React.FC<{ phase?: RequirementPhase }> = ({ phase }) => {
     error: '出错',
   };
   return <span>{phase ? labels[phase] || phase : ''}</span>;
+};
+
+/**
+ * 子步骤可视化组件
+ * 用于展示批量生成时的子步骤进度
+ */
+interface SubStepVisualizerProps {
+  steps: Array<{
+    name: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+  }>;
+  currentStepName?: string;
+}
+
+const SubStepVisualizer: React.FC<SubStepVisualizerProps> = ({ steps, currentStepName }) => {
+  const { isDark } = useTheme();
+  
+  if (!steps || steps.length === 0) return null;
+  
+  return (
+    <div className={`mt-3 p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+      <div className="space-y-2">
+        {steps.map((step, index) => {
+          const isCompleted = step.status === 'completed';
+          const isRunning = step.status === 'running';
+          const isPending = step.status === 'pending';
+          
+          return (
+            <div 
+              key={index}
+              className={`flex items-center gap-3 transition-all duration-300 ${
+                isRunning ? 'opacity-100' : isCompleted ? 'opacity-80' : 'opacity-50'
+              }`}
+            >
+              {/* 状态图标 */}
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                isCompleted 
+                  ? 'bg-green-500' 
+                  : isRunning 
+                    ? 'bg-blue-500 animate-pulse' 
+                    : isDark ? 'bg-gray-600' : 'bg-gray-300'
+              }`}>
+                {isCompleted ? (
+                  <CheckCircle className="w-3 h-3 text-white" />
+                ) : isRunning ? (
+                  <Loader2 className="w-3 h-3 text-white animate-spin" />
+                ) : (
+                  <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-400' : 'bg-gray-500'}`} />
+                )}
+              </div>
+              
+              {/* 步骤名称 */}
+              <span className={`text-sm ${
+                isRunning 
+                  ? isDark ? 'text-blue-400 font-medium' : 'text-blue-600 font-medium'
+                  : isCompleted 
+                    ? isDark ? 'text-gray-300' : 'text-gray-600'
+                    : isDark ? 'text-gray-500' : 'text-gray-400'
+              }`}>
+                {step.name}
+                {isRunning && (
+                  <span className="ml-1 animate-pulse">...</span>
+                )}
+              </span>
+              
+              {/* 连接线 */}
+              {index < steps.length - 1 && (
+                <div className={`absolute left-2.5 top-5 w-0.5 h-6 ${
+                  isCompleted 
+                    ? 'bg-green-500' 
+                    : isDark ? 'bg-gray-600' : 'bg-gray-300'
+                }`} style={{ transform: 'translateX(-50%)' }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 };
 
 /**
@@ -598,64 +677,293 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
     setUserAvatar(avatar);
   }, []);
   
-  // 格式化内容，支持 Markdown 样式的代码块
+  // 格式化内容，支持完整的 Markdown 样式
   const formatContent = (content: string) => {
-    // 简单处理代码块
-    const parts = content.split(/(```[\s\S]*?```)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith('```') && part.endsWith('```')) {
-        const code = part.slice(3, -3).trim();
-        return (
-          <pre
-            key={index}
-            className={`mt-2 p-3 rounded-lg overflow-x-auto text-xs font-mono ${
-              isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-700'
+    if (!content) return null;
+
+    // 按行分割内容
+    const lines = content.split('\n');
+    const elements: React.ReactNode[] = [];
+    let currentIndex = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const key = `line-${currentIndex++}`;
+
+      // 处理代码块
+      if (line.startsWith('```')) {
+        const codeBlockEnd = lines.findIndex((l, idx) => idx > i && l.startsWith('```'));
+        if (codeBlockEnd !== -1) {
+          const codeLines = lines.slice(i + 1, codeBlockEnd);
+          const code = codeLines.join('\n');
+          elements.push(
+            <pre
+              key={key}
+              className={`my-2 p-3 rounded-lg overflow-x-auto text-xs font-mono ${
+                isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              <code>{code}</code>
+            </pre>
+          );
+          i = codeBlockEnd;
+          continue;
+        }
+      }
+
+      // 处理标题
+      const headerMatch = line.match(/^(#{1,4})\s+(.+)$/);
+      if (headerMatch) {
+        const level = headerMatch[1].length;
+        const text = headerMatch[2];
+        const headerClasses = {
+          1: 'text-xl font-bold my-3',
+          2: 'text-lg font-semibold my-2.5',
+          3: 'text-base font-semibold my-2',
+          4: 'text-sm font-medium my-1.5',
+        };
+        const HeaderTag = `h${level}` as keyof JSX.IntrinsicElements;
+        elements.push(
+          <HeaderTag
+            key={key}
+            className={`${headerClasses[level as keyof typeof headerClasses]} ${
+              isDark ? 'text-gray-100' : 'text-gray-900'
             }`}
           >
-            <code>{code}</code>
-          </pre>
+            {formatInlineStyles(text)}
+          </HeaderTag>
         );
+        continue;
       }
-      // 处理行内代码
-      const inlineParts = part.split(/(`[^`]+`)/g);
-      return (
-        <span key={index}>
-          {inlineParts.map((inlinePart, inlineIndex) => {
-            if (inlinePart.startsWith('`') && inlinePart.endsWith('`')) {
-              return (
-                <code
-                  key={inlineIndex}
-                  className={`px-1.5 py-0.5 rounded text-xs font-mono ${
-                    isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {inlinePart.slice(1, -1)}
-                </code>
-              );
-            }
-            // 处理粗体
-            const boldParts = inlinePart.split(/(\*\*[^*]+\*\*)/g);
-            return (
-              <span key={inlineIndex}>
-                {boldParts.map((boldPart, boldIndex) => {
-                  if (boldPart.startsWith('**') && boldPart.endsWith('**')) {
-                    return (
-                      <strong
-                        key={boldIndex}
-                        className={isDark ? 'text-gray-100' : 'text-gray-900'}
-                      >
-                        {boldPart.slice(2, -2)}
-                      </strong>
-                    );
-                  }
-                  return <span key={boldIndex}>{boldPart}</span>;
-                })}
-              </span>
-            );
-          })}
-        </span>
+
+      // 处理无序列表
+      const unorderedListMatch = line.match(/^(\s*)[-*+]\s+(.+)$/);
+      if (unorderedListMatch) {
+        const indent = unorderedListMatch[1].length;
+        const text = unorderedListMatch[2];
+        elements.push(
+          <div
+            key={key}
+            className={`flex items-start gap-2 my-1 ${indent > 0 ? 'ml-4' : ''}`}
+          >
+            <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+              isDark ? 'bg-purple-400' : 'bg-purple-500'
+            }`} />
+            <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              {formatInlineStyles(text)}
+            </span>
+          </div>
+        );
+        continue;
+      }
+
+      // 处理有序列表
+      const orderedListMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/);
+      if (orderedListMatch) {
+        const indent = orderedListMatch[1].length;
+        const num = orderedListMatch[2];
+        const text = orderedListMatch[3];
+        elements.push(
+          <div
+            key={key}
+            className={`flex items-start gap-2 my-1 ${indent > 0 ? 'ml-4' : ''}`}
+          >
+            <span className={`text-sm font-medium flex-shrink-0 min-w-[1.5rem] ${
+              isDark ? 'text-purple-400' : 'text-purple-500'
+            }`}>
+              {num}.
+            </span>
+            <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              {formatInlineStyles(text)}
+            </span>
+          </div>
+        );
+        continue;
+      }
+
+      // 处理引用块
+      if (line.startsWith('>')) {
+        const quoteText = line.slice(1).trim();
+        elements.push(
+          <blockquote
+            key={key}
+            className={`my-2 pl-3 border-l-2 italic ${
+              isDark 
+                ? 'border-purple-500/50 text-gray-400' 
+                : 'border-purple-400 text-gray-500'
+            }`}
+          >
+            <span className="text-sm">{formatInlineStyles(quoteText)}</span>
+          </blockquote>
+        );
+        continue;
+      }
+
+      // 处理分隔线
+      if (/^---+$|^\*\*\*+$|^___+$/.test(line.trim())) {
+        elements.push(
+          <hr
+            key={key}
+            className={`my-3 border-t ${
+              isDark ? 'border-gray-700' : 'border-gray-200'
+            }`}
+          />
+        );
+        continue;
+      }
+
+      // 处理普通段落（非空行）
+      if (line.trim()) {
+        elements.push(
+          <p
+            key={key}
+            className={`my-1.5 text-sm leading-relaxed ${
+              isDark ? 'text-gray-300' : 'text-gray-700'
+            }`}
+          >
+            {formatInlineStyles(line)}
+          </p>
+        );
+      } else {
+        // 空行添加间距
+        elements.push(<div key={key} className="h-2" />);
+      }
+    }
+
+    return elements;
+  };
+
+  // 处理行内样式（粗体、斜体、行内代码、链接）
+  const formatInlineStyles = (text: string): React.ReactNode => {
+    if (!text) return text;
+
+    // 处理链接 [text](url)
+    const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = linkPattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(formatBoldAndItalic(text.slice(lastIndex, match.index)));
+      }
+      parts.push(
+        <a
+          key={`link-${match.index}`}
+          href={match[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`underline hover:opacity-80 ${
+            isDark ? 'text-purple-400' : 'text-purple-600'
+          }`}
+        >
+          {match[1]}
+        </a>
       );
-    });
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(formatBoldAndItalic(text.slice(lastIndex)));
+    }
+
+    return parts.length > 0 ? parts : formatBoldAndItalic(text);
+  };
+
+  // 处理粗体和斜体
+  const formatBoldAndItalic = (text: string): React.ReactNode => {
+    // 处理粗体 **text**
+    const boldPattern = /\*\*([^*]+)\*\*/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = boldPattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(formatItalicAndCode(text.slice(lastIndex, match.index)));
+      }
+      parts.push(
+        <strong
+          key={`bold-${match.index}`}
+          className={isDark ? 'text-gray-100 font-semibold' : 'text-gray-900 font-semibold'}
+        >
+          {match[1]}
+        </strong>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(formatItalicAndCode(text.slice(lastIndex)));
+    }
+
+    return parts.length > 0 ? parts : formatItalicAndCode(text);
+  };
+
+  // 处理斜体和行内代码
+  const formatItalicAndCode = (text: string): React.ReactNode => {
+    // 处理斜体 *text* 或 _text_
+    const italicPattern = /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|_([^_]+)_/g;
+    // 处理行内代码 `code`
+    const codePattern = /`([^`]+)`/g;
+
+    // 先处理代码，再处理斜体
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = codePattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        const beforeText = text.slice(lastIndex, match.index);
+        parts.push(formatItalicOnly(beforeText));
+      }
+      parts.push(
+        <code
+          key={`code-${match.index}`}
+          className={`px-1.5 py-0.5 rounded text-xs font-mono ${
+            isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
+          }`}
+        >
+          {match[1]}
+        </code>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(formatItalicOnly(text.slice(lastIndex)));
+    }
+
+    return parts.length > 0 ? parts : formatItalicOnly(text);
+  };
+
+  // 仅处理斜体
+  const formatItalicOnly = (text: string): React.ReactNode => {
+    const italicPattern = /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|_([^_]+)_/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = italicPattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      parts.push(
+        <em
+          key={`italic-${match.index}`}
+          className={`italic ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+        >
+          {match[1] || match[2]}
+        </em>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
   };
   
   return (
@@ -692,7 +1000,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
               ? 'bg-gray-800 text-gray-100 rounded-bl-md border border-gray-700'
               : 'bg-white text-gray-800 rounded-bl-md border border-gray-200'
         }`}>
-          <div className="text-sm leading-relaxed whitespace-pre-wrap">
+          <div className="leading-relaxed">
             {formatContent(message.content)}
           </div>
         </div>
@@ -718,11 +1026,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
         {message.attachments && message.attachments.length > 0 && (
           <div className="mt-3 space-y-3">
             {message.attachments.map((attachment, index) => (
-              <div key={index}>
+              <div 
+                key={`${attachment.id || index}`} 
+                className="animate-in fade-in slide-in-from-bottom-2 duration-500"
+              >
                 {attachment.type === 'image' && attachment.url && (
                   <div className={`rounded-xl overflow-hidden border shadow-lg transition-all hover:shadow-xl ${
                     isDark ? 'border-gray-700' : 'border-gray-200'
                   }`}>
+                    {/* 新生成标记 */}
+                    {attachment.status === 'completed' && (
+                      <div className={`absolute top-2 right-2 z-10 px-2 py-1 rounded-full text-xs font-medium ${
+                        isDark 
+                          ? 'bg-green-600 text-white' 
+                          : 'bg-green-500 text-white'
+                      }`}>
+                        ✓ 完成
+                      </div>
+                    )}
                     {!imageLoaded[index] && (
                       <div className={`w-full h-32 flex items-center justify-center ${
                         isDark ? 'bg-gray-800' : 'bg-gray-100'
@@ -771,12 +1092,45 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLast, onSen
                   </div>
                 )}
                 {attachment.type === 'text' && (
-                  <div className={`p-3 rounded-xl border text-sm ${
+                  <div className={`rounded-xl border overflow-hidden ${
                     isDark 
-                      ? 'bg-gray-800 border-gray-700 text-gray-300' 
-                      : 'bg-white border-gray-200 text-gray-700'
+                      ? 'bg-gray-800/50 border-gray-700' 
+                      : 'bg-white border-gray-200'
                   }`}>
-                    {attachment.content}
+                    {/* 文本附件头部 */}
+                    <div className={`flex items-center justify-between px-3 py-2 border-b ${
+                      isDark 
+                        ? 'bg-gray-800 border-gray-700' 
+                        : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <FileText className={`w-4 h-4 ${isDark ? 'text-purple-400' : 'text-purple-500'}`} />
+                        <span className={`text-xs font-medium ${
+                          isDark ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          {attachment.title || '文案内容'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(attachment.content || '');
+                          toast.success('文案已复制到剪贴板');
+                        }}
+                        className={`text-xs px-2 py-1 rounded transition-colors ${
+                          isDark 
+                            ? 'bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-gray-200' 
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                        }`}
+                      >
+                        复制
+                      </button>
+                    </div>
+                    {/* 文本内容 - 使用 Markdown 渲染 */}
+                    <div className={`p-4 max-h-96 overflow-y-auto ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      {formatContent(attachment.content || '')}
+                    </div>
                   </div>
                 )}
               </div>

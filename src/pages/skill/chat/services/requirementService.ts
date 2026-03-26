@@ -7,9 +7,14 @@ import {
   isShortReply,
   extractKeywords,
   extractBrandName,
+  extractBrandInfo,
   identifyIndustry,
   recommendMerchandiseTypes,
 } from './smartInference';
+import {
+  parseNumberedTasks,
+  recognizeMaterialType,
+} from './taskOrchestrationService';
 
 // 周边产品分类
 export interface MerchandiseCategory {
@@ -221,7 +226,7 @@ export const analyzeRequirements = async (
   signal?: AbortSignal
 ): Promise<RequirementAnalysis> => {
   const requirements = INTENT_REQUIREMENTS[intent] || [];
-  
+
   // 如果该意图不需要收集信息，直接返回 ready
   if (requirements.length === 0) {
     return {
@@ -229,6 +234,73 @@ export const analyzeRequirements = async (
       collectedInfo: {},
       missingFields: [],
       summary: '无需额外信息',
+    };
+  }
+
+  // ===== 新增：检测编号任务列表（如 1. Logo设计 2. 海报设计）=====
+  const numberedTasks = parseNumberedTasks(userMessage);
+  console.log('[analyzeRequirements] 检测到编号任务:', numberedTasks.length, numberedTasks);
+
+  if (numberedTasks.length >= 2) {
+    // 检测到编号列表，解析为批量任务
+    // 提取品牌名和品牌信息（用于构建完整的prompt）
+    const brandName = extractBrandName(userMessage)?.value || '';
+    const brandInfo = extractBrandInfo(userMessage);
+
+    const batchTasks = numberedTasks.map((task, index) => {
+      const materialType = recognizeMaterialType(task.rawText);
+      console.log(`[analyzeRequirements] 任务 ${index + 1}:`, task.name, '->', materialType?.name || task.name);
+
+      // 构建完整的prompt，包含品牌信息和任务描述
+      let fullPrompt = task.rawText;
+      if (brandName) {
+        fullPrompt = `为品牌"${brandName}"设计：${fullPrompt}`;
+      }
+      if (brandInfo.industry) {
+        fullPrompt += `，行业：${brandInfo.industry}`;
+      }
+      if (brandInfo.brandConcept) {
+        fullPrompt += `，品牌理念：${brandInfo.brandConcept}`;
+      }
+      if (brandInfo.style) {
+        fullPrompt += `，风格要求：${brandInfo.style}`;
+      }
+      if (brandInfo.colors) {
+        fullPrompt += `，配色：${brandInfo.colors}`;
+      }
+      if (brandInfo.keywords) {
+        fullPrompt += `，关键词：${brandInfo.keywords}`;
+      }
+      if (brandInfo.targetAudience) {
+        fullPrompt += `，目标客群：${brandInfo.targetAudience}`;
+      }
+      if (brandInfo.font) {
+        fullPrompt += `，字体：${brandInfo.font}`;
+      }
+
+      return {
+        id: `task_${index + 1}`,
+        name: materialType?.name || task.name,
+        prompt: fullPrompt,
+        skill: materialType?.skill || 'poster-design',
+        type: materialType?.type || 'design',
+      };
+    });
+
+    console.log('[analyzeRequirements] 返回 batchTasks:', batchTasks.length);
+
+    return {
+      ready: true, // 直接就绪，跳过常规收集
+      collectedInfo: {
+        batchType: '整套VI',
+        baseContent: userMessage,
+        brandName,
+        batchTasks: JSON.stringify(batchTasks),
+        taskCount: String(batchTasks.length),
+      },
+      missingFields: [],
+      summary: `检测到${batchTasks.length}个任务：${batchTasks.map(t => t.name).join('、')}`,
+      suggestions: batchTasks.map(t => `✓ ${t.name}`),
     };
   }
 

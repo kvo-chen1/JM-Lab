@@ -86,6 +86,16 @@ export interface AgentMessage {
     selectedDesignType?: string;
     // Thinking process
     showThinkingProcess?: boolean;
+    // V2 版本思考过程
+    thinkingSteps?: any[];
+    // V2 版本决策信息
+    decisionInfo?: {
+      action: string;
+      reasoning: string;
+      confidence: number;
+      targetAgent?: string;
+      targetAgents?: string[];
+    };
     designType?: string;
     agentType?: AgentType;
     mentionInfo?: { type: 'work' | 'brand' | 'style'; name: string; id?: string } | null;

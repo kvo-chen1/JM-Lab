@@ -276,4 +276,7 @@ export function resetThinkingRecorder(): void {
   globalRecorder = null;
 }
 
+// 导出单例实例
+export const thinkingRecorder = getThinkingRecorder();
+
 export default ThinkingRecorder;

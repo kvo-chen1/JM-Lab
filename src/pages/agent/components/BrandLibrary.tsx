@@ -52,6 +52,8 @@ export default function BrandLibrary({ onBrandSelect, onClose, selectedBrand }: 
   const handleBrandClick = (brand: Brand) => {
     setLocalSelectedBrand(brand.id);
     onBrandSelect(brand);
+    // 选择品牌后自动关闭面板
+    onClose();
   };
 
   // 品牌卡片组件

@@ -67,12 +67,32 @@ const getWelcomeMessage = (options: WelcomeMessageOptions = {}): AgentMessage =>
     metadata: {
       showDesignTypeSelector: true,
       designTypeOptions: [
-        { id: 'ip-character', label: 'IP形象设计', description: '打造独特的角色、吉祥物或虚拟形象', icon: '🎭' },
-        { id: 'brand-design', label: '品牌设计', description: '构建完整的品牌视觉识别系统', icon: '🎨' },
-        { id: 'packaging', label: '包装设计', description: '产品包装创意设计与视觉呈现', icon: '📦' },
-        { id: 'poster', label: '海报设计', description: '宣传海报、物料设计与视觉传达', icon: '🖼️' },
-        { id: 'animation', label: '动画视频', description: '动态视觉内容与短视频制作', icon: '🎬' },
-        { id: 'illustration', label: '插画设计', description: '手绘风格插画与艺术创作', icon: '✏️' }
+        {
+          category: '🎨 品牌形象类',
+          items: [
+            { id: 'ip-character', label: 'IP形象设计', description: '打造独特的角色、吉祥物或虚拟形象', icon: '🎭' },
+            { id: 'brand-design', label: '品牌设计', description: '构建完整的品牌视觉识别系统', icon: '🎨' }
+          ]
+        },
+        {
+          category: '📦 产品包装类',
+          items: [
+            { id: 'packaging', label: '包装设计', description: '产品包装创意设计与视觉呈现', icon: '📦' }
+          ]
+        },
+        {
+          category: '📢 营销推广类',
+          items: [
+            { id: 'poster', label: '海报设计', description: '宣传海报、物料设计与视觉传达', icon: '🖼️' },
+            { id: 'animation', label: '动画视频', description: '动态视觉内容与短视频制作', icon: '🎬' }
+          ]
+        },
+        {
+          category: '✏️ 插画创作类',
+          items: [
+            { id: 'illustration', label: '插画设计', description: '手绘风格插画与艺术创作', icon: '✏️' }
+          ]
+        }
       ]
     }
   };

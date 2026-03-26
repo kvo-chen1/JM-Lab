@@ -92,18 +92,57 @@ export * from './contextManager';
 // Agent 服务（兼容层）
 export * from './agentService';
 
-// 编排器（兼容层）
-export * from './agentOrchestrator';
+// 编排器
+export {
+  AgentOrchestrator,
+  agentOrchestrator,
+  processWithOrchestrator
+} from './agentOrchestrator';
+export type { ConversationContextV2, OrchestratorResponseV2 } from './agentOrchestrator';
+
+// 需求分析服务
+export {
+  RequirementAnalysisService,
+  requirementAnalysisService,
+  analyzeRequirements,
+  quickAnalyzeRequirements
+} from './requirementAnalysisService';
+export type { 
+  RequirementAnalysis, 
+  ProjectType, 
+  ComplexityLevel,
+  AnalysisOptions 
+} from './requirementAnalysisService';
+
+// 决策引擎
+export {
+  DecisionEngine,
+  decisionEngine,
+  makeDecision,
+  evaluateAgentMatch,
+  recommendAgentTeam
+} from './decisionEngine';
+export type { 
+  DecisionContext, 
+  DecisionResult 
+} from './decisionEngine';
+
+// 智能引导服务
+export {
+  GuidanceService,
+  guidanceService,
+  getGuidance,
+  getQuickActions,
+  getNextSteps
+} from './guidanceService';
+export type { 
+  GuidanceSuggestion, 
+  QuickAction,
+  ConversationContext as GuidanceContext
+} from './guidanceService';
 
 // Prompt 构建器（兼容层）
 export * from './promptBuilder';
 
 // 调度器（兼容层）
 export * from './agentScheduler';
-
-// Skill Agent 适配器
-export {
-  isQuickGenerationRequest,
-  processWithAgentSkill,
-  smartProcessMessage
-} from './skillAgentAdapter';

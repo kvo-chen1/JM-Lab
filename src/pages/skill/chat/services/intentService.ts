@@ -22,7 +22,9 @@ export type IntentType =
   | 'batch-generation'
   | 'general'
   | 'greeting'
-  | 'help';
+  | 'help'
+  | 'confirmation'
+  | 'rejection';
 
 export interface IntentResult {
   intent: IntentType;
@@ -112,6 +114,22 @@ const INTENT_RECOGNITION_PROMPT = `你是一个意图识别专家。请分析用
 // 置信度阈值
 const CONFIDENCE_THRESHOLD = 0.6;
 
+// 确认词汇模式
+const CONFIRMATION_PATTERNS = /^(?:好的|确认|是|可以|没问题|行|OK|ok|Ok|yes|Yes|YES|好|嗯|对的|没错|继续|开始吧|开始撰写|开始生成|执行|开始任务|确认执行)$/;
+
+// 拒绝/否定词汇模式
+const REJECTION_PATTERNS = /^(?:不|不用|不要|算了|取消|拒绝|否|No|no|NO|别|停止|结束|退出)$/;
+
+// 检测是否是确认意图
+export const isConfirmationIntent = (message: string): boolean => {
+  return CONFIRMATION_PATTERNS.test(message.trim());
+};
+
+// 检测是否是拒绝意图
+export const isRejectionIntent = (message: string): boolean => {
+  return REJECTION_PATTERNS.test(message.trim());
+};
+
 // 从历史消息中查找最近的图片附件
 const findLatestImageAttachment = (history: ChatMessage[]): string | undefined => {
   for (let i = history.length - 1; i >= 0; i--) {
@@ -160,7 +178,25 @@ const isTextEditingIntent = (message: string): boolean => {
 
 // 检测是否是批量生成意图
 const isBatchGenerationIntent = (message: string): boolean => {
-  return REFERENCE_PATTERNS.batchAction.test(message);
+  // 检测批量关键词
+  if (REFERENCE_PATTERNS.batchAction.test(message)) {
+    return true;
+  }
+
+  // 检测编号列表（如 1. xxx 2. xxx）
+  const numberedPattern = /(?:^|\n)\s*(?:\(?)(\d+)[\.、\)\s]+([^\n]+?)(?=\s*(?:\n|$|\(?\d+[\.、\)\s]))/;
+  const matches = message.match(new RegExp(numberedPattern, 'g'));
+  if (matches && matches.length >= 2) {
+    return true;
+  }
+
+  // 检测"第X步"格式
+  const stepPattern = /第\s*\d+\s*步/;
+  if (stepPattern.test(message)) {
+    return true;
+  }
+
+  return false;
 };
 
 // 识别用户意图
@@ -496,6 +532,32 @@ const fallbackIntentRecognition = (
     };
   }
 
+  // 确认意图检测 - 优先级最高，放在最前面
+  if (isConfirmationIntent(message)) {
+    reasoningSteps.push('检测到确认词汇：好的/确认/是/可以/OK等');
+    reasoningSteps.push('用户确认执行当前任务');
+    return {
+      intent: 'confirmation',
+      confidence: 0.95,
+      params: {},
+      reasoning: '检测到确认词汇，判定为确认意图',
+      reasoningSteps,
+    };
+  }
+
+  // 拒绝意图检测 - 优先级最高
+  if (isRejectionIntent(message)) {
+    reasoningSteps.push('检测到拒绝词汇：不/不要/算了/取消等');
+    reasoningSteps.push('用户拒绝或取消当前任务');
+    return {
+      intent: 'rejection',
+      confidence: 0.95,
+      params: {},
+      reasoning: '检测到拒绝词汇，判定为拒绝意图',
+      reasoningSteps,
+    };
+  }
+
   // 联网搜索相关（支持中英文）- 优先级较高，放在问候和帮助之前
   if (lowerMessage.includes('搜索') || lowerMessage.includes('查') || lowerMessage.includes('找资料') ||
       lowerMessage.includes('网上') || lowerMessage.includes('最新') || lowerMessage.includes('新闻') ||
@@ -517,7 +579,7 @@ const fallbackIntentRecognition = (
     }
   }
 
-  // 问候相关（支持中英文）
+  // 问候相关（支持中英文）- 放在确认/拒绝检测之后
   if (lowerMessage.includes('你好') || lowerMessage.includes('您好') || lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey') || lowerMessage.includes('greetings')) {
     reasoningSteps.push(`检测到问候语：${lowerMessage.includes('你好') ? '你好' : ''} ${lowerMessage.includes('hello') ? 'hello' : ''}`);
     reasoningSteps.push('这是一个打招呼的问候');
@@ -616,6 +678,8 @@ export const getIntentDisplayName = (intent: IntentType): string => {
     'general': '一般对话',
     'greeting': '问候',
     'help': '帮助',
+    'confirmation': '确认',
+    'rejection': '拒绝',
   };
 
   return displayNames[intent] || '未知意图';
@@ -646,6 +710,8 @@ export const getIntentColor = (intent: IntentType): string => {
     'general': 'from-gray-500 to-gray-600',
     'greeting': 'from-green-500 to-teal-500',
     'help': 'from-blue-500 to-indigo-500',
+    'confirmation': 'from-emerald-500 to-green-500',
+    'rejection': 'from-red-500 to-orange-500',
   };
 
   return colors[intent] || 'from-gray-500 to-gray-600';

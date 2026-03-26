@@ -7,7 +7,7 @@ import {
   generateImage
 } from '../services/chatService';
 import { editImage } from '@/services/imageGenerationService';
-import { recognizeIntent, getIntentDisplayName, IntentType } from '../services/intentService';
+import { recognizeIntent, getIntentDisplayName, IntentType, isConfirmationIntent, isRejectionIntent } from '../services/intentService';
 import { analyzeRequirements, isRequirementsComplete, detectIntentSwitch, filterVisibleFields, RequirementField, MerchandiseCategory, IntentSwitchInfo } from '../services/requirementService';
 import { uploadPastedImages } from '../services/imageUploadService';
 import { performWebSearch, formatSearchResults, buildSearchContext } from '../services/webSearchService';
@@ -369,28 +369,64 @@ const extractBatchItemsEnhanced = (
   return extractBatchItems(message);
 };
 
-// 执行任务流（带进度跟踪）
+// 任务进度回调类型
+interface TaskProgressCallback {
+  onMessage: (message: string) => void;
+  onAttachment?: (attachment: Attachment) => void;
+  onSubStep?: (stageIndex: number, subStepIndex: number, subStepName: string, status: 'running' | 'completed') => void;
+  onStageComplete?: (stageIndex: number, stageName: string) => void;
+}
+
+// 模拟子步骤进度（用于提供更好的用户体验）
+const simulateSubSteps = async (
+  skill: IntentType,
+  onSubStep: (index: number, name: string, status: 'running' | 'completed') => void,
+  totalDuration: number = 3000
+): Promise<void> => {
+  const { getSubStepsForSkill } = await import('../services/taskOrchestrationService');
+  const subSteps = getSubStepsForSkill(skill);
+  const stepDuration = totalDuration / subSteps.length;
+
+  for (let i = 0; i < subSteps.length; i++) {
+    // 开始子步骤
+    onSubStep(i, subSteps[i], 'running');
+
+    // 模拟执行时间
+    await new Promise(resolve => setTimeout(resolve, stepDuration * 0.7));
+
+    // 完成子步骤
+    onSubStep(i, subSteps[i], 'completed');
+
+    // 短暂停顿
+    await new Promise(resolve => setTimeout(resolve, stepDuration * 0.3));
+  }
+};
+
+// 执行任务流（带进度跟踪，支持渐进式展示）
 const executeTaskFlowWithProgress = async (
   flow: TaskFlow,
   previousImageUrl: string | undefined,
-  onDelta: (message: string) => void
+  callbacks: TaskProgressCallback
 ): Promise<{ content: string; attachments: Attachment[] }> => {
+  const { onMessage, onAttachment, onSubStep, onStageComplete } = callbacks;
   console.log('[executeTaskFlow] 开始执行任务流:', flow.name);
 
   // 启动任务流
   taskFlowManager.startFlow(flow.id);
 
-  // 订阅进度更新
-  const progressMessages: string[] = [];
-  const unsubscribe = taskFlowManager.subscribe(flow.id, (progress: TaskProgress) => {
-    const progressBar = '█'.repeat(Math.round(progress.progress / 10)) + '░'.repeat(10 - Math.round(progress.progress / 10));
-    const msg = `📊 ${progress.stageName} (${progress.stageIndex + 1}/${progress.totalStages})\n${progressBar} ${progress.progress}%`;
-    progressMessages.push(msg);
-    onDelta(msg);
-  });
+  // 获取子步骤配置
+  const { getSubStepsForSkill } = await import('../services/taskOrchestrationService');
+
+  // 发送初始进度消息
+  const initialMessage = `🚀 **开始批量生成**\n\n共 ${flow.stages.length} 个任务，正在逐个生成...\n\n` +
+    flow.stages.map((s, i) => `${i + 1}. ⏳ ${s.name}`).join('\n');
+  onMessage(initialMessage);
 
   const allAttachments: Attachment[] = [];
   const failedTasks: Array<{ name: string; error: string }> = [];
+
+  // 追踪每个任务的子步骤状态
+  const stageSubSteps: Map<number, Array<{ name: string; status: 'pending' | 'running' | 'completed' }>> = new Map();
 
   try {
     for (let i = 0; i < flow.stages.length; i++) {
@@ -403,6 +439,8 @@ const executeTaskFlowWithProgress = async (
       }
 
       const stage = flow.stages[i];
+      const subSteps = getSubStepsForSkill(stage.skill).map(name => ({ name, status: 'pending' as const }));
+      stageSubSteps.set(i, subSteps);
 
       // 更新阶段状态
       taskFlowManager.updateStage(flow.id, stage.id, {
@@ -413,11 +451,53 @@ const executeTaskFlowWithProgress = async (
 
       console.log(`[executeTaskFlow] 执行阶段 ${i + 1}/${flow.stages.length}: ${stage.name}`);
 
+      // 发送带进度条的当前进度更新
+      const progressPercent = Math.round((i / flow.stages.length) * 100);
+      const progressBar = '█'.repeat(Math.round(progressPercent / 5)) + '░'.repeat(20 - Math.round(progressPercent / 5));
+
+      const generateProgressMessage = () => {
+        let message = `🚀 **批量生成进行中** (${i + 1}/${flow.stages.length})\n\n`;
+        message += `[${progressBar}] ${progressPercent}%\n\n`;
+        message += `🔄 正在生成：${stage.name}\n\n`;
+
+        // 显示子步骤进度
+        subSteps.forEach((step, idx) => {
+          const icon = step.status === 'completed' ? '✓' : step.status === 'running' ? '⟳' : '○';
+          message += `    ${icon} ${step.name}${step.status === 'running' ? '...' : step.status === 'completed' ? '' : ''}\n`;
+        });
+
+        message += '\n';
+
+        // 显示任务列表
+        flow.stages.forEach((s, idx) => {
+          if (idx < i) message += `${idx + 1}. ✅ ${s.name}\n`;
+          else if (idx === i) message += `${idx + 1}. 🔄 ${s.name}...\n`;
+          else message += `${idx + 1}. ⏳ ${s.name}\n`;
+        });
+
+        return message;
+      };
+
+      onMessage(generateProgressMessage());
+
       try {
-        // 根据不同的 skill 类型执行不同的生成逻辑
-        const result = await executeStageTask(stage, previousImageUrl, (progress) => {
+        // 并行执行：子步骤模拟 + 实际任务执行
+        const subStepPromise = simulateSubSteps(
+          stage.skill,
+          (subIdx, subName, subStatus) => {
+            subSteps[subIdx].status = subStatus;
+            onSubStep?.(i, subIdx, subName, subStatus);
+            onMessage(generateProgressMessage());
+          },
+          4000 // 4秒子步骤动画
+        );
+
+        const taskPromise = executeStageTask(stage, previousImageUrl, (progress) => {
           taskFlowManager.updateStage(flow.id, stage.id, { progress });
         });
+
+        // 等待两者完成
+        const [, result] = await Promise.all([subStepPromise, taskPromise]);
 
         // 保存输出
         taskFlowManager.updateStage(flow.id, stage.id, {
@@ -431,15 +511,33 @@ const executeTaskFlowWithProgress = async (
           endTime: Date.now(),
         });
 
-        // 收集附件
+        // 收集附件并立即通知
         if (result.attachments) {
-          allAttachments.push(...result.attachments);
+          for (const attachment of result.attachments) {
+            allAttachments.push(attachment);
+            // 立即通知新附件
+            onAttachment?.(attachment);
+          }
         }
 
         // 将当前输出作为下一个阶段的输入参考
         if (result.imageUrl) {
           previousImageUrl = result.imageUrl;
         }
+
+        onStageComplete?.(i, stage.name);
+
+        // 发送完成该任务的消息
+        const completedProgressPercent = Math.round(((i + 1) / flow.stages.length) * 100);
+        const completedProgressBar = '█'.repeat(Math.round(completedProgressPercent / 5)) + '░'.repeat(20 - Math.round(completedProgressPercent / 5));
+
+        const completedMessage = `✅ **${stage.name} 完成！** (${i + 1}/${flow.stages.length})\n\n` +
+          `[${completedProgressBar}] ${completedProgressPercent}%\n\n` +
+          flow.stages.map((s, idx) => {
+            if (idx <= i) return `${idx + 1}. ✅ ${s.name}`;
+            return `${idx + 1}. ⏳ ${s.name}`;
+          }).join('\n');
+        onMessage(completedMessage);
 
       } catch (error) {
         console.error(`[executeTaskFlow] 阶段 ${stage.name} 执行失败:`, error);
@@ -459,7 +557,7 @@ const executeTaskFlowWithProgress = async (
     let finalMessage = `✅ **${flow.name}完成！**\n\n`;
 
     if (flow.stages.length > 0) {
-      finalMessage += `共 ${flow.stages.length} 个阶段：\n`;
+      finalMessage += `共 ${flow.stages.length} 个任务：\n`;
       flow.stages.forEach((stage, idx) => {
         const statusEmoji = stage.status === 'completed' ? '✅' : stage.status === 'failed' ? '❌' : '⏳';
         finalMessage += `${idx + 1}. ${statusEmoji} ${stage.name}`;
@@ -484,8 +582,38 @@ const executeTaskFlowWithProgress = async (
     };
 
   } finally {
-    unsubscribe();
+    // 取消订阅
   }
+};
+
+// 带重试机制的图片生成
+const generateImageWithRetry = async (
+  prompt: string,
+  maxRetries: number = 2
+): Promise<string> => {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`[generateImageWithRetry] 第 ${attempt + 1} 次重试...`);
+        // 重试前等待一段时间（指数退避）
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+      }
+
+      const imageUrl = await generateImage(prompt);
+      return imageUrl;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('未知错误');
+      console.error(`[generateImageWithRetry] 第 ${attempt + 1} 次尝试失败:`, lastError.message);
+
+      if (attempt === maxRetries) {
+        throw new Error(`图片生成失败（已重试 ${maxRetries} 次）：${lastError.message}`);
+      }
+    }
+  }
+
+  throw lastError || new Error('图片生成失败');
 };
 
 // 执行单个阶段任务
@@ -503,10 +631,11 @@ const executeStageTask = async (
     case 'poster-design':
     case 'image-generation': {
       // 构建生成提示词
-      const prompt = buildGenerationPrompt(input.prompt, input.brandName, input.style, previousImageUrl);
+      const prompt = buildGenerationPrompt(input.prompt, input.brandName, input.style, previousImageUrl, stage.skill);
       onProgress(30);
 
-      const imageUrl = await generateImage(prompt);
+      // 使用带重试机制的图片生成
+      const imageUrl = await generateImageWithRetry(prompt, 2);
       onProgress(90);
 
       const attachment: Attachment = {
@@ -535,18 +664,73 @@ const executeStageTask = async (
 
     case 'brand-copy':
     case 'marketing-copy':
-    case 'social-copy': {
-      // 文案生成返回文本
-      return {
-        content: `📝 **${stage.name}**\n\n这是一段示例文案内容...`,
-        attachments: [],
+    case 'social-copy':
+    case 'video-script':
+    case 'text-generation': {
+      // 文本生成 - 调用LLM服务
+      onProgress(30);
+
+      // 构建文本生成提示词
+      let textPrompt = input.prompt;
+      if (input.brandName) {
+        textPrompt = `为品牌"${input.brandName}"生成${stage.name}：${textPrompt}`;
+      }
+
+      // 添加风格要求
+      if (input.style) {
+        textPrompt += `\n\n风格要求：${input.style}`;
+      }
+
+      // 添加任务类型特定的要求
+      const taskRequirements: Record<string, string> = {
+        'brand-copy': '要求：富有感染力，突出品牌特色，适合品牌传播',
+        'marketing-copy': '要求：具有营销转化力，突出产品卖点，吸引目标客户',
+        'social-copy': '要求：符合社交媒体传播特点，有互动性，易于传播',
+        'video-script': '要求：有画面感，节奏流畅，适合视频拍摄',
+        'text-generation': '要求：内容完整，表达清晰，符合场景需求',
       };
+
+      const requirement = taskRequirements[skill] || taskRequirements['text-generation'];
+      textPrompt += `\n\n${requirement}`;
+
+      onProgress(60);
+
+      try {
+        // 调用文本生成服务
+        const { callQwenChat } = await import('@/services/llm/chatProviders');
+        const response = await callQwenChat([
+          {
+            role: 'system',
+            content: '你是一位专业的文案策划师，擅长撰写各类品牌文案、营销文案和创意内容。请根据要求生成高质量的文案。',
+          },
+          {
+            role: 'user',
+            content: textPrompt,
+          },
+        ]);
+
+        onProgress(90);
+
+        const generatedText = response.choices[0]?.message?.content || '文案生成失败';
+
+        return {
+          content: `📝 **${stage.name}**\n\n${generatedText}`,
+          attachments: [],
+        };
+      } catch (error) {
+        console.error('[executeStageTask] 文本生成失败:', error);
+        return {
+          content: `❌ **${stage.name}生成失败**\n\n${error instanceof Error ? error.message : '未知错误'}`,
+          attachments: [],
+        };
+      }
     }
 
     default: {
       // 默认当作图片生成处理
-      const prompt = buildGenerationPrompt(input.prompt, input.brandName, input.style, previousImageUrl);
-      const imageUrl = await generateImage(prompt);
+      const prompt = buildGenerationPrompt(input.prompt, input.brandName, input.style, previousImageUrl, stage.skill);
+      // 使用带重试机制的图片生成
+      const imageUrl = await generateImageWithRetry(prompt, 2);
 
       return {
         imageUrl,
@@ -568,21 +752,39 @@ const buildGenerationPrompt = (
   basePrompt: string,
   brandName?: string,
   style?: string,
-  referenceImageUrl?: string
+  referenceImageUrl?: string,
+  taskType?: string
 ): string => {
   let prompt = basePrompt;
 
+  // 添加品牌名
   if (brandName) {
     prompt = `${brandName}品牌，${prompt}`;
   }
 
+  // 添加风格
   if (style) {
     prompt = `${prompt}，风格：${style}`;
   }
 
+  // 添加参考图
   if (referenceImageUrl) {
     prompt = `${prompt}，参考风格：${referenceImageUrl}`;
   }
+
+  // 根据任务类型添加质量增强提示词
+  const qualityEnhancements: Record<string, string> = {
+    'logo-design': '，专业Logo设计，矢量风格，简洁现代，高辨识度，白色背景，4K高清',
+    'poster-design': '，海报设计，视觉冲击力，排版精美，色彩和谐，印刷品质，4K高清',
+    'color-scheme': '，配色方案展示，色彩和谐，专业设计，色值标注，4K高清',
+    'image-generation': '，插画设计，细节丰富，色彩饱满，艺术感强，4K高清',
+    'ui-design': '，UI界面设计，现代简约，用户体验友好，高保真，4K高清',
+    'illustration': '，商业插画，创意独特，色彩丰富，细节精致，4K高清',
+    'default': '，专业设计，高品质，细节精致，4K高清',
+  };
+
+  const enhancement = qualityEnhancements[taskType || 'default'] || qualityEnhancements['default'];
+  prompt = `${prompt}${enhancement}`;
 
   return prompt;
 };
@@ -779,7 +981,8 @@ export const useSkillChat = () => {
     intent: IntentType,
     userMessage: string,
     collectedInfo: Record<string, string>,
-    onDelta: (content: string) => void
+    onDelta: (content: string) => void,
+    onAttachment?: (attachment: Attachment) => void
   ): Promise<{ content: string; attachments?: ChatMessage['attachments'] }> => {
     const context = createChatContext(messages);
     
@@ -849,26 +1052,45 @@ export const useSkillChat = () => {
       case 'social-copy':
       case 'color-scheme':
       case 'creative-idea': {
-        let content = '';
+        let generatedContent = '';
+        
+        // 构建增强的提示词，要求返回格式化的 Markdown 内容
+        const enhancedPrompt = `${fullPrompt}
+
+请使用 Markdown 格式返回内容，包括：
+- 使用 ## 或 ### 作为标题
+- 使用 **粗体** 强调重点
+- 使用 - 或 1. 2. 3. 组织列表
+- 适当分段，让内容更易读`;
+        
         await sendMessageStream(
-          fullPrompt,
+          enhancedPrompt,
           context,
           (delta) => {
-            content += delta;
-            onDelta(content);
+            generatedContent += delta;
+            onDelta(generatedContent);
           },
           abortControllerRef.current?.signal
         );
 
+        // 确保内容有适当的标题
+        let formattedContent = generatedContent;
+        const intentDisplayName = getIntentDisplayName(intent);
+        
+        // 如果内容没有以 # 开头，添加一个标题
+        if (!formattedContent.trim().startsWith('#')) {
+          formattedContent = `## ${intentDisplayName}\n\n${formattedContent}`;
+        }
+
         // 将生成的文案作为文本附件返回，以便在画布上显示
         const attachment = {
           type: 'text' as const,
-          content: content,
-          title: getIntentDisplayName(intent),
+          content: formattedContent,
+          title: intentDisplayName,
         };
 
         return {
-          content,
+          content: formattedContent,
           attachments: [attachment],
         };
       }
@@ -1035,17 +1257,62 @@ export const useSkillChat = () => {
         // 使用任务编排服务处理批量生成
         try {
           console.log('[executeSkill] 开始批量生成，请求:', userMessage);
+          console.log('[executeSkill] 已收集信息:', collectedInfo);
 
           // 获取上下文信息
           const previousState = conversationStateRef.current;
           const previousImageUrl = previousState?.lastImageAttachment?.url ||
                                   previousState?.designContext?.logoUrl ||
                                   previousState?.designContext?.lastOutputUrl;
-          const brandName = previousState?.designContext?.brandName ||
+          const brandName = collectedInfo['brandName'] ||
+                           previousState?.designContext?.brandName ||
                            extractBrandNameFromMessage(userMessage);
           const designStyle = previousState?.designContext?.style;
 
-          // 解析复杂任务
+          // ===== 优先使用 collectedInfo 中的 batchTasks =====
+          if (collectedInfo['batchTasks']) {
+            try {
+              const batchTasks = JSON.parse(collectedInfo['batchTasks']);
+              console.log('[executeSkill] 使用预解析的 batchTasks:', batchTasks);
+
+              if (batchTasks.length > 0) {
+                const flow = taskFlowManager.createFlow(
+                  `批量生成 - ${batchTasks.length}个任务`
+                );
+
+                // 添加所有子任务
+                batchTasks.forEach((task: any, index: number) => {
+                  taskFlowManager.addStage(flow.id, {
+                    name: task.name,
+                    skill: task.skill || 'poster-design',
+                    input: {
+                      prompt: `${task.prompt}，品牌名：${brandName || '待定'}`,
+                      imageUrl: previousImageUrl,
+                      brandName,
+                      style: designStyle,
+                      referenceFromPrevious: !!previousImageUrl,
+                    },
+                  });
+                });
+
+                // 保存当前任务流
+                conversationStateRef.current = {
+                  ...previousState,
+                  currentTaskFlow: { flowId: flow.id, name: flow.name },
+                };
+
+                // 开始执行任务流
+                return await executeTaskFlowWithProgress(flow, previousImageUrl, {
+                  onMessage: onDelta,
+                  onAttachment,
+                });
+              }
+            } catch (e) {
+              console.error('[executeSkill] 解析 batchTasks 失败:', e);
+            }
+          }
+
+          // 如果没有预解析的任务，使用 parseComplexTask
           const parsedTask = parseComplexTask(userMessage, {
             previousIntent: previousState?.intent,
             previousImageUrl,
@@ -1055,36 +1322,8 @@ export const useSkillChat = () => {
 
           console.log('[executeSkill] 任务解析结果:', parsedTask);
 
-          // 如果是复杂多步骤任务
-          if (parsedTask.isComplex && parsedTask.flow) {
-            const stages = parsedTask.flow.stages.map(stage => ({
-              name: stage.name,
-              skill: stage.skill,
-              input: {
-                prompt: `${stage.description}，品牌名：${brandName || '待定'}`,
-                imageUrl: previousImageUrl,
-                style: designStyle,
-                referenceFromPrevious: !!previousImageUrl,
-              },
-            }));
-
-            const flow = createDesignTaskFlow(
-              `品牌设计流程 - ${brandName || '新品牌'}`,
-              stages
-            );
-
-            // 保存当前任务流
-            conversationStateRef.current = {
-              ...currentState,
-              currentTaskFlow: { flowId: flow.id, name: flow.name },
-            };
-
-            // 开始执行任务流
-            return await executeTaskFlowWithProgress(flow, previousImageUrl, onDelta);
-          }
-
-          // 如果是批量生成任务
-          if (parsedTask.isBatch && parsedTask.tasks.length > 0) {
+          // 如果是批量生成任务（包括编号列表解析出的任务）
+          if ((parsedTask.isBatch || parsedTask.isComplex) && parsedTask.tasks.length > 0) {
             const flow = taskFlowManager.createFlow(
               `批量生成 - ${parsedTask.tasks.length}个任务`
             );
@@ -1106,12 +1345,46 @@ export const useSkillChat = () => {
 
             // 保存当前任务流
             conversationStateRef.current = {
-              ...currentState,
+              ...previousState,
               currentTaskFlow: { flowId: flow.id, name: flow.name },
             };
 
             // 开始执行任务流
-            return await executeTaskFlowWithProgress(flow, previousImageUrl, onDelta);
+            return await executeTaskFlowWithProgress(flow, previousImageUrl, {
+              onMessage: onDelta,
+              onAttachment,
+            });
+          }
+
+          // 如果是复杂多步骤任务（有flow但没有tasks）
+          if (parsedTask.isComplex && parsedTask.flow) {
+            const stages = parsedTask.flow.stages.map(stage => ({
+              name: stage.name,
+              skill: stage.skill,
+              input: {
+                prompt: `${stage.description}，品牌名：${brandName || '待定'}`,
+                imageUrl: previousImageUrl,
+                style: designStyle,
+                referenceFromPrevious: !!previousImageUrl,
+              },
+            }));
+
+            const flow = createDesignTaskFlow(
+              `品牌设计流程 - ${brandName || '新品牌'}`,
+              stages
+            );
+
+            // 保存当前任务流
+            conversationStateRef.current = {
+              ...previousState,
+              currentTaskFlow: { flowId: flow.id, name: flow.name },
+            };
+
+            // 开始执行任务流
+            return await executeTaskFlowWithProgress(flow, previousImageUrl, {
+              onMessage: onDelta,
+              onAttachment,
+            });
           }
 
           // 如果没有解析到具体任务，使用原来的简单批量逻辑
@@ -1633,10 +1906,38 @@ export const useSkillChat = () => {
         }
 
         if (currentState && currentState.phase === 'confirming' && currentState.intent) {
+          // 优先检测确认/拒绝词汇
+          const isConfirm = isConfirmationIntent(content);
+          const isReject = isRejectionIntent(content);
+
+          console.log('[sendMessage] 确认阶段，用户输入:', content);
+          console.log('[sendMessage] 是否确认:', isConfirm);
+          console.log('[sendMessage] 是否拒绝:', isReject);
+
+          // 如果不是确认也不是拒绝，可能是用户想修改需求
+          if (!isConfirm && !isReject) {
+            // 用户输入了其他内容，视为修改需求或新意图
+            console.log('[sendMessage] 用户未确认也未拒绝，重新进行意图识别');
+            // 继续执行下面的意图识别逻辑，不在这里返回
+          } else if (isReject) {
+            // 用户拒绝了，重置状态
+            conversationStateRef.current = null;
+            addMessage({
+              role: 'agent',
+              content: '好的，已取消当前任务。请问有什么其他我可以帮您的吗？',
+            });
+            setIsProcessing(false);
+            return;
+          }
+
           // 用户确认了信息，开始执行
           const intent = currentState.intent;
           const collectedInfo = currentState.collectedInfo;
-          
+
+          console.log('[sendMessage] 确认阶段执行，intent:', intent);
+          console.log('[sendMessage] collectedInfo:', collectedInfo);
+          console.log('[sendMessage] batchTasks:', collectedInfo['batchTasks']);
+
           // 重置对话状态
           conversationStateRef.current = null;
 
@@ -1660,6 +1961,8 @@ export const useSkillChat = () => {
 
           // 执行技能
           let finalContent = '';
+          const progressiveAttachments: Attachment[] = [];
+
           const result = await executeSkill(
             intent,
             content,
@@ -1669,6 +1972,17 @@ export const useSkillChat = () => {
               updateLastMessage({
                 content: delta,
                 skillCall: executingSkillCall,
+                attachments: progressiveAttachments.length > 0 ? [...progressiveAttachments] : undefined,
+              });
+            },
+            (attachment) => {
+              // 渐进式添加附件
+              progressiveAttachments.push(attachment);
+              console.log('[sendMessage] 渐进式添加附件:', attachment.id, attachment.title);
+              updateLastMessage({
+                content: finalContent || `🚀 **批量生成进行中**\n\n已生成 ${progressiveAttachments.length} 个设计...`,
+                skillCall: executingSkillCall,
+                attachments: [...progressiveAttachments],
               });
             }
           );

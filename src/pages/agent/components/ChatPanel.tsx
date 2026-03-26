@@ -32,7 +32,6 @@ import WorkflowExecutionPanel, { WorkflowStep, StepStatus } from './WorkflowExec
 import JinbiInsufficientModal from '@/components/jinbi/JinbiInsufficientModal';
 import { IPMascotVideoLoader } from '@/components/ip-mascot';
 import { ThinkingDecisionPanel } from './thinking';
-import { ThinkingProcessPanel, InlineThinkingProcess } from './ThinkingProcessPanel';
 import type { ThinkingSession, ThinkingStep } from '../types/thinking';
 import type { InspirationHint, StyleOption } from '../types/agent';
 import type { Brand } from '@/lib/brands';
@@ -125,7 +124,13 @@ function detectStyleFromMessage(message: string): string | null {
     'warm-color': ['温馨', '彩绘', '温馨彩绘'],
     'adventure-comic': ['治愈', '冒险', '漫画', '治愈冒险', '治愈冒险漫画'],
     'grainy-cute': ['颗粒', '粉彩', '童话', '颗粒粉彩'],
-    'dreamy-pastel': ['虹彩', '梦幻', '治愈', '虹彩梦幻']
+    'dreamy-pastel': ['虹彩', '梦幻', '治愈', '虹彩梦幻'],
+    'minimalist': ['简约', '极简', '简单', '现代简约'],
+    'vintage': ['复古', '怀旧', '古典', '老式'],
+    'cute': ['可爱', '萌', '卡通', 'Q版'],
+    'tech': ['科技', '酷炫', '炫酷', '未来感'],
+    'elegant': ['华丽', '奢华', '高端', '优雅'],
+    'hand-drawn': ['手绘', '插画', '艺术', '水彩']
   };
 
   for (const [styleId, keywords] of Object.entries(styleKeywords)) {
@@ -491,8 +496,6 @@ export default function ChatPanel() {
   // 思考过程状态
   const [thinkingSession, setThinkingSession] = useState<ThinkingSession | null>(null);
   const [showThinkingProcess, setShowThinkingProcess] = useState(false);
-  // 增强版思考过程
-  const [enhancedThinkingSteps, setEnhancedThinkingSteps] = useState<any[]>([]);
   // 粘贴图片相关状态
   const [pastedImages, setPastedImages] = useState<Array<{ id: string; file: File; preview: string }>>([]);
   const [isProcessingPaste, setIsProcessingPaste] = useState(false);
@@ -2073,6 +2076,31 @@ export default function ChatPanel() {
       toast.success(`已自动选择风格：${PRESET_STYLES.find(s => s.id === detectedStyle)?.name}`);
     }
 
+    // 从用户消息中提取需求信息并更新 requirementCollection
+    // 这可以防止 Agent 重复询问已经回答过的问题
+    const { requirementAnalysisService } = await import('../services/requirementAnalysisService');
+    const extractedInfo = requirementAnalysisService.extractKeyInfo(cleanInput);
+    console.log('[ChatPanel] 从用户消息提取的需求信息:', extractedInfo);
+
+    if (extractedInfo && (extractedInfo.targetAudience || extractedInfo.stylePreference || extractedInfo.usageScenario)) {
+      const { updateRequirementInfo, setRequirementStage } = useAgentStore.getState();
+
+      // 更新已收集的需求信息
+      updateRequirementInfo({
+        ...(extractedInfo.targetAudience && { targetAudience: extractedInfo.targetAudience }),
+        ...(extractedInfo.stylePreference && { stylePreference: extractedInfo.stylePreference }),
+        ...(extractedInfo.usageScenario && { usageScenario: extractedInfo.usageScenario }),
+        ...(extractedInfo.brandInfo && { brandInfo: extractedInfo.brandInfo }),
+        ...(extractedInfo.keyElements && extractedInfo.keyElements.length > 0 && { keyElements: extractedInfo.keyElements })
+      });
+
+      // 如果收集到足够信息，将阶段推进到 collecting
+      if (extractedInfo.targetAudience || extractedInfo.stylePreference) {
+        setRequirementStage('collecting');
+        console.log('[ChatPanel] 已提取关键需求信息，更新 requirementCollection');
+      }
+    }
+
     setIsTyping(true);
 
     // 消费津币（仅限登录用户）
@@ -2286,11 +2314,6 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
           
           const v2Response = await processWithOrchestrator(userMessage, contextV2);
           
-          // 保存增强版思考过程
-          if (v2Response.thinkingSteps) {
-            setEnhancedThinkingSteps(v2Response.thinkingSteps);
-          }
-          
           // 转换 V2 响应为 V1 格式（兼容现有处理逻辑）
           const response = {
             type: v2Response.type === 'collaboration' ? 'delegation' : v2Response.type,
@@ -2306,26 +2329,6 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
               thinkingSteps: v2Response.thinkingSteps
             }
           };
-          
-          // 更新思考过程显示
-          if (v2Response.thinkingSteps && v2Response.thinkingSteps.length > 0) {
-            const lastStep = v2Response.thinkingSteps[v2Response.thinkingSteps.length - 1];
-            setThinkingSession(prev => prev ? {
-              ...prev,
-              status: lastStep.status === 'error' ? 'error' : 'completed',
-              steps: v2Response.thinkingSteps!.map((step, index) => ({
-                id: step.id,
-                type: step.type,
-                title: step.title,
-                status: step.status === 'running' ? 'processing' : 
-                        step.status === 'completed' ? 'completed' : 'error',
-                summary: step.summary || '',
-                details: step.details,
-                startTime: step.startTime,
-                endTime: step.endTime
-              }))
-            } : null);
-          }
 
           // 更新当前 Agent（仅在未锁定状态下）
           // 避免过度切换：如果用户只是咨询，不要切换Agent
@@ -3184,17 +3187,7 @@ ${brands.length > 0 ? `**品牌：** ${brands[0]}` : ''}
         {/* 工作流状态 */}
         <WorkflowStatus />
 
-        {/* 增强版思考过程面板 */}
-        {enhancedThinkingSteps.length > 0 && (
-          <div className="sticky top-2 z-10">
-            <ThinkingProcessPanel
-              steps={enhancedThinkingSteps}
-              isVisible={true}
-              onClose={() => setEnhancedThinkingSteps([])}
-              className="ml-auto mr-4 shadow-xl"
-            />
-          </div>
-        )}
+
 
         {/* 工作流执行面板 */}
         {activeWorkflow && (

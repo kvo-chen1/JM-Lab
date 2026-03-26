@@ -87,6 +87,10 @@
       "destination": "/api/health/ping.js"
     },
     {
+      "source": "/api/health/env-check",
+      "destination": "/api/health/env-check.js"
+    },
+    {
       "source": "/api/proxy/video",
       "destination": "/api/proxy/video.js"
     },
@@ -189,6 +193,10 @@
       "memory": 1024
     },
     "api/qwen/tasks/[id].js": {
+      "maxDuration": 10,
+      "memory": 512
+    },
+    "api/health/env-check.js": {
       "maxDuration": 10,
       "memory": 512
     }

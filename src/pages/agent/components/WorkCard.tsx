@@ -217,26 +217,34 @@ function ImageWithLoading({
   // 如果是待处理状态
   if (status === 'pending' || (!src && !isGenerating)) {
     return (
-      <div className={`flex flex-col items-center justify-center ${isDark ? 'bg-gray-800/50' : 'bg-gray-100/50'} ${className}`}>
-        <div className="text-center px-4 max-w-[80%]">
-          <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-            <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className={`flex flex-col items-center justify-center p-4 ${isDark ? 'bg-gray-800/30' : 'bg-gray-50'} ${className}`}>
+        <div className="text-center w-full">
+          {/* 图标 */}
+          <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-[#C02C38]/10 to-[#E85D75]/10 flex items-center justify-center border border-[#C02C38]/20">
+            <svg className="w-6 h-6 text-[#C02C38]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
           </div>
+
+          {/* 标题 */}
           {title && (
-            <h4 className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+            <h4 className={`text-sm font-semibold mb-2 line-clamp-1 ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
               {title}
             </h4>
           )}
+
+          {/* 描述 */}
           {description && (
-            <p className={`text-xs line-clamp-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            <p className={`text-xs mb-3 line-clamp-2 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               {description}
             </p>
           )}
-          <p className={`text-xs mt-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            任务已创建，等待开始...
-          </p>
+
+          {/* 状态提示 */}
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs ${isDark ? 'bg-gray-700/50 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+            等待开始
+          </div>
         </div>
       </div>
     );

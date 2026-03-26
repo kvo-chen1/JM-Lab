@@ -16,6 +16,7 @@ import {
   parseComplexTask,
   createDesignTaskFlow,
   extractBrandNameFromMessage,
+  detectCompoundTask,
   type TaskFlow,
   type TaskProgress,
 } from '../services/taskOrchestrationService';
@@ -72,6 +73,15 @@ interface ProgressEstimate {
 
 // 草稿保存键名
 const DRAFT_STORAGE_KEY = 'skill-chat-draft';
+const EXECUTION_PROGRESS_KEY = 'skill-chat-execution-progress';
+
+interface ExecutionProgress {
+  flowId: string;
+  currentStageIndex: number;
+  completedStages: number[];
+  stageStatuses: Record<string, 'pending' | 'running' | 'completed' | 'failed'>;
+  savedAt: number;
+}
 
 // 保存草稿到 localStorage
 const saveDraft = (state: ConversationState, messages: ChatMessage[]) => {
@@ -109,8 +119,65 @@ const restoreDraft = (): { state: ConversationState; messages: ChatMessage[] } |
 const clearDraft = () => {
   try {
     localStorage.removeItem(DRAFT_STORAGE_KEY);
+    localStorage.removeItem(EXECUTION_PROGRESS_KEY);
   } catch (error) {
     console.warn('[useSkillChat] 清除草稿失败:', error);
+  }
+};
+
+// 保存执行进度
+const saveExecutionProgress = (flow: TaskFlow) => {
+  try {
+    const stageStatuses: Record<string, 'pending' | 'running' | 'completed' | 'failed'> = {};
+    flow.stages.forEach(stage => {
+      stageStatuses[stage.id] = stage.status;
+    });
+
+    const progress: ExecutionProgress = {
+      flowId: flow.id,
+      currentStageIndex: flow.currentStageIndex,
+      completedStages: flow.stages
+        .map((s, i) => s.status === 'completed' ? i : -1)
+        .filter(i => i !== -1),
+      stageStatuses,
+      savedAt: Date.now(),
+    };
+
+    localStorage.setItem(EXECUTION_PROGRESS_KEY, JSON.stringify(progress));
+    console.log('[useSkillChat] 执行进度已保存:', progress);
+  } catch (error) {
+    console.warn('[useSkillChat] 保存执行进度失败:', error);
+  }
+};
+
+// 恢复执行进度
+const restoreExecutionProgress = (): ExecutionProgress | null => {
+  try {
+    const saved = localStorage.getItem(EXECUTION_PROGRESS_KEY);
+    if (saved) {
+      const progress: ExecutionProgress = JSON.parse(saved);
+
+      // 检查是否过期（超过1小时）
+      if (Date.now() - progress.savedAt > 60 * 60 * 1000) {
+        console.log('[useSkillChat] 执行进度已过期');
+        localStorage.removeItem(EXECUTION_PROGRESS_KEY);
+        return null;
+      }
+
+      return progress;
+    }
+  } catch (error) {
+    console.warn('[useSkillChat] 恢复执行进度失败:', error);
+  }
+  return null;
+};
+
+// 清除执行进度
+const clearExecutionProgress = () => {
+  try {
+    localStorage.removeItem(EXECUTION_PROGRESS_KEY);
+  } catch (error) {
+    console.warn('[useSkillChat] 清除执行进度失败:', error);
   }
 };
 
@@ -1451,8 +1518,156 @@ export const useSkillChat = () => {
           },
           abortControllerRef.current?.signal
         );
-        
+
         return { content };
+      }
+
+      case 'compound-generation': {
+        try {
+          console.log('[executeSkill] 开始复合任务处理:', userMessage);
+
+          const previousState = conversationStateRef.current;
+          const brandName = collectedInfo['brandName'] ||
+                           previousState?.designContext?.brandName ||
+                           extractBrandNameFromMessage(userMessage);
+
+          // 使用detectCompoundTask解析复合任务
+          const compoundInfo = detectCompoundTask(userMessage, {
+            previousIntent: previousState?.intent,
+            previousImageUrl: previousState?.lastImageAttachment?.url,
+          });
+
+          if (!compoundInfo.isCompound || compoundInfo.tasks.length === 0) {
+            // 如果无法解析为复合任务，降级为批量生成
+            console.log('[executeSkill] 无法解析为复合任务，降级为批量生成');
+            return await executeSkill('batch-generation', userMessage, collectedInfo, onDelta, onAttachment);
+          }
+
+          console.log('[executeSkill] 解析到复合任务:', compoundInfo.tasks);
+
+          // 创建任务流
+          const flow = taskFlowManager.createFlow(
+            `复合任务 - ${compoundInfo.tasks.length}个不同类型任务`
+          );
+
+          compoundInfo.tasks.forEach((task, index) => {
+            taskFlowManager.addStage(flow.id, {
+              name: task.name,
+              skill: task.skill,
+              input: {
+                prompt: task.prompt,
+                brandName: brandName || compoundInfo.brandName,
+                referenceFromPrevious: index > 0,
+              },
+            });
+          });
+
+          // 保存当前任务流
+          conversationStateRef.current = {
+            ...previousState,
+            currentTaskFlow: { flowId: flow.id, name: flow.name },
+          };
+
+          // 执行任务流
+          return await executeTaskFlowWithProgress(flow, previousState?.lastImageAttachment?.url, {
+            onMessage: onDelta,
+            onAttachment,
+          });
+
+        } catch (error) {
+          console.error('[executeSkill] 复合任务处理失败:', error);
+          return {
+            content: `❌ **复合任务处理失败**\n\n${error instanceof Error ? error.message : '未知错误'}`,
+            attachments: [],
+          };
+        }
+      }
+
+      case 'refinement': {
+        try {
+          console.log('[executeSkill] 开始优化迭代处理:', userMessage);
+
+          const previousState = conversationStateRef.current;
+          const lastExecution = previousState?.lastExecutionResult;
+
+          if (!lastExecution) {
+            return {
+              content: `🤔 **优化迭代**\n\n我需要先为您生成一些内容，然后才能进行优化。请先告诉我您想要什么内容的设计或创作。`,
+              attachments: [],
+            };
+          }
+
+          // 导入refinementService
+          const { parseRefinementRequest, applyRefinement, buildRefinedPrompt } = await import('../services/refinementService');
+
+          // 构建refinement上下文
+          const refinementContext = {
+            originalIntent: lastExecution.intent as IntentType,
+            originalParams: collectedInfo,
+            originalResult: {
+              imageUrl: lastExecution.attachments?.[0]?.url,
+              textContent: lastExecution.content,
+            },
+          };
+
+          // 解析优化请求
+          const refinementRequest = parseRefinementRequest(userMessage, refinementContext);
+
+          console.log('[executeSkill] 解析到优化请求:', refinementRequest);
+
+          if (Object.keys(refinementRequest.modifiedFields).length === 0) {
+            return {
+              content: `🤔 **优化迭代**\n\n我理解您想要优化，但不确定要修改什么。您可以告诉我：\n- "颜色换成蓝色系"\n- "风格更简约一些"\n- "尺寸调大一点"\n\n请告诉我您想要怎么调整？`,
+              attachments: [],
+            };
+          }
+
+          // 应用优化请求到原始参数
+          const refinementResult = applyRefinement(
+            collectedInfo,
+            refinementRequest,
+            refinementContext
+          );
+
+          console.log('[executeSkill] 应用优化结果:', refinementResult);
+
+          // 更新collectedInfo
+          const refinedCollectedInfo = {
+            ...collectedInfo,
+            ...refinementResult.newParams,
+          };
+
+          // 如果是部分修改，需要重新构建prompt
+          let refinedPrompt = userMessage;
+          if (refinementResult.partialOnly && lastExecution.content) {
+            refinedPrompt = buildRefinedPrompt(
+              lastExecution.content,
+              refinementRequest,
+              refinementContext
+            );
+          }
+
+          // 显示优化进度
+          onDelta(`🔄 **优化迭代**\n\n正在根据您的要求进行调整...\n\n修改内容：${Object.entries(refinementRequest.modifiedFields).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
+
+          // 重新执行原始类型的任务
+          const result = await executeSkill(
+            refinementContext.originalIntent,
+            refinedPrompt,
+            refinedCollectedInfo,
+            onDelta,
+            onAttachment
+          );
+
+          return result;
+
+        } catch (error) {
+          console.error('[executeSkill] 优化迭代处理失败:', error);
+          return {
+            content: `❌ **优化迭代失败**\n\n${error instanceof Error ? error.message : '未知错误'}`,
+            attachments: [],
+          };
+        }
       }
     }
   };

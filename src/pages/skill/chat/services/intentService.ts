@@ -20,6 +20,8 @@ export type IntentType =
   | 'data-report'
   | 'web-search'
   | 'batch-generation'
+  | 'compound-generation'
+  | 'refinement'
   | 'general'
   | 'greeting'
   | 'help'
@@ -32,10 +34,13 @@ export interface IntentResult {
   params: Record<string, string>;
   reasoning: string;
   reasoningSteps?: string[];
+  clarificationNeeded?: boolean;
+  clarificationQuestion?: string;
   entities?: {
     originalImageUrl?: string;
     originalText?: string;
     referenceType?: 'previous-image' | 'previous-text' | 'previous-design';
+    referencedTaskIndex?: number;
   };
 }
 
@@ -60,6 +65,10 @@ const REFERENCE_PATTERNS = {
   copyAction: /复制|拷贝|再来一个|再生成|换个|改下|修改|调整|基于|按照|根据/i,
   // 批量操作
   batchAction: /一套|一组|多个|几个|一系列|批量|全套|全套的|所有/i,
+  // 优化迭代关键词
+  refinementAction: /优化|调整|改一下|换|改成|变成|换个|更好|改进|改善|完善|修正/i,
+  // 指代词组合（表示对之前结果的优化）
+  refinementReference: /这个|那个|它|这|那|上一个|之前一个|刚才的|上面/i,
 };
 
 // 意图识别提示词
@@ -83,6 +92,8 @@ const INTENT_RECOGNITION_PROMPT = `你是一个意图识别专家。请分析用
 - ui-design: UI 设计（界面设计、APP 设计、网页设计等）
 - data-report: 数据分析报告（数据分析报告、周报、月报、数据总结等）
 - web-search: 联网搜索（搜索网络信息、查资料、查新闻、查最新信息等，如"帮我搜索最新的AI技术"、"查一下某品牌的资料"）
+- compound-generation: 复合任务（一次请求多个不同类型的设计或内容，如"帮我设计一个品牌，包括Logo、海报和名片"）
+- refinement: 优化迭代（对之前生成的结果进行调整，如"颜色换成蓝色"、"调整一下风格"、"优化这个设计"）
 - greeting: 问候（打招呼、寒暄等，如"你好"、"早上好"）
 - help: 帮助（询问功能、如何使用、查资料、搜索信息、获取帮助等，如"帮我查资料"、"你能做什么"、"怎么用"）
 - general: 一般对话（其他类型的对话）
@@ -95,17 +106,22 @@ const INTENT_RECOGNITION_PROMPT = `你是一个意图识别专家。请分析用
     "key1": "value1",
     "key2": "value2"
   },
-  "reasoning": "识别理由的简要说明"
+  "reasoning": "识别理由的简要说明",
+  "clarificationNeeded": false,
+  "clarificationQuestion": "如果需要澄清，这里填写问题"
 }
 
 注意：
 1. confidence 是 0-1 之间的置信度
 2. params 是提取的关键参数，如风格、主题、用途等
 3. 只返回 JSON，不要包含其他内容
+4. clarificationNeeded 为 true 时，需要在 clarificationQuestion 中填写澄清问题
 
 重要：如果用户提到"美化"、"优化"、"转换风格"、"变成 X 风格"等词汇，应该识别为 image-beautification 或 image-style-transfer，而不是一般对话。
 
 关键区分：
+- 复合任务(compound-generation) vs 批量生成(batch-generation): 如果用户提到"包括"、"还有"、"以及"、"全套"、"整套"等连接的多个不同类型需求，识别为 compound-generation。如果只提同一类型的大量需求（如"生成10张海报"），识别为 batch-generation
+- 优化迭代(refinement) vs 图片编辑(image-editing): refinement 主要针对之前生成的结果进行调整优化，如"颜色换成蓝色"、"风格更简约一些"；image-editing 更侧重于对图片进行编辑修改
 - 视频脚本(video-script) vs 文案(text-generation): 如果用户提到"视频"、"脚本"、"分镜"、"拍摄"，应该识别为 video-script
 - 活动策划(event-planning) vs 创意点子(creative-idea): 如果用户提到"举办"、"策划"、"活动方案"、"会议"，应该识别为 event-planning
 - UI设计(ui-design) vs 海报设计(poster-design): 如果用户提到"界面"、"APP"、"网页"、"小程序"、"交互"，应该识别为 ui-design
@@ -199,6 +215,30 @@ const isBatchGenerationIntent = (message: string): boolean => {
   return false;
 };
 
+// 检测是否是优化迭代意图（指代词引用 + 优化关键词）
+const isRefinementIntent = (message: string): boolean => {
+  const hasRefReference = REFERENCE_PATTERNS.refinementReference.test(message);
+  const hasRefAction = REFERENCE_PATTERNS.refinementAction.test(message);
+
+  if (hasRefReference && hasRefAction) {
+    return true;
+  }
+
+  // 也检测纯优化关键词模式（针对上一条结果）
+  const pureRefinementPatterns = [
+    /^优化/i,
+    /^调整/i,
+    /^改一下/i,
+    /^换.*颜色/i,
+    /^换.*风格/i,
+    /^更好/i,
+    /^改进/i,
+    /^改善/i,
+  ];
+
+  return pureRefinementPatterns.some(p => p.test(message.trim()));
+};
+
 // 识别用户意图
 export const recognizeIntent = async (
   userMessage: string,
@@ -254,8 +294,25 @@ export const recognizeIntent = async (
         intent = 'batch-generation';
       }
 
-      // 如果置信度低于阈值，降级为 general 意图
+      // 检测 refinement 意图（指代词 + 优化关键词）
+      if (isRefinementIntent(userMessage)) {
+        intent = 'refinement';
+      }
+
+      // 如果置信度低于阈值但不是复合或优化意图，降级为需要澄清
       if (confidence < CONFIDENCE_THRESHOLD && intent !== 'general' && intent !== 'greeting' && intent !== 'help') {
+        // 检查是否应该标记为需要澄清而非直接降级
+        if (confidence >= 0.5) {
+          return {
+            intent: intent,
+            confidence: confidence,
+            params: result.params || {},
+            reasoning: result.reasoning || `置信度较低(${Math.round(confidence * 100)}%)，需要确认`,
+            entities,
+            clarificationNeeded: true,
+            clarificationQuestion: result.clarificationQuestion || `我注意到您的需求可能涉及多个方面，您是指...？`,
+          };
+        }
         console.log(`[IntentService] Confidence ${confidence} below threshold ${CONFIDENCE_THRESHOLD}, falling back to general`);
         return {
           intent: 'general',
@@ -271,6 +328,8 @@ export const recognizeIntent = async (
         params: result.params || {},
         reasoning: result.reasoning || '',
         entities,
+        clarificationNeeded: result.clarificationNeeded || false,
+        clarificationQuestion: result.clarificationQuestion,
       };
     } catch (parseError) {
       console.error('[IntentService] Failed to parse intent response:', response);
@@ -360,6 +419,22 @@ const fallbackIntentRecognition = (
       params: extractParams(lowerMessage),
       reasoning: '检测到图片优化类关键词（美化/优化/改善），判定为图片美化意图',
       reasoningSteps,
+      entities,
+    };
+  }
+
+  // 检测优化迭代意图（指代词引用 + 优化关键词）
+  if (isRefinementIntent(message)) {
+    reasoningSteps.push('检测到优化迭代关键词');
+    reasoningSteps.push('检测到指代词引用');
+    reasoningSteps.push('判定为优化迭代意图');
+    return {
+      intent: 'refinement',
+      confidence: 0.95,
+      params: extractParams(message),
+      reasoning: '检测到对之前生成结果的优化迭代请求',
+      reasoningSteps,
+      entities,
     };
   }
 
@@ -675,6 +750,8 @@ export const getIntentDisplayName = (intent: IntentType): string => {
     'data-report': '数据分析报告',
     'web-search': '联网搜索',
     'batch-generation': '批量生成',
+    'compound-generation': '复合任务',
+    'refinement': '优化迭代',
     'general': '一般对话',
     'greeting': '问候',
     'help': '帮助',
@@ -707,6 +784,8 @@ export const getIntentColor = (intent: IntentType): string => {
     'data-report': 'from-sky-500 to-blue-500',
     'web-search': 'from-blue-600 to-cyan-400',
     'batch-generation': 'from-teal-500 to-cyan-500',
+    'compound-generation': 'from-amber-500 to-orange-500',
+    'refinement': 'from-rose-500 to-pink-500',
     'general': 'from-gray-500 to-gray-600',
     'greeting': 'from-green-500 to-teal-500',
     'help': 'from-blue-500 to-indigo-500',

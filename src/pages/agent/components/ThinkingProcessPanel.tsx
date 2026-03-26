@@ -341,7 +341,7 @@ export const ThinkingIndicator: React.FC<{
   );
 };
 
-// 内联思考过程（用于消息内部展示）
+// 内联思考过程（用于消息内部展示）- 顶部折叠面板样式
 export const InlineThinkingProcess: React.FC<{
   steps: ThinkingStep[];
 }> = ({ steps }) => {
@@ -349,46 +349,80 @@ export const InlineThinkingProcess: React.FC<{
 
   if (steps.length === 0) return null;
 
+  const allCompleted = steps.every(s => s.status === 'completed');
+  const hasError = steps.some(s => s.status === 'error');
+
   return (
-    <div className="mt-3 pt-3 border-t border-gray-200">
+    <div className="mb-3 border border-gray-200 rounded-lg overflow-hidden bg-gray-50/50">
+      {/* 折叠按钮 */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-100 transition-colors"
       >
-        <Brain className="w-3 h-3" />
-        <span>思考过程 ({steps.length}步)</span>
-        {isExpanded ? (
-          <ChevronUp className="w-3 h-3" />
-        ) : (
-          <ChevronDown className="w-3 h-3" />
-        )}
+        <div className="flex items-center gap-2">
+          <Brain className="w-4 h-4 text-blue-500" />
+          <span className="font-medium text-gray-700">展示思考过程</span>
+          {allCompleted && (
+            <CheckCircle2 className="w-3 h-3 text-green-500" />
+          )}
+          {hasError && (
+            <AlertCircle className="w-3 h-3 text-red-500" />
+          )}
+        </div>
+        <motion.div
+          animate={{ rotate: isExpanded ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ChevronDown className="w-4 h-4 text-gray-400" />
+        </motion.div>
       </button>
 
+      {/* 展开内容 */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="mt-2 space-y-1"
+            transition={{ duration: 0.2 }}
+            className="border-t border-gray-200"
           >
-            {steps.map((step) => {
-              const config = STEP_CONFIG[step.type];
-              return (
-                <div 
-                  key={step.id}
-                  className="flex items-center gap-2 text-xs"
-                >
-                  <StatusIcon status={step.status} />
-                  <span className={config.color}>{config.label}</span>
-                  {step.summary && (
-                    <span className="text-gray-500 truncate">
-                      - {step.summary}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+            <div className="p-3 space-y-2">
+              {steps.map((step, index) => {
+                const config = STEP_CONFIG[step.type];
+                const duration = step.endTime && step.startTime 
+                  ? ((step.endTime - step.startTime) / 1000).toFixed(2)
+                  : null;
+                
+                return (
+                  <div 
+                    key={step.id}
+                    className="flex items-start gap-2 text-xs"
+                  >
+                    <div className="mt-0.5">
+                      <StatusIcon status={step.status} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-medium ${config.color}`}>
+                          {config.label}
+                        </span>
+                        {duration && (
+                          <span className="text-gray-400 text-[10px]">
+                            {duration}s
+                          </span>
+                        )}
+                      </div>
+                      {step.summary && (
+                        <p className="text-gray-600 mt-0.5 leading-relaxed">
+                          {step.summary}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

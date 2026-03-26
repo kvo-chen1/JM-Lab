@@ -18,7 +18,7 @@ import { ThinkingDecisionPanel } from './thinking';
 import { InlineThinkingProcess } from './ThinkingProcessPanel';
 import type { ThinkingSession } from '../types/thinking';
 import ImageLightbox from './ImageLightbox';
-import ColorSchemeSelector, { parseColorSchemesFromContent, parseOptionsFromContent } from './ColorSchemeSelector';
+import ColorSchemeSelector, { parseColorSchemesFromContent } from './ColorSchemeSelector';
 import { generateVideo } from '../services/agentService';
 import { AgentError } from '../types/errors';
 import { ChevronDown, ChevronUp, Lightbulb, Wand2, Users, Loader2, Share2, LayoutTemplate, PanelRight, CheckCircle } from 'lucide-react';
@@ -1790,57 +1790,6 @@ export default function ChatMessage({
               ) : null;
             })()}
 
-            {/* 自动检测消息中的选项列表并渲染为可点击按钮 */}
-            {!isUser && (() => {
-              const options = parseOptionsFromContent(message.content);
-              return options && options.length >= 2 ? (
-                <div className="mt-4 space-y-2">
-                  <p className={`text-sm font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    点击选择：
-                  </p>
-                  {options.map((option, index) => (
-                    <motion.button
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      whileHover={{ scale: 1.02, x: 4 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        addMessage({
-                          role: 'user',
-                          content: option,
-                          type: 'text'
-                        });
-                        toast.success(`已选择：${option}`);
-                      }}
-                      className={`
-                        w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all
-                        ${isDark
-                          ? 'bg-gray-800/80 border border-gray-700 hover:border-[#C02C38]/50 hover:bg-gray-800'
-                          : 'bg-white border border-gray-200 hover:border-[#C02C38]/50 hover:bg-gray-50'
-                        }
-                      `}
-                    >
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-                        isDark
-                          ? 'bg-gray-700 text-gray-300'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {index + 1}
-                      </div>
-                      <span className={`flex-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                        {option}
-                      </span>
-                      <svg className={`w-5 h-5 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </motion.button>
-                  ))}
-                </div>
-              ) : null;
-            })()}
-
             {/* 在画布生成按钮 - 暂时隐藏，因为功能重复且位置不合适 */}
             {/* {!isUser && message.content && message.content.length > 100 && (
               <div className="mt-4 flex gap-2">
@@ -1980,22 +1929,22 @@ export default function ChatMessage({
             </motion.div>
           )}
 
-          {/* Timestamp */}
-          <span className={`text-xs mt-1 px-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            {formatTime(message.timestamp)}
-          </span>
+          {/* Timestamp 和 Feedback - 放在同一行 */}
+          <div className="flex items-center justify-between mt-1 px-1">
+            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              {formatTime(message.timestamp)}
+            </span>
 
-          {/* Feedback Buttons - only for AI messages */}
-          {!isUser && isLast && (
-            <div className="mt-2">
+            {/* Feedback Buttons - only for AI messages and completed responses */}
+            {!isUser && isLast && !message.metadata?.thinking && (
               <FeedbackButtons
                 messageId={message.id}
                 messageContent={message.content}
                 agentType={agentRole}
                 userQuery={userQuery}
               />
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </motion.div>
 

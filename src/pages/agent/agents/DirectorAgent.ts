@@ -377,41 +377,106 @@ ${JSON.stringify(output, null, 2)}
   }
 
   /**
-   * 生成信息收集消息
+   * 生成信息收集消息 - 结构化表格格式
    */
   private async generateCollectionMessage(analysis: RequirementAnalysis): Promise<string> {
     const questions = this.analysisService.generateFollowUpQuestions(analysis);
     
     let message = '';
     
-    // 确认已理解的信息
-    if (analysis.confidence > 0.4) {
-      message += '**我已经理解了您的部分需求：**\n\n';
+    // 标题
+    const projectTypeName = analysis.projectType !== 'unknown' 
+      ? this.getProjectTypeName(analysis.projectType) 
+      : '设计';
+    message += `获取${projectTypeName}的关键信息\n\n`;
+    
+    // 使用 Markdown 表格展示需求项
+    if (questions.length > 0) {
+      message += '| 需求项 | 问题描述 |\n';
+      message += '|--------|----------|\n';
       
-      if (analysis.projectType !== 'unknown') {
-        message += `- 项目类型：**${this.getProjectTypeName(analysis.projectType)}**\n`;
-      }
-      if (analysis.requirements.targetAudience) {
-        message += `- 目标受众：**${analysis.requirements.targetAudience}**\n`;
-      }
-      if (analysis.requirements.stylePreference) {
-        message += `- 风格偏好：**${analysis.requirements.stylePreference}**\n`;
-      }
+      // 将问题映射到标准需求项
+      const requirementItems = this.mapQuestionsToRequirementItems(questions, analysis);
+      
+      requirementItems.forEach(item => {
+        message += `| **${item.label}** | ${item.question} |\n`;
+      });
       
       message += '\n';
     }
 
-    // 询问缺失信息
-    if (questions.length > 0) {
-      message += '**为了给您做出最合适的设计，我还想了解：**\n\n';
-      questions.forEach((q, i) => {
-        message += `${i + 1}. ${q}\n`;
-      });
-    }
-
-    message += '\n💡 **小贴士**：您也可以直接说"开始设计"或"你决定"，我会基于专业判断为您创作。';
+    message += '💡 **小贴士**：您也可以直接说"开始设计"或"你决定"，我会基于专业判断为您创作。';
 
     return message;
+  }
+
+  /**
+   * 将问题映射到标准需求项
+   */
+  private mapQuestionsToRequirementItems(
+    questions: string[], 
+    analysis: RequirementAnalysis
+  ): Array<{ label: string; question: string }> {
+    const items: Array<{ label: string; question: string }> = [];
+    
+    // 根据项目类型确定标准需求项
+    const projectType = analysis.projectType;
+    
+    // 通用需求项映射
+    const questionMappings: Record<string, { label: string; patterns: string[] }> = {
+      '主题': { 
+        label: projectType === 'poster' ? '海报主题' : '设计主题', 
+        patterns: ['主题', '核心', '宣传点', '设计什么'] 
+      },
+      '场景': { 
+        label: '使用场景', 
+        patterns: ['场景', '用在哪里', '使用', '用途'] 
+      },
+      '尺寸': { 
+        label: projectType === 'packaging' ? '包装尺寸' : '尺寸要求', 
+        patterns: ['尺寸', '大小', '规格', '格式'] 
+      },
+      '文案': { 
+        label: '文案内容', 
+        patterns: ['文案', '文字', '内容', '标语', '写什么'] 
+      },
+      '风格': { 
+        label: '视觉风格', 
+        patterns: ['风格', '样式', '外观', '感觉'] 
+      },
+      '受众': { 
+        label: '目标受众', 
+        patterns: ['受众', '人群', '面向', '给谁'] 
+      },
+      '品牌': { 
+        label: '品牌信息', 
+        patterns: ['品牌', '名称', 'logo', '标识'] 
+      },
+      '颜色': { 
+        label: '色彩偏好', 
+        patterns: ['颜色', '色彩', '配色', '色调'] 
+      }
+    };
+    
+    // 为每个问题匹配需求项
+    questions.forEach((q, index) => {
+      let matched = false;
+      
+      for (const [key, mapping] of Object.entries(questionMappings)) {
+        if (mapping.patterns.some(pattern => q.includes(pattern))) {
+          items.push({ label: mapping.label, question: q });
+          matched = true;
+          break;
+        }
+      }
+      
+      // 如果没有匹配到，使用通用标签
+      if (!matched) {
+        items.push({ label: `需求项${index + 1}`, question: q });
+      }
+    });
+    
+    return items;
   }
 
   /**

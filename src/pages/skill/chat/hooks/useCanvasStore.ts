@@ -21,10 +21,56 @@ export interface WorkItem {
   isFavorite?: boolean;
   status?: 'generating' | 'completed' | 'error';
   metadata?: Record<string, unknown>;
+  // 元素分离相关
+  isolatedElements?: IsolatedElement[];
+  isElementSeparated?: boolean;
+  originalImageUrl?: string;
 }
 
 export type CanvasTool = 'select' | 'hand' | 'move';
 export type ViewMode = 'gallery' | 'grid';
+
+// 元素分离相关类型
+export type ElementType = 'product' | 'text' | 'logo' | 'background' | 'decoration' | 'unknown';
+
+export interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ElementTransform {
+  scale: number;
+  rotation: number;
+  flipX: boolean;
+  flipY: boolean;
+}
+
+export interface ElementStyle {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  hue: number;
+  opacity: number;
+  blendMode: string;
+}
+
+export interface IsolatedElement {
+  id: string;
+  parentWorkId: string;
+  name: string;
+  type: ElementType;
+  originalBounds: Bounds;
+  isolatedImageUrl: string;
+  maskUrl?: string;
+  position: CardPosition;
+  transform: ElementTransform;
+  style: ElementStyle;
+  isVisible: boolean;
+  isLocked: boolean;
+  zIndex: number;
+}
 
 interface CanvasState {
   // 画布位置和缩放
@@ -46,6 +92,12 @@ interface CanvasState {
 
   // 编辑状态
   editingWorkId: string | null;
+  
+  // 元素分离编辑状态
+  isolatedElements: IsolatedElement[];
+  selectedElementId: string | null;
+  isElementEditMode: boolean;
+  elementEditWorkId: string | null;
   
   // 持久化状态
   _hasHydrated: boolean;
@@ -73,6 +125,20 @@ interface CanvasState {
   setIsSpacePressed: (pressed: boolean) => void;
   
   setEditingWorkId: (id: string | null) => void;
+  
+  // 元素分离编辑 Actions
+  enterElementEditMode: (workId: string, elements?: IsolatedElement[]) => void;
+  exitElementEditMode: (save: boolean) => void;
+  addIsolatedElement: (element: IsolatedElement) => void;
+  updateIsolatedElement: (id: string, updates: Partial<IsolatedElement>) => void;
+  deleteIsolatedElement: (id: string) => void;
+  selectIsolatedElement: (id: string | null) => void;
+  updateElementTransform: (id: string, transform: Partial<ElementTransform>) => void;
+  updateElementStyle: (id: string, style: Partial<ElementStyle>) => void;
+  updateElementPosition: (id: string, position: Partial<CardPosition>) => void;
+  reorderElements: (elementIds: string[]) => void;
+  toggleElementVisibility: (id: string) => void;
+  toggleElementLock: (id: string) => void;
 }
 
 const DEFAULT_ZOOM = 100;
@@ -113,6 +179,13 @@ export const useCanvasStore = create<CanvasState>()(
       isDragging: false,
   isSpacePressed: false,
   editingWorkId: null,
+  
+  // 元素分离编辑状态初始值
+  isolatedElements: [],
+  selectedElementId: null,
+  isElementEditMode: false,
+  elementEditWorkId: null,
+  
   _hasHydrated: false,
   
   // 画布位置操作
@@ -184,6 +257,111 @@ export const useCanvasStore = create<CanvasState>()(
 
   // 编辑状态
   setEditingWorkId: (id) => set({ editingWorkId: id }),
+  
+  // 元素分离编辑 Actions
+  enterElementEditMode: (workId, elements) => set((state) => {
+    const work = state.works.find(w => w.id === workId);
+    if (!work) return {};
+    
+    // 如果作品已有分离的元素，使用它们；否则使用传入的或空数组
+    const isolatedElements = elements || work.isolatedElements || [];
+    
+    return {
+      isElementEditMode: true,
+      elementEditWorkId: workId,
+      isolatedElements,
+      selectedElementId: null,
+      // 重置画布位置以便编辑
+      canvasPosition: { x: 0, y: 0 },
+      canvasZoom: 100,
+    };
+  }),
+  
+  exitElementEditMode: (save) => set((state) => {
+    if (save && state.elementEditWorkId) {
+      // 保存分离的元素到对应的作品
+      const updatedWorks = state.works.map(work => 
+        work.id === state.elementEditWorkId
+          ? { 
+              ...work, 
+              isolatedElements: state.isolatedElements,
+              isElementSeparated: state.isolatedElements.length > 0,
+            }
+          : work
+      );
+      return {
+        works: updatedWorks,
+        isElementEditMode: false,
+        elementEditWorkId: null,
+        isolatedElements: [],
+        selectedElementId: null,
+      };
+    }
+    
+    // 不保存，直接退出
+    return {
+      isElementEditMode: false,
+      elementEditWorkId: null,
+      isolatedElements: [],
+      selectedElementId: null,
+    };
+  }),
+  
+  addIsolatedElement: (element) => set((state) => ({
+    isolatedElements: [...state.isolatedElements, element],
+  })),
+  
+  updateIsolatedElement: (id, updates) => set((state) => ({
+    isolatedElements: state.isolatedElements.map(el =>
+      el.id === id ? { ...el, ...updates } : el
+    ),
+  })),
+  
+  deleteIsolatedElement: (id) => set((state) => ({
+    isolatedElements: state.isolatedElements.filter(el => el.id !== id),
+    selectedElementId: state.selectedElementId === id ? null : state.selectedElementId,
+  })),
+  
+  selectIsolatedElement: (id) => set({ selectedElementId: id }),
+  
+  updateElementTransform: (id, transform) => set((state) => ({
+    isolatedElements: state.isolatedElements.map(el =>
+      el.id === id ? { ...el, transform: { ...el.transform, ...transform } } : el
+    ),
+  })),
+  
+  updateElementStyle: (id, style) => set((state) => ({
+    isolatedElements: state.isolatedElements.map(el =>
+      el.id === id ? { ...el, style: { ...el.style, ...style } } : el
+    ),
+  })),
+  
+  updateElementPosition: (id, position) => set((state) => ({
+    isolatedElements: state.isolatedElements.map(el =>
+      el.id === id ? { ...el, position: { ...el.position, ...position } } : el
+    ),
+  })),
+  
+  reorderElements: (elementIds) => set((state) => {
+    const elementMap = new Map(state.isolatedElements.map(el => [el.id, el]));
+    const reordered = elementIds
+      .map(id => elementMap.get(id))
+      .filter((el): el is IsolatedElement => el !== undefined)
+      .map((el, index) => ({ ...el, zIndex: index }));
+    return { isolatedElements: reordered };
+  }),
+  
+  toggleElementVisibility: (id) => set((state) => ({
+    isolatedElements: state.isolatedElements.map(el =>
+      el.id === id ? { ...el, isVisible: !el.isVisible } : el
+    ),
+  })),
+  
+  toggleElementLock: (id) => set((state) => ({
+    isolatedElements: state.isolatedElements.map(el =>
+      el.id === id ? { ...el, isLocked: !el.isLocked } : el
+    ),
+  })),
   
   // 持久化状态
   setHasHydrated: (state) => set({ _hasHydrated: state }),

@@ -338,7 +338,163 @@ const COMPLEX_PATTERNS = [
   /先.*再.*最后.*/,
   /品牌设计/,
   /VI系统/,
+  /包括.*和.*/,
+  /包含.*和.*/,
+  /以及.*和.*/,
 ];
+
+// 复合任务连接词（用于识别跨领域需求）
+const COMPOUND_CONNECTORS = ['和', '与', '以及', '还有', '包括', '包含', '加', '+'];
+
+// 跨领域复合任务检测
+export interface CompoundTaskInfo {
+  isCompound: boolean;
+  brandName?: string;
+  tasks: Array<{
+    name: string;
+    skill: IntentType;
+    type: 'image' | 'text' | 'design';
+    prompt: string;
+  }>;
+}
+
+/**
+ * 检测是否是跨领域复合任务
+ * 例如："帮我设计一个品牌，包括Logo、名片和宣传册"
+ */
+export const detectCompoundTask = (
+  message: string,
+  context?: {
+    previousIntent?: IntentType;
+    previousImageUrl?: string;
+  }
+): CompoundTaskInfo => {
+  // 检测是否包含复合连接词
+  const hasConnector = COMPOUND_CONNECTORS.some(connector => message.includes(connector));
+
+  if (!hasConnector) {
+    return { isCompound: false, tasks: [] };
+  }
+
+  // 分割消息为多个部分
+  const parts = splitByConnectors(message);
+
+  if (parts.length < 2) {
+    return { isCompound: false, tasks: [] };
+  }
+
+  // 提取品牌名称
+  const brandName = extractBrandNameFromMessage(message);
+
+  // 识别每个部分的物料类型
+  const tasks: CompoundTaskInfo['tasks'] = [];
+  let hasMultipleTypes = false;
+  let previousType: string | null = null;
+
+  for (const part of parts) {
+    const materialType = recognizeMaterialType(part);
+
+    if (materialType) {
+      // 检查是否涉及多种类型
+      if (previousType && previousType !== materialType.type) {
+        hasMultipleTypes = true;
+      }
+      previousType = materialType.type;
+
+      let prompt = part;
+      if (brandName) {
+        prompt = `为品牌"${brandName}"${part}`;
+      }
+
+      tasks.push({
+        name: materialType.name,
+        skill: materialType.skill,
+        type: materialType.type,
+        prompt: prompt.trim(),
+      });
+    }
+  }
+
+  // 只有当有多个不同类型的任务时才认为是复合任务
+  if (tasks.length >= 2 && hasMultipleTypes) {
+    return {
+      isCompound: true,
+      brandName,
+      tasks,
+    };
+  }
+
+  return { isCompound: false, tasks: [] };
+};
+
+/**
+ * 使用连接词分割消息
+ */
+const splitByConnectors = (message: string): string[] => {
+  // 构建分割正则表达式
+  const connectorPattern = COMPOUND_CONNECTORS.map(c => {
+    if (c === '+') return '\\+';
+    return c;
+  }).join('|');
+
+  const regex = new RegExp(`[${connectorPattern.replace(/\|/g, '')}]`, 'g');
+
+  // 分割消息
+  const parts = message.split(regex).map(p => p.trim()).filter(p => p.length > 0);
+
+  return parts;
+};
+
+/**
+ * 识别模糊需求（用于任务拆解）
+ */
+export interface VagueTaskInfo {
+  isVague: boolean;
+  baseIntent?: IntentType;
+  vagueAspects: string[];
+  suggestedQuestions: string[];
+}
+
+/**
+ * 检测模糊需求
+ */
+export const detectVagueTask = (
+  message: string,
+  currentIntent: IntentType
+): VagueTaskInfo => {
+  const vaguePatterns: Record<string, { keywords: string[]; question: string }> = {
+    'poster-design': {
+      keywords: ['好看的', '好看的', '漂亮的', '酷的', '帅的', '好看的海报'],
+      question: '您想要什么主题或风格的海报？比如促销活动、个人展示、节日祝福等',
+    },
+    'logo-design': {
+      keywords: ['好看的', '好看的', '好看的', '酷的', '帅的', '好看的logo'],
+      question: '您想要什么风格或行业的Logo？比如科技感、简约风格、餐饮行业等',
+    },
+    'image-generation': {
+      keywords: ['好看的', '好看的', '漂亮的', '酷的', '帅的'],
+      question: '您想要什么样主题或风格的图片？',
+    },
+  };
+
+  const config = vaguePatterns[currentIntent];
+  if (!config) {
+    return { isVague: false, vagueAspects: [], suggestedQuestions: [] };
+  }
+
+  const matchedKeywords = config.keywords.filter(kw => message.includes(kw));
+
+  if (matchedKeywords.length > 0) {
+    return {
+      isVague: true,
+      baseIntent: currentIntent,
+      vagueAspects: matchedKeywords,
+      suggestedQuestions: [config.question],
+    };
+  }
+
+  return { isVague: false, vagueAspects: [], suggestedQuestions: [] };
+};
 
 // 批量任务关键词
 const BATCH_PATTERNS = [
@@ -733,6 +889,138 @@ export const extractBrandNameFromMessage = (message: string): string | undefined
 
   return undefined;
 };
+
+// ==================== 批量任务智能执行策略 ====================
+
+export interface BatchExecutionGroup {
+  id: string;
+  name: string;
+  tasks: BatchTask[];
+  priority: number;
+  canParallel: boolean;
+}
+
+export interface BatchExecutionPlan {
+  groups: BatchExecutionGroup[];
+  estimatedTime: number;
+  parallelizableIndices: number[];
+}
+
+const TASK_PRIORITY_MAP: Record<string, number> = {
+  'logo-design': 1,
+  'color-scheme': 2,
+  'brand-copy': 3,
+  'poster-design': 4,
+  'marketing-copy': 5,
+  'social-copy': 6,
+  'video-script': 7,
+  'default': 10,
+};
+
+const TASK_TYPE_GROUPS: Record<string, string[]> = {
+  'brand-identity': ['logo-design', 'color-scheme'],
+  'marketing-materials': ['poster-design', 'marketing-copy', 'social-copy'],
+  'content': ['brand-copy', 'video-script'],
+};
+
+export class BatchExecutionStrategy {
+  /**
+   * 将任务分组以优化执行顺序
+   */
+  static groupTasks(tasks: BatchTask[]): BatchExecutionGroup[] {
+    const groups: Map<string, BatchExecutionGroup> = new Map();
+
+    // 按类型分组
+    for (const task of tasks) {
+      let groupId: string;
+      let groupName: string;
+
+      if (['logo-design', 'color-scheme'].includes(task.skill)) {
+        groupId = 'brand-identity';
+        groupName = '品牌基础识别';
+      } else if (['poster-design', 'marketing-copy', 'social-copy'].includes(task.skill)) {
+        groupId = 'marketing-materials';
+        groupName = '营销物料';
+      } else if (['brand-copy', 'video-script'].includes(task.skill)) {
+        groupId = 'content';
+        groupName = '内容创作';
+      } else {
+        groupId = `other-${task.type}`;
+        groupName = `其他${task.type === 'design' ? '设计' : '内容'}`;
+      }
+
+      if (!groups.has(groupId)) {
+        groups.set(groupId, {
+          id: groupId,
+          name: groupName,
+          tasks: [],
+          priority: TASK_PRIORITY_MAP[task.skill] || TASK_PRIORITY_MAP['default'],
+          canParallel: false,
+        });
+      }
+
+      groups.get(groupId)!.tasks.push(task);
+    }
+
+    // 转换为数组并排序
+    const groupArray = Array.from(groups.values());
+    groupArray.sort((a, b) => a.priority - b.priority);
+
+    return groupArray;
+  }
+
+  /**
+   * 分析任务依赖关系
+   */
+  static analyzeDependencies(tasks: BatchTask[]): {
+    canParallel: boolean[];
+    parallelizableIndices: number[];
+  } {
+    const canParallel = new Array(tasks.length).fill(true);
+    const parallelizableIndices: number[] = [];
+
+    for (let i = 0; i < tasks.length; i++) {
+      if (tasks[i].dependencies && tasks[i].dependencies.length > 0) {
+        canParallel[i] = false;
+      } else {
+        parallelizableIndices.push(i);
+      }
+    }
+
+    return { canParallel, parallelizableIndices };
+  }
+
+  /**
+   * 生成执行计划
+   */
+  static generateExecutionPlan(tasks: BatchTask[]): BatchExecutionPlan {
+    const groups = this.groupTasks(tasks);
+    const { canParallel, parallelizableIndices } = this.analyzeDependencies(tasks);
+
+    const baseTimePerTask = 5000;
+    const estimatedTime = tasks.length * baseTimePerTask;
+
+    return {
+      groups,
+      estimatedTime,
+      parallelizableIndices,
+    };
+  }
+
+  /**
+   * 优化任务顺序
+   */
+  static optimizeTaskOrder(tasks: BatchTask[]): BatchTask[] {
+    const groups = this.groupTasks(tasks);
+    const optimized: BatchTask[] = [];
+
+    for (const group of groups) {
+      optimized.push(...group.tasks);
+    }
+
+    return optimized;
+  }
+}
 
 // 定期清理旧任务流
 setInterval(() => {

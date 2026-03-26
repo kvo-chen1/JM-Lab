@@ -181,6 +181,20 @@ export class ThinkingRecorder {
   }
 
   /**
+   * 获取当前会话的步骤列表
+   */
+  getSessionSteps(): ThinkingStep[] {
+    return this.currentSession?.steps || [];
+  }
+
+  /**
+   * 检查是否有活跃的会话
+   */
+  isSessionActive(): boolean {
+    return this.currentSession !== null && this.currentSession.status === 'running';
+  }
+
+  /**
    * 完成当前会话
    */
   completeSession(): ThinkingSession | null {

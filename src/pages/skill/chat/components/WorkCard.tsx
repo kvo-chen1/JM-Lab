@@ -22,7 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   Zap,
-  X
+  X,
+  Layers
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { performQuickEdit } from '../services/quickEditService';
@@ -277,7 +278,7 @@ export const WorkCard: React.FC<WorkCardProps> = ({
   onDragEnd,
 }) => {
   const { isDark } = useTheme();
-  const { editingWorkId, setEditingWorkId, addWork } = useCanvasStore();
+  const { editingWorkId, setEditingWorkId, addWork, enterElementEditMode } = useCanvasStore();
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
